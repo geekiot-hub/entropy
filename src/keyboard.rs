@@ -118,14 +118,11 @@ impl KeyboardLayout {
 
         let mut keys = Vec::new();
 
-        // KLE global cursor state
+        // KLE global cursor state (persists across rows)
         let mut cur_x: f32 = 0.0;
         let mut cur_y: f32 = 0.0;
-        // rx/ry: "rotation anchor" but in vial split keyboards it doubles as
-        // a row-start reset point (absolute position for the next KLE row)
         let mut rotation_x: f32 = 0.0;
         let mut rotation_y: f32 = 0.0;
-        let mut _rotation_angle: f32 = 0.0;
 
         for kle_row in keymap {
             let row_items = match kle_row.as_array() {
@@ -133,30 +130,25 @@ impl KeyboardLayout {
                 None => continue,
             };
 
-            // Per-key defaults reset at start of each KLE row
             let mut next_w: f32 = 1.0;
             let mut next_h: f32 = 1.0;
-            // Track if rx/ry was set in this row (resets cur position)
-            let mut row_started = false;
+            // Did this row reset the cursor via rx/ry?
+            let mut has_anchor = false;
 
             for item in row_items {
                 if let Some(obj) = item.as_object() {
-                    // rx/ry: absolute anchor — resets cursor for this row's cluster
-                    if let Some(rx) = obj.get("rx").and_then(|v| v.as_f64()) {
-                        rotation_x = rx as f32;
+                    // rx/ry: absolute anchor — process atomically
+                    let new_rx = obj.get("rx").and_then(|v| v.as_f64()).map(|v| v as f32);
+                    let new_ry = obj.get("ry").and_then(|v| v.as_f64()).map(|v| v as f32);
+                    if new_rx.is_some() || new_ry.is_some() {
+                        if let Some(rx) = new_rx { rotation_x = rx; }
+                        if let Some(ry) = new_ry { rotation_y = ry; }
                         cur_x = rotation_x;
                         cur_y = rotation_y;
-                        row_started = true;
+                        has_anchor = true;
                     }
-                    if let Some(ry) = obj.get("ry").and_then(|v| v.as_f64()) {
-                        rotation_y = ry as f32;
-                        cur_y = rotation_y;
-                        row_started = true;
-                    }
-                    if let Some(r) = obj.get("r").and_then(|v| v.as_f64()) {
-                        _rotation_angle = r as f32;
-                    }
-                    // x/y: deltas applied to current cursor
+
+                    // x/y: deltas on current cursor
                     if let Some(x) = obj.get("x").and_then(|v| v.as_f64()) {
                         cur_x += x as f32;
                     }
@@ -178,12 +170,8 @@ impl KeyboardLayout {
                         continue;
                     }
 
-                    // Parse matrix position from label "row,col"
                     let (mat_row, mat_col) = parse_matrix_from_label(label)
                         .unwrap_or(((keys.len() / cols.max(1)) as u8, (keys.len() % cols.max(1)) as u8));
-
-                    // Display label: first line of label is "row,col", use it directly
-                    let display_label = format!("{},{}", mat_row, mat_col);
 
                     keys.push(PhysicalKey {
                         x: cur_x,
@@ -192,21 +180,19 @@ impl KeyboardLayout {
                         h: next_h,
                         row: mat_row,
                         col: mat_col,
-                        label: display_label,
+                        label: format!("{},{}", mat_row, mat_col),
                     });
 
                     cur_x += next_w;
-
-                    // w/h reset after each key
                     next_w = 1.0;
                     next_h = 1.0;
                 }
             }
 
-            // End of KLE row: if no rx/ry reset happened, advance y by 1
-            if !row_started {
+            // End of KLE row: if no anchor was set, advance y by 1 and reset x to rotation anchor
+            if !has_anchor {
                 cur_y += 1.0;
-                cur_x = 0.0;
+                cur_x = rotation_x; // reset to last rx, NOT zero
             }
         }
 
