@@ -147,7 +147,7 @@ impl eframe::App for EntropyApp {
                             self.selected_key = Some((self.selected_layer, key_idx));
                         }
 
-                        painter.rect(rect, 6.0, bg, Stroke::new(1.0, Color32::from_gray(80)));
+                        painter.rect(rect, 6.0, bg, Stroke::new(1.0, Color32::from_gray(80)), egui::StrokeKind::Inside);
                         painter.text(
                             rect.center(),
                             egui::Align2::CENTER_CENTER,
