@@ -92,6 +92,11 @@ impl EntropyApp {
                 let json = vial.get_layout_json()
                     .map_err(|e| format!("Layout read failed: {e}"))?;
                 log::info!("Layout JSON received, parsing…");
+                // Debug: dump raw JSON to file so we can inspect the format
+                if let Ok(s) = serde_json::to_string_pretty(&json) {
+                    let _ = std::fs::write("vial_layout_dump.json", &s);
+                    log::info!("Dumped layout JSON to vial_layout_dump.json");
+                }
 
                 let mut layout = KeyboardLayout::from_vial_json(&json)
                     .map_err(|e| format!("Layout parse failed: {e}"))?;
