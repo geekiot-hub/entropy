@@ -1,0 +1,34 @@
+[package]
+name = "entropy"
+version = "0.1.0"
+edition = "2021"
+description = "Ergohaven keyboard configurator"
+authors = ["Ergohaven"]
+license = "MIT"
+repository = "https://github.com/ergohaven/entropy"
+
+[[bin]]
+name = "entropy"
+path = "src/main.rs"
+
+[dependencies]
+eframe = "0.31"
+egui = "0.31"
+hidapi = "2.6"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+log = "0.4"
+env_logger = "0.11"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+hidapi = "2.6"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = ["Window"] }
+getrandom = { version = "0.2", features = ["js"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true
