@@ -117,7 +117,8 @@ impl VialDevice {
         }
 
         // Decompress LZMA
-        let decompressed = lzma_rs::lzma_decompress(&mut &payload[..])
+        let mut decompressed = Vec::new();
+        lzma_rs::lzma_decompress(&mut &payload[..], &mut decompressed)
             .context("Failed to decompress vial definition (lzma)")?;
 
         let json_str = std::str::from_utf8(&decompressed)
