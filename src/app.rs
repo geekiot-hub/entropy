@@ -72,20 +72,29 @@ impl EntropyApp {
             let result = (|| -> Result<ConnectResult, String> {
                 use crate::vial::VialDevice;
 
+                log::info!("Opening HID device: {}", dev.path);
                 let vial = VialDevice::open(&dev.path)
                     .map_err(|e| format!("Open failed: {e}"))?;
 
-                let layer_count = vial.get_layer_count().unwrap_or(4) as usize;
+                log::info!("Getting layer count…");
+                let layer_count = vial.get_layer_count()
+                    .map(|c| c as usize)
+                    .unwrap_or_else(|e| { log::warn!("get_layer_count failed: {e}, defaulting to 4"); 4 });
+                log::info!("Layer count: {layer_count}");
 
+                log::info!("Getting layout JSON…");
                 let json = vial.get_layout_json()
                     .map_err(|e| format!("Layout read failed: {e}"))?;
+                log::info!("Layout JSON received, parsing…");
 
                 let mut layout = KeyboardLayout::from_vial_json(&json)
                     .map_err(|e| format!("Layout parse failed: {e}"))?;
+                log::info!("Layout parsed: {} keys", layout.keys.len());
 
                 let num_keys = layout.keys.len();
                 layout.layers = vec![vec![0u16; num_keys]; layer_count];
                 for layer in 0..layer_count {
+                    log::info!("Reading layer {layer}…");
                     for (ki, key) in layout.keys.iter().enumerate() {
                         match vial.get_keycode(layer as u8, key.row, key.col) {
                             Ok(kc) => layout.layers[layer][ki] = kc,
