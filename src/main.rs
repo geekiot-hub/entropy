@@ -2,6 +2,9 @@ mod app;
 mod device;
 mod keyboard;
 mod keycode;
+mod keycode_picker;
+#[cfg(not(target_arch = "wasm32"))]
+mod vial;
 
 use app::EntropyApp;
 
