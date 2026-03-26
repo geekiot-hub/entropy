@@ -78,6 +78,45 @@ pub fn find_keycode(value: u16) -> Option<&'static Keycode> {
     KEYCODES.iter().find(|k| k.value == value)
 }
 
-pub fn keycode_label(value: u16) -> &'static str {
-    find_keycode(value).map(|k| k.label).unwrap_or("?")
+/// Returns a human-readable label for a keycode.
+/// For unknown keycodes, decodes QMK special forms or falls back to hex.
+pub fn keycode_label(value: u16) -> String {
+    if let Some(kc) = find_keycode(value) {
+        return kc.label.to_string();
+    }
+
+    // QMK special keycode ranges
+    // MO(n) = 0x5100 + n  (momentary layer)
+    // LT(n, kc) = 0x4000 | (n << 8) | kc  — bit 14 set + layer in bits 8-11
+    // OSL(n) = 0x5400 + n
+    // TO(n)  = 0x5000 + n
+    // TG(n)  = 0x5300 + n
+    // DF(n)  = 0x5200 + n
+
+    if value & 0xFF00 == 0x5100 { return format!("MO({})", value & 0xFF); }
+    if value & 0xFF00 == 0x5000 { return format!("TO({})", value & 0xFF); }
+    if value & 0xFF00 == 0x5200 { return format!("DF({})", value & 0xFF); }
+    if value & 0xFF00 == 0x5300 { return format!("TG({})", value & 0xFF); }
+    if value & 0xFF00 == 0x5400 { return format!("OSL({})", value & 0xFF); }
+
+    // LT(layer, kc): bits [13:8] = layer, bits [7:0] = basic keycode, bit 14 set
+    if value & 0xC000 == 0x4000 {
+        let layer = (value >> 8) & 0xF;
+        let kc = value & 0xFF;
+        let kc_str = find_keycode(kc as u16).map(|k| k.label).unwrap_or("?");
+        return format!("LT{}/{}", layer, kc_str);
+    }
+
+    // MT(mod, kc): bits [12:8] = mod, bit 13 set
+    if value & 0xE000 == 0x2000 {
+        let kc = value & 0xFF;
+        let kc_str = find_keycode(kc as u16).map(|k| k.label).unwrap_or("?");
+        return format!("MT/{}", kc_str);
+    }
+
+    // KC_TRNS
+    if value == 0x0001 { return "▽".to_string(); }
+
+    // Unknown — show hex
+    format!("{:04X}", value)
 }
