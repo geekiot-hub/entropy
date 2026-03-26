@@ -33,6 +33,40 @@ pub struct KeyboardLayout {
     pub layers: Vec<Vec<u16>>, // layers[layer][key_idx] = keycode
 }
 
+/// Extract matrix (row, col) for a key.
+/// Vial KLE labels: first line is "row,col", rest is decorative.
+/// If layout_array is present, use that instead (it has explicit matrix entries).
+fn parse_matrix_pos(
+    label: &str,
+    key_index: usize,
+    cols: usize,
+    layout_array: &Option<&Vec<serde_json::Value>>,
+) -> (u8, u8) {
+    // Try layout_array first (most reliable)
+    if let Some(la) = layout_array {
+        if let Some(entry) = la.get(key_index) {
+            // Entry format: {"label": "...", "matrix": [row, col]} or [row, col]
+            if let Some(matrix) = entry.get("matrix").and_then(|v| v.as_array()) {
+                let r = matrix.first().and_then(|v| v.as_u64()).unwrap_or(0) as u8;
+                let c = matrix.get(1).and_then(|v| v.as_u64()).unwrap_or(0) as u8;
+                return (r, c);
+            }
+        }
+    }
+
+    // Try parsing "row,col" from first line of label
+    if let Some(first_line) = label.lines().next() {
+        if let Some((r, c)) = first_line.split_once(',') {
+            if let (Ok(row), Ok(col)) = (r.trim().parse::<u8>(), c.trim().parse::<u8>()) {
+                return (row, col);
+            }
+        }
+    }
+
+    // Fallback: sequential
+    ((key_index / cols.max(1)) as u8, (key_index % cols.max(1)) as u8)
+}
+
 impl KeyboardLayout {
     pub fn get_keycode(&self, layer: usize, key_idx: usize) -> u16 {
         self.layers
@@ -102,7 +136,8 @@ impl KeyboardLayout {
             .and_then(|v| v.as_array());
 
         let mut keys = Vec::new();
-        let mut cur_x: f32;
+        // KLE global state — persists across rows
+        let mut cur_x: f32 = 0.0;
         let mut cur_y: f32 = 0.0;
         let mut key_index: usize = 0;
 
@@ -112,67 +147,44 @@ impl KeyboardLayout {
                 None => continue,
             };
 
-            // Each new KLE row resets x to 0, increments y by 1
+            // Reset x at start of each KLE row; y persists (incremented at end)
             cur_x = 0.0;
             let mut next_w: f32 = 1.0;
             let mut next_h: f32 = 1.0;
-            let mut next_x_offset: f32 = 0.0;
-            let mut next_y_offset: f32 = 0.0;
 
             for item in row_items {
                 if let Some(obj) = item.as_object() {
-                    // Properties object — modifies the next key
+                    // Properties object — x/y deltas are cumulative within this row
                     if let Some(w) = obj.get("w").and_then(|v| v.as_f64()) {
                         next_w = w as f32;
                     }
                     if let Some(h) = obj.get("h").and_then(|v| v.as_f64()) {
                         next_h = h as f32;
                     }
+                    // x delta: adds to current x (persists for next key placement)
                     if let Some(x) = obj.get("x").and_then(|v| v.as_f64()) {
-                        next_x_offset = x as f32;
+                        cur_x += x as f32;
                     }
+                    // y delta: adds to global y (persists across rows!)
                     if let Some(y) = obj.get("y").and_then(|v| v.as_f64()) {
-                        next_y_offset = y as f32;
+                        cur_y += y as f32;
                     }
                 } else if let Some(label) = item.as_str() {
-                    // This is a key
-                    cur_x += next_x_offset;
-                    let key_y = cur_y + next_y_offset;
+                    // Determine matrix row/col
+                    // In vial KLE, key label format is "row,col\n..." or just use layout array
+                    let (mat_row, mat_col) = parse_matrix_pos(label, key_index, cols, &layout_array);
 
-                    // Determine row/col from layout array or fallback to sequential
-                    let (mat_row, mat_col) = if let Some(la) = &layout_array {
-                        if let Some(entry) = la.get(key_index) {
-                            let r = entry
-                                .get("matrix")
-                                .or_else(|| entry.get(0))
-                                .and_then(|v| {
-                                    if let Some(arr) = v.as_array() {
-                                        Some((
-                                            arr.get(0).and_then(|x| x.as_u64()).unwrap_or(0) as u8,
-                                            arr.get(1).and_then(|x| x.as_u64()).unwrap_or(0) as u8,
-                                        ))
-                                    } else {
-                                        None
-                                    }
-                                });
-                            r.unwrap_or(((key_index / cols) as u8, (key_index % cols) as u8))
-                        } else {
-                            ((key_index / cols) as u8, (key_index % cols) as u8)
-                        }
-                    } else {
-                        ((key_index / cols) as u8, (key_index % cols) as u8)
-                    };
-
-                    // Parse label: vial uses "row,col\nlabel" format
+                    // Display label: last non-empty line of the key label
                     let display_label = label
                         .lines()
+                        .filter(|l| !l.is_empty())
                         .last()
-                        .unwrap_or(label)
+                        .unwrap_or("")
                         .to_string();
 
                     keys.push(PhysicalKey {
                         x: cur_x,
-                        y: key_y,
+                        y: cur_y,
                         w: next_w,
                         h: next_h,
                         row: mat_row,
@@ -183,14 +195,13 @@ impl KeyboardLayout {
                     cur_x += next_w;
                     key_index += 1;
 
-                    // Reset per-key overrides
+                    // w/h reset after each key; x/y do NOT reset
                     next_w = 1.0;
                     next_h = 1.0;
-                    next_x_offset = 0.0;
-                    next_y_offset = 0.0;
                 }
             }
 
+            // End of KLE row: advance y by 1
             cur_y += 1.0;
         }
 
