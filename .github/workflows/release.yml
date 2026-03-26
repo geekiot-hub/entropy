@@ -41,6 +41,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libhidapi-dev \
+            libudev-dev \
             libxcb-render0-dev \
             libxcb-shape0-dev \
             libxcb-xfixes0-dev \
