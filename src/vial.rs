@@ -116,10 +116,15 @@ impl VialDevice {
             block += 1;
         }
 
-        // Decompress LZMA
+        // Decompress: vial uses Python lzma which defaults to XZ container format
         let mut decompressed = Vec::new();
-        lzma_rs::lzma_decompress(&mut &payload[..], &mut decompressed)
-            .context("Failed to decompress vial definition (lzma)")?;
+        let xz_result = lzma_rs::xz_decompress(&mut &payload[..], &mut decompressed);
+        if xz_result.is_err() {
+            // fallback: try raw LZMA
+            decompressed.clear();
+            lzma_rs::lzma_decompress(&mut &payload[..], &mut decompressed)
+                .context("Failed to decompress vial definition (tried xz and lzma)")?;
+        }
 
         let json_str = std::str::from_utf8(&decompressed)
             .context("Vial definition is not valid UTF-8")?;
