@@ -33,38 +33,19 @@ pub struct KeyboardLayout {
     pub layers: Vec<Vec<u16>>, // layers[layer][key_idx] = keycode
 }
 
-/// Extract matrix (row, col) for a key.
-/// Vial KLE labels: first line is "row,col", rest is decorative.
-/// If layout_array is present, use that instead (it has explicit matrix entries).
-fn parse_matrix_pos(
-    label: &str,
-    key_index: usize,
-    cols: usize,
-    layout_array: &Option<&Vec<serde_json::Value>>,
-) -> (u8, u8) {
-    // Try layout_array first (most reliable)
-    if let Some(la) = layout_array {
-        if let Some(entry) = la.get(key_index) {
-            // Entry format: {"label": "...", "matrix": [row, col]} or [row, col]
-            if let Some(matrix) = entry.get("matrix").and_then(|v| v.as_array()) {
-                let r = matrix.first().and_then(|v| v.as_u64()).unwrap_or(0) as u8;
-                let c = matrix.get(1).and_then(|v| v.as_u64()).unwrap_or(0) as u8;
-                return (r, c);
-            }
-        }
-    }
+/// Parse matrix (row, col) from vial KLE key label.
+/// Label first line format: "row,col"
+fn parse_matrix_from_label(label: &str) -> Option<(u8, u8)> {
+    let first_line = label.lines().next()?;
+    let (r, c) = first_line.split_once(',')?;
+    let row = r.trim().parse::<u8>().ok()?;
+    let col = c.trim().parse::<u8>().ok()?;
+    Some((row, col))
+}
 
-    // Try parsing "row,col" from first line of label
-    if let Some(first_line) = label.lines().next() {
-        if let Some((r, c)) = first_line.split_once(',') {
-            if let (Ok(row), Ok(col)) = (r.trim().parse::<u8>(), c.trim().parse::<u8>()) {
-                return (row, col);
-            }
-        }
-    }
-
-    // Fallback: sequential
-    ((key_index / cols.max(1)) as u8, (key_index % cols.max(1)) as u8)
+/// Returns true if this KLE key is an encoder (label position 9 == "e")
+fn is_encoder_key(label: &str) -> bool {
+    label.lines().nth(9).map(|s| s.trim() == "e").unwrap_or(false)
 }
 
 impl KeyboardLayout {
@@ -136,10 +117,15 @@ impl KeyboardLayout {
             .and_then(|v| v.as_array());
 
         let mut keys = Vec::new();
-        // KLE global state — persists across rows
+
+        // KLE global cursor state
         let mut cur_x: f32 = 0.0;
         let mut cur_y: f32 = 0.0;
-        let mut key_index: usize = 0;
+        // rx/ry: "rotation anchor" but in vial split keyboards it doubles as
+        // a row-start reset point (absolute position for the next KLE row)
+        let mut rotation_x: f32 = 0.0;
+        let mut rotation_y: f32 = 0.0;
+        let mut _rotation_angle: f32 = 0.0;
 
         for kle_row in keymap {
             let row_items = match kle_row.as_array() {
@@ -147,40 +133,57 @@ impl KeyboardLayout {
                 None => continue,
             };
 
-            // Reset x at start of each KLE row; y persists (incremented at end)
-            cur_x = 0.0;
+            // Per-key defaults reset at start of each KLE row
             let mut next_w: f32 = 1.0;
             let mut next_h: f32 = 1.0;
+            // Track if rx/ry was set in this row (resets cur position)
+            let mut row_started = false;
 
             for item in row_items {
                 if let Some(obj) = item.as_object() {
-                    // Properties object — x/y deltas are cumulative within this row
+                    // rx/ry: absolute anchor — resets cursor for this row's cluster
+                    if let Some(rx) = obj.get("rx").and_then(|v| v.as_f64()) {
+                        rotation_x = rx as f32;
+                        cur_x = rotation_x;
+                        cur_y = rotation_y;
+                        row_started = true;
+                    }
+                    if let Some(ry) = obj.get("ry").and_then(|v| v.as_f64()) {
+                        rotation_y = ry as f32;
+                        cur_y = rotation_y;
+                        row_started = true;
+                    }
+                    if let Some(r) = obj.get("r").and_then(|v| v.as_f64()) {
+                        _rotation_angle = r as f32;
+                    }
+                    // x/y: deltas applied to current cursor
+                    if let Some(x) = obj.get("x").and_then(|v| v.as_f64()) {
+                        cur_x += x as f32;
+                    }
+                    if let Some(y) = obj.get("y").and_then(|v| v.as_f64()) {
+                        cur_y += y as f32;
+                    }
                     if let Some(w) = obj.get("w").and_then(|v| v.as_f64()) {
                         next_w = w as f32;
                     }
                     if let Some(h) = obj.get("h").and_then(|v| v.as_f64()) {
                         next_h = h as f32;
                     }
-                    // x delta: adds to current x (persists for next key placement)
-                    if let Some(x) = obj.get("x").and_then(|v| v.as_f64()) {
-                        cur_x += x as f32;
-                    }
-                    // y delta: adds to global y (persists across rows!)
-                    if let Some(y) = obj.get("y").and_then(|v| v.as_f64()) {
-                        cur_y += y as f32;
-                    }
                 } else if let Some(label) = item.as_str() {
-                    // Determine matrix row/col
-                    // In vial KLE, key label format is "row,col\n..." or just use layout array
-                    let (mat_row, mat_col) = parse_matrix_pos(label, key_index, cols, &layout_array);
+                    // Skip encoder pseudo-keys
+                    if is_encoder_key(label) {
+                        cur_x += next_w;
+                        next_w = 1.0;
+                        next_h = 1.0;
+                        continue;
+                    }
 
-                    // Display label: last non-empty line of the key label
-                    let display_label = label
-                        .lines()
-                        .filter(|l| !l.is_empty())
-                        .last()
-                        .unwrap_or("")
-                        .to_string();
+                    // Parse matrix position from label "row,col"
+                    let (mat_row, mat_col) = parse_matrix_from_label(label)
+                        .unwrap_or(((keys.len() / cols.max(1)) as u8, (keys.len() % cols.max(1)) as u8));
+
+                    // Display label: first line of label is "row,col", use it directly
+                    let display_label = format!("{},{}", mat_row, mat_col);
 
                     keys.push(PhysicalKey {
                         x: cur_x,
@@ -193,16 +196,18 @@ impl KeyboardLayout {
                     });
 
                     cur_x += next_w;
-                    key_index += 1;
 
-                    // w/h reset after each key; x/y do NOT reset
+                    // w/h reset after each key
                     next_w = 1.0;
                     next_h = 1.0;
                 }
             }
 
-            // End of KLE row: advance y by 1
-            cur_y += 1.0;
+            // End of KLE row: if no rx/ry reset happened, advance y by 1
+            if !row_started {
+                cur_y += 1.0;
+                cur_x = 0.0;
+            }
         }
 
         let num_keys = keys.len();
