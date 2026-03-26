@@ -118,11 +118,12 @@ impl KeyboardLayout {
 
         let mut keys = Vec::new();
 
-        // KLE global cursor state (persists across rows)
+        // KLE global state
         let mut cur_x: f32 = 0.0;
         let mut cur_y: f32 = 0.0;
         let mut rotation_x: f32 = 0.0;
         let mut rotation_y: f32 = 0.0;
+        let mut first_row = true;
 
         for kle_row in keymap {
             let row_items = match kle_row.as_array() {
@@ -130,25 +131,31 @@ impl KeyboardLayout {
                 None => continue,
             };
 
+            // KLE spec: at the start of each row (except first):
+            //   - y advances by 1
+            //   - x resets to rotation_x
+            // rx/ry inside the row override these values.
+            if !first_row {
+                cur_y += 1.0;
+                cur_x = rotation_x;
+            }
+            first_row = false;
+
             let mut next_w: f32 = 1.0;
             let mut next_h: f32 = 1.0;
-            // Did this row reset the cursor via rx/ry?
-            let mut has_anchor = false;
 
             for item in row_items {
                 if let Some(obj) = item.as_object() {
-                    // rx/ry: absolute anchor — process atomically
-                    let new_rx = obj.get("rx").and_then(|v| v.as_f64()).map(|v| v as f32);
-                    let new_ry = obj.get("ry").and_then(|v| v.as_f64()).map(|v| v as f32);
-                    if new_rx.is_some() || new_ry.is_some() {
-                        if let Some(rx) = new_rx { rotation_x = rx; }
-                        if let Some(ry) = new_ry { rotation_y = ry; }
+                    // rx/ry: absolute anchor — resets cursor (overrides the y+1 from row start)
+                    if let Some(rx) = obj.get("rx").and_then(|v| v.as_f64()) {
+                        rotation_x = rx as f32;
                         cur_x = rotation_x;
-                        cur_y = rotation_y;
-                        has_anchor = true;
                     }
-
-                    // x/y: deltas on current cursor
+                    if let Some(ry) = obj.get("ry").and_then(|v| v.as_f64()) {
+                        rotation_y = ry as f32;
+                        cur_y = rotation_y;
+                    }
+                    // x/y: deltas applied after anchor
                     if let Some(x) = obj.get("x").and_then(|v| v.as_f64()) {
                         cur_x += x as f32;
                     }
@@ -188,12 +195,7 @@ impl KeyboardLayout {
                     next_h = 1.0;
                 }
             }
-
-            // End of KLE row: if no anchor was set, advance y by 1 and reset x to rotation anchor
-            if !has_anchor {
-                cur_y += 1.0;
-                cur_x = rotation_x; // reset to last rx, NOT zero
-            }
+            // No end-of-row y increment — it happens at the START of next row
         }
 
         let num_keys = keys.len();
