@@ -119,44 +119,49 @@ impl eframe::App for EntropyApp {
             let start_x = (ui.available_width() - total_w * 2.0 - 40.0) / 2.0;
             let start_y = ui.min_rect().top() + 40.0;
 
-            let painter = ui.painter();
-
+            // First pass: allocate rects, collect responses
+            let mut keys: Vec<(usize, egui::Rect, egui::Response)> = vec![];
             for half in 0..2_usize {
                 let half_offset = if half == 0 { 0.0 } else { total_w + 40.0 };
-
                 for row in 0..4_usize {
                     for col in 0..6_usize {
                         let key_idx = half * 24 + row * 6 + col;
                         let x = start_x + half_offset + col as f32 * (key_w + gap);
                         let y = start_y + row as f32 * (key_h + gap);
-
                         let rect = egui::Rect::from_min_size(
                             egui::pos2(x, y),
                             Vec2::new(key_w, key_h),
                         );
-
-                        let is_selected = self.selected_key == Some((self.selected_layer, key_idx));
-                        let bg = if is_selected {
-                            Color32::from_rgb(70, 110, 190)
-                        } else {
-                            Color32::from_gray(45)
-                        };
-
                         let response = ui.allocate_rect(rect, Sense::click());
-                        if response.clicked() {
-                            self.selected_key = Some((self.selected_layer, key_idx));
-                        }
-
-                        painter.rect(rect, 6.0, bg, Stroke::new(1.0, Color32::from_gray(80)), egui::StrokeKind::Inside);
-                        painter.text(
-                            rect.center(),
-                            egui::Align2::CENTER_CENTER,
-                            format!("K{key_idx}"),
-                            FontId::proportional(11.0),
-                            Color32::WHITE,
-                        );
+                        keys.push((key_idx, rect, response));
                     }
                 }
+            }
+
+            // Handle clicks
+            for (key_idx, _, response) in &keys {
+                if response.clicked() {
+                    self.selected_key = Some((self.selected_layer, *key_idx));
+                }
+            }
+
+            // Second pass: paint
+            let painter = ui.painter();
+            for (key_idx, rect, _) in &keys {
+                let is_selected = self.selected_key == Some((self.selected_layer, *key_idx));
+                let bg = if is_selected {
+                    Color32::from_rgb(70, 110, 190)
+                } else {
+                    Color32::from_gray(45)
+                };
+                painter.rect(*rect, 6.0, bg, Stroke::new(1.0, Color32::from_gray(80)), egui::StrokeKind::Inside);
+                painter.text(
+                    rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    format!("K{key_idx}"),
+                    FontId::proportional(11.0),
+                    Color32::WHITE,
+                );
             }
         });
 
