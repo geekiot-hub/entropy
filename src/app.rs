@@ -76,6 +76,12 @@ impl EntropyApp {
                 let vial = VialDevice::open(&dev.path)
                     .map_err(|e| format!("Open failed: {e}"))?;
 
+                log::info!("Getting protocol version…");
+                match vial.get_protocol_version() {
+                    Ok(v) => log::info!("VIA protocol version: {v}"),
+                    Err(e) => log::warn!("get_protocol_version failed: {e}"),
+                }
+
                 log::info!("Getting layer count…");
                 let layer_count = vial.get_layer_count()
                     .map(|c| c as usize)
@@ -89,17 +95,28 @@ impl EntropyApp {
 
                 let mut layout = KeyboardLayout::from_vial_json(&json)
                     .map_err(|e| format!("Layout parse failed: {e}"))?;
-                log::info!("Layout parsed: {} keys", layout.keys.len());
+                log::info!("Layout parsed: {} keys, {}x{}", layout.keys.len(), layout.rows, layout.cols);
 
                 let num_keys = layout.keys.len();
                 layout.layers = vec![vec![0u16; num_keys]; layer_count];
-                for layer in 0..layer_count {
-                    log::info!("Reading layer {layer}…");
-                    for (ki, key) in layout.keys.iter().enumerate() {
-                        match vial.get_keycode(layer as u8, key.row, key.col) {
-                            Ok(kc) => layout.layers[layer][ki] = kc,
-                            Err(e) => log::warn!("get_keycode({layer},{},{}) failed: {e}", key.row, key.col),
+
+                log::info!("Reading keymap buffer…");
+                match vial.get_keymap_buffer(layer_count, layout.rows, layout.cols) {
+                    Ok(buf) => {
+                        for layer in 0..layer_count {
+                            for (ki, key) in layout.keys.iter().enumerate() {
+                                let idx = layer * layout.rows * layout.cols
+                                    + key.row as usize * layout.cols
+                                    + key.col as usize;
+                                if let Some(&kc) = buf.get(idx) {
+                                    layout.layers[layer][ki] = kc;
+                                }
+                            }
                         }
+                        log::info!("Keymap loaded from buffer");
+                    }
+                    Err(e) => {
+                        log::warn!("get_keymap_buffer failed: {e}, skipping keycodes");
                     }
                 }
 
