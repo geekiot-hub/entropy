@@ -420,21 +420,37 @@ impl EntropyApp {
         let painter = ui.painter();
         let layer = self.selected_layer;
         for (ki, rect, _) in &rects {
+            let key = &layout.keys[*ki];
             let is_selected = self.selected_key == Some((layer, *ki));
             let bg = if is_selected {
                 Color32::from_rgb(70, 110, 190)
             } else {
                 Color32::from_gray(45)
             };
-            painter.rect(*rect, 6.0, bg, Stroke::new(1.0, Color32::from_gray(80)), egui::StrokeKind::Inside);
-            let kc = layout.get_keycode(layer, *ki);
-            painter.text(
-                rect.center(),
-                egui::Align2::CENTER_CENTER,
-                keycode_label(kc),
-                FontId::proportional(11.0),
-                Color32::WHITE,
-            );
+
+            if key.rotation != 0.0 {
+                // Draw rotated key using a clipped sub-painter with transform
+                let angle_rad = key.rotation.to_radians();
+                // Anchor in screen space
+                let ax = offset_x + key.rotation_x * unit;
+                let ay = offset_y + key.rotation_y * unit;
+                let anchor = egui::pos2(ax, ay);
+                let center = rect.center();
+                // Rotate center around anchor
+                let dx = center.x - anchor.x;
+                let dy = center.y - anchor.y;
+                let rx = anchor.x + dx * angle_rad.cos() - dy * angle_rad.sin();
+                let ry = anchor.y + dx * angle_rad.sin() + dy * angle_rad.cos();
+                let rotated_center = egui::pos2(rx, ry);
+                let rotated_rect = egui::Rect::from_center_size(rotated_center, rect.size());
+                painter.rect(rotated_rect, 6.0, bg, Stroke::new(1.0, Color32::from_gray(80)), egui::StrokeKind::Inside);
+                let kc = layout.get_keycode(layer, *ki);
+                painter.text(rotated_center, egui::Align2::CENTER_CENTER, keycode_label(kc), FontId::proportional(11.0), Color32::WHITE);
+            } else {
+                painter.rect(*rect, 6.0, bg, Stroke::new(1.0, Color32::from_gray(80)), egui::StrokeKind::Inside);
+                let kc = layout.get_keycode(layer, *ki);
+                painter.text(rect.center(), egui::Align2::CENTER_CENTER, keycode_label(kc), FontId::proportional(11.0), Color32::WHITE);
+            }
         }
 
         if layout_h > avail.y {

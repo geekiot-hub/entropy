@@ -11,17 +11,15 @@ pub struct PhysicalKey {
     pub row: u8,
     pub col: u8,
     pub label: String,
+    /// Rotation angle in degrees (for drawing key shape)
+    pub rotation: f32,
+    /// Rotation anchor X (in KLE units)
+    pub rotation_x: f32,
+    /// Rotation anchor Y (in KLE units)
+    pub rotation_y: f32,
 }
 
-/// A single key with its assigned keycode per layer (legacy, kept for compat).
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Key {
-    pub x: f32,
-    pub y: f32,
-    pub w: f32,
-    pub h: f32,
-    pub label: String,
-}
+
 
 /// Full keyboard layout with multiple layers.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -179,26 +177,17 @@ impl KeyboardLayout {
                     let (mat_row, mat_col) = parse_matrix_from_label(label)
                         .unwrap_or(((keys.len() / cols.max(1)) as u8, (keys.len() % cols.max(1)) as u8));
 
-                    // Apply rotation around (rotation_x, rotation_y)
-                    let (px, py) = if rotation_angle != 0.0 {
-                        let angle_rad = rotation_angle.to_radians();
-                        let dx = cur_x - rotation_x;
-                        let dy = cur_y - rotation_y;
-                        let rx = rotation_x + dx * angle_rad.cos() - dy * angle_rad.sin();
-                        let ry = rotation_y + dx * angle_rad.sin() + dy * angle_rad.cos();
-                        (rx, ry)
-                    } else {
-                        (cur_x, cur_y)
-                    };
-
                     keys.push(PhysicalKey {
-                        x: px,
-                        y: py,
+                        x: cur_x,
+                        y: cur_y,
                         w: next_w,
                         h: next_h,
                         row: mat_row,
                         col: mat_col,
                         label: format!("{},{}", mat_row, mat_col),
+                        rotation: rotation_angle,
+                        rotation_x,
+                        rotation_y,
                     });
 
                     cur_x += next_w;
