@@ -36,7 +36,7 @@ pub struct EntropyApp {
 
 impl EntropyApp {
     pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
-        Self {
+        let mut app = Self {
             device_manager: DeviceManager::new(),
             selected_device: None,
             selected_layer: 0,
@@ -47,7 +47,14 @@ impl EntropyApp {
             status_msg: String::new(),
             #[cfg(not(target_arch = "wasm32"))]
             connect_state: ConnectState::Idle,
+        };
+        // Auto-connect to first device if available
+        #[cfg(not(target_arch = "wasm32"))]
+        if !app.device_manager.devices().is_empty() {
+            app.selected_device = Some(0);
+            app.start_connect(0);
         }
+        app
     }
 
     /// Spawn background thread to connect + load layout/keycodes.
@@ -92,11 +99,6 @@ impl EntropyApp {
                 let json = vial.get_layout_json()
                     .map_err(|e| format!("Layout read failed: {e}"))?;
                 log::info!("Layout JSON received, parsing…");
-                // Debug: dump raw JSON to file so we can inspect the format
-                if let Ok(s) = serde_json::to_string_pretty(&json) {
-                    let _ = std::fs::write("vial_layout_dump.json", &s);
-                    log::info!("Dumped layout JSON to vial_layout_dump.json");
-                }
 
                 let mut layout = KeyboardLayout::from_vial_json(&json)
                     .map_err(|e| format!("Layout parse failed: {e}"))?;
