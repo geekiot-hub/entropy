@@ -264,31 +264,39 @@ pub fn keycode_label_with_custom(value: u16, custom: &[(String, String)]) -> Str
         return kc.label.to_string();
     }
 
-    // Custom ergohaven keycodes start at 0x7E40 (USER00 in QMK)
+    // Custom keycodes MUST be checked before LT/MT ranges!
+    // QK_KB_0 = 0x7E00, QK_USER_0 = 0x7E40
+    const KB_BASE: u16 = 0x7E00;
     const USER_BASE: u16 = 0x7E40;
-    if value >= USER_BASE && (value as usize) < USER_BASE as usize + custom.len() {
-        let idx = (value - USER_BASE) as usize;
-        if let Some((_, label)) = custom.get(idx) {
-            return label.clone();
+    if value >= KB_BASE {
+        // Try USER range first (0x7E40+)
+        if value >= USER_BASE {
+            let idx = (value - USER_BASE) as usize;
+            if let Some((_, label)) = custom.get(idx) {
+                if !label.is_empty() {
+                    return label.clone();
+                }
+            }
         }
-    }
-
-    // QK_LAYER_TAP: 0x4000 | (layer << 8) | kc
-    if value & 0xC000 == 0x4000 {
-        let layer = (value >> 8) & 0x3F;
-        let kc = value & 0xFF;
-        let kc_str = find_keycode(kc as u16).map(|k| k.label).unwrap_or("?");
-        return format!("LT{}/{}", layer, kc_str);
+        // Try KB range (0x7E00+)
+        let idx = (value - KB_BASE) as usize;
+        if let Some((_, label)) = custom.get(idx) {
+            if !label.is_empty() {
+                return label.clone();
+            }
+        }
+        return format!("USER{}", value - KB_BASE);
     }
 
     // One-shot mod: 0x52A0 base
     if value & 0xFF00 == 0x52A0 || value & 0xFF00 == 0x52B0 {
         let mods = value & 0xFF;
         let mod_str = decode_mods(mods, value >= 0x52B0);
-        return format!("OSM\n{}", mod_str);
+        return format!("OSM/{}", mod_str);
     }
 
-    // Layer ops — vial v6 protocol:
+    // Layer ops — vial v6 protocol (0x5000..0x5FFF) MUST come before LT check!
+    // because 0x52xx & 0xC000 == 0x4000 which would match LT range
     // QK_TO             = 0x5200, stride 1
     // QK_MOMENTARY      = 0x5220, stride 1  → MO(n)
     // QK_DEF_LAYER      = 0x5240            → DF(n)
@@ -298,15 +306,24 @@ pub fn keycode_label_with_custom(value: u16, custom: &[(String, String)]) -> Str
     // QK_PERSISTENT_DEF = 0x52E0            → PDF(n)
     if value >= 0x5200 && value < 0x5300 {
         let sub = value & 0xFF;
+        // Format: "OP/n" so draw_key_label splits into two lines
         return match (value >> 5) & 0x7 {
-            0 => format!("TO({})", sub & 0x1F),   // 0x5200
-            1 => format!("MO({})", sub & 0x1F),   // 0x5220
-            2 => format!("DF({})", sub & 0x1F),   // 0x5240
-            3 => format!("TG({})", sub & 0x1F),   // 0x5260
-            4 => format!("OSL({})", sub & 0x1F),  // 0x5280
-            5 => format!("OSM({})", sub),          // 0x52A0
-            6 => format!("TT({})", sub & 0x1F),   // 0x52C0
-            7 => format!("PDF({})", sub & 0x1F),  // 0x52E0
+            0 => format!("TO/{}", sub & 0x1F),
+            1 => format!("MO/{}", sub & 0x1F),
+            2 => format!("DF/{}", sub & 0x1F),
+            3 => format!("TG/{}", sub & 0x1F),
+            4 => format!("OSL/{}", sub & 0x1F),
+            5 => {
+                let mods = sub;
+                let mod_str = match mods {
+                    0x01 => "LSft", 0x02 => "LCtl", 0x04 => "LAlt", 0x08 => "LGui",
+                    0x11 => "RSft", 0x12 => "RCtl", 0x14 => "RAlt", 0x18 => "RGui",
+                    0x07 => "Meh", 0x0F => "Hypr", _ => "Mod",
+                };
+                format!("OSM/{}", mod_str)
+            }
+            6 => format!("TT/{}", sub & 0x1F),
+            7 => format!("PDF/{}", sub & 0x1F),
             _ => format!("{:04X}", value),
         };
     }
@@ -314,7 +331,15 @@ pub fn keycode_label_with_custom(value: u16, custom: &[(String, String)]) -> Str
     // QK_LAYER_MOD: 0x5000 | (layer << 4) | mods
     if value >= 0x5000 && value < 0x5200 {
         let layer = (value >> 4) & 0xF;
-        return format!("LM({})", layer);
+        return format!("LM/{}", layer);
+    }
+
+    // QK_LAYER_TAP: 0x4000 | (layer << 8) | kc  (checked AFTER all 0x5xxx ranges)
+    if value & 0xF000 == 0x4000 {
+        let layer = (value >> 8) & 0xF;
+        let kc = value & 0xFF;
+        let kc_str = find_keycode(kc as u16).map(|k| k.label).unwrap_or("?");
+        return format!("LT {}/{}", layer, kc_str);
     }
 
     // QK_MOD_TAP: 0x2000 | (mods << 8) | kc

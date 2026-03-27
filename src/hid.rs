@@ -8,25 +8,33 @@ const MSG_LEN: usize = 32;
 
 // VIA commands
 const CMD_VIA_GET_PROTOCOL_VERSION: u8 = 0x01;
+const CMD_VIA_GET_KEYBOARD_VALUE: u8 = 0x02;
+const CMD_VIA_GET_KEYCODE: u8 = 0x04;
+const CMD_VIA_SET_KEYCODE: u8 = 0x05;
 const CMD_VIA_GET_LAYER_COUNT: u8 = 0x11;
 const CMD_VIA_KEYMAP_GET_BUFFER: u8 = 0x12;
-const CMD_VIA_SET_KEYCODE: u8 = 0x04;
 const CMD_VIA_VIAL_PREFIX: u8 = 0xFE;
+
+const VIA_SWITCH_MATRIX_STATE: u8 = 0x03;
 
 // Vial sub-commands (used after CMD_VIA_VIAL_PREFIX)
 const CMD_VIAL_GET_KEYBOARD_ID: u8 = 0x00;
 const CMD_VIAL_GET_SIZE: u8 = 0x01;
 const CMD_VIAL_GET_DEFINITION: u8 = 0x02;
+const CMD_VIAL_GET_UNLOCK_STATUS: u8 = 0x05;
+const CMD_VIAL_UNLOCK_START: u8 = 0x06;
+const CMD_VIAL_UNLOCK_POLL: u8 = 0x07;
+const CMD_VIAL_LOCK: u8 = 0x08;
 
 const BUFFER_FETCH_CHUNK: usize = 28;
 
 #[cfg(not(target_arch = "wasm32"))]
-pub struct VialDevice {
+pub struct HidDevice {
     device: hidapi::HidDevice,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-impl VialDevice {
+impl HidDevice {
     pub fn open(path: &str) -> Result<Self> {
         let api = hidapi::HidApi::new().context("Failed to init hidapi")?;
         let device = api
@@ -167,5 +175,60 @@ impl VialDevice {
         let [hi, lo] = keycode.to_be_bytes();
         self.usb_send(&[CMD_VIA_SET_KEYCODE, layer, row, col, hi, lo])?;
         Ok(())
+    }
+
+    /// Check if keyboard is unlocked
+    pub fn get_unlock_status(&self) -> Result<(bool, u8)> {
+        let resp = self.usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_GET_UNLOCK_STATUS])?;
+        // resp[0..1] = prefix echo, resp[2] = unlocked (1=yes), resp[3] = unlock_counter
+        let unlocked = resp[2] == 1;
+        let counter = resp[3]; // number of keys to hold
+        Ok((unlocked, counter))
+    }
+
+    /// Start unlock sequence — returns keys to hold (row, col pairs)
+    pub fn unlock_start(&self) -> Result<Vec<(u8, u8)>> {
+        let resp = self.usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_UNLOCK_START])?;
+        // resp[2..] = pairs of (row, col), terminated by 255,255
+        let mut keys = Vec::new();
+        let mut i = 2;
+        while i + 1 < resp.len() {
+            let row = resp[i];
+            let col = resp[i + 1];
+            if row == 255 && col == 255 { break; }
+            keys.push((row, col));
+            i += 2;
+        }
+        Ok(keys)
+    }
+
+    /// Poll unlock status — returns (unlocked, in_progress)
+    pub fn unlock_poll(&self) -> Result<(bool, bool)> {
+        let resp = self.usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_UNLOCK_POLL])?;
+        Ok((resp[2] == 1, resp[3] == 1))
+    }
+
+    /// Lock the keyboard
+    pub fn lock(&self) -> Result<()> {
+        self.usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_LOCK])?;
+        Ok(())
+    }
+
+    /// Returns a bitmask of pressed keys: bits per row/col.
+    /// Response: [cmd, value_id, data...] where data is ceil(rows*cols/8) bytes.
+    pub fn get_switch_matrix(&self, rows: usize, cols: usize) -> Result<Vec<bool>> {
+        let resp = self.usb_send(&[CMD_VIA_GET_KEYBOARD_VALUE, VIA_SWITCH_MATRIX_STATE])?;
+        // Response bytes start at index 2 (after cmd + value_id echo)
+        let data = &resp[2..];
+        let total = rows * cols;
+        let mut pressed = vec![false; total];
+        for i in 0..total {
+            let byte_idx = i / 8;
+            let bit_idx = 7 - (i % 8);
+            if byte_idx < data.len() {
+                pressed[i] = (data[byte_idx] >> bit_idx) & 1 == 1;
+            }
+        }
+        Ok(pressed)
     }
 }

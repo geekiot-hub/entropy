@@ -1,10 +1,12 @@
+#![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
+
 mod app;
 mod device;
 mod keyboard;
 mod keycode;
 mod keycode_picker;
 #[cfg(not(target_arch = "wasm32"))]
-mod vial;
+mod hid;
 
 use app::EntropyApp;
 
@@ -22,6 +24,21 @@ fn main() -> eframe::Result<()> {
     eframe::run_native(
         "Entropy",
         options,
-        Box::new(|cc| Ok(Box::new(EntropyApp::new(cc)))),
+        Box::new(|cc| {
+            // Load DejaVu Sans for Unicode symbol support (▽ ✕ etc)
+            let mut fonts = egui::FontDefinitions::default();
+            fonts.font_data.insert(
+                "dejavu".to_owned(),
+                egui::FontData::from_static(
+                    include_bytes!("../assets/DejaVuSans.ttf")
+                ).into(),
+            );
+            fonts.families
+                .entry(egui::FontFamily::Proportional)
+                .or_default()
+                .push("dejavu".to_owned());
+            cc.egui_ctx.set_fonts(fonts);
+            Ok(Box::new(EntropyApp::new(cc)))
+        }),
     )
 }

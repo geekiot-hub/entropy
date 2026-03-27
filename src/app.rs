@@ -32,11 +32,18 @@ pub struct EntropyApp {
     status_msg: String,
     #[cfg(not(target_arch = "wasm32"))]
     connect_state: ConnectState,
+    /// Persistent open HID device for real-time writes
+    #[cfg(not(target_arch = "wasm32"))]
+    hid_device: Option<crate::hid::HidDevice>,
+
 }
 
 impl EntropyApp {
     pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
         let mut app = Self {
+            #[cfg(not(target_arch = "wasm32"))]
+            hid_device: None,
+
             device_manager: DeviceManager::new(),
             selected_device: None,
             selected_layer: 0,
@@ -77,26 +84,26 @@ impl EntropyApp {
 
         std::thread::spawn(move || {
             let result = (|| -> Result<ConnectResult, String> {
-                use crate::vial::VialDevice;
+                use crate::hid::HidDevice;
 
                 log::info!("Opening HID device: {}", dev.path);
-                let vial = VialDevice::open(&dev.path)
+                let dev_conn = HidDevice::open(&dev.path)
                     .map_err(|e| format!("Open failed: {e}"))?;
 
                 log::info!("Getting protocol version…");
-                match vial.get_protocol_version() {
+                match dev_conn.get_protocol_version() {
                     Ok(v) => log::info!("VIA protocol version: {v}"),
                     Err(e) => log::warn!("get_protocol_version failed: {e}"),
                 }
 
                 log::info!("Getting layer count…");
-                let layer_count = vial.get_layer_count()
+                let layer_count = dev_conn.get_layer_count()
                     .map(|c| c as usize)
                     .unwrap_or_else(|e| { log::warn!("get_layer_count failed: {e}, defaulting to 4"); 4 });
                 log::info!("Layer count: {layer_count}");
 
                 log::info!("Getting layout JSON…");
-                let json = vial.get_layout_json()
+                let json = dev_conn.get_layout_json()
                     .map_err(|e| format!("Layout read failed: {e}"))?;
                 log::info!("Layout JSON received, parsing…");
 
@@ -108,7 +115,7 @@ impl EntropyApp {
                 layout.layers = vec![vec![0u16; num_keys]; layer_count];
 
                 log::info!("Reading keymap buffer…");
-                match vial.get_keymap_buffer(layer_count, layout.rows, layout.cols) {
+                match dev_conn.get_keymap_buffer(layer_count, layout.rows, layout.cols) {
                     Ok(buf) => {
                         for layer in 0..layer_count {
                             for (ki, key) in layout.keys.iter().enumerate() {
@@ -163,7 +170,26 @@ impl EntropyApp {
             Ok(r) => {
                 self.layer_count = r.layer_count;
                 self.status_msg = format!("Connected: {}", r.device_name);
+                // Populate custom keycodes in picker
+                const USER_BASE: u16 = 0x7E40;
+                self.keycode_picker.custom_keycodes = r.layout.custom_keycodes.iter().enumerate()
+                    .map(|(i, (name, label))| (name.clone(), label.clone(), USER_BASE + i as u16))
+                    .collect();
+                let layout_rows = r.layout.rows;
+                let layout_cols = r.layout.cols;
                 self.layout = Some(r.layout);
+                // Open persistent HID connection for real-time writes
+                if let Some(dev) = self.selected_device.and_then(|i| self.device_manager.devices().get(i)) {
+                    match crate::hid::HidDevice::open(&dev.path) {
+                        Ok(v) => {
+
+                            self.hid_device = Some(v);
+                        }
+                        Err(e) => log::warn!("Could not open persistent HID: {e}"),
+                    }
+                }
+
+
                 log::info!("Connected: {} ({} layers)", r.device_name, r.layer_count);
             }
             Err(e) => {
@@ -175,32 +201,37 @@ impl EntropyApp {
     /// Assign keycode and immediately write to device (blocking, but single HID op — fast).
     #[cfg(not(target_arch = "wasm32"))]
     fn assign_keycode(&mut self, layer: usize, ki: usize, kc_value: u16) {
-        use crate::vial::VialDevice;
-
+        // Update in-memory layout
         if let Some(layout) = &mut self.layout {
             layout.set_keycode(layer, ki, kc_value);
         }
 
-        let dev = match self.selected_device
-            .and_then(|i| self.device_manager.devices().get(i))
-        {
-            Some(d) => d.clone(),
-            None => return,
-        };
         let key = match self.layout.as_ref().and_then(|l| l.keys.get(ki)) {
             Some(k) => k.clone(),
             None => return,
         };
 
-        match VialDevice::open(&dev.path) {
-            Ok(vial) => {
-                if let Err(e) = vial.set_keycode(layer as u8, key.row, key.col, kc_value) {
-                    self.status_msg = format!("Write error: {e}");
-                } else {
-                    self.status_msg = "✓ Saved".into();
-                }
+        // Use persistent connection if available, otherwise open fresh
+        let result = if let Some(conn) = &self.hid_device {
+            conn.set_keycode(layer as u8, key.row, key.col, kc_value)
+        } else if let Some(dev) = self.selected_device
+            .and_then(|i| self.device_manager.devices().get(i))
+        {
+            match crate::hid::HidDevice::open(&dev.path) {
+                Ok(conn) => conn.set_keycode(layer as u8, key.row, key.col, kc_value),
+                Err(e) => Err(anyhow::anyhow!("{e}")),
             }
-            Err(e) => self.status_msg = format!("Connect error: {e}"),
+        } else {
+            return;
+        };
+
+        match result {
+            Ok(()) => self.status_msg = "✓ Saved".into(),
+            Err(e) => {
+                self.status_msg = format!("Write error: {e}");
+                // Connection lost — reopen
+                self.hid_device = None;
+            }
         }
     }
 
@@ -219,6 +250,8 @@ impl eframe::App for EntropyApp {
         #[cfg(not(target_arch = "wasm32"))]
         self.poll_connect(ctx);
 
+
+
         // Handle keycode picker result — real-time write to device
         if let Some(kc_value) = self.keycode_picker.result.take() {
             if let Some((layer, ki)) = self.selected_key {
@@ -229,6 +262,12 @@ impl eframe::App for EntropyApp {
                     layout.set_keycode(layer, ki, kc_value);
                 }
             }
+            self.selected_key = None;
+        }
+
+        // Deselect key when picker is closed without choosing
+        if !self.keycode_picker.open && self.selected_key.is_some() {
+            self.selected_key = None;
         }
 
         // Check if loading
@@ -281,6 +320,8 @@ impl eframe::App for EntropyApp {
                         if ui.add(load_btn).clicked() && !is_loading {
                             self.load_from_device();
                         }
+
+
                     }
 
                     if !self.status_msg.is_empty() {
@@ -330,13 +371,6 @@ impl eframe::App for EntropyApp {
                         ui.label(format!("Keycode: 0x{kc:04X}"));
                         ui.label(format!("Name: {}", keycode_label_with_custom(kc, &layout.custom_keycodes)));
                     }
-                }
-                if ui.add_enabled(
-                    !is_loading && self.layout.is_some(),
-                    egui::Button::new("✎ Change Keycode"),
-                ).clicked() {
-                    self.keycode_picker.open = true;
-                    self.keycode_picker.search_query.clear();
                 }
             } else {
                 ui.label(RichText::new("Click a key to edit").color(Color32::GRAY));
@@ -411,10 +445,17 @@ impl EntropyApp {
             rects.push((ki, rect, response));
         }
 
-        // Pass 2: clicks
+        // Pass 2: hover + clicks
+        let mut hovered_key: Option<usize> = None;
         for (ki, _, response) in &rects {
+            if response.hovered() {
+                hovered_key = Some(*ki);
+                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+            }
             if response.clicked() {
                 self.selected_key = Some((self.selected_layer, *ki));
+                self.keycode_picker.open = true;
+                self.keycode_picker.search_query.clear();
             }
         }
 
@@ -424,34 +465,54 @@ impl EntropyApp {
         for (ki, rect, _) in &rects {
             let key = &layout.keys[*ki];
             let is_selected = self.selected_key == Some((layer, *ki));
+            let is_hovered = hovered_key == Some(*ki);
             let bg = if is_selected {
                 Color32::from_rgb(70, 110, 190)
+            } else if is_hovered {
+                Color32::from_gray(65)
             } else {
                 Color32::from_gray(45)
             };
 
-            if key.rotation != 0.0 {
-                // Draw rotated key using a clipped sub-painter with transform
+            let draw_rect = if key.rotation != 0.0 {
                 let angle_rad = key.rotation.to_radians();
-                // Anchor in screen space
                 let ax = offset_x + key.rotation_x * unit;
                 let ay = offset_y + key.rotation_y * unit;
                 let anchor = egui::pos2(ax, ay);
                 let center = rect.center();
-                // Rotate center around anchor
                 let dx = center.x - anchor.x;
                 let dy = center.y - anchor.y;
                 let rx = anchor.x + dx * angle_rad.cos() - dy * angle_rad.sin();
                 let ry = anchor.y + dx * angle_rad.sin() + dy * angle_rad.cos();
-                let rotated_center = egui::pos2(rx, ry);
-                let rotated_rect = egui::Rect::from_center_size(rotated_center, rect.size());
-                painter.rect(rotated_rect, 6.0, bg, Stroke::new(1.0, Color32::from_gray(80)), egui::StrokeKind::Inside);
-                let kc = layout.get_keycode(layer, *ki);
-                painter.text(rotated_center, egui::Align2::CENTER_CENTER, keycode_label_with_custom(kc, &layout.custom_keycodes), FontId::proportional(11.0), Color32::WHITE);
+                egui::Rect::from_center_size(egui::pos2(rx, ry), rect.size())
             } else {
-                painter.rect(*rect, 6.0, bg, Stroke::new(1.0, Color32::from_gray(80)), egui::StrokeKind::Inside);
-                let kc = layout.get_keycode(layer, *ki);
-                painter.text(rect.center(), egui::Align2::CENTER_CENTER, keycode_label_with_custom(kc, &layout.custom_keycodes), FontId::proportional(11.0), Color32::WHITE);
+                *rect
+            };
+
+            let kc = layout.get_keycode(layer, *ki);
+
+            if kc == 0x0001 {
+                // TRNS — transparent background, show fallback from lower layer dimmed
+                let trns_bg = if is_selected { Color32::from_rgb(50, 80, 150) } else { Color32::from_gray(32) };
+                painter.rect(draw_rect, 6.0, trns_bg, Stroke::new(1.0, Color32::from_gray(55)), egui::StrokeKind::Inside);
+                let fallback_kc = (0..layer).rev()
+                    .map(|l| layout.get_keycode(l, *ki))
+                    .find(|&k| k != 0x0001)
+                    .unwrap_or(0x0000);
+                let label = if fallback_kc == 0x0000 || fallback_kc == 0x0001 {
+                    "\u{25BD}".to_string()
+                } else {
+                    keycode_label_with_custom(fallback_kc, &layout.custom_keycodes)
+                };
+                draw_key_label_dimmed(&painter, draw_rect, &label);
+            } else if kc == 0x0000 {
+                // NO — dark key, small X
+                painter.rect(draw_rect, 6.0, Color32::from_gray(28), Stroke::new(1.0, Color32::from_gray(45)), egui::StrokeKind::Inside);
+                painter.text(draw_rect.center(), egui::Align2::CENTER_CENTER, "\u{2715}", FontId::proportional(10.0), Color32::from_gray(60));
+            } else {
+                painter.rect(draw_rect, 6.0, bg, Stroke::new(1.0, Color32::from_gray(80)), egui::StrokeKind::Inside);
+                let label = keycode_label_with_custom(kc, &layout.custom_keycodes);
+                draw_key_label(&painter, draw_rect, &label);
             }
         }
 
@@ -459,7 +520,78 @@ impl EntropyApp {
             ui.allocate_space(Vec2::new(0.0, (layout_h - avail.y).max(0.0)));
         }
     }
+}
 
+fn draw_key_label_dimmed(painter: &egui::Painter, rect: egui::Rect, label: &str) {
+    let dim = Color32::from_rgb(100, 100, 120);
+    let dim_top = Color32::from_rgb(70, 70, 90);
+    let (top, bottom) = if let Some(pos) = label.find('/') {
+        (Some(&label[..pos]), &label[pos+1..])
+    } else if label.contains('\n') {
+        let mut parts = label.splitn(2, '\n');
+        let t = parts.next().unwrap_or("");
+        let b = parts.next().unwrap_or(label);
+        (Some(t), b)
+    } else {
+        (None, label)
+    };
+
+    if let Some(top_str) = top {
+        let center = rect.center();
+        painter.text(egui::pos2(center.x, center.y - 7.0), egui::Align2::CENTER_CENTER, top_str, FontId::proportional(9.0), dim_top);
+        painter.text(egui::pos2(center.x, center.y + 6.0), egui::Align2::CENTER_CENTER, bottom, FontId::proportional(11.0), dim);
+    } else {
+        painter.text(rect.center(), egui::Align2::CENTER_CENTER, bottom, FontId::proportional(11.0), dim);
+    }
+}
+
+fn draw_key_label(painter: &egui::Painter, rect: egui::Rect, label: &str) {
+    // Split on "/" or "\n" — show top part small+dim, bottom part normal
+    let (top, bottom) = if let Some(pos) = label.find('/') {
+        let t = &label[..pos];
+        let b = &label[pos+1..];
+        (Some(t), b)
+    } else if label.contains('\n') {
+        let mut parts = label.splitn(2, '\n');
+        let t = parts.next().unwrap_or("");
+        let b = parts.next().unwrap_or(label);
+        (Some(t), b)
+    } else {
+        (None, label)
+    };
+
+    if let Some(top_str) = top {
+        // Two-line layout
+        let center = rect.center();
+        let top_pos = egui::pos2(center.x, center.y - 7.0);
+        let bot_pos = egui::pos2(center.x, center.y + 6.0);
+
+        painter.text(
+            top_pos,
+            egui::Align2::CENTER_CENTER,
+            top_str,
+            FontId::proportional(9.0),
+            egui::Color32::from_rgb(160, 160, 160),
+        );
+        painter.text(
+            bot_pos,
+            egui::Align2::CENTER_CENTER,
+            bottom,
+            FontId::proportional(11.0),
+            egui::Color32::WHITE,
+        );
+    } else {
+        painter.text(
+            rect.center(),
+            egui::Align2::CENTER_CENTER,
+            bottom,
+            FontId::proportional(11.0),
+            egui::Color32::WHITE,
+        );
+    }
+}
+
+impl EntropyApp {
     fn draw_placeholder(&mut self, ui: &mut egui::Ui) {
         let key_w = 52.0_f32;
         let key_h = 52.0_f32;
