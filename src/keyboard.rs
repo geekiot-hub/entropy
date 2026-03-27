@@ -29,6 +29,8 @@ pub struct KeyboardLayout {
     pub cols: usize,
     pub keys: Vec<PhysicalKey>,
     pub layers: Vec<Vec<u16>>, // layers[layer][key_idx] = keycode
+    /// Custom keycodes from vial JSON: (name, short_label)
+    pub custom_keycodes: Vec<(String, String)>,
 }
 
 /// Parse matrix (row, col) from vial KLE key label.
@@ -197,13 +199,27 @@ impl KeyboardLayout {
             }
         }
 
+        // Parse custom keycodes
+        let custom_keycodes = if let Some(customs) = json.get("customKeycodes").and_then(|v| v.as_array()) {
+            customs.iter().map(|c| {
+                let name = c.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                // shortName may contain \n — take last line for display
+                let short = c.get("shortName").and_then(|v| v.as_str()).unwrap_or("")
+                    .lines().filter(|l| !l.is_empty()).last().unwrap_or("").to_string();
+                (name, if short.is_empty() { name.clone() } else { short })
+            }).collect()
+        } else {
+            vec![]
+        };
+
         let num_keys = keys.len();
         Ok(Self {
             name,
             rows,
             cols,
             keys,
-            layers: vec![vec![0u16; num_keys]; 4], // 4 layers default
+            layers: vec![vec![0u16; num_keys]; 4],
+            custom_keycodes,
         })
     }
 }

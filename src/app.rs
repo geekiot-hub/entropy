@@ -1,6 +1,6 @@
 use crate::device::DeviceManager;
 use crate::keyboard::KeyboardLayout;
-use crate::keycode::keycode_label;
+use crate::keycode::keycode_label_with_custom;
 use crate::keycode_picker::KeycodePicker;
 use egui::{Color32, FontId, RichText, Sense, Stroke, Vec2};
 
@@ -328,7 +328,7 @@ impl eframe::App for EntropyApp {
                         ui.label(format!("Matrix: [{}, {}]", key.row, key.col));
                         let kc = layout.get_keycode(layer, idx);
                         ui.label(format!("Keycode: 0x{kc:04X}"));
-                        ui.label(format!("Name: {}", keycode_label(kc)));
+                        ui.label(format!("Name: {}", keycode_label_with_custom(kc, &layout.custom_keycodes)));
                     }
                 }
                 if ui.add_enabled(
@@ -447,11 +447,11 @@ impl EntropyApp {
                 let rotated_rect = egui::Rect::from_center_size(rotated_center, rect.size());
                 painter.rect(rotated_rect, 6.0, bg, Stroke::new(1.0, Color32::from_gray(80)), egui::StrokeKind::Inside);
                 let kc = layout.get_keycode(layer, *ki);
-                painter.text(rotated_center, egui::Align2::CENTER_CENTER, keycode_label(kc), FontId::proportional(11.0), Color32::WHITE);
+                painter.text(rotated_center, egui::Align2::CENTER_CENTER, keycode_label_with_custom(kc, &layout.custom_keycodes), FontId::proportional(11.0), Color32::WHITE);
             } else {
                 painter.rect(*rect, 6.0, bg, Stroke::new(1.0, Color32::from_gray(80)), egui::StrokeKind::Inside);
                 let kc = layout.get_keycode(layer, *ki);
-                painter.text(rect.center(), egui::Align2::CENTER_CENTER, keycode_label(kc), FontId::proportional(11.0), Color32::WHITE);
+                painter.text(rect.center(), egui::Align2::CENTER_CENTER, keycode_label_with_custom(kc, &layout.custom_keycodes), FontId::proportional(11.0), Color32::WHITE);
             }
         }
 
