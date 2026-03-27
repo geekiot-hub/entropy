@@ -123,6 +123,7 @@ impl KeyboardLayout {
         let mut cur_y: f32 = 0.0;
         let mut rotation_x: f32 = 0.0;
         let mut rotation_y: f32 = 0.0;
+        let mut rotation_angle: f32 = 0.0; // degrees
         let mut first_row = true;
 
         for kle_row in keymap {
@@ -132,9 +133,7 @@ impl KeyboardLayout {
             };
 
             // KLE spec: at the start of each row (except first):
-            //   - y advances by 1
-            //   - x resets to rotation_x
-            // rx/ry inside the row override these values.
+            //   - y advances by 1, x resets to rotation_x
             if !first_row {
                 cur_y += 1.0;
                 cur_x = rotation_x;
@@ -146,7 +145,6 @@ impl KeyboardLayout {
 
             for item in row_items {
                 if let Some(obj) = item.as_object() {
-                    // rx/ry: absolute anchor — resets cursor (overrides the y+1 from row start)
                     if let Some(rx) = obj.get("rx").and_then(|v| v.as_f64()) {
                         rotation_x = rx as f32;
                         cur_x = rotation_x;
@@ -155,7 +153,9 @@ impl KeyboardLayout {
                         rotation_y = ry as f32;
                         cur_y = rotation_y;
                     }
-                    // x/y: deltas applied after anchor
+                    if let Some(r) = obj.get("r").and_then(|v| v.as_f64()) {
+                        rotation_angle = r as f32;
+                    }
                     if let Some(x) = obj.get("x").and_then(|v| v.as_f64()) {
                         cur_x += x as f32;
                     }
@@ -169,7 +169,6 @@ impl KeyboardLayout {
                         next_h = h as f32;
                     }
                 } else if let Some(label) = item.as_str() {
-                    // Skip encoder pseudo-keys
                     if is_encoder_key(label) {
                         cur_x += next_w;
                         next_w = 1.0;
@@ -180,9 +179,21 @@ impl KeyboardLayout {
                     let (mat_row, mat_col) = parse_matrix_from_label(label)
                         .unwrap_or(((keys.len() / cols.max(1)) as u8, (keys.len() % cols.max(1)) as u8));
 
+                    // Apply rotation around (rotation_x, rotation_y)
+                    let (px, py) = if rotation_angle != 0.0 {
+                        let angle_rad = rotation_angle.to_radians();
+                        let dx = cur_x - rotation_x;
+                        let dy = cur_y - rotation_y;
+                        let rx = rotation_x + dx * angle_rad.cos() - dy * angle_rad.sin();
+                        let ry = rotation_y + dx * angle_rad.sin() + dy * angle_rad.cos();
+                        (rx, ry)
+                    } else {
+                        (cur_x, cur_y)
+                    };
+
                     keys.push(PhysicalKey {
-                        x: cur_x,
-                        y: cur_y,
+                        x: px,
+                        y: py,
                         w: next_w,
                         h: next_h,
                         row: mat_row,
@@ -195,7 +206,6 @@ impl KeyboardLayout {
                     next_h = 1.0;
                 }
             }
-            // No end-of-row y increment — it happens at the START of next row
         }
 
         let num_keys = keys.len();

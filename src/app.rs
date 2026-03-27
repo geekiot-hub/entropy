@@ -101,9 +101,6 @@ impl EntropyApp {
                 let mut layout = KeyboardLayout::from_vial_json(&json)
                     .map_err(|e| format!("Layout parse failed: {e}"))?;
                 log::info!("Layout parsed: {} keys, {}x{}", layout.keys.len(), layout.rows, layout.cols);
-                for (i, k) in layout.keys.iter().enumerate() {
-                    log::info!("  key[{i:02}] ({},{}) x={:.2} y={:.2} w={:.2}", k.row, k.col, k.x, k.y, k.w);
-                }
 
                 let num_keys = layout.keys.len();
                 layout.layers = vec![vec![0u16; num_keys]; layer_count];
