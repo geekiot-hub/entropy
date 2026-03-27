@@ -207,12 +207,15 @@ impl KeyboardLayout {
                 // shortName format: "First\nSecond" — show as "First/Second" or just name
                 let short_raw = c.get("shortName").and_then(|v| v.as_str()).unwrap_or("");
                 let label = if short_raw.is_empty() {
-                    // Use last part of name (e.g. "EH_SNP" → "EH_SNP")
                     name.clone()
                 } else {
-                    // Join lines with "/" for compact display
+                    // Keep \n so draw_key_label renders two lines (top small, bottom main)
                     let parts: Vec<&str> = short_raw.lines().filter(|l| !l.is_empty()).collect();
-                    parts.join("/")
+                    match parts.len() {
+                        0 => name.clone(),
+                        1 => parts[0].to_string(),
+                        _ => format!("{}\n{}", parts[0], parts[1..].join(" ")),
+                    }
                 };
                 (name, label)
             }).collect()

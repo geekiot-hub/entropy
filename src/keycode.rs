@@ -77,18 +77,26 @@ pub const KEYCODES: &[Keycode] = &[
     Keycode { value: 0x0065, name: "KC_APPLICATION", label: "Menu", category: KeycodeCategory::Basic },
 
     // ── Punctuation ───────────────────────────────────────────────────────────
-    Keycode { value: 0x002D, name: "KC_MINUS",   label: "- _",  category: KeycodeCategory::Basic },
-    Keycode { value: 0x002E, name: "KC_EQUAL",   label: "= +",  category: KeycodeCategory::Basic },
-    Keycode { value: 0x002F, name: "KC_LBRACKET",label: "[ {",  category: KeycodeCategory::Basic },
-    Keycode { value: 0x0030, name: "KC_RBRACKET",label: "] }",  category: KeycodeCategory::Basic },
+    Keycode { value: 0x002D, name: "KC_MINUS",   label: "-
+_",  category: KeycodeCategory::Basic },
+    Keycode { value: 0x002E, name: "KC_EQUAL",   label: "=
++",  category: KeycodeCategory::Basic },
+    Keycode { value: 0x002F, name: "KC_LBRACKET",label: "[
+{",  category: KeycodeCategory::Basic },
+    Keycode { value: 0x0030, name: "KC_RBRACKET",label: "]
+}",  category: KeycodeCategory::Basic },
     Keycode { value: 0x0031, name: "KC_BSLASH",  label: "\\ |", category: KeycodeCategory::Basic },
     Keycode { value: 0x0032, name: "KC_NONUS_HASH", label: "# ~", category: KeycodeCategory::Basic },
-    Keycode { value: 0x0033, name: "KC_SCOLON",  label: "; :",  category: KeycodeCategory::Basic },
+    Keycode { value: 0x0033, name: "KC_SCOLON",  label: ";
+:",  category: KeycodeCategory::Basic },
     Keycode { value: 0x0034, name: "KC_QUOTE",   label: "' \"", category: KeycodeCategory::Basic },
     Keycode { value: 0x0035, name: "KC_GRAVE",   label: "` ~",  category: KeycodeCategory::Basic },
-    Keycode { value: 0x0036, name: "KC_COMMA",   label: ", <",  category: KeycodeCategory::Basic },
-    Keycode { value: 0x0037, name: "KC_DOT",     label: ". >",  category: KeycodeCategory::Basic },
-    Keycode { value: 0x0038, name: "KC_SLASH",   label: "/ ?",  category: KeycodeCategory::Basic },
+    Keycode { value: 0x0036, name: "KC_COMMA",   label: ",
+<",  category: KeycodeCategory::Basic },
+    Keycode { value: 0x0037, name: "KC_DOT",     label: ".
+>",  category: KeycodeCategory::Basic },
+    Keycode { value: 0x0038, name: "KC_SLASH",   label: "/
+?",  category: KeycodeCategory::Basic },
     Keycode { value: 0x0064, name: "KC_NONUS_BSLASH", label: "\\ |", category: KeycodeCategory::Basic },
 
     // ── Shifted symbols (LSFT(kc) shortcuts) ─────────────────────────────────
@@ -158,24 +166,24 @@ pub const KEYCODES: &[Keycode] = &[
 
     // ── Numpad ────────────────────────────────────────────────────────────────
     Keycode { value: 0x0053, name: "KC_NUMLOCK",     label: "NmLk",  category: KeycodeCategory::Numpad },
-    Keycode { value: 0x0054, name: "KC_KP_SLASH",    label: "N/",    category: KeycodeCategory::Numpad },
-    Keycode { value: 0x0055, name: "KC_KP_ASTERISK", label: "N*",    category: KeycodeCategory::Numpad },
-    Keycode { value: 0x0056, name: "KC_KP_MINUS",    label: "N-",    category: KeycodeCategory::Numpad },
-    Keycode { value: 0x0057, name: "KC_KP_PLUS",     label: "N+",    category: KeycodeCategory::Numpad },
-    Keycode { value: 0x0058, name: "KC_KP_ENTER",    label: "NEntr", category: KeycodeCategory::Numpad },
-    Keycode { value: 0x0059, name: "KC_KP_1",  label: "N1", category: KeycodeCategory::Numpad },
-    Keycode { value: 0x005A, name: "KC_KP_2",  label: "N2", category: KeycodeCategory::Numpad },
-    Keycode { value: 0x005B, name: "KC_KP_3",  label: "N3", category: KeycodeCategory::Numpad },
-    Keycode { value: 0x005C, name: "KC_KP_4",  label: "N4", category: KeycodeCategory::Numpad },
-    Keycode { value: 0x005D, name: "KC_KP_5",  label: "N5", category: KeycodeCategory::Numpad },
-    Keycode { value: 0x005E, name: "KC_KP_6",  label: "N6", category: KeycodeCategory::Numpad },
-    Keycode { value: 0x005F, name: "KC_KP_7",  label: "N7", category: KeycodeCategory::Numpad },
-    Keycode { value: 0x0060, name: "KC_KP_8",  label: "N8", category: KeycodeCategory::Numpad },
-    Keycode { value: 0x0061, name: "KC_KP_9",  label: "N9", category: KeycodeCategory::Numpad },
-    Keycode { value: 0x0062, name: "KC_KP_0",  label: "N0", category: KeycodeCategory::Numpad },
-    Keycode { value: 0x0063, name: "KC_KP_DOT",   label: "N.",  category: KeycodeCategory::Numpad },
-    Keycode { value: 0x0067, name: "KC_KP_EQUAL", label: "N=",  category: KeycodeCategory::Numpad },
-    Keycode { value: 0x0085, name: "KC_KP_COMMA", label: "N,",  category: KeycodeCategory::Numpad },
+    Keycode { value: 0x0054, name: "KC_KP_SLASH",    label: "Num/",    category: KeycodeCategory::Numpad },
+    Keycode { value: 0x0055, name: "KC_KP_ASTERISK", label: "Num*",    category: KeycodeCategory::Numpad },
+    Keycode { value: 0x0056, name: "KC_KP_MINUS",    label: "Num-",    category: KeycodeCategory::Numpad },
+    Keycode { value: 0x0057, name: "KC_KP_PLUS",     label: "Num+",    category: KeycodeCategory::Numpad },
+    Keycode { value: 0x0058, name: "KC_KP_ENTER",    label: "Num↵", category: KeycodeCategory::Numpad },
+    Keycode { value: 0x0059, name: "KC_KP_1",  label: "Num1", category: KeycodeCategory::Numpad },
+    Keycode { value: 0x005A, name: "KC_KP_2",  label: "Num2", category: KeycodeCategory::Numpad },
+    Keycode { value: 0x005B, name: "KC_KP_3",  label: "Num3", category: KeycodeCategory::Numpad },
+    Keycode { value: 0x005C, name: "KC_KP_4",  label: "Num4", category: KeycodeCategory::Numpad },
+    Keycode { value: 0x005D, name: "KC_KP_5",  label: "Num5", category: KeycodeCategory::Numpad },
+    Keycode { value: 0x005E, name: "KC_KP_6",  label: "Num6", category: KeycodeCategory::Numpad },
+    Keycode { value: 0x005F, name: "KC_KP_7",  label: "Num7", category: KeycodeCategory::Numpad },
+    Keycode { value: 0x0060, name: "KC_KP_8",  label: "Num8", category: KeycodeCategory::Numpad },
+    Keycode { value: 0x0061, name: "KC_KP_9",  label: "Num9", category: KeycodeCategory::Numpad },
+    Keycode { value: 0x0062, name: "KC_KP_0",  label: "Num0", category: KeycodeCategory::Numpad },
+    Keycode { value: 0x0063, name: "KC_KP_DOT",   label: "Num.",  category: KeycodeCategory::Numpad },
+    Keycode { value: 0x0067, name: "KC_KP_EQUAL", label: "Num=",  category: KeycodeCategory::Numpad },
+    Keycode { value: 0x0085, name: "KC_KP_COMMA", label: "Num,",  category: KeycodeCategory::Numpad },
 
     // ── Modifiers ─────────────────────────────────────────────────────────────
     Keycode { value: 0x00E0, name: "KC_LCTRL",  label: "LCtl", category: KeycodeCategory::Modifier },
@@ -227,6 +235,7 @@ pub const KEYCODES: &[Keycode] = &[
     Keycode { value: 0x00FB, name: "KC_WH_L", label: "Wh L",category: KeycodeCategory::Mouse },
     Keycode { value: 0x00FC, name: "KC_WH_R", label: "Wh R",category: KeycodeCategory::Mouse },
 
+
     // ── QMK special ───────────────────────────────────────────────────────────
     Keycode { value: 0x7C16, name: "KC_GESC",  label: "GEsc",  category: KeycodeCategory::Special },
     Keycode { value: 0x7C77, name: "QK_BOOT",  label: "Boot",  category: KeycodeCategory::Special },
@@ -260,6 +269,16 @@ pub fn find_keycode(value: u16) -> Option<&'static Keycode> {
 /// Returns a human-readable label for a keycode.
 /// Uses vial protocol v6 keycode ranges.
 pub fn keycode_label_with_custom(value: u16, custom: &[(String, String)]) -> String {
+    keycode_label_with_names(value, custom, &[])
+}
+
+pub fn keycode_label_with_names(value: u16, custom: &[(String, String)], layer_names: &[String]) -> String {
+    let layer_name = |n: u16| -> String {
+        match layer_names.get(n as usize) {
+            Some(s) if !s.is_empty() && s != &n.to_string() => format!("{}. {}", n, s),
+            _ => n.to_string(),
+        }
+    };
     if let Some(kc) = find_keycode(value) {
         return kc.label.to_string();
     }
@@ -306,13 +325,12 @@ pub fn keycode_label_with_custom(value: u16, custom: &[(String, String)]) -> Str
     // QK_PERSISTENT_DEF = 0x52E0            → PDF(n)
     if value >= 0x5200 && value < 0x5300 {
         let sub = value & 0xFF;
-        // Format: "OP/n" so draw_key_label splits into two lines
         return match (value >> 5) & 0x7 {
-            0 => format!("TO/{}", sub & 0x1F),
-            1 => format!("MO/{}", sub & 0x1F),
-            2 => format!("DF/{}", sub & 0x1F),
-            3 => format!("TG/{}", sub & 0x1F),
-            4 => format!("OSL/{}", sub & 0x1F),
+            0 => format!("TO/{}", layer_name(sub & 0x1F)),
+            1 => format!("MO/{}", layer_name(sub & 0x1F)),
+            2 => format!("DF/{}", layer_name(sub & 0x1F)),
+            3 => format!("TG/{}", layer_name(sub & 0x1F)),
+            4 => format!("OSL/{}", layer_name(sub & 0x1F)),
             5 => {
                 let mods = sub;
                 let mod_str = match mods {
@@ -322,8 +340,8 @@ pub fn keycode_label_with_custom(value: u16, custom: &[(String, String)]) -> Str
                 };
                 format!("OSM/{}", mod_str)
             }
-            6 => format!("TT/{}", sub & 0x1F),
-            7 => format!("PDF/{}", sub & 0x1F),
+            6 => format!("TT/{}", layer_name(sub & 0x1F)),
+            7 => format!("PDF/{}", layer_name(sub & 0x1F)),
             _ => format!("{:04X}", value),
         };
     }
@@ -331,7 +349,7 @@ pub fn keycode_label_with_custom(value: u16, custom: &[(String, String)]) -> Str
     // QK_LAYER_MOD: 0x5000 | (layer << 4) | mods
     if value >= 0x5000 && value < 0x5200 {
         let layer = (value >> 4) & 0xF;
-        return format!("LM/{}", layer);
+        return format!("LM/{}", layer_name(layer as u16));
     }
 
     // QK_LAYER_TAP: 0x4000 | (layer << 8) | kc  (checked AFTER all 0x5xxx ranges)
@@ -339,7 +357,7 @@ pub fn keycode_label_with_custom(value: u16, custom: &[(String, String)]) -> Str
         let layer = (value >> 8) & 0xF;
         let kc = value & 0xFF;
         let kc_str = find_keycode(kc as u16).map(|k| k.label).unwrap_or("?");
-        return format!("LT {}/{}", layer, kc_str);
+        return format!("LT {}/{}", layer_name(layer as u16), kc_str);
     }
 
     // QK_MOD_TAP: 0x2000 | (mods << 8) | kc
