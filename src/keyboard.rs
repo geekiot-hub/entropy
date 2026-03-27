@@ -206,7 +206,8 @@ impl KeyboardLayout {
                 // shortName may contain \n — take last line for display
                 let short = c.get("shortName").and_then(|v| v.as_str()).unwrap_or("")
                     .lines().filter(|l| !l.is_empty()).last().unwrap_or("").to_string();
-                (name, if short.is_empty() { name.clone() } else { short })
+                let label = if short.is_empty() { name.clone() } else { short };
+                (name, label)
             }).collect()
         } else {
             vec![]
