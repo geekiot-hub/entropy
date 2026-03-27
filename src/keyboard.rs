@@ -204,9 +204,16 @@ impl KeyboardLayout {
             customs.iter().map(|c| {
                 let name = c.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
                 // shortName may contain \n — take last line for display
-                let short = c.get("shortName").and_then(|v| v.as_str()).unwrap_or("")
-                    .lines().filter(|l| !l.is_empty()).last().unwrap_or("").to_string();
-                let label = if short.is_empty() { name.clone() } else { short };
+                // shortName format: "First\nSecond" — show as "First/Second" or just name
+                let short_raw = c.get("shortName").and_then(|v| v.as_str()).unwrap_or("");
+                let label = if short_raw.is_empty() {
+                    // Use last part of name (e.g. "EH_SNP" → "EH_SNP")
+                    name.clone()
+                } else {
+                    // Join lines with "/" for compact display
+                    let parts: Vec<&str> = short_raw.lines().filter(|l| !l.is_empty()).collect();
+                    parts.join("/")
+                };
                 (name, label)
             }).collect()
         } else {

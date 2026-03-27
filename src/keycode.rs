@@ -228,7 +228,8 @@ pub const KEYCODES: &[Keycode] = &[
     Keycode { value: 0x00FC, name: "KC_WH_R", label: "Wh R",category: KeycodeCategory::Mouse },
 
     // ── QMK special ───────────────────────────────────────────────────────────
-    Keycode { value: 0x7C16, name: "QK_BOOT",  label: "Boot",  category: KeycodeCategory::Special },
+    Keycode { value: 0x7C16, name: "KC_GESC",  label: "GEsc",  category: KeycodeCategory::Special },
+    Keycode { value: 0x7C77, name: "QK_BOOT",  label: "Boot",  category: KeycodeCategory::Special },
     Keycode { value: 0x7C00, name: "DB_TOGG",  label: "Debug", category: KeycodeCategory::Special },
     Keycode { value: 0x7800, name: "QK_LOCK",  label: "Lock",  category: KeycodeCategory::Special },
     Keycode { value: 0x7C1A, name: "KC_LSPO",  label: "LSPO",  category: KeycodeCategory::Special },
@@ -236,6 +237,20 @@ pub const KEYCODES: &[Keycode] = &[
     Keycode { value: 0x7C18, name: "KC_LCPO",  label: "LCPO",  category: KeycodeCategory::Special },
     Keycode { value: 0x7C19, name: "KC_RCPC",  label: "RCPC",  category: KeycodeCategory::Special },
     Keycode { value: 0x7C1E, name: "KC_SFTENT",label: "SftEnt",category: KeycodeCategory::Special },
+    Keycode { value: 0x7C14, name: "QK_MAKE",  label: "Make",  category: KeycodeCategory::Special },
+    Keycode { value: 0x7C15, name: "KC_ASTG",  label: "ASpeed",category: KeycodeCategory::Special },
+    // RGB Light
+    Keycode { value: 0x7A00, name: "RGB_TOG",  label: "RGB\nTog",  category: KeycodeCategory::Special },
+    Keycode { value: 0x7A01, name: "RGB_MOD",  label: "RGB\nMod",  category: KeycodeCategory::Special },
+    Keycode { value: 0x7A02, name: "RGB_RMOD", label: "RGB\nRMod", category: KeycodeCategory::Special },
+    Keycode { value: 0x7A03, name: "RGB_HUI",  label: "RGB\nH+",   category: KeycodeCategory::Special },
+    Keycode { value: 0x7A04, name: "RGB_HUD",  label: "RGB\nH-",   category: KeycodeCategory::Special },
+    Keycode { value: 0x7A05, name: "RGB_SAI",  label: "RGB\nS+",   category: KeycodeCategory::Special },
+    Keycode { value: 0x7A06, name: "RGB_SAD",  label: "RGB\nS-",   category: KeycodeCategory::Special },
+    Keycode { value: 0x7A07, name: "RGB_VAI",  label: "RGB\nV+",   category: KeycodeCategory::Special },
+    Keycode { value: 0x7A08, name: "RGB_VAD",  label: "RGB\nV-",   category: KeycodeCategory::Special },
+    Keycode { value: 0x7A09, name: "RGB_SPI",  label: "RGB\nSpd+", category: KeycodeCategory::Special },
+    Keycode { value: 0x7A0A, name: "RGB_SPD",  label: "RGB\nSpd-", category: KeycodeCategory::Special },
 ];
 
 pub fn find_keycode(value: u16) -> Option<&'static Keycode> {
@@ -312,25 +327,31 @@ pub fn keycode_label_with_custom(value: u16, custom: &[(String, String)]) -> Str
         return format!("{}/{}", mod_str, kc_str);
     }
 
-    // Modifier+key combos: 0x0100..0x0F00 | kc
-    // LCTL=0x100, LSFT=0x200, LALT=0x400, LGUI=0x800, HYPR=0xF00, MEH=0x700
+    // Modifier+key combos: 0x0100..0x1F00 | kc
+    // LCTL=0x0100, LSFT=0x0200, LALT=0x0400, LGUI=0x0800
+    // RCTL=0x1100, RSFT=0x1200, RALT=0x1400, RGUI=0x1800
+    // MEH=0x0700, HYPR=0x0F00, LSA=0x0600, LCA=0x0500
     if value >= 0x0100 && value < 0x2000 && (value & 0xFF) != 0 {
         let mods = value >> 8;
         let kc = value & 0xFF;
         let kc_str = find_keycode(kc as u16).map(|k| k.label).unwrap_or("?");
         let mod_str = match mods {
-            0x01 => "Ctl",
-            0x02 => "Sft",
-            0x04 => "Alt",
-            0x08 => "Gui",
-            0x03 => "CS",
-            0x05 => "CA",
-            0x06 => "SA",
+            0x01 => "LCtl",
+            0x02 => "LSft",
+            0x04 => "LAlt",
+            0x08 => "LGui",
+            0x03 => "LCS",
+            0x05 => "LCA",
+            0x06 => "LSA",
             0x07 => "Meh",
-            0x09 => "CG",
-            0x0C => "AG",
+            0x09 => "LCG",
+            0x0C => "LAG",
             0x0F => "Hypr",
-            0x0A => "SG",
+            0x0A => "LSG",
+            0x11 => "RCtl",
+            0x12 => "RSft",
+            0x14 => "RAlt",
+            0x18 => "RGui",
             _ => "Mod",
         };
         return format!("{}/{}", mod_str, kc_str);
