@@ -1,6 +1,6 @@
 /// Keycode picker modal — organized by category
 
-use crate::keycode::{KeycodeCategory, KEYCODES};
+use crate::keycode::{keycode_tooltip, KeycodeCategory, KEYCODES};
 use egui::{Color32, Key, RichText, Vec2};
 
 pub struct KeycodePicker {
@@ -145,6 +145,12 @@ impl KeycodePicker {
         ctx.input(|i| {
             for event in &i.events {
                 if let egui::Event::Key { key, pressed: true, modifiers, .. } = event {
+                    // Escape always closes picker without assigning anything
+                    if *key == Key::Escape {
+                        self.open = false;
+                        self.listening = false;
+                        return;
+                    }
                     if self.search_query.is_empty() || modifiers.any() {
                         if let Some(qmk) = egui_key_to_qmk(*key, *modifiers) {
                             self.result = Some(qmk);
@@ -197,7 +203,7 @@ impl KeycodePicker {
                     KeycodeTab::Function   => "Function keys F1–F24",
                     KeycodeTab::Navigation => "Arrows, Home, End, Page Up/Down, Insert, Delete, Print Screen",
                     KeycodeTab::Modifiers  => "Ctrl, Shift, Alt, Gui (Win/Cmd), one-shot modifiers (OSM)",
-                    KeycodeTab::Layers     => "Layer operations: MO (momentary), TG (toggle), TO, OSL, TT, DF",
+                    KeycodeTab::Layers     => "MO — hold to activate, release to return  •  TG — tap to toggle on/off  •  OSL — active for next keypress only  •  TT — hold=MO, tap=toggle  •  TO — switch and stay  •  DF — set as permanent base layer",
                     KeycodeTab::Media      => "Volume, brightness, play/pause, media controls, browser keys",
                     KeycodeTab::Mouse      => "Mouse movement, buttons MB1–MB5, scroll wheel",
                     KeycodeTab::Numpad     => "Numpad 0–9, operators, Enter, dot, comma",
@@ -209,7 +215,6 @@ impl KeycodePicker {
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     ui.horizontal_wrapped(|ui| {
                         if self.selected_tab == KeycodeTab::Layers {
-                            // Dynamic layer keys with names
                             let layer_name = |n: u16| -> String {
                                 match self.layer_names.get(n as usize) {
                                     Some(s) if !s.is_empty() && s != &n.to_string()
@@ -217,33 +222,103 @@ impl KeycodePicker {
                                     _ => n.to_string(),
                                 }
                             };
-                            let ops: &[(&str, u16, &str)] = &[
-                                ("MO", 0x5220, "Momentary"),
-                                ("TG", 0x5260, "Toggle"),
-                                ("TO", 0x5210, "Turn On"),
-                                ("OSL", 0x5280, "One-Shot"),
-                                ("TT", 0x52C0, "Tap-Toggle"),
-                                ("DF", 0x5240, "Default"),
+                            let active_layers: u16 = 16;
+
+                            // ops: (base value, column header, tooltip desc)
+                            let ops: &[(u16, &str, &str)] = &[
+                                (0x5220, "Hold\n(MO)",      "Hold to activate, release to return"),
+                                (0x5260, "Toggle\n(TG)",    "Tap to toggle on/off"),
+                                (0x5280, "One-Shot\n(OSL)", "Active for next keypress only"),
+                                (0x52C0, "Tap-Tog\n(TT)",   "Hold = MO, tap repeatedly = toggle"),
+                                (0x5200, "Switch\n(TO)",    "Switch and stay on this layer"),
+                                (0x5240, "Default\n(DF)",   "Set as permanent base layer"),
                             ];
-                            for (op, base, desc) in ops {
-                                ui.label(RichText::new(format!("── {} ({}) ──", op, desc)).size(10.0).color(Color32::from_gray(150)));
-                                ui.end_row();
-                                for n in 0..16u16 {
-                                    let value = base + n;
-                                    let lname = layer_name(n);
-                                    let label = format!("{}\n{}", op, lname);
-                                    let resp = ui.add(
-                                        egui::Button::new(RichText::new(&label).size(10.0))
-                                            .min_size(Vec2::new(52.0, 38.0)),
-                                    );
-                                    if resp.clicked() { self.result = Some(value); self.open = false; }
-                                    resp.on_hover_text(format!("{}({}) — 0x{:04X}", op, n, value));
-                                }
-                                ui.add_space(4.0);
-                            }
+
+                            // Grid: columns = ops, rows = layers
+                            let col_w = 80.0_f32;
+                            let row_h = 32.0_f32;
+                            let dark = ui.visuals().dark_mode;
+
+                            egui::Grid::new("layers_grid")
+                                .spacing([4.0, 2.0])
+                                .show(ui, |ui| {
+                                    // Header row
+                                    ui.label(""); // row label column
+                                    for (_, header, hint) in ops {
+                                        ui.add(egui::Label::new(
+                                            RichText::new(*header).size(10.0).strong()
+                                        ).sense(egui::Sense::hover()))
+                                        .on_hover_text(*hint);
+                                    }
+                                    ui.end_row();
+
+                                    // One row per layer
+                                    for n in 0..active_layers {
+                                        let raw = self.layer_names.get(n as usize).cloned().unwrap_or(n.to_string());
+                                        let is_named = !raw.is_empty() && raw != n.to_string();
+
+                                        // Alternating row background
+                                        let row_bg = if n % 2 == 0 {
+                                            if dark { Color32::from_rgba_premultiplied(255,255,255,6) }
+                                            else     { Color32::from_rgba_premultiplied(0,0,0,8) }
+                                        } else {
+                                            Color32::TRANSPARENT
+                                        };
+
+                                        // Row label — just the name (number is shown on the buttons)
+                                        let label_text = if is_named {
+                                            raw.clone()
+                                        } else {
+                                            format!("Layer {}", n)
+                                        };
+                                        let label_color = if is_named {
+                                            Color32::from_rgb(91, 104, 223)
+                                        } else if dark {
+                                            Color32::from_gray(110)
+                                        } else {
+                                            Color32::from_gray(160)
+                                        };
+                                        ui.label(RichText::new(&label_text).size(11.5).color(label_color)
+                                            .strong());
+
+                                        for (base, header, _) in ops {
+                                            let value = base + n;
+                                            let tip = keycode_tooltip(value, &[], &self.layer_names);
+                                            // Extract op name: "Hold\n(MO)" → "MO"
+                                            let op_short = header.split('\n').last()
+                                                .unwrap_or("")
+                                                .trim_matches(|c| c == '(' || c == ')');
+                                            let btn_text = format!("{}({})", op_short, n);
+                                            let btn_color = if is_named {
+                                                if dark { Color32::from_gray(220) } else { Color32::from_gray(30) }
+                                            } else {
+                                                if dark { Color32::from_gray(80) } else { Color32::from_gray(190) }
+                                            };
+                                            let fill = if is_named {
+                                                if dark { Color32::from_rgb(38, 43, 88) } else { Color32::from_rgb(224, 227, 249) }
+                                            } else {
+                                                row_bg
+                                            };
+                                            let resp = ui.add(
+                                                egui::Button::new(
+                                                    RichText::new(&btn_text).size(10.5).color(btn_color)
+                                                )
+                                                .fill(fill)
+                                                .min_size(Vec2::new(col_w, row_h))
+                                            );
+                                            if resp.clicked() { self.result = Some(value); self.open = false; }
+                                            resp.on_hover_text(tip);
+                                        }
+                                        ui.end_row();
+                                    }
+                                });
                         } else if self.selected_tab != KeycodeTab::Custom {
+                            let custom_pairs: Vec<(String, String)> = self.custom_keycodes.iter()
+                                .map(|(n, l, _)| (n.clone(), l.clone()))
+                                .collect();
                             for kc in KEYCODES.iter() {
                                 if !self.selected_tab.matches(kc) { continue; }
+                                let tip = keycode_tooltip(kc.value, &custom_pairs, &self.layer_names);
                                 let resp = ui.add(
                                     egui::Button::new(RichText::new(kc.label).size(11.0))
                                         .min_size(Vec2::new(52.0, 38.0)),
@@ -252,11 +327,12 @@ impl KeycodePicker {
                                     self.result = Some(kc.value);
                                     self.open = false;
                                 }
-                                resp.on_hover_text(format!("{}\n0x{:04X}", kc.name, kc.value));
+                                resp.on_hover_text(tip);
                             }
                         } else {
                             for (name, label, value) in &self.custom_keycodes {
                                 if label.is_empty() { continue; }
+                                let tip = format!("Custom key: {} ({})", label, name);
                                 let resp = ui.add(
                                     egui::Button::new(RichText::new(label).size(11.0))
                                         .min_size(Vec2::new(52.0, 38.0)),
@@ -265,7 +341,7 @@ impl KeycodePicker {
                                     self.result = Some(*value);
                                     self.open = false;
                                 }
-                                resp.on_hover_text(format!("{}\n0x{:04X}", name, value));
+                                resp.on_hover_text(tip);
                             }
                         }
                     });

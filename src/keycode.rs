@@ -273,9 +273,17 @@ pub fn keycode_label_with_custom(value: u16, custom: &[(String, String)]) -> Str
 }
 
 pub fn keycode_label_with_names(value: u16, custom: &[(String, String)], layer_names: &[String]) -> String {
+    // Returns "OpName(n)\nLayerName" or "OpName(n)" if layer has no custom name
+    let layer_label = |op: &str, n: u16| -> String {
+        match layer_names.get(n as usize) {
+            Some(s) if !s.is_empty() && s != &n.to_string() => format!("{}({})\n{}", op, n, s),
+            _ => format!("{}({})", op, n),
+        }
+    };
+    // Plain layer number for use inside compound labels (LT, MT descriptions)
     let layer_name = |n: u16| -> String {
         match layer_names.get(n as usize) {
-            Some(s) if !s.is_empty() && s != &n.to_string() => format!("{}. {}", n, s),
+            Some(s) if !s.is_empty() && s != &n.to_string() => format!("{}({})", s, n),
             _ => n.to_string(),
         }
     };
@@ -326,11 +334,11 @@ pub fn keycode_label_with_names(value: u16, custom: &[(String, String)], layer_n
     if value >= 0x5200 && value < 0x5300 {
         let sub = value & 0xFF;
         return match (value >> 5) & 0x7 {
-            0 => format!("TO/{}", layer_name(sub & 0x1F)),
-            1 => format!("MO/{}", layer_name(sub & 0x1F)),
-            2 => format!("DF/{}", layer_name(sub & 0x1F)),
-            3 => format!("TG/{}", layer_name(sub & 0x1F)),
-            4 => format!("OSL/{}", layer_name(sub & 0x1F)),
+            0 => layer_label("TO",  sub & 0x1F),
+            1 => layer_label("MO",  sub & 0x1F),
+            2 => layer_label("DF",  sub & 0x1F),
+            3 => layer_label("TG",  sub & 0x1F),
+            4 => layer_label("OSL", sub & 0x1F),
             5 => {
                 let mods = sub;
                 let mod_str = match mods {
@@ -340,8 +348,8 @@ pub fn keycode_label_with_names(value: u16, custom: &[(String, String)], layer_n
                 };
                 format!("OSM/{}", mod_str)
             }
-            6 => format!("TT/{}", layer_name(sub & 0x1F)),
-            7 => format!("PDF/{}", layer_name(sub & 0x1F)),
+            6 => layer_label("TT",  sub & 0x1F),
+            7 => layer_label("PDF", sub & 0x1F),
             _ => format!("{:04X}", value),
         };
     }
@@ -423,4 +431,289 @@ fn decode_mods(mods: u16, _right: bool) -> &'static str {
 
 pub fn keycode_label(value: u16) -> String {
     keycode_label_with_custom(value, &[])
+}
+
+/// Returns a human-readable tooltip for a keycode.
+pub fn keycode_tooltip(value: u16, custom: &[(String, String)], layer_names: &[String]) -> String {
+    let layer_display = |n: u16| -> String {
+        match layer_names.get(n as usize) {
+            Some(s) if !s.is_empty() && s != &n.to_string() => format!("\"{}\" ({})", s, n),
+            _ => format!("layer {}", n),
+        }
+    };
+    let mod_name = |m: u16, right: bool| -> &'static str {
+        match (m, right) {
+            (0x01, false) | (0x01, true) => "Ctrl",
+            (0x02, false) | (0x02, true) => "Shift",
+            (0x04, false) | (0x04, true) => "Alt",
+            (0x08, false) | (0x08, true) => "Win/Cmd",
+            (0x07, _) => "Meh (Ctrl+Shift+Alt)",
+            (0x0F, _) => "Hyper (Ctrl+Shift+Alt+Win)",
+            (0x03, _) => "Ctrl+Shift",
+            (0x05, _) => "Ctrl+Alt",
+            (0x06, _) => "Shift+Alt",
+            _ => "modifier",
+        }
+    };
+    let side = |v: u16| if v & 0x10 != 0 { "Right " } else { "Left " };
+
+    // ── KC_NO / KC_TRNS ──────────────────────────────────────────────────────
+    if value == 0x0000 {
+        return "No key — this key does nothing".to_string();
+    }
+    if value == 0x0001 {
+        return "Transparent — uses the key assigned on the layer below".to_string();
+    }
+
+    // ── One-shot mod: 0x52A0/0x52B0 range ───────────────────────────────────
+    if value & 0xFF00 == 0x52A0 || value & 0xFF00 == 0x52B0 {
+        let mods = value & 0x1F;
+        let right = value >= 0x52B0;
+        let m = mod_name(mods as u16, right);
+        return format!("One-Shot {}{} — activates {} for the very next keypress only", side(mods as u16), m, m);
+    }
+
+    // ── Layer ops 0x5200..0x52FF ─────────────────────────────────────────────
+    if value >= 0x5200 && value < 0x5300 {
+        let sub = value & 0xFF;
+        return match (value >> 5) & 0x7 {
+            0 => format!("TO({}) — switch to {} and stay there", sub & 0x1F, layer_display(sub & 0x1F)),
+            1 => format!("MO({}) — activate {} while held, return when released", sub & 0x1F, layer_display(sub & 0x1F)),
+            2 => format!("DF({}) — set {} as the default base layer", sub & 0x1F, layer_display(sub & 0x1F)),
+            3 => format!("TG({}) — toggle {} on/off", sub & 0x1F, layer_display(sub & 0x1F)),
+            4 => format!("OSL({}) — activate {} for next keypress only", sub & 0x1F, layer_display(sub & 0x1F)),
+            5 => {
+                let m = mod_name(sub as u16 & 0x1F, sub >= 0x10);
+                format!("One-Shot {} — activates {} for the very next keypress only", m, m)
+            }
+            6 => format!("TT({}) — tap to toggle {}, hold to activate while held", sub & 0x1F, layer_display(sub & 0x1F)),
+            7 => format!("PDF({}) — permanently set {} as the default layer", sub & 0x1F, layer_display(sub & 0x1F)),
+            _ => format!("Unknown layer op (0x{:04X})", value),
+        };
+    }
+
+    // ── QK_LAYER_MOD 0x5000..0x51FF ─────────────────────────────────────────
+    if value >= 0x5000 && value < 0x5200 {
+        let layer = (value >> 4) & 0xF;
+        let mods = value & 0xF;
+        let m = mod_name(mods as u16, false);
+        return format!("LM({}, {}) — activate {} with {} held while key is pressed", layer, m, layer_display(layer as u16), m);
+    }
+
+    // ── QK_LAYER_TAP 0x4000..0x4FFF ─────────────────────────────────────────
+    if value & 0xF000 == 0x4000 {
+        let layer = (value >> 8) & 0xF;
+        let kc = value & 0xFF;
+        let kc_str = find_keycode(kc as u16)
+            .map(|k| simple_key_name(k))
+            .unwrap_or_else(|| format!("0x{:02X}", kc));
+        return format!("Layer Tap — tap for {}, hold to activate {}", kc_str, layer_display(layer as u16));
+    }
+
+    // ── QK_MOD_TAP 0x2000..0x3FFF ───────────────────────────────────────────
+    if value & 0xE000 == 0x2000 {
+        let kc = value & 0xFF;
+        let mods = (value >> 8) & 0x1F;
+        let right = (value >> 12) & 0x1 != 0;
+        let kc_str = find_keycode(kc as u16)
+            .map(|k| simple_key_name(k))
+            .unwrap_or_else(|| format!("0x{:02X}", kc));
+        let m = mod_name(mods as u16, right);
+        let side_str = side(mods as u16);
+        return format!("Mod Tap — tap for {}, hold for {}{}", kc_str, side_str, m);
+    }
+
+    // ── Modifier+key combos 0x0100..0x1FFF ──────────────────────────────────
+    if value >= 0x0100 && value < 0x2000 && (value & 0xFF) != 0 {
+        let mods = value >> 8;
+        let kc = value & 0xFF;
+        let kc_str = find_keycode(kc as u16)
+            .map(|k| simple_key_name(k))
+            .unwrap_or_else(|| format!("0x{:02X}", kc));
+        let combo = match mods {
+            0x01 => "Ctrl+",
+            0x02 => "Shift+",
+            0x04 => "Alt+",
+            0x08 => "Win/Cmd+",
+            0x03 => "Ctrl+Shift+",
+            0x05 => "Ctrl+Alt+",
+            0x06 => "Shift+Alt+",
+            0x07 => "Meh (Ctrl+Shift+Alt)+",
+            0x09 => "Ctrl+Win+",
+            0x0C => "Alt+Win+",
+            0x0F => "Hyper (Ctrl+Shift+Alt+Win)+",
+            0x0A => "Shift+Win+",
+            0x11 => "Right Ctrl+",
+            0x12 => "Right Shift+",
+            0x14 => "Right Alt+",
+            0x18 => "Right Win+",
+            _ => "Modifier+",
+        };
+        return format!("Shortcut: {}{}", combo, kc_str);
+    }
+
+    // ── Custom keycodes ──────────────────────────────────────────────────────
+    const KB_BASE: u16 = 0x7E00;
+    const USER_BASE: u16 = 0x7E40;
+    if value >= KB_BASE {
+        if value >= USER_BASE {
+            let idx = (value - USER_BASE) as usize;
+            if let Some((name, label)) = custom.get(idx) {
+                return format!("Custom key: {} ({})", label, name);
+            }
+        }
+        let idx = (value - KB_BASE) as usize;
+        if let Some((name, label)) = custom.get(idx) {
+            return format!("Custom key: {} ({})", label, name);
+        }
+        return format!("Custom key (0x{:04X})", value);
+    }
+
+    // ── Simple keycodes ──────────────────────────────────────────────────────
+    if let Some(kc) = find_keycode(value) {
+        return simple_key_tooltip(kc);
+    }
+
+    format!("Unknown keycode (0x{:04X})", value)
+}
+
+/// Human-readable short name for a simple keycode (used inside compound descriptions).
+fn simple_key_name(kc: &Keycode) -> String {
+    match kc.name {
+        "KC_SPACE"  => "Space".to_string(),
+        "KC_ENTER"  => "Enter".to_string(),
+        "KC_ESCAPE" => "Escape".to_string(),
+        "KC_BSPACE" => "Backspace".to_string(),
+        "KC_TAB"    => "Tab".to_string(),
+        "KC_DELETE" => "Delete".to_string(),
+        _ => kc.label.replace('\n', "/"),
+    }
+}
+
+/// Full tooltip for a plain keycode.
+fn simple_key_tooltip(kc: &Keycode) -> String {
+    let desc: &str = match kc.name {
+        // Special
+        "KC_NO"          => "No key — this key does nothing",
+        "KC_TRNS"        => "Transparent — uses the key assigned on the layer below",
+        // Control
+        "KC_ENTER"       => "Enter — confirm / new line",
+        "KC_ESCAPE"      => "Escape — cancel / close",
+        "KC_BSPACE"      => "Backspace — delete character before cursor",
+        "KC_TAB"         => "Tab — indent / move focus forward",
+        "KC_SPACE"       => "Space",
+        "KC_CAPSLOCK"    => "Caps Lock — toggle uppercase input",
+        "KC_APPLICATION" => "Menu key — open right-click context menu",
+        // Modifiers
+        "KC_LCTRL"  => "Left Ctrl — modifier key (hold to activate shortcuts)",
+        "KC_RCTRL"  => "Right Ctrl — modifier key (hold to activate shortcuts)",
+        "KC_LSHIFT" => "Left Shift — hold to type uppercase / shifted symbols",
+        "KC_RSHIFT" => "Right Shift — hold to type uppercase / shifted symbols",
+        "KC_LALT"   => "Left Alt — modifier key (hold to activate shortcuts)",
+        "KC_RALT"   => "Right Alt / AltGr — access special characters",
+        "KC_LGUI"   => "Left Win/Cmd — open start menu, OS shortcuts",
+        "KC_RGUI"   => "Right Win/Cmd — open start menu, OS shortcuts",
+        // Navigation
+        "KC_UP"       => "Arrow Up",
+        "KC_DOWN"     => "Arrow Down",
+        "KC_LEFT"     => "Arrow Left",
+        "KC_RIGHT"    => "Arrow Right",
+        "KC_HOME"     => "Home — jump to beginning of line",
+        "KC_END"      => "End — jump to end of line",
+        "KC_PGUP"     => "Page Up — scroll up one page",
+        "KC_PGDOWN"   => "Page Down — scroll down one page",
+        "KC_INSERT"   => "Insert — toggle insert/overwrite mode",
+        "KC_DELETE"   => "Delete — delete character after cursor",
+        "KC_PSCREEN"  => "Print Screen — take a screenshot",
+        "KC_SCROLLLOCK" => "Scroll Lock",
+        "KC_PAUSE"    => "Pause / Break",
+        // Media
+        "KC_MUTE" => "Mute / Unmute audio",
+        "KC_VOLU" => "Volume Up",
+        "KC_VOLD" => "Volume Down",
+        "KC_MNXT" => "Next Track",
+        "KC_MPRV" => "Previous Track",
+        "KC_MSTP" => "Stop playback",
+        "KC_MPLY" => "Play / Pause",
+        "KC_MSEL" => "Open media player",
+        "KC_MAIL" => "Open email client",
+        "KC_CALC" => "Open calculator",
+        "KC_MYCM" => "Open My Computer / file manager",
+        "KC_WSCH" => "Browser search",
+        "KC_WHOM" => "Browser home page",
+        "KC_WBAK" => "Browser back",
+        "KC_WFWD" => "Browser forward",
+        "KC_WSTP" => "Browser stop loading",
+        "KC_WREF" => "Browser refresh",
+        "KC_WFAV" => "Browser favourites",
+        "KC_SLEP" => "Sleep — put computer to sleep",
+        "KC_WAKE" => "Wake — wake computer from sleep",
+        "KC_BRIU" => "Brightness Up",
+        "KC_BRID" => "Brightness Down",
+        "KC_PWR"  => "Power — system power button",
+        // Mouse
+        "KC_MS_U" => "Mouse cursor — move up",
+        "KC_MS_D" => "Mouse cursor — move down",
+        "KC_MS_L" => "Mouse cursor — move left",
+        "KC_MS_R" => "Mouse cursor — move right",
+        "KC_BTN1" => "Mouse button 1 — left click",
+        "KC_BTN2" => "Mouse button 2 — right click",
+        "KC_BTN3" => "Mouse button 3 — middle click",
+        "KC_BTN4" => "Mouse button 4 — back",
+        "KC_BTN5" => "Mouse button 5 — forward",
+        "KC_WH_U" => "Mouse wheel — scroll up",
+        "KC_WH_D" => "Mouse wheel — scroll down",
+        "KC_WH_L" => "Mouse wheel — scroll left",
+        "KC_WH_R" => "Mouse wheel — scroll right",
+        // Numpad
+        "KC_NUMLOCK"     => "Num Lock — toggle numpad number input",
+        "KC_KP_SLASH"    => "Numpad ÷ (divide)",
+        "KC_KP_ASTERISK" => "Numpad × (multiply)",
+        "KC_KP_MINUS"    => "Numpad − (minus)",
+        "KC_KP_PLUS"     => "Numpad + (plus)",
+        "KC_KP_ENTER"    => "Numpad Enter",
+        "KC_KP_DOT"      => "Numpad . (decimal point)",
+        "KC_KP_EQUAL"    => "Numpad = (equals)",
+        "KC_KP_COMMA"    => "Numpad , (comma)",
+        // QMK special
+        "KC_GESC"   => "Grave/Escape — sends Esc normally, ` when Shift or GUI is held",
+        "QK_BOOT"   => "Bootloader — put keyboard into flash mode",
+        "DB_TOGG"   => "Debug toggle — enable/disable debug output",
+        "QK_LOCK"   => "Lock — lock a key in pressed state until pressed again",
+        "KC_LSPO"   => "Left Shift / ( — tap for (, hold for Left Shift",
+        "KC_RSPC"   => "Right Shift / ) — tap for ), hold for Right Shift",
+        "KC_LCPO"   => "Left Ctrl / ( — tap for (, hold for Left Ctrl",
+        "KC_RCPC"   => "Right Ctrl / ) — tap for ), hold for Right Ctrl",
+        "KC_SFTENT" => "Shift/Enter — tap for Enter, hold for Right Shift",
+        "QK_MAKE"   => "Compile firmware",
+        "KC_ASTG"   => "Auto-shift toggle",
+        // RGB
+        "RGB_TOG"  => "RGB lighting — toggle on/off",
+        "RGB_MOD"  => "RGB lighting — next animation mode",
+        "RGB_RMOD" => "RGB lighting — previous animation mode",
+        "RGB_HUI"  => "RGB lighting — hue +",
+        "RGB_HUD"  => "RGB lighting — hue −",
+        "RGB_SAI"  => "RGB lighting — saturation +",
+        "RGB_SAD"  => "RGB lighting — saturation −",
+        "RGB_VAI"  => "RGB lighting — brightness +",
+        "RGB_VAD"  => "RGB lighting — brightness −",
+        "RGB_SPI"  => "RGB lighting — animation speed +",
+        "RGB_SPD"  => "RGB lighting — animation speed −",
+        _ => "",
+    };
+
+    if !desc.is_empty() {
+        return desc.to_string();
+    }
+
+    // Fallback: letters, digits, F-keys, punctuation
+    match kc.category {
+        KeycodeCategory::Basic => {
+            let label = kc.label.replace('\n', " / ");
+            format!("Key: {}", label)
+        }
+        KeycodeCategory::Function => format!("{} function key", kc.label),
+        KeycodeCategory::Numpad   => format!("Numpad {}", kc.label.trim_start_matches("Num")),
+        _ => kc.label.replace('\n', " / "),
+    }
 }

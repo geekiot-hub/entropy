@@ -35,11 +35,16 @@ fn save_layer_names(names: &[String]) {
         full.push(n.to_string());
     }
     if let Ok(data) = serde_json::to_string(&full) {
-        std::fs::write(layer_names_path(), data).ok();
+        let path = layer_names_path();
+        if let Err(e) = std::fs::write(&path, &data) {
+            log::warn!("save_layer_names failed at {:?}: {e}", path);
+        } else {
+            log::info!("save_layer_names ok → {:?}", path);
+        }
     }
 }
 use crate::keyboard::KeyboardLayout;
-use crate::keycode::keycode_label_with_names;
+use crate::keycode::{keycode_label_with_names, keycode_tooltip};
 use crate::keycode_picker::KeycodePicker;
 use egui::{Color32, FontId, RichText, Sense, Stroke, Vec2};
 
@@ -78,6 +83,7 @@ pub struct EntropyApp {
     layer_names: Vec<String>,
     editing_layer: Option<usize>, // layer being renamed
     editing_layer_text: String,
+    editing_layer_focus_requested: bool,
 }
 
 impl EntropyApp {
@@ -98,6 +104,7 @@ impl EntropyApp {
             layer_names: load_layer_names(),
             editing_layer: None,
             editing_layer_text: String::new(),
+            editing_layer_focus_requested: false,
             #[cfg(not(target_arch = "wasm32"))]
             connect_state: ConnectState::Idle,
         };
@@ -345,6 +352,19 @@ impl eframe::App for EntropyApp {
             self.selected_key = None;
         }
 
+        // Arrow keys Left/Right switch layers (when picker is closed)
+        if !self.keycode_picker.open {
+            let layer_count = self.layer_count;
+            ctx.input(|i| {
+                if i.key_pressed(egui::Key::ArrowLeft) && self.selected_layer > 0 {
+                    self.selected_layer -= 1;
+                }
+                if i.key_pressed(egui::Key::ArrowRight) && self.selected_layer + 1 < layer_count {
+                    self.selected_layer += 1;
+                }
+            });
+        }
+
         // Check if loading
         #[cfg(not(target_arch = "wasm32"))]
         let is_loading = matches!(self.connect_state, ConnectState::Loading(_));
@@ -541,8 +561,12 @@ impl EntropyApp {
                         .char_limit(7)
                         .frame(false)
                 );
-                resp.request_focus();
-                // Commit on Enter, lost focus (click outside), or Escape
+                // Request focus only on the first frame so lost_focus() works correctly.
+                if !self.editing_layer_focus_requested {
+                    resp.request_focus();
+                    self.editing_layer_focus_requested = true;
+                }
+                // Commit on Enter or lost focus (click outside); cancel on Escape.
                 let commit = resp.lost_focus() || ui.input(|inp| inp.key_pressed(egui::Key::Enter));
                 let cancel = ui.input(|inp| inp.key_pressed(egui::Key::Escape));
                 if commit || cancel {
@@ -553,20 +577,38 @@ impl EntropyApp {
                         save_layer_names(&self.layer_names);
                     }
                     self.editing_layer = None;
+                    self.editing_layer_focus_requested = false;
                 }
             } else {
-                // Measure text width first; clamp to a minimum so arrows
-                // land in the right place even on the very first frame before
-                // the font atlas is populated.
-                let text_w = ui.fonts(|f| f.layout_no_wrap(name.clone(), label_font.clone(), text_color).size().x);
-                let text_w = text_w.max(40.0); // never 0 → arrows always visible
-                let half = (text_w / 2.0).ceil();
-                let gap = 18.0_f32;
                 let mid_y = bar_y + layer_bar_h / 2.0;
 
-                // Allocate arrows FIRST (so they get input priority)
-                let left_center  = egui::pos2(center_x - half - gap - 22.0, mid_y);
-                let right_center = egui::pos2(center_x + half + gap + 22.0, mid_y);
+                // Fixed arrow positions based on max 7-char name width so
+                // arrows never jump around as the layer name changes.
+                // name_rect is 170px wide → half = 85px; gap keeps arrows clear.
+                let fixed_half = 85.0_f32;
+                let gap = 16.0_f32;
+                let left_center  = egui::pos2(center_x - fixed_half - gap - 24.0, mid_y);
+                let right_center = egui::pos2(center_x + fixed_half + gap + 24.0, mid_y);
+
+                // Still measure actual text width for painting the name and edit icon.
+                let text_w = ui.fonts(|f| f.layout_no_wrap(name.clone(), label_font.clone(), text_color).size().x);
+
+                // Allocate name FIRST — arrows are allocated last and win in egui's
+                // hit-test order (last allocation = highest priority).
+                let name_hit = egui::Rect::from_center_size(egui::pos2(center_x, mid_y), Vec2::new(text_w + 12.0, 52.0));
+                let name_r = ui.allocate_rect(name_hit, Sense::click());
+
+                // Scroll wheel over the name area switches layers (down = next, up = prev)
+                if name_r.hovered() {
+                    let scroll = ui.input(|i| i.raw_scroll_delta.y);
+                    if scroll < 0.0 && selected > 0 {
+                        self.selected_layer = selected - 1;
+                    } else if scroll > 0.0 && selected + 1 < layer_count {
+                        self.selected_layer = selected + 1;
+                    }
+                }
+
+                // Allocate arrows LAST so they have click priority over the name rect.
                 let left_hit  = egui::Rect::from_center_size(left_center,  Vec2::splat(48.0));
                 let right_hit = egui::Rect::from_center_size(right_center, Vec2::splat(48.0));
                 let left_r  = ui.allocate_rect(left_hit,  Sense::click());
@@ -575,10 +617,6 @@ impl EntropyApp {
                 if right_r.hovered() { ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand); }
                 if left_r.clicked()  && selected > 0              { self.selected_layer = selected - 1; }
                 if right_r.clicked() && selected + 1 < layer_count { self.selected_layer = selected + 1; }
-
-                // Then allocate name (smaller, only over the text itself)
-                let name_hit = egui::Rect::from_center_size(egui::pos2(center_x, mid_y), Vec2::new(text_w + 12.0, 52.0));
-                let name_r = ui.allocate_rect(name_hit, Sense::click());
                 if name_r.hovered() { ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand); }
                 if name_r.clicked() {
                     self.editing_layer = Some(selected);
@@ -595,7 +633,7 @@ impl EntropyApp {
 
                 // Edit icon after text on hover
                 if name_r.hovered() {
-                    let icon_pos = egui::pos2(center_x + half + 6.0, mid_y);
+                    let icon_pos = egui::pos2(center_x + text_w / 2.0 + 6.0, mid_y);
                     ui.painter().text(icon_pos, egui::Align2::LEFT_CENTER, "✎", FontId::proportional(24.0), Color32::from_rgb(91, 104, 223));
                 }
             }
@@ -616,9 +654,9 @@ impl EntropyApp {
             rects.push((ki, rect, response));
         }
 
-        // Pass 2: hover + clicks
+        // Pass 2: hover + clicks + tooltips
         let mut hovered_key: Option<usize> = None;
-        for (ki, _, response) in &rects {
+        for (ki, _, response) in &mut rects {
             if response.hovered() {
                 hovered_key = Some(*ki);
                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
@@ -629,6 +667,10 @@ impl EntropyApp {
                 self.keycode_picker.search_query.clear();
                 self.keycode_picker.layer_names = self.layer_names.clone();
             }
+            // Tooltip: show QMK name + hex on hover
+            let kc = layout.get_keycode(self.selected_layer, *ki);
+            let tip = keycode_tooltip(kc, &layout.custom_keycodes, &self.layer_names);
+            *response = response.clone().on_hover_text(tip);
         }
 
         // Pass 3: paint
