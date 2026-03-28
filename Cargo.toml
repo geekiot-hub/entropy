@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 description = "Ergohaven keyboard configurator"
 authors = ["Ergohaven"]
-license = "MIT"
+license = "GPL-2.0-or-later"
 repository = "https://github.com/ergohaven/entropy"
 
 [[bin]]
