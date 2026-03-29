@@ -24,6 +24,7 @@ fn main() -> eframe::Result<()> {
             .with_title("Entropy — Keyboard Configurator")
             .with_inner_size([1200.0, 700.0])
             .with_min_inner_size([800.0, 500.0]),
+        centered: true,
         ..Default::default()
     };
 

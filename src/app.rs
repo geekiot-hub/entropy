@@ -1349,7 +1349,7 @@ impl EntropyApp {
                 if let Some(hl) = self.hover_layer {
                     let hl_name = self.layer_names.get(hl).cloned().unwrap_or_else(|| hl.to_string());
                     ui.painter().text(egui::pos2(center_x, hint_y - 9.0), egui::Align2::CENTER_CENTER,
-                        "Left click to edit this key", hint_font.clone(), hint_color);
+                        "Left click to change this key", hint_font.clone(), hint_color);
                     // Don't show "go to layer" if it's the current layer
                     if hl != self.selected_layer {
                         ui.painter().text(egui::pos2(center_x, hint_y + 5.0), egui::Align2::CENTER_CENTER,
@@ -1362,13 +1362,13 @@ impl EntropyApp {
                 } else if !self.jump_back_stack.is_empty() {
                     if any_hovered {
                         ui.painter().text(egui::pos2(center_x, hint_y - 9.0), egui::Align2::CENTER_CENTER,
-                            "Left click to edit this key", hint_font.clone(), hint_color);
+                            "Left click to change this key", hint_font.clone(), hint_color);
                     }
                     ui.painter().text(egui::pos2(center_x, if any_hovered { hint_y + 5.0 } else { hint_y }), egui::Align2::CENTER_CENTER,
                         "Right-click or Esc to go back", hint_font, hint_color);
                 } else if any_hovered {
                     ui.painter().text(egui::pos2(center_x, hint_y), egui::Align2::CENTER_CENTER,
-                        "Left click to edit this key", hint_font, hint_color);
+                        "Left click to change this key", hint_font, hint_color);
                 }
 
                 // Edit icon after text on hover
@@ -1413,11 +1413,39 @@ impl EntropyApp {
                 self.keycode_picker.search_query.clear();
                 self.keycode_picker.layer_names = self.layer_names.clone();
                 self.keycode_picker.firmware = self.firmware;
+                self.keycode_picker.vial_quantum_pending_mod = None;
+                self.keycode_picker.vial_quantum_pending_mt = None;
                 if is_zmk {
                     self.keycode_picker.zmk_behaviors = self.layout.as_ref()
                         .map(|l| l.zmk_behaviors.clone()).unwrap_or_default();
                     self.keycode_picker.zmk_layer_count = self.layer_count;
                     self.keycode_picker.selected_tab = crate::keycode_picker::KeycodeTab::Basic;
+                }
+            }
+
+            // Right-click on Vial mod key — open second picker to change tap/key
+            if !is_zmk && response.secondary_clicked() {
+                let kc = layout.get_keycode(self.selected_layer, *ki);
+                // MT: 0x2000..0x3FFF, Mod+Key: 0x0100..0x1FFF with kc != 0
+                let pending_base: Option<u16> = if kc >= 0x2000 && kc < 0x4000 {
+                    Some(kc & 0xFF00) // MT base
+                } else if kc >= 0x0100 && kc < 0x2000 && (kc & 0xFF) != 0 {
+                    Some(kc & 0xFF00) // Mod+Key base
+                } else {
+                    None
+                };
+                if let Some(base) = pending_base {
+                    self.selected_key = Some((self.selected_layer, *ki));
+                    self.keycode_picker.open = true;
+                    self.keycode_picker.layer_names = self.layer_names.clone();
+                    self.keycode_picker.firmware = self.firmware;
+                    if kc >= 0x2000 {
+                        self.keycode_picker.vial_quantum_pending_mt = Some(base);
+                        self.keycode_picker.vial_quantum_pending_mod = None;
+                    } else {
+                        self.keycode_picker.vial_quantum_pending_mod = Some(base);
+                        self.keycode_picker.vial_quantum_pending_mt = None;
+                    }
                 }
             }
 
@@ -1463,7 +1491,13 @@ impl EntropyApp {
                 *response = response.clone().on_hover_text(tip);
             } else {
                 let kc = layout.get_keycode(self.selected_layer, *ki);
-                let tip = keycode_tooltip(kc, &layout.custom_keycodes, &self.layer_names);
+                let is_mod_key = (kc >= 0x2000 && kc < 0x4000) || (kc >= 0x0100 && kc < 0x2000 && (kc & 0xFF) != 0);
+                let tip = if is_mod_key {
+                    let base_tip = keycode_tooltip(kc, &layout.custom_keycodes, &self.layer_names);
+                    format!("{}\nRight-click to change the key", base_tip)
+                } else {
+                    keycode_tooltip(kc, &layout.custom_keycodes, &self.layer_names)
+                };
                 *response = response.clone().on_hover_text(tip);
             }
         }
@@ -1590,8 +1624,8 @@ impl EntropyApp {
 }
 
 fn draw_key_label_dimmed(painter: &egui::Painter, rect: egui::Rect, label: &str, dark: bool) {
-    let dim = if dark { Color32::from_rgb(120, 120, 130) } else { Color32::from_rgb(160, 160, 170) };
-    let dim_top = if dark { Color32::from_rgb(90, 90, 100) } else { Color32::from_rgb(185, 185, 195) };
+    let dim = if dark { Color32::from_rgb(60, 60, 65) } else { Color32::from_rgb(200, 200, 208) };
+    let dim_top = if dark { Color32::from_rgb(45, 45, 50) } else { Color32::from_rgb(215, 215, 220) };
     let (top, bottom) = if let Some(pos) = label.find('/') {
         (Some(&label[..pos]), &label[pos+1..])
     } else if label.contains('\n') {

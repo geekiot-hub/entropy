@@ -211,6 +211,13 @@ impl KeycodePicker {
     pub fn show(&mut self, ctx: &egui::Context) {
         if !self.open { return; }
 
+        // If pending mod/MT — show only the minimal second picker, not the full picker
+        let has_pending = self.vial_quantum_pending_mod.is_some() || self.vial_quantum_pending_mt.is_some();
+        if has_pending && self.firmware == FirmwareProtocol::Vial {
+            self.show_pending_picker(ctx);
+            return;
+        }
+
         match self.firmware {
             FirmwareProtocol::Vial => self.show_vial(ctx),
             FirmwareProtocol::Zmk  => self.show_zmk(ctx),
@@ -267,6 +274,7 @@ impl KeycodePicker {
             .collapsible(false)
             .resizable(true)
             .min_size(Vec2::new(640.0, 420.0))
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
             .show(ctx, |ui| {
                 ui.label(RichText::new("Press a key on your keyboard, or pick below")
                     .size(11.0).color(Color32::from_gray(140)));
@@ -302,21 +310,49 @@ impl KeycodePicker {
             });
 
         if !still_open { self.open = false; }
+    }
 
-        // Second-step picker for pending mod/MT
+    fn show_pending_picker(&mut self, ctx: &egui::Context) {
         let pending = self.vial_quantum_pending_mod.or(self.vial_quantum_pending_mt);
         let is_mt = self.vial_quantum_pending_mod.is_none() && self.vial_quantum_pending_mt.is_some();
+        // Physical key capture for pending
+        ctx.input(|i| {
+            for event in &i.events {
+                if let egui::Event::Key { key, pressed: true, modifiers, .. } = event {
+                    if *key == egui::Key::Escape {
+                        self.vial_quantum_pending_mod = None;
+                        self.vial_quantum_pending_mt = None;
+                        self.open = false;
+                        return;
+                    }
+                    if !modifiers.any() {
+                        if let Some(qmk) = egui_key_to_qmk(*key, *modifiers) {
+                            if qmk > 0 && qmk < 0x0100 {
+                                if let Some(base) = pending {
+                                    self.result = Some(base | qmk);
+                                    self.vial_quantum_pending_mod = None;
+                                    self.vial_quantum_pending_mt = None;
+                                    self.open = false;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
         if let Some(base) = pending {
             let title = if is_mt { "Pick tap key (hold = modifier)" } else { "Pick key for modifier combo" };
-            let mut pending_open = true;
-            egui::Window::new(title)
-                .open(&mut pending_open)
+            let mut still_open = true;
+            let resp_win = egui::Window::new(title)
+                .open(&mut still_open)
                 .collapsible(false)
                 .resizable(false)
                 .min_size(Vec2::new(480.0, 200.0))
                 .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
                 .show(ctx, |ui| {
-                    ui.label(RichText::new("Press a key, or click below. Esc to cancel.").size(11.0).color(Color32::from_gray(140)));
+                    ui.label(RichText::new("Press a key on your keyboard, or click below. Esc to cancel.")
+                        .size(11.0).color(Color32::from_gray(140)));
                     ui.add_space(6.0);
                     ui.horizontal_wrapped(|ui| {
                         for kc in KEYCODES.iter() {
@@ -334,9 +370,12 @@ impl KeycodePicker {
                         }
                     });
                 });
-            if !pending_open {
+            let clicked_outside = ctx.input(|i| i.pointer.any_click())
+                && resp_win.as_ref().map(|r| !r.response.hovered()).unwrap_or(false);
+            if !still_open || clicked_outside {
                 self.vial_quantum_pending_mod = None;
                 self.vial_quantum_pending_mt = None;
+                self.open = false;
             }
         }
     }
@@ -725,6 +764,7 @@ impl KeycodePicker {
             .collapsible(false)
             .resizable(true)
             .min_size(Vec2::new(640.0, 420.0))
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
             .show(ctx, |ui| {
                 ui.label(RichText::new("Press a key on your keyboard, or pick below")
                     .size(11.0).color(Color32::from_gray(140)));
