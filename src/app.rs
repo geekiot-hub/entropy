@@ -114,6 +114,17 @@ pub struct EntropyApp {
     /// Current firmware type (mirrors layout.firmware)
     firmware: FirmwareProtocol,
     zmk_base_layer_count: usize,
+    zmk_no_extra_layers: bool,
+    /// Undo stack: each entry is (layer, key_idx, old_vial_kc, old_zmk_binding)
+    undo_stack: Vec<(usize, usize, u16, ZmkBinding)>,
+    /// Frame counter for periodic device scan
+    scan_frame: u32,
+    /// Layer to preview on hover (None = show selected_layer)
+    hover_layer: Option<usize>,
+    /// Animation progress for hover layer preview (0.0 = hidden, 1.0 = fully shown)
+    hover_layer_progress: f32,
+    /// Stack of layers to return to on right-click (last = most recent)
+    jump_back_stack: Vec<usize>,
     dark_mode: bool,
     layer_names: Vec<String>,
     editing_layer: Option<usize>, // layer being renamed
@@ -141,6 +152,12 @@ impl EntropyApp {
             zmk_conn: None,
             firmware: FirmwareProtocol::Vial,
             zmk_base_layer_count: 0,
+            zmk_no_extra_layers: false,
+            undo_stack: Vec::new(),
+            scan_frame: 0,
+            hover_layer: None,
+            hover_layer_progress: 0.0,
+            jump_back_stack: Vec::new(),
             device_manager: DeviceManager::new(),
             selected_device: None,
             selected_layer: 0,
@@ -186,10 +203,12 @@ impl EntropyApp {
         self.status_msg = format!("Connecting to {}…", dev.name);
         self.layout = None;
         self.selected_key = None;
+        self.selected_layer = 0;
         self.hid_device = None;
         self.zmk_conn = None;
         self.zmk_has_unsaved = false;
         self.zmk_lock_state = 1; // assume unlocked until we know
+        self.zmk_no_extra_layers = false;
 
         let (tx, rx) = mpsc::channel();
         self.connect_state = ConnectState::Loading(rx);
@@ -533,7 +552,12 @@ impl EntropyApp {
             }
             ZmkOpResult::AddLayerFail(e) => {
                 log::error!("Add layer failed: {e}");
-                self.status_msg = format!("Add layer failed: {e}");
+                if e.contains(": 2") || e.contains("NoSpace") {
+                    self.zmk_no_extra_layers = true;
+                    self.status_msg = "Firmware doesn't support extra layers (CONFIG_ZMK_KEYMAP_LAYERS_EXTRA)".to_string();
+                } else {
+                    self.status_msg = format!("Add layer failed: {e}");
+                }
                 self.zmk_op_rx = None;
             }
             ZmkOpResult::RemoveLayerOk => {
@@ -582,6 +606,9 @@ impl EntropyApp {
     /// Assign keycode and immediately write to device (blocking, but single HID op — fast).
     #[cfg(not(target_arch = "wasm32"))]
     fn assign_keycode(&mut self, layer: usize, ki: usize, kc_value: u16) {
+        // Save old value for undo
+        let old_kc = self.layout.as_ref().map(|l| l.get_keycode(layer, ki)).unwrap_or(0);
+        self.undo_stack.push((layer, ki, old_kc, ZmkBinding::none()));
         // Update in-memory layout
         if let Some(layout) = &mut self.layout {
             layout.set_keycode(layer, ki, kc_value);
@@ -631,6 +658,10 @@ impl EntropyApp {
             .and_then(|l| l.zmk_layer_ids.get(layer).copied())
             .unwrap_or(layer as u32);
 
+        // Save old binding for undo
+        let old_binding = self.layout.as_ref().map(|l| l.get_zmk_binding(layer, ki)).unwrap_or_else(ZmkBinding::none);
+        self.undo_stack.push((layer, ki, 0, old_binding));
+
         if let Some(layout) = &mut self.layout {
             layout.set_zmk_binding(layer, ki, binding.clone());
         }
@@ -657,6 +688,20 @@ impl EntropyApp {
 
     /// ZMK: save changes to flash in background.
     #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(target_arch = "wasm32"))]
+    fn undo(&mut self) {
+        let Some((layer, ki, old_kc, old_binding)) = self.undo_stack.pop() else { return };
+        if self.firmware == FirmwareProtocol::Zmk {
+            self.assign_zmk_binding(layer, ki, old_binding);
+            // Remove the undo entry that assign_zmk_binding just pushed
+            self.undo_stack.pop();
+        } else {
+            self.assign_keycode(layer, ki, old_kc);
+            // Remove the undo entry that assign_keycode just pushed
+            self.undo_stack.pop();
+        }
+    }
+
     fn zmk_save(&mut self) {
         if self.zmk_op_rx.is_some() { return; } // operation in progress
         let conn = match self.zmk_conn.take() {
@@ -780,6 +825,21 @@ impl eframe::App for EntropyApp {
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // Auto-scan for new devices every ~2 seconds (120 frames at 60fps)
+        self.scan_frame += 1;
+        if self.scan_frame >= 120 {
+            self.scan_frame = 0;
+            let prev_count = self.device_manager.devices().len();
+            self.device_manager.scan();
+            // Auto-connect if a new device appeared and nothing is connected
+            if self.device_manager.devices().len() > prev_count
+                && self.layout.is_none()
+                && !matches!(self.connect_state, ConnectState::Loading(_))
+            {
+                self.start_connect(0);
+            }
+        }
+
         // Apply theme
         if self.dark_mode {
             let mut v = egui::Visuals::dark();
@@ -817,6 +877,15 @@ impl eframe::App for EntropyApp {
         #[cfg(not(target_arch = "wasm32"))]
         self.poll_zmk_ops(ctx);
 
+        // Right-click anywhere = pop back one step (only if NOT hovering a layer key)
+        if !self.jump_back_stack.is_empty() {
+            if self.hover_layer.is_none() && ctx.input(|i| i.pointer.secondary_clicked()) {
+                if let Some(back_layer) = self.jump_back_stack.pop() {
+                    self.selected_layer = back_layer;
+                }
+            }
+        }
+
         // Handle Vial keycode picker result
         if let Some(kc_value) = self.keycode_picker.result.take() {
             if let Some((layer, ki)) = self.selected_key {
@@ -850,9 +919,11 @@ impl eframe::App for EntropyApp {
             ctx.input(|i| {
                 if i.key_pressed(egui::Key::ArrowLeft) && self.selected_layer > 0 {
                     self.selected_layer -= 1;
+                    self.jump_back_stack.clear();
                 }
                 if i.key_pressed(egui::Key::ArrowRight) && self.selected_layer + 1 < layer_count {
                     self.selected_layer += 1;
+                    self.jump_back_stack.clear();
                 }
             });
         }
@@ -908,37 +979,18 @@ impl eframe::App for EntropyApp {
                     }
                 }
 
-                if ui.button("🔄 Refresh").clicked() {
-                    self.device_manager.scan();
+
+                #[cfg(not(target_arch = "wasm32"))]
+                if !self.undo_stack.is_empty() {
+                    if ui.button("↩ Undo").on_hover_text("Undo last change").clicked() {
+                        self.undo();
+                    }
                 }
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     #[cfg(not(target_arch = "wasm32"))]
                     {
-                        let load_btn = egui::Button::new("⬇ Load")
-                            .sense(if is_loading { Sense::hover() } else { Sense::click() });
-                        if ui.add(load_btn).clicked() && !is_loading {
-                            self.load_from_device();
-                        }
 
-                        // ZMK: Save / Discard / Unsaved indicator
-                        if self.firmware == FirmwareProtocol::Zmk && self.layout.is_some() {
-                            let op_busy = self.zmk_op_rx.is_some();
-
-                            if self.zmk_has_unsaved {
-                                ui.label(RichText::new("● Unsaved").size(11.0).color(Color32::from_rgb(230, 180, 60)));
-                                let discard_btn = egui::Button::new("Discard")
-                                    .sense(if op_busy { Sense::hover() } else { Sense::click() });
-                                if ui.add(discard_btn).clicked() && !op_busy {
-                                    self.zmk_discard();
-                                }
-                                let save_btn = egui::Button::new("💾 Save")
-                                    .sense(if op_busy { Sense::hover() } else { Sense::click() });
-                                if ui.add(save_btn).clicked() && !op_busy {
-                                    self.zmk_save();
-                                }
-                            }
-                        }
 
                         // Vial: Unlock button (if keyboard is locked) + Save to flash
                         if self.firmware == FirmwareProtocol::Vial && self.layout.is_some() {
@@ -957,14 +1009,7 @@ impl eframe::App for EntropyApp {
                                     }
                                 }
                             }
-                            if ui.button("⚡ Save to flash").on_hover_text("Put keyboard into flash mode").clicked() {
-                                if let Some(hid) = &self.hid_device {
-                                    match hid.set_keycode(0, 0, 0, 0x7C00) {
-                                        Ok(_) => self.status_msg = "Put keyboard into flash mode".into(),
-                                        Err(e) => self.status_msg = format!("Flash error: {e}"),
-                                    }
-                                }
-                            }
+
                         }
                     }
 
@@ -1011,7 +1056,7 @@ impl eframe::App for EntropyApp {
 
             if self.layout.is_some() {
                 let layout = self.layout.clone().unwrap();
-                self.draw_layout(ui, &layout);
+                self.draw_layout(ui, &layout, ctx);
             } else {
                 self.draw_placeholder(ui);
             }
@@ -1099,7 +1144,7 @@ impl EntropyApp {
 }
 
 impl EntropyApp {
-    fn draw_layout(&mut self, ui: &mut egui::Ui, layout: &KeyboardLayout) {
+    fn draw_layout(&mut self, ui: &mut egui::Ui, layout: &KeyboardLayout, ctx: &egui::Context) {
         let base_unit = 54.0_f32 * 1.15; // +15%
         let padding = 4.0_f32;
 
@@ -1157,33 +1202,35 @@ impl EntropyApp {
                 {
                     let op_busy = self.zmk_op_rx.is_some();
                     let can_remove = !op_busy && layer_count > self.zmk_base_layer_count.max(1);
-                    let btn_x = center_x + 200.0;
-                    let btn_size = Vec2::new(28.0, 24.0);
-                    // + on top, − below
-                    let add_rect = egui::Rect::from_center_size(
-                        egui::pos2(btn_x, bar_y + layer_bar_h / 2.0 - 13.0),
-                        btn_size,
-                    );
-                    let remove_rect = egui::Rect::from_center_size(
-                        egui::pos2(btn_x, bar_y + layer_bar_h / 2.0 + 13.0),
-                        btn_size,
-                    );
-                    let add_resp = ui.put(add_rect,
-                        egui::Button::new("+")
-                            .sense(if op_busy { Sense::hover() } else { Sense::click() }),
-                    );
-                    let remove_resp = ui.put(remove_rect,
-                        egui::Button::new("−")
-                            .sense(if can_remove { Sense::click() } else { Sense::hover() }),
-                    );
-                    if add_resp.on_hover_text("Add layer").clicked() && !op_busy {
-                        self.zmk_add_layer();
-                    }
-                    if remove_resp.on_hover_text(if can_remove { "Remove last layer" } else { "Cannot remove base layers" }).clicked() && can_remove {
-                        self.zmk_remove_layer();
-                    }
+                    // Place +/− just to the right of the → arrow
+                    let fixed_half = 85.0_f32;
+                    let gap = 16.0_f32;
+                    let right_arrow_x = center_x + fixed_half + gap + 24.0;
+                    let btn_x = right_arrow_x + 36.0;
+                    let mid_y = bar_y + layer_bar_h / 2.0;
+                    let sym_font = FontId::proportional(14.0);
+                    let active_color = if self.dark_mode { Color32::from_gray(200) } else { Color32::from_gray(60) };
+                    let disabled_color = if self.dark_mode { Color32::from_gray(70) } else { Color32::from_gray(180) };
+
+                    let add_rect = egui::Rect::from_center_size(egui::pos2(btn_x, mid_y - 8.0), Vec2::splat(16.0));
+                    let remove_rect = egui::Rect::from_center_size(egui::pos2(btn_x, mid_y + 8.0), Vec2::splat(16.0));
+                    let can_add = !op_busy && !self.zmk_no_extra_layers;
+                    let add_resp = ui.allocate_rect(add_rect, if can_add { Sense::click() } else { Sense::hover() });
+                    let remove_resp = ui.allocate_rect(remove_rect, if can_remove { Sense::click() } else { Sense::hover() });
+                    if add_resp.hovered() { ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand); }
+                    if remove_resp.hovered() && can_remove { ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand); }
+                    let add_col = if add_resp.hovered() && can_add { Color32::from_rgb(91,104,223) } else if can_add { active_color } else { disabled_color };
+                    let rem_col = if remove_resp.hovered() && can_remove { Color32::from_rgb(91,104,223) } else if can_remove { active_color } else { disabled_color };
+                    ui.painter().text(add_rect.center(), egui::Align2::CENTER_CENTER, "+", sym_font.clone(), add_col);
+                    ui.painter().text(remove_rect.center(), egui::Align2::CENTER_CENTER, "−", sym_font, rem_col);
+                    let add_hover_text = if self.zmk_no_extra_layers { "Firmware doesn't support extra layers" } else { "Add layer" };
+                    let add_clicked = add_resp.on_hover_text(add_hover_text).clicked();
+                    let rem_clicked = remove_resp.on_hover_text(if can_remove { "Remove last layer" } else { "Cannot remove base layers" }).clicked();
+                    if add_clicked && can_add { self.zmk_add_layer(); }
+                    if rem_clicked && can_remove { self.zmk_remove_layer(); }
                 }
             }
+
 
             // Layer name / edit field
             let name_rect = egui::Rect::from_min_size(egui::pos2(center_x - 85.0, bar_y), Vec2::new(170.0, 52.0));
@@ -1273,8 +1320,8 @@ impl EntropyApp {
                 let right_r = ui.allocate_rect(right_hit, Sense::click());
                 if left_r.hovered()  { ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand); }
                 if right_r.hovered() { ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand); }
-                if left_r.clicked()  && selected > 0              { self.selected_layer = selected - 1; }
-                if right_r.clicked() && selected + 1 < layer_count { self.selected_layer = selected + 1; }
+                if left_r.clicked()  && selected > 0              { self.selected_layer = selected - 1; self.jump_back_stack.clear(); }
+                if right_r.clicked() && selected + 1 < layer_count { self.selected_layer = selected + 1; self.jump_back_stack.clear(); }
                 if name_r.hovered() { ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand); }
                 if name_r.clicked() {
                     self.editing_layer = Some(selected);
@@ -1288,6 +1335,19 @@ impl EntropyApp {
                 ui.painter().text(left_center,  egui::Align2::CENTER_CENTER, "‹", FontId::proportional(52.0), if selected == 0 { dis } else { ac_l });
                 ui.painter().text(right_center, egui::Align2::CENTER_CENTER, "›", FontId::proportional(52.0), if selected + 1 >= layer_count { dis } else { ac_r });
                 ui.painter().text(egui::pos2(center_x, mid_y), egui::Align2::CENTER_CENTER, &name, label_font, text_color);
+
+                // Hint text below layer name
+                let hint_color = if self.dark_mode { Color32::from_gray(100) } else { Color32::from_gray(160) };
+                let hint_font = FontId::proportional(11.0);
+                let hint_y = bar_y + layer_bar_h - 8.0;
+                if let Some(hl) = self.hover_layer {
+                    let hl_name = self.layer_names.get(hl).cloned().unwrap_or_else(|| hl.to_string());
+                    ui.painter().text(egui::pos2(center_x, hint_y), egui::Align2::CENTER_CENTER,
+                        &format!("Right-click → layer {}: {}", hl, hl_name), hint_font, hint_color);
+                } else if !self.jump_back_stack.is_empty() {
+                    ui.painter().text(egui::pos2(center_x, hint_y), egui::Align2::CENTER_CENTER,
+                        "Right-click anywhere to go back", hint_font, hint_color);
+                }
 
                 // Edit icon after text on hover
                 if name_r.hovered() {
@@ -1313,6 +1373,10 @@ impl EntropyApp {
         }
 
         let is_zmk = self.firmware == FirmwareProtocol::Zmk;
+
+        // Reset hover_layer each frame — will be set again if a layer key is hovered
+        let prev_hover = self.hover_layer;
+        self.hover_layer = None;
 
         // Pass 2: hover + clicks + tooltips
         let mut hovered_key: Option<usize> = None;
@@ -1362,35 +1426,13 @@ impl EntropyApp {
 
             if let Some(preview_layer_idx) = preview_layer {
                 if response.hovered() {
-                    // Build tooltip with layer name + mini key labels
-                    let layer_name = self.layer_names.get(preview_layer_idx)
-                        .cloned().unwrap_or_else(|| preview_layer_idx.to_string());
-                    let mut tip = format!("Layer {}: {}\n", preview_layer_idx, layer_name);
-
-                    // Show first ~12 key labels from that layer
-                    let preview_keys: Vec<String> = (0..layout.keys.len().min(12))
-                        .map(|k| {
-                            if is_zmk {
-                                let b = layout.get_zmk_binding(preview_layer_idx, k);
-                                crate::zmk::zmk_binding_label(&b, &layout.zmk_behaviors, &self.layer_names)
-                            } else {
-                                let kc2 = layout.get_keycode(preview_layer_idx, k);
-                                crate::keycode::keycode_label_with_names(kc2, &layout.custom_keycodes, &self.layer_names)
-                            }
-                        })
-                        .collect();
-                    tip += &preview_keys.join("  ");
-                    *response = response.clone().on_hover_text(tip);
-                } else {
-                    if is_zmk {
-                        let binding = layout.get_zmk_binding(self.selected_layer, *ki);
-                        let t = zmk_binding_tooltip(&binding, &layout.zmk_behaviors, &self.layer_names);
-                        *response = response.clone().on_hover_text(t);
-                    } else {
-                        let kc = layout.get_keycode(self.selected_layer, *ki);
-                        let t = keycode_tooltip(kc, &layout.custom_keycodes, &self.layer_names);
-                        *response = response.clone().on_hover_text(t);
-                    }
+                    self.hover_layer = Some(preview_layer_idx);
+                }
+                if response.secondary_clicked() {
+                    // Right-click: jump to that layer
+                    self.jump_back_stack.push(self.selected_layer);
+                    self.selected_layer = preview_layer_idx;
+                    self.hover_layer = None;
                 }
             } else if is_zmk {
                 let binding = layout.get_zmk_binding(self.selected_layer, *ki);
@@ -1403,9 +1445,23 @@ impl EntropyApp {
             }
         }
 
+        // Animate hover_layer_progress
+        let target_progress = if self.hover_layer.is_some() { 1.0f32 } else { 0.0f32 };
+        let speed = 4.0f32;
+        let dt = ctx.input(|i| i.stable_dt).min(0.1);
+        self.hover_layer_progress += (target_progress - self.hover_layer_progress) * (speed * dt).min(1.0);
+        if (self.hover_layer_progress - target_progress).abs() > 0.01 {
+            ctx.request_repaint();
+        }
+
         // Pass 3: paint
         let painter = ui.painter();
-        let layer = self.selected_layer;
+        let layer = if self.hover_layer.is_some() || self.hover_layer_progress > 0.05 {
+            self.hover_layer.unwrap_or(prev_hover.unwrap_or(self.selected_layer))
+        } else {
+            self.selected_layer
+        };
+        let hover_alpha = self.hover_layer_progress;
         let dark = self.dark_mode;
         for (ki, rect, _) in &rects {
             let key = &layout.keys[*ki];
@@ -1435,6 +1491,7 @@ impl EntropyApp {
                 *rect
             };
 
+            let is_hovering = hover_alpha > 0.05;
             if is_zmk {
                 // ZMK binding display
                 let binding = layout.get_zmk_binding(layer, *ki);
@@ -1445,21 +1502,25 @@ impl EntropyApp {
                 let border = if dark { Color32::from_rgb(55, 55, 60) } else { Color32::from_rgb(210, 210, 218) };
                 painter.rect(draw_rect, 6.0, bg, Stroke::new(1.0, border), egui::StrokeKind::Inside);
                 if is_trans && layer > 0 {
-                    // Show fallback binding from lower layer, dimmed
-                    let fallback = (0..layer).rev()
-                        .map(|l| layout.get_zmk_binding(l, *ki))
-                        .find(|b| {
-                            !layout.zmk_behaviors.iter()
-                                .find(|beh| beh.id == b.behavior_id as u32)
-                                .map(|beh| beh.display_name == "Transparent")
-                                .unwrap_or(false)
-                        });
-                    let label = if let Some(fb) = fallback {
-                        zmk_binding_label(&fb, &layout.zmk_behaviors, &self.layer_names)
+                    if is_hovering {
+                        // During hover preview — TRNS keys are empty (no text)
                     } else {
-                        "▽".to_string()
-                    };
-                    draw_key_label_dimmed(&painter, draw_rect, &label, dark);
+                        // Normal display — show TRNS with fallback
+                        let fallback = (0..layer).rev()
+                            .map(|l| layout.get_zmk_binding(l, *ki))
+                            .find(|b| {
+                                !layout.zmk_behaviors.iter()
+                                    .find(|beh| beh.id == b.behavior_id as u32)
+                                    .map(|beh| beh.display_name == "Transparent")
+                                    .unwrap_or(false)
+                            });
+                        let label = if let Some(fb) = fallback {
+                            zmk_binding_label(&fb, &layout.zmk_behaviors, &self.layer_names)
+                        } else {
+                            "▽".to_string()
+                        };
+                        draw_key_label_dimmed(&painter, draw_rect, &label, dark);
+                    }
                 } else {
                     let label = zmk_binding_label(&binding, &layout.zmk_behaviors, &self.layer_names);
                     draw_key_label(&painter, draw_rect, &label, dark);
@@ -1468,19 +1529,20 @@ impl EntropyApp {
                 let kc = layout.get_keycode(layer, *ki);
 
                 if kc == 0x0001 {
-                    // TRNS — transparent background, show fallback from lower layer dimmed
-                    // TRNS: same bg as normal key, same border — only text is dimmed
                     painter.rect(draw_rect, 6.0, bg, Stroke::new(1.0, if dark { Color32::from_rgb(55, 55, 60) } else { Color32::from_rgb(210, 210, 218) }), egui::StrokeKind::Inside);
-                    let fallback_kc = (0..layer).rev()
-                        .map(|l| layout.get_keycode(l, *ki))
-                        .find(|&k| k != 0x0001)
-                        .unwrap_or(0x0000);
-                    let label = if fallback_kc == 0x0000 || fallback_kc == 0x0001 {
-                        "\u{25BD}".to_string()
-                    } else {
-                        keycode_label_with_names(fallback_kc, &layout.custom_keycodes, &self.layer_names)
-                    };
-                    draw_key_label_dimmed(&painter, draw_rect, &label, dark);
+                    if !is_hovering {
+                        let fallback_kc = (0..layer).rev()
+                            .map(|l| layout.get_keycode(l, *ki))
+                            .find(|&k| k != 0x0001)
+                            .unwrap_or(0x0000);
+                        let label = if fallback_kc == 0x0000 || fallback_kc == 0x0001 {
+                            "\u{25BD}".to_string()
+                        } else {
+                            keycode_label_with_names(fallback_kc, &layout.custom_keycodes, &self.layer_names)
+                        };
+                        draw_key_label_dimmed(&painter, draw_rect, &label, dark);
+                    }
+                    // is_hovering: empty key (no text)
                 } else if kc == 0x0000 {
                     let no_bg = if dark { Color32::from_rgb(20, 20, 22) } else { Color32::from_rgb(238, 238, 242) };
                     let no_border = if dark { Color32::from_rgb(40, 40, 44) } else { Color32::from_rgb(210, 210, 218) };
