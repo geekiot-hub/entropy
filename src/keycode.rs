@@ -1,6 +1,24 @@
 /// QMK/Vial keycode definitions — protocol v6
 /// Reference: vial-gui/src/main/python/keycodes/keycodes_v6.py
 
+/// Returns the platform-appropriate label for the GUI/Super/Win/Cmd key.
+/// Windows → "Win", macOS → "⌘", Linux → "Super"
+pub fn gui_label(right: bool) -> &'static str {
+    #[cfg(target_os = "macos")]
+    { if right { "R⌘" } else { "L⌘" } }
+    #[cfg(target_os = "windows")]
+    { if right { "RWin" } else { "LWin" } }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    { if right { "RSuper" } else { "LSuper" } }
+}
+
+/// Short GUI symbol for use in compound labels (e.g. MT, mod combos).
+pub fn gui_sym() -> &'static str {
+    #[cfg(target_os = "macos")] { "⌘" }
+    #[cfg(target_os = "windows")] { "Win" }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))] { "Super" }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Keycode {
     pub value: u16,
@@ -24,8 +42,8 @@ pub enum KeycodeCategory {
 
 pub const KEYCODES: &[Keycode] = &[
     // ── Special ──────────────────────────────────────────────────────────────
-    Keycode { value: 0x0000, name: "KC_NO",     label: "NO",    category: KeycodeCategory::Special },
-    Keycode { value: 0x0001, name: "KC_TRNS",   label: "TRNS",  category: KeycodeCategory::Special },
+    Keycode { value: 0x0000, name: "KC_NO",     label: "✕",   category: KeycodeCategory::Special },
+    Keycode { value: 0x0001, name: "KC_TRNS",   label: "▽",   category: KeycodeCategory::Special },
 
     // ── Letters ──────────────────────────────────────────────────────────────
     Keycode { value: 0x0004, name: "KC_A", label: "A", category: KeycodeCategory::Basic },
@@ -68,12 +86,12 @@ pub const KEYCODES: &[Keycode] = &[
     Keycode { value: 0x0027, name: "KC_0", label: "0", category: KeycodeCategory::Basic },
 
     // ── Control ───────────────────────────────────────────────────────────────
-    Keycode { value: 0x0028, name: "KC_ENTER",  label: "Enter", category: KeycodeCategory::Basic },
-    Keycode { value: 0x0029, name: "KC_ESCAPE", label: "Esc",   category: KeycodeCategory::Basic },
-    Keycode { value: 0x002A, name: "KC_BSPACE", label: "BkSp",  category: KeycodeCategory::Basic },
-    Keycode { value: 0x002B, name: "KC_TAB",    label: "Tab",   category: KeycodeCategory::Basic },
-    Keycode { value: 0x002C, name: "KC_SPACE",  label: "Space", category: KeycodeCategory::Basic },
-    Keycode { value: 0x0039, name: "KC_CAPSLOCK",label: "Caps", category: KeycodeCategory::Basic },
+    Keycode { value: 0x0028, name: "KC_ENTER",  label: "⏎",    category: KeycodeCategory::Basic },
+    Keycode { value: 0x0029, name: "KC_ESCAPE", label: "Esc",  category: KeycodeCategory::Basic },
+    Keycode { value: 0x002A, name: "KC_BSPACE", label: "⌫",    category: KeycodeCategory::Basic },
+    Keycode { value: 0x002B, name: "KC_TAB",    label: "Tab",  category: KeycodeCategory::Basic },
+    Keycode { value: 0x002C, name: "KC_SPACE",  label: "Space",category: KeycodeCategory::Basic },
+    Keycode { value: 0x0039, name: "KC_CAPSLOCK",label: "⇪",   category: KeycodeCategory::Basic },
     Keycode { value: 0x0065, name: "KC_APPLICATION", label: "Menu", category: KeycodeCategory::Basic },
 
     // ── Punctuation ───────────────────────────────────────────────────────────
@@ -159,10 +177,10 @@ _",  category: KeycodeCategory::Basic },
     Keycode { value: 0x004C, name: "KC_DELETE",    label: "Del",   category: KeycodeCategory::Navigation },
     Keycode { value: 0x004D, name: "KC_END",       label: "End",   category: KeycodeCategory::Navigation },
     Keycode { value: 0x004E, name: "KC_PGDOWN",    label: "PgDn",  category: KeycodeCategory::Navigation },
-    Keycode { value: 0x004F, name: "KC_RIGHT",     label: "Right", category: KeycodeCategory::Navigation },
-    Keycode { value: 0x0050, name: "KC_LEFT",      label: "Left",  category: KeycodeCategory::Navigation },
-    Keycode { value: 0x0051, name: "KC_DOWN",      label: "Down",  category: KeycodeCategory::Navigation },
-    Keycode { value: 0x0052, name: "KC_UP",        label: "Up",    category: KeycodeCategory::Navigation },
+    Keycode { value: 0x004F, name: "KC_RIGHT",     label: "➡",   category: KeycodeCategory::Navigation },
+    Keycode { value: 0x0050, name: "KC_LEFT",      label: "⬅",   category: KeycodeCategory::Navigation },
+    Keycode { value: 0x0051, name: "KC_DOWN",      label: "⬇",   category: KeycodeCategory::Navigation },
+    Keycode { value: 0x0052, name: "KC_UP",        label: "⬆",   category: KeycodeCategory::Navigation },
 
     // ── Numpad ────────────────────────────────────────────────────────────────
     Keycode { value: 0x0053, name: "KC_NUMLOCK",     label: "NmLk",  category: KeycodeCategory::Numpad },
@@ -170,7 +188,7 @@ _",  category: KeycodeCategory::Basic },
     Keycode { value: 0x0055, name: "KC_KP_ASTERISK", label: "Num*",    category: KeycodeCategory::Numpad },
     Keycode { value: 0x0056, name: "KC_KP_MINUS",    label: "Num-",    category: KeycodeCategory::Numpad },
     Keycode { value: 0x0057, name: "KC_KP_PLUS",     label: "Num+",    category: KeycodeCategory::Numpad },
-    Keycode { value: 0x0058, name: "KC_KP_ENTER",    label: "Num↵", category: KeycodeCategory::Numpad },
+    Keycode { value: 0x0058, name: "KC_KP_ENTER",    label: "Num⏎", category: KeycodeCategory::Numpad },
     Keycode { value: 0x0059, name: "KC_KP_1",  label: "Num1", category: KeycodeCategory::Numpad },
     Keycode { value: 0x005A, name: "KC_KP_2",  label: "Num2", category: KeycodeCategory::Numpad },
     Keycode { value: 0x005B, name: "KC_KP_3",  label: "Num3", category: KeycodeCategory::Numpad },
@@ -186,61 +204,61 @@ _",  category: KeycodeCategory::Basic },
     Keycode { value: 0x0085, name: "KC_KP_COMMA", label: "Num,",  category: KeycodeCategory::Numpad },
 
     // ── Modifiers ─────────────────────────────────────────────────────────────
-    Keycode { value: 0x00E0, name: "KC_LCTRL",  label: "LCtl", category: KeycodeCategory::Modifier },
-    Keycode { value: 0x00E1, name: "KC_LSHIFT", label: "LSft", category: KeycodeCategory::Modifier },
-    Keycode { value: 0x00E2, name: "KC_LALT",   label: "LAlt", category: KeycodeCategory::Modifier },
-    Keycode { value: 0x00E3, name: "KC_LGUI",   label: "LGui", category: KeycodeCategory::Modifier },
-    Keycode { value: 0x00E4, name: "KC_RCTRL",  label: "RCtl", category: KeycodeCategory::Modifier },
-    Keycode { value: 0x00E5, name: "KC_RSHIFT", label: "RSft", category: KeycodeCategory::Modifier },
-    Keycode { value: 0x00E6, name: "KC_RALT",   label: "RAlt", category: KeycodeCategory::Modifier },
-    Keycode { value: 0x00E7, name: "KC_RGUI",   label: "RGui", category: KeycodeCategory::Modifier },
+    Keycode { value: 0x00E0, name: "KC_LCTRL",  label: "⌃L",   category: KeycodeCategory::Modifier },
+    Keycode { value: 0x00E1, name: "KC_LSHIFT", label: "⇧L",   category: KeycodeCategory::Modifier },
+    Keycode { value: 0x00E2, name: "KC_LALT",   label: "⌥L",   category: KeycodeCategory::Modifier },
+    Keycode { value: 0x00E3, name: "KC_LGUI",   label: "LGUI", category: KeycodeCategory::Modifier },
+    Keycode { value: 0x00E4, name: "KC_RCTRL",  label: "⌃R",   category: KeycodeCategory::Modifier },
+    Keycode { value: 0x00E5, name: "KC_RSHIFT", label: "⇧R",   category: KeycodeCategory::Modifier },
+    Keycode { value: 0x00E6, name: "KC_RALT",   label: "⌥R",   category: KeycodeCategory::Modifier },
+    Keycode { value: 0x00E7, name: "KC_RGUI",   label: "RGUI", category: KeycodeCategory::Modifier },
 
     // ── Media ─────────────────────────────────────────────────────────────────
-    Keycode { value: 0x00A8, name: "KC_MUTE",  label: "Mute", category: KeycodeCategory::Media },
-    Keycode { value: 0x00A9, name: "KC_VOLU",  label: "Vol+", category: KeycodeCategory::Media },
-    Keycode { value: 0x00AA, name: "KC_VOLD",  label: "Vol-", category: KeycodeCategory::Media },
-    Keycode { value: 0x00AB, name: "KC_MNXT",  label: "Next", category: KeycodeCategory::Media },
-    Keycode { value: 0x00AC, name: "KC_MPRV",  label: "Prev", category: KeycodeCategory::Media },
-    Keycode { value: 0x00AD, name: "KC_MSTP",  label: "Stop", category: KeycodeCategory::Media },
-    Keycode { value: 0x00AE, name: "KC_MPLY",  label: "Play", category: KeycodeCategory::Media },
+    Keycode { value: 0x00A8, name: "KC_MUTE",  label: "🔇",   category: KeycodeCategory::Media },
+    Keycode { value: 0x00A9, name: "KC_VOLU",  label: "🔊",   category: KeycodeCategory::Media },
+    Keycode { value: 0x00AA, name: "KC_VOLD",  label: "🔉",   category: KeycodeCategory::Media },
+    Keycode { value: 0x00AB, name: "KC_MNXT",  label: "⏭",   category: KeycodeCategory::Media },
+    Keycode { value: 0x00AC, name: "KC_MPRV",  label: "⏮",   category: KeycodeCategory::Media },
+    Keycode { value: 0x00AD, name: "KC_MSTP",  label: "⏹",   category: KeycodeCategory::Media },
+    Keycode { value: 0x00AE, name: "KC_MPLY",  label: "⏯",   category: KeycodeCategory::Media },
     Keycode { value: 0x00AF, name: "KC_MSEL",  label: "MSel", category: KeycodeCategory::Media },
-    Keycode { value: 0x00B0, name: "KC_MAIL",  label: "Mail", category: KeycodeCategory::Media },
+    Keycode { value: 0x00B0, name: "KC_MAIL",  label: "✉ Mail",category: KeycodeCategory::Media },
     Keycode { value: 0x00B1, name: "KC_CALC",  label: "Calc", category: KeycodeCategory::Media },
     Keycode { value: 0x00B2, name: "KC_MYCM",  label: "MyPC", category: KeycodeCategory::Media },
-    Keycode { value: 0x00B3, name: "KC_WSCH",  label: "Srch", category: KeycodeCategory::Media },
-    Keycode { value: 0x00B4, name: "KC_WHOM",  label: "WWW",  category: KeycodeCategory::Media },
-    Keycode { value: 0x00B5, name: "KC_WBAK",  label: "Back", category: KeycodeCategory::Media },
-    Keycode { value: 0x00B6, name: "KC_WFWD",  label: "Fwd",  category: KeycodeCategory::Media },
-    Keycode { value: 0x00B7, name: "KC_WSTP",  label: "WStop",category: KeycodeCategory::Media },
+    Keycode { value: 0x00B3, name: "KC_WSCH",  label: "🔍",   category: KeycodeCategory::Media },
+    Keycode { value: 0x00B4, name: "KC_WHOM",  label: "🌐",   category: KeycodeCategory::Media },
+    Keycode { value: 0x00B5, name: "KC_WBAK",  label: "⬅ Web",category: KeycodeCategory::Media },
+    Keycode { value: 0x00B6, name: "KC_WFWD",  label: "➡ Web",category: KeycodeCategory::Media },
+    Keycode { value: 0x00B7, name: "KC_WSTP",  label: "⏹ Web",category: KeycodeCategory::Media },
     Keycode { value: 0x00B8, name: "KC_WREF",  label: "Rfsh", category: KeycodeCategory::Media },
-    Keycode { value: 0x00B9, name: "KC_WFAV",  label: "Favs", category: KeycodeCategory::Media },
-    Keycode { value: 0x00A5, name: "KC_SLEP",  label: "Sleep",category: KeycodeCategory::Media },
+    Keycode { value: 0x00B9, name: "KC_WFAV",  label: "★ Fav",category: KeycodeCategory::Media },
+    Keycode { value: 0x00A5, name: "KC_SLEP",  label: "💤",   category: KeycodeCategory::Media },
     Keycode { value: 0x00A6, name: "KC_WAKE",  label: "Wake", category: KeycodeCategory::Media },
-    Keycode { value: 0x00A7, name: "KC_BRIU",  label: "Bri+", category: KeycodeCategory::Media },
-    Keycode { value: 0x00BB, name: "KC_BRID",  label: "Bri-", category: KeycodeCategory::Media },
-    Keycode { value: 0x0066, name: "KC_PWR",   label: "Power",category: KeycodeCategory::Media },
+    Keycode { value: 0x00A7, name: "KC_BRIU",  label: "🔆",   category: KeycodeCategory::Media },
+    Keycode { value: 0x00BB, name: "KC_BRID",  label: "🔅",  category: KeycodeCategory::Media },
+    Keycode { value: 0x0066, name: "KC_PWR",   label: "⏻",   category: KeycodeCategory::Media },
 
     // ── Mouse ─────────────────────────────────────────────────────────────────
-    Keycode { value: 0x00F0, name: "KC_MS_U", label: "Ms U",category: KeycodeCategory::Mouse },
-    Keycode { value: 0x00F1, name: "KC_MS_D", label: "Ms D",category: KeycodeCategory::Mouse },
-    Keycode { value: 0x00F2, name: "KC_MS_L", label: "Ms L",category: KeycodeCategory::Mouse },
-    Keycode { value: 0x00F3, name: "KC_MS_R", label: "Ms R",category: KeycodeCategory::Mouse },
-    Keycode { value: 0x00F4, name: "KC_BTN1", label: "MB1", category: KeycodeCategory::Mouse },
-    Keycode { value: 0x00F5, name: "KC_BTN2", label: "MB2", category: KeycodeCategory::Mouse },
-    Keycode { value: 0x00F6, name: "KC_BTN3", label: "MB3", category: KeycodeCategory::Mouse },
-    Keycode { value: 0x00F7, name: "KC_BTN4", label: "MB4", category: KeycodeCategory::Mouse },
-    Keycode { value: 0x00F8, name: "KC_BTN5", label: "MB5", category: KeycodeCategory::Mouse },
-    Keycode { value: 0x00F9, name: "KC_WH_U", label: "Wh U",category: KeycodeCategory::Mouse },
-    Keycode { value: 0x00FA, name: "KC_WH_D", label: "Wh D",category: KeycodeCategory::Mouse },
-    Keycode { value: 0x00FB, name: "KC_WH_L", label: "Wh L",category: KeycodeCategory::Mouse },
-    Keycode { value: 0x00FC, name: "KC_WH_R", label: "Wh R",category: KeycodeCategory::Mouse },
+    Keycode { value: 0x00F0, name: "KC_MS_U", label: "🖱⬆",  category: KeycodeCategory::Mouse },
+    Keycode { value: 0x00F1, name: "KC_MS_D", label: "🖱⬇",  category: KeycodeCategory::Mouse },
+    Keycode { value: 0x00F2, name: "KC_MS_L", label: "🖱⬅",  category: KeycodeCategory::Mouse },
+    Keycode { value: 0x00F3, name: "KC_MS_R", label: "🖱➡",  category: KeycodeCategory::Mouse },
+    Keycode { value: 0x00F4, name: "KC_BTN1", label: "🖱L",  category: KeycodeCategory::Mouse },
+    Keycode { value: 0x00F5, name: "KC_BTN2", label: "🖱R",  category: KeycodeCategory::Mouse },
+    Keycode { value: 0x00F6, name: "KC_BTN3", label: "🖱M",  category: KeycodeCategory::Mouse },
+    Keycode { value: 0x00F7, name: "KC_BTN4", label: "🖱4",  category: KeycodeCategory::Mouse },
+    Keycode { value: 0x00F8, name: "KC_BTN5", label: "🖱5",  category: KeycodeCategory::Mouse },
+    Keycode { value: 0x00F9, name: "KC_WH_U", label: "⬆ Scrl", category: KeycodeCategory::Mouse },
+    Keycode { value: 0x00FA, name: "KC_WH_D", label: "⬇ Scrl", category: KeycodeCategory::Mouse },
+    Keycode { value: 0x00FB, name: "KC_WH_L", label: "⬅ Scrl", category: KeycodeCategory::Mouse },
+    Keycode { value: 0x00FC, name: "KC_WH_R", label: "➡ Scrl", category: KeycodeCategory::Mouse },
 
 
     // ── QMK special ───────────────────────────────────────────────────────────
-    Keycode { value: 0x7C16, name: "KC_GESC",  label: "GEsc",  category: KeycodeCategory::Special },
-    Keycode { value: 0x7C77, name: "QK_BOOT",  label: "Boot",  category: KeycodeCategory::Special },
-    Keycode { value: 0x7C00, name: "DB_TOGG",  label: "Debug", category: KeycodeCategory::Special },
-    Keycode { value: 0x7800, name: "QK_LOCK",  label: "Lock",  category: KeycodeCategory::Special },
+    Keycode { value: 0x7C16, name: "KC_GESC",  label: "~\nEsc", category: KeycodeCategory::Special },
+    Keycode { value: 0x7C77, name: "QK_BOOT",  label: "⚡\nBoot", category: KeycodeCategory::Special },
+    Keycode { value: 0x7C00, name: "DB_TOGG",  label: "🐛\nDbg", category: KeycodeCategory::Special },
+    Keycode { value: 0x7800, name: "QK_LOCK",  label: "🔒\nLock",category: KeycodeCategory::Special },
     Keycode { value: 0x7C1A, name: "KC_LSPO",  label: "LSPO",  category: KeycodeCategory::Special },
     Keycode { value: 0x7C1B, name: "KC_RSPC",  label: "RSPC",  category: KeycodeCategory::Special },
     Keycode { value: 0x7C18, name: "KC_LCPO",  label: "LCPO",  category: KeycodeCategory::Special },
@@ -287,6 +305,10 @@ pub fn keycode_label_with_names(value: u16, custom: &[(String, String)], layer_n
             _ => n.to_string(),
         }
     };
+    // GUI keys — platform-specific label
+    if value == 0x00E3 { return format!("L{}", gui_label(false)); }
+    if value == 0x00E7 { return format!("R{}", gui_label(true)); }
+
     if let Some(kc) = find_keycode(value) {
         return kc.label.to_string();
     }
@@ -341,10 +363,13 @@ pub fn keycode_label_with_names(value: u16, custom: &[(String, String)], layer_n
             4 => layer_label("OSL", sub & 0x1F),
             5 => {
                 let mods = sub;
-                let mod_str = match mods {
-                    0x01 => "LSft", 0x02 => "LCtl", 0x04 => "LAlt", 0x08 => "LGui",
-                    0x11 => "RSft", 0x12 => "RCtl", 0x14 => "RAlt", 0x18 => "RGui",
-                    0x07 => "Meh", 0x0F => "Hypr", _ => "Mod",
+                let gui = gui_sym();
+                let mod_str: String = match mods {
+                    0x01 => "LShift".into(), 0x02 => "LCtrl".into(), 0x04 => "LAlt".into(),
+                    0x08 => format!("L{}", gui),
+                    0x11 => "RShift".into(), 0x12 => "RCtrl".into(), 0x14 => "RAlt".into(),
+                    0x18 => format!("R{}", gui),
+                    0x07 => "Meh".into(), 0x0F => "Hyper".into(), _ => "Mod".into(),
                 };
                 format!("OSM/{}", mod_str)
             }
@@ -386,43 +411,44 @@ pub fn keycode_label_with_names(value: u16, custom: &[(String, String)], layer_n
         let mods = value >> 8;
         let kc = value & 0xFF;
         let kc_str = find_keycode(kc as u16).map(|k| k.label).unwrap_or("?");
-        let mod_str = match mods {
-            0x01 => "LCtl",
-            0x02 => "LSft",
-            0x04 => "LAlt",
-            0x08 => "LGui",
-            0x03 => "LCS",
-            0x05 => "LCA",
-            0x06 => "LSA",
-            0x07 => "Meh",
-            0x09 => "LCG",
-            0x0C => "LAG",
-            0x0F => "Hypr",
-            0x0A => "LSG",
-            0x11 => "RCtl",
-            0x12 => "RSft",
-            0x14 => "RAlt",
-            0x18 => "RGui",
-            _ => "Mod",
+        let gui = gui_sym();
+        let mod_str: String = match mods {
+            0x01 => "Ctrl".into(),
+            0x02 => "Shift".into(),
+            0x04 => "Alt".into(),
+            0x08 => gui.into(),
+            0x03 => "Ctrl+Shift".into(),
+            0x05 => "Ctrl+Alt".into(),
+            0x06 => "Shift+Alt".into(),
+            0x07 => "Meh".into(),
+            0x09 => format!("Ctrl+{}", gui),
+            0x0C => format!("Alt+{}", gui),
+            0x0F => "Hyper".into(),
+            0x0A => format!("Shift+{}", gui),
+            0x11 => "RCtrl".into(),
+            0x12 => "RShift".into(),
+            0x14 => "RAlt".into(),
+            0x18 => format!("R{}", gui),
+            _ => "Mod".into(),
         };
         return format!("{}/{}", mod_str, kc_str);
     }
 
-    if value == 0x0001 { return "TRNS".to_string(); }
-    if value == 0x0000 { return "NO".to_string(); }
+    if value == 0x0001 { return "▽".to_string(); }
+    if value == 0x0000 { return "✕".to_string(); }
 
     format!("{:04X}", value)
 }
 
 fn decode_mods(mods: u16, _right: bool) -> &'static str {
     match mods {
-        0x01 | 0x11 => "Ctl",
-        0x02 | 0x12 => "Sft",
+        0x01 | 0x11 => "Ctrl",
+        0x02 | 0x12 => "Shift",
         0x04 | 0x14 => "Alt",
-        0x08 | 0x18 => "Gui",
-        0x03 | 0x13 => "CS",
-        0x05 | 0x15 => "CA",
-        0x06 | 0x16 => "SA",
+        0x08 | 0x18 => gui_sym(),
+        0x03 | 0x13 => "Ctrl+Shift",
+        0x05 | 0x15 => "Ctrl+Alt",
+        0x06 | 0x16 => "Shift+Alt",
         0x07 | 0x17 => "Meh",
         0x0F | 0x1F => "Hypr",
         _ => "Mod",

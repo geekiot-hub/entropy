@@ -1,8 +1,9 @@
 name: Build
 
 on:
+  workflow_dispatch:  # manual only — disabled automatic build
   push:
-    branches: [main]
+    branches: [disabled-auto-build]
   pull_request:
     branches: [main]
 

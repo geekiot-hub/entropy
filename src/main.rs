@@ -2,11 +2,17 @@
 
 mod app;
 mod device;
+mod firmware;
 mod keyboard;
 mod keycode;
 mod keycode_picker;
+mod layouts;
 #[cfg(not(target_arch = "wasm32"))]
 mod hid;
+#[cfg(not(target_arch = "wasm32"))]
+mod zmk;
+#[cfg(not(target_arch = "wasm32"))]
+mod zmk_proto;
 
 use app::EntropyApp;
 
@@ -25,7 +31,7 @@ fn main() -> eframe::Result<()> {
         "Entropy",
         options,
         Box::new(|cc| {
-            // Load DejaVu Sans for Unicode symbol support (▽ ✕ etc)
+            // DejaVu Sans as primary font + NotoSansSymbols2 as fallback for ⬅⬆⬇➡⌫⏎⏯⏭⏮▽⌘⌃⌥⇧ etc.
             let mut fonts = egui::FontDefinitions::default();
             fonts.font_data.insert(
                 "dejavu".to_owned(),
@@ -33,10 +39,24 @@ fn main() -> eframe::Result<()> {
                     include_bytes!("../assets/DejaVuSans.ttf")
                 ).into(),
             );
-            fonts.families
+            fonts.font_data.insert(
+                "noto_symbols".to_owned(),
+                egui::FontData::from_static(
+                    include_bytes!("../assets/NotoSansSymbols2-Regular.ttf")
+                ).into(),
+            );
+            fonts.font_data.insert(
+                "noto_emoji".to_owned(),
+                egui::FontData::from_static(
+                    include_bytes!("../assets/NotoEmoji-subset.ttf")
+                ).into(),
+            );
+            let prop = fonts.families
                 .entry(egui::FontFamily::Proportional)
-                .or_default()
-                .push("dejavu".to_owned());
+                .or_default();
+            prop.insert(0, "dejavu".to_owned());
+            prop.push("noto_symbols".to_owned());
+            prop.push("noto_emoji".to_owned());
             cc.egui_ctx.set_fonts(fonts);
             Ok(Box::new(EntropyApp::new(cc)))
         }),

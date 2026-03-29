@@ -1,15 +1,26 @@
 use crate::device::DeviceManager;
+use crate::firmware::FirmwareProtocol;
+use crate::zmk::{zmk_binding_label, zmk_binding_tooltip, ZmkBinding};
 
-fn layer_names_path() -> std::path::PathBuf {
+/// Sanitize a device name into a filesystem-safe slug.
+fn device_id_slug(device_name: &str) -> String {
+    device_name
+        .chars()
+        .map(|c| if c.is_alphanumeric() { c.to_ascii_lowercase() } else { '_' })
+        .collect()
+}
+
+fn layer_names_path(device_name: &str) -> std::path::PathBuf {
     let dir = dirs::config_dir()
         .unwrap_or_else(|| std::path::PathBuf::from("."))
         .join("entropy");
     std::fs::create_dir_all(&dir).ok();
-    dir.join("layer_names.json")
+    let slug = device_id_slug(device_name);
+    dir.join(format!("layer_names_{}.json", slug))
 }
 
-fn load_layer_names() -> Vec<String> {
-    let path = layer_names_path();
+fn load_layer_names(device_name: &str) -> Vec<String> {
+    let path = layer_names_path(device_name);
     if let Ok(data) = std::fs::read_to_string(&path) {
         if let Ok(mut v) = serde_json::from_str::<Vec<String>>(&data) {
             if !v.is_empty() {
@@ -27,7 +38,7 @@ fn load_layer_names() -> Vec<String> {
     v
 }
 
-fn save_layer_names(names: &[String]) {
+fn save_layer_names(names: &[String], device_name: &str) {
     // Always save at least 16 slots so load_layer_names can detect a valid file
     let mut full = names.to_vec();
     while full.len() < 16 {
@@ -35,7 +46,7 @@ fn save_layer_names(names: &[String]) {
         full.push(n.to_string());
     }
     if let Ok(data) = serde_json::to_string(&full) {
-        let path = layer_names_path();
+        let path = layer_names_path(device_name);
         if let Err(e) = std::fs::write(&path, &data) {
             log::warn!("save_layer_names failed at {:?}: {e}", path);
         } else {
@@ -57,12 +68,30 @@ struct ConnectResult {
     device_name: String,
     layout: KeyboardLayout,
     layer_count: usize,
+    /// Persistent ZMK connection (if ZMK device)
+    zmk_conn: Option<crate::zmk::ZmkConnection>,
+    /// ZMK lock state at connect time
+    zmk_lock_state: i32,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 enum ConnectState {
     Idle,
     Loading(mpsc::Receiver<Result<ConnectResult, String>>),
+}
+
+/// Message from background ZMK operation thread
+#[cfg(not(target_arch = "wasm32"))]
+enum ZmkOpResult {
+    AddLayerOk { layer_idx: u32, layer_name: String },
+    AddLayerFail(String),
+    RemoveLayerOk,
+    RemoveLayerFail(String),
+    SaveOk,
+    SaveFail(String),
+    DiscardOk,
+    DiscardFail(String),
+    LockStateChanged(i32),
 }
 
 pub struct EntropyApp {
@@ -76,14 +105,30 @@ pub struct EntropyApp {
     status_msg: String,
     #[cfg(not(target_arch = "wasm32"))]
     connect_state: ConnectState,
-    /// Persistent open HID device for real-time writes
+    /// Persistent open HID device for real-time writes (Vial)
     #[cfg(not(target_arch = "wasm32"))]
     hid_device: Option<crate::hid::HidDevice>,
+    /// Persistent ZMK connection passed from the connect thread
+    #[cfg(not(target_arch = "wasm32"))]
+    zmk_conn: Option<crate::zmk::ZmkConnection>,
+    /// Current firmware type (mirrors layout.firmware)
+    firmware: FirmwareProtocol,
     dark_mode: bool,
     layer_names: Vec<String>,
     editing_layer: Option<usize>, // layer being renamed
     editing_layer_text: String,
     editing_layer_focus_requested: bool,
+    /// Current connected device name (for per-device layer names)
+    current_device_name: String,
+    /// ZMK lock state: 0=Locked, 1=Unlocked
+    zmk_lock_state: i32,
+    /// Whether ZMK has unsaved changes
+    zmk_has_unsaved: bool,
+    /// Vial unlock dialog open
+    unlock_open: bool,
+    /// Channel for ZMK background operation results
+    #[cfg(not(target_arch = "wasm32"))]
+    zmk_op_rx: Option<mpsc::Receiver<ZmkOpResult>>,
 }
 
 impl EntropyApp {
@@ -91,7 +136,9 @@ impl EntropyApp {
         let mut app = Self {
             #[cfg(not(target_arch = "wasm32"))]
             hid_device: None,
-
+            #[cfg(not(target_arch = "wasm32"))]
+            zmk_conn: None,
+            firmware: FirmwareProtocol::Vial,
             device_manager: DeviceManager::new(),
             selected_device: None,
             selected_layer: 0,
@@ -101,10 +148,16 @@ impl EntropyApp {
             keycode_picker: KeycodePicker::default(),
             status_msg: String::new(),
             dark_mode: false,
-            layer_names: load_layer_names(),
+            layer_names: load_layer_names("default"),
             editing_layer: None,
             editing_layer_text: String::new(),
             editing_layer_focus_requested: false,
+            current_device_name: String::new(),
+            zmk_lock_state: 1, // Unlocked by default
+            zmk_has_unsaved: false,
+            unlock_open: false,
+            #[cfg(not(target_arch = "wasm32"))]
+            zmk_op_rx: None,
             #[cfg(not(target_arch = "wasm32"))]
             connect_state: ConnectState::Idle,
         };
@@ -131,67 +184,155 @@ impl EntropyApp {
         self.status_msg = format!("Connecting to {}…", dev.name);
         self.layout = None;
         self.selected_key = None;
+        self.hid_device = None;
+        self.zmk_conn = None;
+        self.zmk_has_unsaved = false;
+        self.zmk_lock_state = 1; // assume unlocked until we know
 
         let (tx, rx) = mpsc::channel();
         self.connect_state = ConnectState::Loading(rx);
 
         std::thread::spawn(move || {
             let result = (|| -> Result<ConnectResult, String> {
-                use crate::hid::HidDevice;
+                match dev.firmware {
+                    FirmwareProtocol::Vial => {
+                        use crate::hid::HidDevice;
 
-                log::info!("Opening HID device: {}", dev.path);
-                let dev_conn = HidDevice::open(&dev.path)
-                    .map_err(|e| format!("Open failed: {e}"))?;
+                        log::info!("Opening HID device: {}", dev.path);
+                        let dev_conn = HidDevice::open(&dev.path)
+                            .map_err(|e| format!("Open failed: {e}"))?;
 
-                log::info!("Getting protocol version…");
-                match dev_conn.get_protocol_version() {
-                    Ok(v) => log::info!("VIA protocol version: {v}"),
-                    Err(e) => log::warn!("get_protocol_version failed: {e}"),
-                }
+                        log::info!("Getting protocol version…");
+                        match dev_conn.get_protocol_version() {
+                            Ok(v) => log::info!("VIA protocol version: {v}"),
+                            Err(e) => log::warn!("get_protocol_version failed: {e}"),
+                        }
 
-                log::info!("Getting layer count…");
-                let layer_count = dev_conn.get_layer_count()
-                    .map(|c| c as usize)
-                    .unwrap_or_else(|e| { log::warn!("get_layer_count failed: {e}, defaulting to 4"); 4 });
-                log::info!("Layer count: {layer_count}");
+                        log::info!("Getting layer count…");
+                        let layer_count = dev_conn.get_layer_count()
+                            .map(|c| c as usize)
+                            .unwrap_or_else(|e| { log::warn!("get_layer_count failed: {e}, defaulting to 4"); 4 });
+                        log::info!("Layer count: {layer_count}");
 
-                log::info!("Getting layout JSON…");
-                let json = dev_conn.get_layout_json()
-                    .map_err(|e| format!("Layout read failed: {e}"))?;
-                log::info!("Layout JSON received, parsing…");
+                        log::info!("Getting layout JSON…");
+                        let json = dev_conn.get_layout_json()
+                            .map_err(|e| format!("Layout read failed: {e}"))?;
 
-                let mut layout = KeyboardLayout::from_vial_json(&json)
-                    .map_err(|e| format!("Layout parse failed: {e}"))?;
-                log::info!("Layout parsed: {} keys, {}x{}", layout.keys.len(), layout.rows, layout.cols);
+                        let mut layout = KeyboardLayout::from_vial_json(&json)
+                            .map_err(|e| format!("Layout parse failed: {e}"))?;
 
-                let num_keys = layout.keys.len();
-                layout.layers = vec![vec![0u16; num_keys]; layer_count];
+                        let num_keys = layout.keys.len();
+                        layout.layers = vec![vec![0u16; num_keys]; layer_count];
 
-                log::info!("Reading keymap buffer…");
-                match dev_conn.get_keymap_buffer(layer_count, layout.rows, layout.cols) {
-                    Ok(buf) => {
-                        for layer in 0..layer_count {
-                            for (ki, key) in layout.keys.iter().enumerate() {
-                                let idx = layer * layout.rows * layout.cols
-                                    + key.row as usize * layout.cols
-                                    + key.col as usize;
-                                if let Some(&kc) = buf.get(idx) {
-                                    layout.layers[layer][ki] = kc;
+                        match dev_conn.get_keymap_buffer(layer_count, layout.rows, layout.cols) {
+                            Ok(buf) => {
+                                for layer in 0..layer_count {
+                                    for (ki, key) in layout.keys.iter().enumerate() {
+                                        let idx = layer * layout.rows * layout.cols
+                                            + key.row as usize * layout.cols
+                                            + key.col as usize;
+                                        if let Some(&kc) = buf.get(idx) {
+                                            layout.layers[layer][ki] = kc;
+                                        }
+                                    }
                                 }
+                                log::info!("Keymap loaded from buffer");
+                            }
+                            Err(e) => {
+                                log::warn!("get_keymap_buffer failed: {e}");
                             }
                         }
-                        log::info!("Keymap loaded from buffer");
+
+                        Ok(ConnectResult {
+                            device_name: dev.name.clone(),
+                            layout,
+                            layer_count,
+                            zmk_conn: None,
+                            zmk_lock_state: 1, // Vial doesn't have lock state
+                        })
                     }
-                    Err(e) => {
-                        log::warn!("get_keymap_buffer failed: {e}, skipping keycodes");
+
+                    FirmwareProtocol::Zmk => {
+                        use crate::zmk::ZmkConnection;
+
+                        log::info!("Opening ZMK serial device: {}", dev.path);
+                        let mut conn = ZmkConnection::open(&dev.path)
+                            .map_err(|e| format!("ZMK open failed: {e}"))?;
+
+                        // Check lock state (don't wait — just get it)
+                        let lock_state = conn.get_lock_state()
+                            .unwrap_or(crate::zmk_proto::core::LockState::Unlocked as i32);
+
+                        // If locked, return early with the lock state so UI can show unlock modal
+                        if lock_state == crate::zmk_proto::core::LockState::Locked as i32 {
+                            log::warn!("ZMK keyboard is locked — returning for unlock UI");
+                            // Return minimal result with lock state set
+                            let layout = KeyboardLayout {
+                                name: dev.name.clone(),
+                                rows: 0,
+                                cols: 0,
+                                keys: vec![],
+                                layers: vec![],
+                                custom_keycodes: vec![],
+                                firmware: FirmwareProtocol::Zmk,
+                                zmk_bindings: vec![],
+                                zmk_behaviors: vec![],
+                                zmk_layer_ids: vec![],
+                                zmk_layer_names: vec![],
+                            };
+                            return Ok(ConnectResult {
+                                device_name: dev.name.clone(),
+                                layout,
+                                layer_count: 0,
+                                zmk_conn: Some(conn),
+                                zmk_lock_state: lock_state,
+                            });
+                        }
+
+                        log::info!("Fetching ZMK behaviors…");
+                        conn.fetch_all_behaviors()
+                            .map_err(|e| format!("ZMK behaviors failed: {e}"))?;
+
+                        log::info!("Fetching ZMK keymap…");
+                        let keymap = conn.get_keymap()
+                            .map_err(|e| format!("ZMK keymap failed: {e}"))?;
+
+                        log::info!("Fetching ZMK physical layouts…");
+                        let phys = conn.get_physical_layouts()
+                            .map_err(|e| format!("ZMK layouts failed: {e}"))?;
+
+                        let layer_count = keymap.layers.len();
+                        log::info!("ZMK: {} layers", layer_count);
+
+                        // Build a simple grid layout from physical layout
+                        let mut layout = crate::layouts::build_layout_from_zmk(&phys, &keymap);
+                        layout.firmware = FirmwareProtocol::Zmk;
+                        layout.zmk_behaviors = conn.behaviors.clone();
+
+                        // Extract bindings
+                        layout.zmk_layer_ids = keymap.layers.iter().map(|l| l.id).collect();
+                        layout.zmk_layer_names = keymap.layers.iter().map(|l| l.name.clone()).collect();
+
+                        let num_keys = layout.keys.len();
+                        layout.zmk_bindings = keymap.layers.iter().map(|layer| {
+                            let mut bindings = vec![crate::zmk::ZmkBinding::none(); num_keys];
+                            for (i, b) in layer.bindings.iter().enumerate() {
+                                if i < num_keys {
+                                    bindings[i] = crate::zmk::ZmkBinding::from_proto(b);
+                                }
+                            }
+                            bindings
+                        }).collect();
+
+                        Ok(ConnectResult {
+                            device_name: dev.name.clone(),
+                            layout,
+                            layer_count,
+                            zmk_conn: Some(conn),
+                            zmk_lock_state: lock_state,
+                        })
                     }
                 }
-
-                Ok(ConnectResult {
-                    device_name: dev.name.clone(),
-                    layout,
-                    layer_count,
-                })
             })();
 
             let _ = tx.send(result);
@@ -222,31 +363,190 @@ impl EntropyApp {
         match result.unwrap() {
             Ok(r) => {
                 self.layer_count = r.layer_count;
-                self.status_msg = format!("Connected: {}", r.device_name);
-                // Populate custom keycodes in picker
-                const USER_BASE: u16 = 0x7E40;
-                self.keycode_picker.custom_keycodes = r.layout.custom_keycodes.iter().enumerate()
-                    .map(|(i, (name, label))| (name.clone(), label.clone(), USER_BASE + i as u16))
-                    .collect();
-                let layout_rows = r.layout.rows;
-                let layout_cols = r.layout.cols;
-                self.layout = Some(r.layout);
-                // Open persistent HID connection for real-time writes
-                if let Some(dev) = self.selected_device.and_then(|i| self.device_manager.devices().get(i)) {
-                    match crate::hid::HidDevice::open(&dev.path) {
-                        Ok(v) => {
+                self.firmware = r.layout.firmware;
+                self.current_device_name = r.device_name.clone();
+                self.zmk_lock_state = r.zmk_lock_state;
+                self.zmk_has_unsaved = false;
 
-                            self.hid_device = Some(v);
+                // If ZMK keyboard is locked, show the unlock modal
+                if r.zmk_lock_state == crate::zmk_proto::core::LockState::Locked as i32 {
+                    self.status_msg = "Keyboard locked".into();
+                    if let Some(conn) = r.zmk_conn {
+                        self.zmk_conn = Some(conn);
+                    }
+                    // Start polling for unlock in background
+                    self.start_zmk_lock_poll(ctx);
+                    return;
+                }
+
+                self.status_msg = format!("Connected: {}", r.device_name);
+
+                // ZMK: store connection
+                if let Some(conn) = r.zmk_conn {
+                    self.zmk_conn = Some(conn);
+                }
+
+                // Load per-device layer names
+                let device_name = r.device_name.clone();
+                // For ZMK, use device layer names if available; otherwise load from file
+                if !r.layout.zmk_layer_names.is_empty() {
+                    self.layer_names = r.layout.zmk_layer_names.clone();
+                    while self.layer_names.len() < 16 {
+                        let n = self.layer_names.len();
+                        self.layer_names.push(n.to_string());
+                    }
+                } else {
+                    self.layer_names = load_layer_names(&device_name);
+                }
+
+                // Populate picker based on firmware
+                self.keycode_picker.firmware = self.firmware;
+                if self.firmware == FirmwareProtocol::Vial {
+                    const USER_BASE: u16 = 0x7E40;
+                    self.keycode_picker.custom_keycodes = r.layout.custom_keycodes.iter().enumerate()
+                        .map(|(i, (name, label))| (name.clone(), label.clone(), USER_BASE + i as u16))
+                        .collect();
+                } else {
+                    self.keycode_picker.zmk_behaviors = r.layout.zmk_behaviors.clone();
+                    self.keycode_picker.zmk_layer_count = r.layer_count;
+                }
+                self.keycode_picker.layer_names = self.layer_names.clone();
+
+                self.layout = Some(r.layout);
+
+                // Open persistent HID connection for Vial real-time writes
+                if self.firmware == FirmwareProtocol::Vial {
+                    if let Some(dev) = self.selected_device.and_then(|i| self.device_manager.devices().get(i)) {
+                        match crate::hid::HidDevice::open(&dev.path) {
+                            Ok(v) => { self.hid_device = Some(v); }
+                            Err(e) => log::warn!("Could not open persistent HID: {e}"),
                         }
-                        Err(e) => log::warn!("Could not open persistent HID: {e}"),
                     }
                 }
 
-
-                log::info!("Connected: {} ({} layers)", r.device_name, r.layer_count);
+                log::info!("Connected: {} ({} layers, {:?})", r.device_name, r.layer_count, self.firmware);
             }
             Err(e) => {
                 self.status_msg = e;
+            }
+        }
+    }
+
+    /// Start polling for ZMK unlock in background.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn start_zmk_lock_poll(&mut self, ctx: &egui::Context) {
+        // Take the ZMK connection for the background thread
+        let conn = match self.zmk_conn.take() {
+            Some(c) => c,
+            None => return,
+        };
+
+        let (tx, rx) = mpsc::channel();
+        self.zmk_op_rx = Some(rx);
+
+        let ctx_clone = ctx.clone();
+        std::thread::spawn(move || {
+            let mut conn = conn;
+            // Poll lock state until unlocked
+            loop {
+                std::thread::sleep(std::time::Duration::from_millis(500));
+                match conn.get_lock_state() {
+                    Ok(state) => {
+                        let _ = tx.send(ZmkOpResult::LockStateChanged(state));
+                        ctx_clone.request_repaint();
+                        if state == crate::zmk_proto::core::LockState::Unlocked as i32 {
+                            break;
+                        }
+                    }
+                    Err(e) => {
+                        log::warn!("Lock poll error: {e}");
+                    }
+                }
+            }
+            // Return connection via a special channel — we just drop it here since
+            // we can't easily return it. The UI will reconnect.
+            drop(conn);
+        });
+    }
+
+    /// Poll ZMK background operation results.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn poll_zmk_ops(&mut self, ctx: &egui::Context) {
+        let msg = match &self.zmk_op_rx {
+            Some(rx) => match rx.try_recv() {
+                Ok(m) => m,
+                Err(_) => return,
+            },
+            None => return,
+        };
+
+        match msg {
+            ZmkOpResult::LockStateChanged(state) => {
+                self.zmk_lock_state = state;
+                if state == crate::zmk_proto::core::LockState::Unlocked as i32 {
+                    self.zmk_op_rx = None;
+                    // Reconnect to load the keymap now that it's unlocked
+                    if let Some(idx) = self.selected_device {
+                        self.start_connect(idx);
+                    }
+                } else {
+                    ctx.request_repaint();
+                }
+            }
+            ZmkOpResult::AddLayerOk { layer_idx, layer_name } => {
+                log::info!("Added layer at index {layer_idx}: {layer_name}");
+                self.status_msg = "Added layer".into();
+                self.zmk_has_unsaved = false;
+                self.zmk_op_rx = None;
+                // Reload to get updated layer list
+                if let Some(idx) = self.selected_device {
+                    self.start_connect(idx);
+                }
+            }
+            ZmkOpResult::AddLayerFail(e) => {
+                log::error!("Add layer failed: {e}");
+                self.status_msg = format!("Add layer failed: {e}");
+                self.zmk_op_rx = None;
+            }
+            ZmkOpResult::RemoveLayerOk => {
+                log::info!("Removed layer");
+                self.status_msg = "Removed layer".into();
+                self.zmk_has_unsaved = false;
+                self.zmk_op_rx = None;
+                if let Some(idx) = self.selected_device {
+                    self.start_connect(idx);
+                }
+            }
+            ZmkOpResult::RemoveLayerFail(e) => {
+                log::error!("RemoveLayer error: {e}");
+                self.status_msg = format!("RemoveLayer error: {e}");
+                self.zmk_op_rx = None;
+            }
+            ZmkOpResult::SaveOk => {
+                log::info!("Saved");
+                self.status_msg = "✓ Saved".into();
+                self.zmk_has_unsaved = false;
+                self.zmk_op_rx = None;
+            }
+            ZmkOpResult::SaveFail(e) => {
+                log::error!("Save error: {e}");
+                self.status_msg = format!("Save error: {e}");
+                self.zmk_op_rx = None;
+            }
+            ZmkOpResult::DiscardOk => {
+                log::info!("Discard ok");
+                self.status_msg = "Discarded".into();
+                self.zmk_has_unsaved = false;
+                self.zmk_op_rx = None;
+                // Reload after discard
+                if let Some(idx) = self.selected_device {
+                    self.start_connect(idx);
+                }
+            }
+            ZmkOpResult::DiscardFail(e) => {
+                log::error!("Discard error: {e}");
+                self.status_msg = format!("Discard error: {e}");
+                self.zmk_op_rx = None;
             }
         }
     }
@@ -295,6 +595,155 @@ impl EntropyApp {
             self.start_connect(idx);
         }
     }
+
+    /// ZMK: assign binding and write to device.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn assign_zmk_binding(&mut self, layer: usize, ki: usize, binding: ZmkBinding) {
+        let layer_id = self.layout.as_ref()
+            .and_then(|l| l.zmk_layer_ids.get(layer).copied())
+            .unwrap_or(layer as u32);
+
+        if let Some(layout) = &mut self.layout {
+            layout.set_zmk_binding(layer, ki, binding.clone());
+        }
+
+        let conn = match self.zmk_conn.take() {
+            Some(c) => c,
+            None => {
+                self.status_msg = "ZMK not connected".into();
+                return;
+            }
+        };
+        let mut conn = conn;
+        match conn.set_layer_binding(layer_id, ki as i32, &binding) {
+            Ok(()) => {
+                self.status_msg = "✓ Saved".into();
+                self.zmk_has_unsaved = true;
+            }
+            Err(e) => {
+                self.status_msg = format!("ZMK write error: {e}");
+            }
+        }
+        self.zmk_conn = Some(conn);
+    }
+
+    /// ZMK: save changes to flash in background.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn zmk_save(&mut self) {
+        if self.zmk_op_rx.is_some() { return; } // operation in progress
+        let conn = match self.zmk_conn.take() {
+            Some(c) => c,
+            None => {
+                self.status_msg = "No ZMK connection".into();
+                return;
+            }
+        };
+
+        let (tx, rx) = mpsc::channel();
+        self.zmk_op_rx = Some(rx);
+
+        std::thread::spawn(move || {
+            let mut conn = conn;
+            match conn.save_changes() {
+                Ok(()) => {
+                    let _ = tx.send(ZmkOpResult::SaveOk);
+                }
+                Err(e) => {
+                    let _ = tx.send(ZmkOpResult::SaveFail(e.to_string()));
+                }
+            }
+            // Put connection back — we drop it here since we can't easily return it
+            // The caller will need to reconnect if needed
+            drop(conn);
+        });
+        self.status_msg = "Saving…".into();
+    }
+
+    /// ZMK: discard unsaved changes in background.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn zmk_discard(&mut self) {
+        if self.zmk_op_rx.is_some() { return; }
+        // Discard = just reload from device
+        self.zmk_has_unsaved = false;
+        self.status_msg = "Discarded".into();
+        if let Some(idx) = self.selected_device {
+            self.start_connect(idx);
+        }
+    }
+
+    /// ZMK: add layer in background.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn zmk_add_layer(&mut self) {
+        if self.zmk_op_rx.is_some() { return; }
+        let conn = match self.zmk_conn.take() {
+            Some(c) => c,
+            None => {
+                self.status_msg = "No ZMK connection".into();
+                return;
+            }
+        };
+
+        let (tx, rx) = mpsc::channel();
+        self.zmk_op_rx = Some(rx);
+
+        std::thread::spawn(move || {
+            let mut conn = conn;
+            let res = conn.add_layer().and_then(|(idx, name)| {
+                log::info!("save_changes after add_layer: layer={idx}");
+                conn.save_changes()?;
+                Ok((idx, name))
+            });
+            match res {
+                Ok((idx, name)) => {
+                    let _ = tx.send(ZmkOpResult::AddLayerOk { layer_idx: idx, layer_name: name });
+                }
+                Err(e) => {
+                    let _ = tx.send(ZmkOpResult::AddLayerFail(e.to_string()));
+                }
+            }
+            drop(conn);
+        });
+        self.status_msg = "Adding layer…".into();
+    }
+
+    /// ZMK: remove last layer in background.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn zmk_remove_layer(&mut self) {
+        if self.zmk_op_rx.is_some() { return; }
+        if self.layer_count <= 1 {
+            self.status_msg = "Cannot remove last layer".into();
+            return;
+        }
+        let last_idx = (self.layer_count - 1) as u32;
+        let conn = match self.zmk_conn.take() {
+            Some(c) => c,
+            None => {
+                self.status_msg = "No ZMK connection".into();
+                return;
+            }
+        };
+
+        let (tx, rx) = mpsc::channel();
+        self.zmk_op_rx = Some(rx);
+
+        std::thread::spawn(move || {
+            let mut conn = conn;
+            let res = conn.remove_layer(last_idx).and_then(|()| {
+                log::info!("save_changes after remove_layer: layer={last_idx}");
+                conn.save_changes()
+            });
+            match res {
+                Ok(()) => {
+                    let _ = tx.send(ZmkOpResult::RemoveLayerOk);
+                }
+                Err(e) => {
+                    let _ = tx.send(ZmkOpResult::RemoveLayerFail(e.to_string()));
+                }
+            }
+            drop(conn);
+        });
+        self.status_msg = "Removing layer…".into();
+    }
 }
 
 impl eframe::App for EntropyApp {
@@ -332,9 +781,11 @@ impl eframe::App for EntropyApp {
         #[cfg(not(target_arch = "wasm32"))]
         self.poll_connect(ctx);
 
+        // Poll ZMK background operations
+        #[cfg(not(target_arch = "wasm32"))]
+        self.poll_zmk_ops(ctx);
 
-
-        // Handle keycode picker result — real-time write to device
+        // Handle Vial keycode picker result
         if let Some(kc_value) = self.keycode_picker.result.take() {
             if let Some((layer, ki)) = self.selected_key {
                 #[cfg(not(target_arch = "wasm32"))]
@@ -343,6 +794,15 @@ impl eframe::App for EntropyApp {
                 if let Some(layout) = &mut self.layout {
                     layout.set_keycode(layer, ki, kc_value);
                 }
+            }
+            self.selected_key = None;
+        }
+
+        // Handle ZMK binding picker result
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(binding) = self.keycode_picker.zmk_result.take() {
+            if let Some((layer, ki)) = self.selected_key {
+                self.assign_zmk_binding(layer, ki, binding);
             }
             self.selected_key = None;
         }
@@ -370,6 +830,19 @@ impl eframe::App for EntropyApp {
         let is_loading = matches!(self.connect_state, ConnectState::Loading(_));
         #[cfg(target_arch = "wasm32")]
         let is_loading = false;
+
+        // ZMK unlock modal — show before everything else if locked
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let is_zmk_locked = self.firmware == FirmwareProtocol::Zmk
+                && self.zmk_lock_state == crate::zmk_proto::core::LockState::Locked as i32
+                && !is_loading;
+
+            if is_zmk_locked {
+                self.show_zmk_unlock_modal(ctx);
+                return;
+            }
+        }
 
         // Top bar
         egui::TopBottomPanel::top("topbar").show(ctx, |ui| {
@@ -416,7 +889,51 @@ impl eframe::App for EntropyApp {
                             self.load_from_device();
                         }
 
+                        // ZMK: Save / Discard / Unsaved indicator
+                        if self.firmware == FirmwareProtocol::Zmk && self.layout.is_some() {
+                            let op_busy = self.zmk_op_rx.is_some();
 
+                            if self.zmk_has_unsaved {
+                                ui.label(RichText::new("● Unsaved").size(11.0).color(Color32::from_rgb(230, 180, 60)));
+                                let discard_btn = egui::Button::new("Discard")
+                                    .sense(if op_busy { Sense::hover() } else { Sense::click() });
+                                if ui.add(discard_btn).clicked() && !op_busy {
+                                    self.zmk_discard();
+                                }
+                                let save_btn = egui::Button::new("💾 Save")
+                                    .sense(if op_busy { Sense::hover() } else { Sense::click() });
+                                if ui.add(save_btn).clicked() && !op_busy {
+                                    self.zmk_save();
+                                }
+                            }
+                        }
+
+                        // Vial: Unlock button (if keyboard is locked) + Save to flash
+                        if self.firmware == FirmwareProtocol::Vial && self.layout.is_some() {
+                            // Check if locked — show unlock button
+                            if let Some(hid) = &self.hid_device {
+                                if let Ok((locked, _)) = hid.get_unlock_status() {
+                                    if !locked {
+                                        if ui.add(egui::Button::new(RichText::new("🔒 Unlock")
+                                            .color(Color32::from_rgb(220, 120, 60)))
+                                            .fill(Color32::TRANSPARENT))
+                                            .on_hover_text("Keyboard is locked — click to start unlock sequence")
+                                            .clicked()
+                                        {
+                                            self.unlock_open = true;
+                                        }
+                                    }
+                                }
+                            }
+                            if ui.button("⚡ Save to flash").on_hover_text("Put keyboard into flash mode").clicked() {
+                                if let Some(hid) = &self.hid_device {
+                                    match hid.set_keycode(0, 0, 0, 0x7C00) {
+                                        Ok(_) => self.status_msg = "Put keyboard into flash mode".into(),
+                                        Err(e) => self.status_msg = format!("Flash error: {e}"),
+                                    }
+                                }
+                            }
+                        }
                     }
 
                     if !self.status_msg.is_empty() {
@@ -436,10 +953,6 @@ impl eframe::App for EntropyApp {
                 });
             });
         });
-
-
-
-
 
         // Main canvas
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -484,6 +997,72 @@ impl eframe::App for EntropyApp {
 
         // Keycode picker modal
         self.keycode_picker.show(ctx);
+    }
+}
+
+impl EntropyApp {
+    /// Show ZMK unlock modal overlay.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn show_zmk_unlock_modal(&self, ctx: &egui::Context) {
+        // Draw dimmed background panels
+        egui::TopBottomPanel::top("topbar_locked").show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("⌨ Entropy").size(18.0).strong());
+            });
+        });
+
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.centered_and_justified(|ui| {
+                ui.vertical_centered(|ui| {
+                    ui.add_space(40.0);
+                    ui.label(
+                        RichText::new("🔒 Keyboard locked")
+                            .size(24.0)
+                            .strong()
+                            .color(Color32::from_rgb(220, 160, 60)),
+                    );
+                    ui.add_space(16.0);
+
+                    // Check if there's a studio unlock behavior
+                    let has_unlock_key = self.zmk_conn.is_none(); // after poll the conn is taken
+                    if has_unlock_key {
+                        ui.label(
+                            RichText::new("Press the unlock key on your keyboard to allow editing.")
+                                .size(14.0),
+                        );
+                    } else {
+                        ui.label(
+                            RichText::new("Hold the unlock combo on your keyboard to allow editing.")
+                                .size(14.0),
+                        );
+                        ui.add_space(8.0);
+                        ui.label(
+                            RichText::new("Hold simultaneously: Studio Unlock key")
+                                .size(12.0)
+                                .color(Color32::GRAY),
+                        );
+                    }
+
+                    ui.add_space(24.0);
+                    ui.label(
+                        RichText::new("Keep holding… Unlock ZMK Studio")
+                            .size(12.0)
+                            .color(Color32::GRAY),
+                    );
+                    ui.add_space(16.0);
+                    ui.spinner();
+                    ui.add_space(8.0);
+                    ui.label(
+                        RichText::new("Waiting for unlock…")
+                            .size(11.0)
+                            .color(Color32::GRAY),
+                    );
+                });
+            });
+        });
+
+        // Keep repainting while waiting
+        ctx.request_repaint_after(std::time::Duration::from_millis(500));
     }
 }
 
@@ -540,7 +1119,36 @@ impl EntropyApp {
             let center_x = ui.min_rect().center().x;
             let bar_y = ui.min_rect().top() + (avail.y - layout_h - layer_bar_h) / 2.0 + 4.0;
 
-
+            // ZMK layer management buttons (+ Add / - Remove)
+            if self.firmware == FirmwareProtocol::Zmk {
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    let op_busy = self.zmk_op_rx.is_some();
+                    let btn_y = bar_y + layer_bar_h / 2.0;
+                    let add_rect = egui::Rect::from_center_size(
+                        egui::pos2(center_x + 200.0, btn_y),
+                        Vec2::new(80.0, 28.0),
+                    );
+                    let remove_rect = egui::Rect::from_center_size(
+                        egui::pos2(center_x + 290.0, btn_y),
+                        Vec2::new(80.0, 28.0),
+                    );
+                    let add_resp = ui.put(add_rect,
+                        egui::Button::new("+ Add layer")
+                            .sense(if op_busy { Sense::hover() } else { Sense::click() }),
+                    );
+                    let remove_resp = ui.put(remove_rect,
+                        egui::Button::new("− Remove layer")
+                            .sense(if op_busy || layer_count <= 1 { Sense::hover() } else { Sense::click() }),
+                    );
+                    if add_resp.clicked() && !op_busy {
+                        self.zmk_add_layer();
+                    }
+                    if remove_resp.clicked() && !op_busy && layer_count > 1 {
+                        self.zmk_remove_layer();
+                    }
+                }
+            }
 
             // Layer name / edit field
             let name_rect = egui::Rect::from_min_size(egui::pos2(center_x - 85.0, bar_y), Vec2::new(170.0, 52.0));
@@ -573,8 +1181,23 @@ impl EntropyApp {
                     if commit && !self.editing_layer_text.trim().is_empty() {
                         let new_name = self.editing_layer_text.trim().to_string();
                         while self.layer_names.len() <= selected { self.layer_names.push(self.layer_names.len().to_string()); }
-                        self.layer_names[selected] = new_name;
-                        save_layer_names(&self.layer_names);
+                        self.layer_names[selected] = new_name.clone();
+                        #[cfg(not(target_arch = "wasm32"))]
+                        save_layer_names(&self.layer_names, &self.current_device_name);
+                        #[cfg(target_arch = "wasm32")]
+                        save_layer_names(&self.layer_names, "default");
+                        // ZMK: also write name to device
+                        #[cfg(not(target_arch = "wasm32"))]
+                        if self.firmware == FirmwareProtocol::Zmk {
+                            if let Some(conn) = &mut self.zmk_conn {
+                                let layer_id = self.layout.as_ref()
+                                    .and_then(|l| l.zmk_layer_ids.get(selected).copied())
+                                    .unwrap_or(selected as u32);
+                                if let Err(e) = conn.set_layer_name(layer_id, &new_name) {
+                                    log::warn!("ZMK set_layer_name failed: {e}");
+                                }
+                            }
+                        }
                     }
                     self.editing_layer = None;
                     self.editing_layer_focus_requested = false;
@@ -654,6 +1277,8 @@ impl EntropyApp {
             rects.push((ki, rect, response));
         }
 
+        let is_zmk = self.firmware == FirmwareProtocol::Zmk;
+
         // Pass 2: hover + clicks + tooltips
         let mut hovered_key: Option<usize> = None;
         for (ki, _, response) in &mut rects {
@@ -666,11 +1291,81 @@ impl EntropyApp {
                 self.keycode_picker.open = true;
                 self.keycode_picker.search_query.clear();
                 self.keycode_picker.layer_names = self.layer_names.clone();
+                self.keycode_picker.firmware = self.firmware;
+                if is_zmk {
+                    self.keycode_picker.zmk_behaviors = self.layout.as_ref()
+                        .map(|l| l.zmk_behaviors.clone()).unwrap_or_default();
+                    self.keycode_picker.zmk_layer_count = self.layer_count;
+                    self.keycode_picker.selected_tab = crate::keycode_picker::KeycodeTab::Basic;
+                }
             }
-            // Tooltip: show QMK name + hex on hover
-            let kc = layout.get_keycode(self.selected_layer, *ki);
-            let tip = keycode_tooltip(kc, &layout.custom_keycodes, &self.layer_names);
-            *response = response.clone().on_hover_text(tip);
+
+            // Tooltip — for layer keys show mini layout preview
+            let preview_layer: Option<usize> = if is_zmk {
+                let binding = layout.get_zmk_binding(self.selected_layer, *ki);
+                let beh_name = layout.zmk_behaviors.iter()
+                    .find(|b| b.id == binding.behavior_id as u32)
+                    .map(|b| b.display_name.as_str())
+                    .unwrap_or("");
+                match beh_name {
+                    "Momentary Layer" | "Toggle Layer" | "To Layer" | "Sticky Layer" | "Layer-Tap" => {
+                        Some(binding.param1 as usize)
+                    }
+                    _ => None,
+                }
+            } else {
+                let kc = layout.get_keycode(self.selected_layer, *ki);
+                // MO/TG/TO/OSL/TT/DF range: 0x5200..0x52FF, LT: 0x4000..0x4FFF
+                if kc >= 0x5200 && kc < 0x5300 {
+                    Some((kc & 0x1F) as usize)
+                } else if kc & 0xF000 == 0x4000 {
+                    Some(((kc >> 8) & 0xF) as usize)
+                } else {
+                    None
+                }
+            };
+
+            if let Some(preview_layer_idx) = preview_layer {
+                if response.hovered() {
+                    // Build tooltip with layer name + mini key labels
+                    let layer_name = self.layer_names.get(preview_layer_idx)
+                        .cloned().unwrap_or_else(|| preview_layer_idx.to_string());
+                    let mut tip = format!("Layer {}: {}\n", preview_layer_idx, layer_name);
+
+                    // Show first ~12 key labels from that layer
+                    let preview_keys: Vec<String> = (0..layout.keys.len().min(12))
+                        .map(|k| {
+                            if is_zmk {
+                                let b = layout.get_zmk_binding(preview_layer_idx, k);
+                                crate::zmk::zmk_binding_label(&b, &layout.zmk_behaviors, &self.layer_names)
+                            } else {
+                                let kc2 = layout.get_keycode(preview_layer_idx, k);
+                                crate::keycode::keycode_label_with_names(kc2, &layout.custom_keycodes, &self.layer_names)
+                            }
+                        })
+                        .collect();
+                    tip += &preview_keys.join("  ");
+                    *response = response.clone().on_hover_text(tip);
+                } else {
+                    if is_zmk {
+                        let binding = layout.get_zmk_binding(self.selected_layer, *ki);
+                        let t = zmk_binding_tooltip(&binding, &layout.zmk_behaviors, &self.layer_names);
+                        *response = response.clone().on_hover_text(t);
+                    } else {
+                        let kc = layout.get_keycode(self.selected_layer, *ki);
+                        let t = keycode_tooltip(kc, &layout.custom_keycodes, &self.layer_names);
+                        *response = response.clone().on_hover_text(t);
+                    }
+                }
+            } else if is_zmk {
+                let binding = layout.get_zmk_binding(self.selected_layer, *ki);
+                let tip = zmk_binding_tooltip(&binding, &layout.zmk_behaviors, &self.layer_names);
+                *response = response.clone().on_hover_text(tip);
+            } else {
+                let kc = layout.get_keycode(self.selected_layer, *ki);
+                let tip = keycode_tooltip(kc, &layout.custom_keycodes, &self.layer_names);
+                *response = response.clone().on_hover_text(tip);
+            }
         }
 
         // Pass 3: paint
@@ -705,33 +1400,42 @@ impl EntropyApp {
                 *rect
             };
 
-            let kc = layout.get_keycode(layer, *ki);
-
-            if kc == 0x0001 {
-                // TRNS — transparent background, show fallback from lower layer dimmed
-                // TRNS: same bg as normal key, same border — only text is dimmed
-                painter.rect(draw_rect, 6.0, bg, Stroke::new(1.0, if dark { Color32::from_rgb(55, 55, 60) } else { Color32::from_rgb(210, 210, 218) }), egui::StrokeKind::Inside);
-                let fallback_kc = (0..layer).rev()
-                    .map(|l| layout.get_keycode(l, *ki))
-                    .find(|&k| k != 0x0001)
-                    .unwrap_or(0x0000);
-                let label = if fallback_kc == 0x0000 || fallback_kc == 0x0001 {
-                    "\u{25BD}".to_string()
-                } else {
-                    keycode_label_with_names(fallback_kc, &layout.custom_keycodes, &self.layer_names)
-                };
-                draw_key_label_dimmed(&painter, draw_rect, &label, dark);
-            } else if kc == 0x0000 {
-                let no_bg = if dark { Color32::from_rgb(20, 20, 22) } else { Color32::from_rgb(238, 238, 242) };
-                let no_border = if dark { Color32::from_rgb(40, 40, 44) } else { Color32::from_rgb(210, 210, 218) };
-                let no_text = if dark { Color32::from_rgb(55, 55, 65) } else { Color32::from_rgb(180, 180, 195) };
-                painter.rect(draw_rect, 6.0, no_bg, Stroke::new(1.0, no_border), egui::StrokeKind::Inside);
-                painter.text(draw_rect.center(), egui::Align2::CENTER_CENTER, "\u{2715}", FontId::proportional(10.0), no_text);
-            } else {
+            if is_zmk {
+                // ZMK binding display
+                let binding = layout.get_zmk_binding(layer, *ki);
                 let border = if dark { Color32::from_rgb(55, 55, 60) } else { Color32::from_rgb(210, 210, 218) };
                 painter.rect(draw_rect, 6.0, bg, Stroke::new(1.0, border), egui::StrokeKind::Inside);
-                let label = keycode_label_with_names(kc, &layout.custom_keycodes, &self.layer_names);
+                let label = zmk_binding_label(&binding, &layout.zmk_behaviors, &self.layer_names);
                 draw_key_label(&painter, draw_rect, &label, dark);
+            } else {
+                let kc = layout.get_keycode(layer, *ki);
+
+                if kc == 0x0001 {
+                    // TRNS — transparent background, show fallback from lower layer dimmed
+                    // TRNS: same bg as normal key, same border — only text is dimmed
+                    painter.rect(draw_rect, 6.0, bg, Stroke::new(1.0, if dark { Color32::from_rgb(55, 55, 60) } else { Color32::from_rgb(210, 210, 218) }), egui::StrokeKind::Inside);
+                    let fallback_kc = (0..layer).rev()
+                        .map(|l| layout.get_keycode(l, *ki))
+                        .find(|&k| k != 0x0001)
+                        .unwrap_or(0x0000);
+                    let label = if fallback_kc == 0x0000 || fallback_kc == 0x0001 {
+                        "\u{25BD}".to_string()
+                    } else {
+                        keycode_label_with_names(fallback_kc, &layout.custom_keycodes, &self.layer_names)
+                    };
+                    draw_key_label_dimmed(&painter, draw_rect, &label, dark);
+                } else if kc == 0x0000 {
+                    let no_bg = if dark { Color32::from_rgb(20, 20, 22) } else { Color32::from_rgb(238, 238, 242) };
+                    let no_border = if dark { Color32::from_rgb(40, 40, 44) } else { Color32::from_rgb(210, 210, 218) };
+                    let no_text = if dark { Color32::from_rgb(55, 55, 65) } else { Color32::from_rgb(180, 180, 195) };
+                    painter.rect(draw_rect, 6.0, no_bg, Stroke::new(1.0, no_border), egui::StrokeKind::Inside);
+                    painter.text(draw_rect.center(), egui::Align2::CENTER_CENTER, "\u{2715}", FontId::proportional(10.0), no_text);
+                } else {
+                    let border = if dark { Color32::from_rgb(55, 55, 60) } else { Color32::from_rgb(210, 210, 218) };
+                    painter.rect(draw_rect, 6.0, bg, Stroke::new(1.0, border), egui::StrokeKind::Inside);
+                    let label = keycode_label_with_names(kc, &layout.custom_keycodes, &self.layer_names);
+                    draw_key_label(&painter, draw_rect, &label, dark);
+                }
             }
         }
 
