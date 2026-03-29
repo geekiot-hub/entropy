@@ -121,6 +121,8 @@ pub struct EntropyApp {
     scan_frame: u32,
     /// Layer to preview on hover (None = show selected_layer)
     hover_layer: Option<usize>,
+    /// Key index hovered in previous frame (for hint display)
+    prev_hovered_key: Option<usize>,
     /// Animation progress for hover layer preview (0.0 = hidden, 1.0 = fully shown)
     hover_layer_progress: f32,
     /// Stack of layers to return to on right-click (last = most recent)
@@ -156,6 +158,7 @@ impl EntropyApp {
             undo_stack: Vec::new(),
             scan_frame: 0,
             hover_layer: None,
+            prev_hovered_key: None,
             hover_layer_progress: 0.0,
             jump_back_stack: Vec::new(),
             device_manager: DeviceManager::new(),
@@ -879,7 +882,9 @@ impl eframe::App for EntropyApp {
 
         // Right-click anywhere = pop back one step (only if NOT hovering a layer key)
         if !self.jump_back_stack.is_empty() {
-            if self.hover_layer.is_none() && ctx.input(|i| i.pointer.secondary_clicked()) {
+            let esc_pressed = ctx.input(|i| i.key_pressed(egui::Key::Escape));
+            let rclick = self.hover_layer.is_none() && ctx.input(|i| i.pointer.secondary_clicked());
+            if rclick || esc_pressed {
                 if let Some(back_layer) = self.jump_back_stack.pop() {
                     self.selected_layer = back_layer;
                 }
@@ -1339,14 +1344,31 @@ impl EntropyApp {
                 // Hint text below layer name
                 let hint_color = if self.dark_mode { Color32::from_gray(100) } else { Color32::from_gray(160) };
                 let hint_font = FontId::proportional(11.0);
-                let hint_y = bar_y + layer_bar_h - 8.0;
+                let hint_y = bar_y + layer_bar_h - 2.0;
+                let any_hovered = self.prev_hovered_key.is_some();
                 if let Some(hl) = self.hover_layer {
                     let hl_name = self.layer_names.get(hl).cloned().unwrap_or_else(|| hl.to_string());
-                    ui.painter().text(egui::pos2(center_x, hint_y), egui::Align2::CENTER_CENTER,
-                        &format!("Right-click → layer {}: {}", hl, hl_name), hint_font, hint_color);
+                    ui.painter().text(egui::pos2(center_x, hint_y - 9.0), egui::Align2::CENTER_CENTER,
+                        "Left click to edit this key", hint_font.clone(), hint_color);
+                    // Don't show "go to layer" if it's the current layer
+                    if hl != self.selected_layer {
+                        ui.painter().text(egui::pos2(center_x, hint_y + 5.0), egui::Align2::CENTER_CENTER,
+                            &format!("Right click to go to layer {}: {}", hl, hl_name), hint_font.clone(), hint_color);
+                    } else if !self.jump_back_stack.is_empty() {
+                        ui.painter().text(egui::pos2(center_x, hint_y + 5.0), egui::Align2::CENTER_CENTER,
+                            "Right-click or Esc to go back", hint_font.clone(), hint_color);
+                    }
+                    let _ = hint_font;
                 } else if !self.jump_back_stack.is_empty() {
+                    if any_hovered {
+                        ui.painter().text(egui::pos2(center_x, hint_y - 9.0), egui::Align2::CENTER_CENTER,
+                            "Left click to edit this key", hint_font.clone(), hint_color);
+                    }
+                    ui.painter().text(egui::pos2(center_x, if any_hovered { hint_y + 5.0 } else { hint_y }), egui::Align2::CENTER_CENTER,
+                        "Right-click or Esc to go back", hint_font, hint_color);
+                } else if any_hovered {
                     ui.painter().text(egui::pos2(center_x, hint_y), egui::Align2::CENTER_CENTER,
-                        "Right-click anywhere to go back", hint_font, hint_color);
+                        "Left click to edit this key", hint_font, hint_color);
                 }
 
                 // Edit icon after text on hover
@@ -1427,8 +1449,9 @@ impl EntropyApp {
             if let Some(preview_layer_idx) = preview_layer {
                 if response.hovered() {
                     self.hover_layer = Some(preview_layer_idx);
+                    hovered_key = Some(*ki); // keep hovered_key for layer keys too
                 }
-                if response.secondary_clicked() {
+                if response.secondary_clicked() && preview_layer_idx != self.selected_layer {
                     // Right-click: jump to that layer
                     self.jump_back_stack.push(self.selected_layer);
                     self.selected_layer = preview_layer_idx;
@@ -1456,13 +1479,11 @@ impl EntropyApp {
 
         // Pass 3: paint
         let painter = ui.painter();
-        let layer = if self.hover_layer.is_some() || self.hover_layer_progress > 0.05 {
-            self.hover_layer.unwrap_or(prev_hover.unwrap_or(self.selected_layer))
-        } else {
-            self.selected_layer
-        };
+        let hover_target = self.hover_layer.unwrap_or(prev_hover.unwrap_or(self.selected_layer));
         let hover_alpha = self.hover_layer_progress;
         let dark = self.dark_mode;
+        // Use hover layer for logic (TRNS resolution etc) when mostly visible
+        let layer = if hover_alpha > 0.5 { hover_target } else { self.selected_layer };
         for (ki, rect, _) in &rects {
             let key = &layout.keys[*ki];
             let is_selected = self.selected_key == Some((layer, *ki));
@@ -1492,6 +1513,7 @@ impl EntropyApp {
             };
 
             let is_hovering = hover_alpha > 0.05;
+
             if is_zmk {
                 // ZMK binding display
                 let binding = layout.get_zmk_binding(layer, *ki);
@@ -1542,7 +1564,6 @@ impl EntropyApp {
                         };
                         draw_key_label_dimmed(&painter, draw_rect, &label, dark);
                     }
-                    // is_hovering: empty key (no text)
                 } else if kc == 0x0000 {
                     let no_bg = if dark { Color32::from_rgb(20, 20, 22) } else { Color32::from_rgb(238, 238, 242) };
                     let no_border = if dark { Color32::from_rgb(40, 40, 44) } else { Color32::from_rgb(210, 210, 218) };
@@ -1556,7 +1577,11 @@ impl EntropyApp {
                     draw_key_label(&painter, draw_rect, &label, dark);
                 }
             }
+
+
         }
+
+        self.prev_hovered_key = hovered_key;
 
         if layout_h > avail.y {
             ui.allocate_space(Vec2::new(0.0, (layout_h - avail.y).max(0.0)));
@@ -1585,6 +1610,43 @@ fn draw_key_label_dimmed(painter: &egui::Painter, rect: egui::Rect, label: &str,
     } else {
         painter.text(rect.center(), egui::Align2::CENTER_CENTER, bottom, FontId::proportional(11.0), dim);
     }
+}
+
+fn with_alpha(color: Color32, alpha: f32) -> Color32 {
+    let a = (color.a() as f32 * alpha.clamp(0.0, 1.0)) as u8;
+    Color32::from_rgba_premultiplied(
+        (color.r() as f32 * alpha.clamp(0.0, 1.0)) as u8,
+        (color.g() as f32 * alpha.clamp(0.0, 1.0)) as u8,
+        (color.b() as f32 * alpha.clamp(0.0, 1.0)) as u8,
+        a,
+    )
+}
+
+fn draw_key_label_alpha(painter: &egui::Painter, rect: egui::Rect, label: &str, dark: bool, alpha: f32) {
+    let (top, bottom) = if let Some(pos) = label.find('/') {
+        (Some(&label[..pos]), &label[pos+1..])
+    } else if label.contains('\n') {
+        let mut parts = label.splitn(2, '\n');
+        let t = parts.next().unwrap_or("");
+        let b = parts.next().unwrap_or(label);
+        (Some(t), b)
+    } else {
+        (None, label)
+    };
+    let top_color = with_alpha(if dark { Color32::from_rgb(130, 130, 145) } else { Color32::from_rgb(130, 130, 150) }, alpha);
+    let main_color = with_alpha(if dark { Color32::from_rgb(232, 232, 240) } else { Color32::from_rgb(26, 26, 30) }, alpha);
+    if let Some(top_str) = top {
+        let center = rect.center();
+        painter.text(egui::pos2(center.x, center.y - 7.0), egui::Align2::CENTER_CENTER, top_str, FontId::proportional(9.0), top_color);
+        painter.text(egui::pos2(center.x, center.y + 6.0), egui::Align2::CENTER_CENTER, bottom, FontId::proportional(11.0), main_color);
+    } else {
+        painter.text(rect.center(), egui::Align2::CENTER_CENTER, bottom, FontId::proportional(11.0), main_color);
+    }
+}
+
+fn draw_key_label_dimmed_alpha(painter: &egui::Painter, rect: egui::Rect, label: &str, dark: bool, alpha: f32) {
+    let color = with_alpha(if dark { Color32::from_rgb(80, 80, 90) } else { Color32::from_rgb(180, 180, 195) }, alpha);
+    painter.text(rect.center(), egui::Align2::CENTER_CENTER, label, FontId::proportional(11.0), color);
 }
 
 fn draw_key_label(painter: &egui::Painter, rect: egui::Rect, label: &str, dark: bool) {

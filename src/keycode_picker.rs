@@ -55,7 +55,6 @@ impl KeycodeTab {
         KeycodeTab::Numpad,
         KeycodeTab::Special,
         KeycodeTab::Rgb,
-        KeycodeTab::Quantum,
         KeycodeTab::Custom,
     ];
 
@@ -226,13 +225,36 @@ impl KeycodePicker {
             for event in &i.events {
                 if let egui::Event::Key { key, pressed: true, modifiers, .. } = event {
                     if *key == Key::Escape {
-                        self.open = false;
+                        if self.vial_quantum_pending_mod.is_some() || self.vial_quantum_pending_mt.is_some() {
+                            self.vial_quantum_pending_mod = None;
+                            self.vial_quantum_pending_mt = None;
+                        } else {
+                            self.open = false;
+                        }
                         return;
                     }
-                    if self.search_query.is_empty() || modifiers.any() {
-                        if let Some(qmk) = egui_key_to_qmk(*key, *modifiers) {
-                            self.result = Some(qmk);
-                            self.open = false;
+                    // Physical key capture only when no pending mod (avoid accidental assignment)
+                    if self.vial_quantum_pending_mod.is_none() && self.vial_quantum_pending_mt.is_none() {
+                        if self.search_query.is_empty() || modifiers.any() {
+                            if let Some(qmk) = egui_key_to_qmk(*key, *modifiers) {
+                                self.result = Some(qmk);
+                                self.open = false;
+                            }
+                        }
+                    } else {
+                        // Pending mod: only accept basic keys (no mods pressed)
+                        if !modifiers.any() {
+                            if let Some(qmk) = egui_key_to_qmk(*key, *modifiers) {
+                                if qmk > 0 && qmk < 0x0100 {
+                                    let base = self.vial_quantum_pending_mod
+                                        .or(self.vial_quantum_pending_mt)
+                                        .unwrap_or(0);
+                                    self.result = Some(base | qmk);
+                                    self.vial_quantum_pending_mod = None;
+                                    self.vial_quantum_pending_mt = None;
+                                    self.open = false;
+                                }
+                            }
                         }
                     }
                 }
@@ -280,6 +302,43 @@ impl KeycodePicker {
             });
 
         if !still_open { self.open = false; }
+
+        // Second-step picker for pending mod/MT
+        let pending = self.vial_quantum_pending_mod.or(self.vial_quantum_pending_mt);
+        let is_mt = self.vial_quantum_pending_mod.is_none() && self.vial_quantum_pending_mt.is_some();
+        if let Some(base) = pending {
+            let title = if is_mt { "Pick tap key (hold = modifier)" } else { "Pick key for modifier combo" };
+            let mut pending_open = true;
+            egui::Window::new(title)
+                .open(&mut pending_open)
+                .collapsible(false)
+                .resizable(false)
+                .min_size(Vec2::new(480.0, 200.0))
+                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .show(ctx, |ui| {
+                    ui.label(RichText::new("Press a key, or click below. Esc to cancel.").size(11.0).color(Color32::from_gray(140)));
+                    ui.add_space(6.0);
+                    ui.horizontal_wrapped(|ui| {
+                        for kc in KEYCODES.iter() {
+                            if !matches!(kc.category, KeycodeCategory::Basic | KeycodeCategory::Function | KeycodeCategory::Navigation) { continue; }
+                            if kc.value == 0 || kc.value >= 0x0100 { continue; }
+                            let resp = ui.add(egui::Button::new(RichText::new(kc.label).size(11.0))
+                                .min_size(Vec2::new(40.0, 32.0)));
+                            if resp.clicked() {
+                                self.result = Some(base | kc.value);
+                                self.vial_quantum_pending_mod = None;
+                                self.vial_quantum_pending_mt = None;
+                                self.open = false;
+                            }
+                            resp.on_hover_text(kc.name);
+                        }
+                    });
+                });
+            if !pending_open {
+                self.vial_quantum_pending_mod = None;
+                self.vial_quantum_pending_mt = None;
+            }
+        }
     }
 
     fn show_vial_generic(&mut self, ui: &mut egui::Ui) {
@@ -426,7 +485,9 @@ impl KeycodePicker {
             for (label, value, tip) in &mt {
                 let resp = ui.add(egui::Button::new(RichText::new(label.as_str()).size(10.5))
                     .min_size(Vec2::new(80.0, 38.0)));
-                if resp.clicked() { self.result = Some(*value); self.open = false; }
+                if resp.clicked() {
+                    self.vial_quantum_pending_mt = Some(*value);
+                }
                 resp.on_hover_text(tip.as_str());
             }
         });
@@ -450,7 +511,9 @@ impl KeycodePicker {
             for (label, value, tip) in &mk {
                 let resp = ui.add(egui::Button::new(RichText::new(label.as_str()).size(10.5))
                     .min_size(Vec2::new(90.0, 38.0)));
-                if resp.clicked() { self.result = Some(*value); self.open = false; }
+                if resp.clicked() {
+                    self.vial_quantum_pending_mod = Some(*value);
+                }
                 resp.on_hover_text(tip.as_str());
             }
         });
