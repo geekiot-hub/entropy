@@ -113,6 +113,7 @@ pub struct EntropyApp {
     zmk_conn: Option<crate::zmk::ZmkConnection>,
     /// Current firmware type (mirrors layout.firmware)
     firmware: FirmwareProtocol,
+    zmk_base_layer_count: usize,
     dark_mode: bool,
     layer_names: Vec<String>,
     editing_layer: Option<usize>, // layer being renamed
@@ -139,6 +140,7 @@ impl EntropyApp {
             #[cfg(not(target_arch = "wasm32"))]
             zmk_conn: None,
             firmware: FirmwareProtocol::Vial,
+            zmk_base_layer_count: 0,
             device_manager: DeviceManager::new(),
             selected_device: None,
             selected_layer: 0,
@@ -220,6 +222,29 @@ impl EntropyApp {
 
                         let mut layout = KeyboardLayout::from_vial_json(&json)
                             .map_err(|e| format!("Layout parse failed: {e}"))?;
+
+                        // Override coords from embedded layout
+                        log::info!("Vial: looking up embedded layout for '{}'", dev.name);
+                        if let Some((emb, ref_keys)) = crate::layouts::lookup_layout(&dev.name) {
+                            log::info!("Vial: found embedded layout '{}' with {} keys", emb.name, ref_keys.len());
+                            use std::collections::HashMap;
+                            let ref_map: HashMap<(u8,u8), &crate::keyboard::PhysicalKey> =
+                                ref_keys.iter().map(|k| ((k.row, k.col), k)).collect();
+                            let mut patched = 0usize;
+                            for key in &mut layout.keys {
+                                if let Some(rk) = ref_map.get(&(key.row, key.col)) {
+                                    key.x = rk.x;
+                                    key.y = rk.y;
+                                    key.rotation = 0.0;
+                                    key.rotation_x = 0.0;
+                                    key.rotation_y = 0.0;
+                                    patched += 1;
+                                }
+                            }
+                            log::info!("Vial: patched {} keys", patched);
+                        } else {
+                            log::info!("Vial: no embedded layout found for '{}'", dev.name);
+                        }
 
                         let num_keys = layout.keys.len();
                         layout.layers = vec![vec![0u16; num_keys]; layer_count];
@@ -304,7 +329,7 @@ impl EntropyApp {
                         let layer_count = keymap.layers.len();
                         log::info!("ZMK: {} layers", layer_count);
 
-                        // Build a simple grid layout from physical layout
+                        // Build layout from device physical layout
                         let mut layout = crate::layouts::build_layout_from_zmk(&phys, &keymap);
                         layout.firmware = FirmwareProtocol::Zmk;
                         layout.zmk_behaviors = conn.behaviors.clone();
@@ -364,6 +389,9 @@ impl EntropyApp {
             Ok(r) => {
                 self.layer_count = r.layer_count;
                 self.firmware = r.layout.firmware;
+                if r.layout.firmware == FirmwareProtocol::Zmk {
+                    self.zmk_base_layer_count = r.layer_count;
+                }
                 self.current_device_name = r.device_name.clone();
                 self.zmk_lock_state = r.zmk_lock_state;
                 self.zmk_has_unsaved = false;
@@ -747,6 +775,10 @@ impl EntropyApp {
 }
 
 impl eframe::App for EntropyApp {
+    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        std::process::exit(0);
+    }
+
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Apply theme
         if self.dark_mode {
@@ -1124,27 +1156,30 @@ impl EntropyApp {
                 #[cfg(not(target_arch = "wasm32"))]
                 {
                     let op_busy = self.zmk_op_rx.is_some();
-                    let btn_y = bar_y + layer_bar_h / 2.0;
+                    let can_remove = !op_busy && layer_count > self.zmk_base_layer_count.max(1);
+                    let btn_x = center_x + 200.0;
+                    let btn_size = Vec2::new(28.0, 24.0);
+                    // + on top, − below
                     let add_rect = egui::Rect::from_center_size(
-                        egui::pos2(center_x + 200.0, btn_y),
-                        Vec2::new(80.0, 28.0),
+                        egui::pos2(btn_x, bar_y + layer_bar_h / 2.0 - 13.0),
+                        btn_size,
                     );
                     let remove_rect = egui::Rect::from_center_size(
-                        egui::pos2(center_x + 290.0, btn_y),
-                        Vec2::new(80.0, 28.0),
+                        egui::pos2(btn_x, bar_y + layer_bar_h / 2.0 + 13.0),
+                        btn_size,
                     );
                     let add_resp = ui.put(add_rect,
-                        egui::Button::new("+ Add layer")
+                        egui::Button::new("+")
                             .sense(if op_busy { Sense::hover() } else { Sense::click() }),
                     );
                     let remove_resp = ui.put(remove_rect,
-                        egui::Button::new("− Remove layer")
-                            .sense(if op_busy || layer_count <= 1 { Sense::hover() } else { Sense::click() }),
+                        egui::Button::new("−")
+                            .sense(if can_remove { Sense::click() } else { Sense::hover() }),
                     );
-                    if add_resp.clicked() && !op_busy {
+                    if add_resp.on_hover_text("Add layer").clicked() && !op_busy {
                         self.zmk_add_layer();
                     }
-                    if remove_resp.clicked() && !op_busy && layer_count > 1 {
+                    if remove_resp.on_hover_text(if can_remove { "Remove last layer" } else { "Cannot remove base layers" }).clicked() && can_remove {
                         self.zmk_remove_layer();
                     }
                 }
@@ -1403,10 +1438,32 @@ impl EntropyApp {
             if is_zmk {
                 // ZMK binding display
                 let binding = layout.get_zmk_binding(layer, *ki);
+                let is_trans = layout.zmk_behaviors.iter()
+                    .find(|b| b.id == binding.behavior_id as u32)
+                    .map(|b| b.display_name == "Transparent")
+                    .unwrap_or(false);
                 let border = if dark { Color32::from_rgb(55, 55, 60) } else { Color32::from_rgb(210, 210, 218) };
                 painter.rect(draw_rect, 6.0, bg, Stroke::new(1.0, border), egui::StrokeKind::Inside);
-                let label = zmk_binding_label(&binding, &layout.zmk_behaviors, &self.layer_names);
-                draw_key_label(&painter, draw_rect, &label, dark);
+                if is_trans && layer > 0 {
+                    // Show fallback binding from lower layer, dimmed
+                    let fallback = (0..layer).rev()
+                        .map(|l| layout.get_zmk_binding(l, *ki))
+                        .find(|b| {
+                            !layout.zmk_behaviors.iter()
+                                .find(|beh| beh.id == b.behavior_id as u32)
+                                .map(|beh| beh.display_name == "Transparent")
+                                .unwrap_or(false)
+                        });
+                    let label = if let Some(fb) = fallback {
+                        zmk_binding_label(&fb, &layout.zmk_behaviors, &self.layer_names)
+                    } else {
+                        "▽".to_string()
+                    };
+                    draw_key_label_dimmed(&painter, draw_rect, &label, dark);
+                } else {
+                    let label = zmk_binding_label(&binding, &layout.zmk_behaviors, &self.layer_names);
+                    draw_key_label(&painter, draw_rect, &label, dark);
+                }
             } else {
                 let kc = layout.get_keycode(layer, *ki);
 
