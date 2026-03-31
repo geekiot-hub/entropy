@@ -22,6 +22,13 @@ pub struct KeycodePicker {
     // Vial Quantum tab pending state
     pub vial_quantum_pending_mod: Option<u16>,
     pub vial_quantum_pending_mt: Option<u16>,
+    pub vial_layer_pending: Option<u16>,
+    /// Open macro editor for this macro number (0..15), None = closed
+    pub macro_editor_open: Option<u8>,
+    /// Macro editor text buffers (one per macro)
+    pub macro_texts: Vec<String>,
+    /// Flag: macro texts changed, need to write to device
+    pub macros_dirty: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -37,6 +44,7 @@ pub enum KeycodeTab {
     Numpad,
     Special,
     Rgb,
+    Macro,
     Quantum,
     Custom,
     ZmkAdvanced,
@@ -51,10 +59,9 @@ impl KeycodeTab {
         KeycodeTab::Modifiers,
         KeycodeTab::Layers,
         KeycodeTab::Media,
-        KeycodeTab::Mouse,
-        KeycodeTab::Numpad,
         KeycodeTab::Special,
         KeycodeTab::Rgb,
+        KeycodeTab::Macro,
         KeycodeTab::Custom,
     ];
 
@@ -78,11 +85,12 @@ impl KeycodeTab {
             KeycodeTab::Navigation  => "Nav",
             KeycodeTab::Modifiers   => "Mods",
             KeycodeTab::Layers      => "Layers",
-            KeycodeTab::Media       => "Media",
+            KeycodeTab::Media       => "Media & Mouse",
             KeycodeTab::Mouse       => "Mouse",
             KeycodeTab::Numpad      => "Numpad",
             KeycodeTab::Special     => "Special",
             KeycodeTab::Rgb         => "RGB",
+            KeycodeTab::Macro       => "Macros",
             KeycodeTab::Quantum     => "Quantum",
             KeycodeTab::Custom      => "Custom",
             KeycodeTab::ZmkAdvanced => "Advanced",
@@ -97,7 +105,7 @@ impl KeycodeTab {
             KeycodeTab::Navigation => matches!(kc.category, KeycodeCategory::Navigation),
             KeycodeTab::Modifiers  => matches!(kc.category, KeycodeCategory::Modifier),
             KeycodeTab::Layers     => matches!(kc.category, KeycodeCategory::Layer),
-            KeycodeTab::Media      => matches!(kc.category, KeycodeCategory::Media),
+            KeycodeTab::Media      => matches!(kc.category, KeycodeCategory::Media | KeycodeCategory::Mouse),
             KeycodeTab::Mouse      => matches!(kc.category, KeycodeCategory::Mouse),
             KeycodeTab::Numpad     => matches!(kc.category, KeycodeCategory::Numpad),
             KeycodeTab::Special    => matches!(kc.category, KeycodeCategory::Special),
@@ -131,6 +139,10 @@ impl Default for KeycodePicker {
             zmk_layer_count: 4,
             vial_quantum_pending_mod: None,
             vial_quantum_pending_mt: None,
+            vial_layer_pending: None,
+            macro_editor_open: None,
+            macro_texts: vec![String::new(); 16],
+            macros_dirty: false,
         }
     }
 }
@@ -212,10 +224,18 @@ impl KeycodePicker {
         if !self.open { return; }
 
         // If pending mod/MT — show only the minimal second picker, not the full picker
-        let has_pending = self.vial_quantum_pending_mod.is_some() || self.vial_quantum_pending_mt.is_some();
+        let has_pending = self.vial_quantum_pending_mod.is_some() || self.vial_quantum_pending_mt.is_some() || self.vial_layer_pending.is_some() || self.macro_editor_open == Some(255);
         if has_pending && self.firmware == FirmwareProtocol::Vial {
             self.show_pending_picker(ctx);
             return;
+        }
+
+        // Macro editor window (shown instead of picker when a real macro number is selected)
+        if let Some(macro_n) = self.macro_editor_open {
+            if macro_n < 16 {
+                self.show_macro_editor(ctx, macro_n);
+                return;
+            }
         }
 
         match self.firmware {
@@ -227,7 +247,8 @@ impl KeycodePicker {
     // ─────────────────────────── VIAL PICKER ────────────────────────────────
 
     fn show_vial(&mut self, ctx: &egui::Context) {
-        // Physical key capture
+        // Physical key capture (disabled when macro editor is open)
+        if self.macro_editor_open.is_none() || self.macro_editor_open == Some(255) {
         ctx.input(|i| {
             for event in &i.events {
                 if let egui::Event::Key { key, pressed: true, modifiers, .. } = event {
@@ -267,6 +288,7 @@ impl KeycodePicker {
                 }
             }
         });
+        } // end physical key capture guard
 
         let mut still_open = true;
         egui::Window::new("Keycode")
@@ -291,6 +313,7 @@ impl KeycodePicker {
                             self.selected_tab = *tab;
                             self.vial_quantum_pending_mod = None;
                             self.vial_quantum_pending_mt = None;
+                            self.vial_layer_pending = None;
                         }
                     }
                 });
@@ -302,6 +325,7 @@ impl KeycodePicker {
                         KeycodeTab::Modifiers => self.show_vial_modifiers(ui),
                         KeycodeTab::Quantum  => self.show_vial_quantum(ui),
                         KeycodeTab::Rgb      => self.show_vial_rgb(ui),
+                        KeycodeTab::Macro    => self.show_vial_macros(ui),
                         KeycodeTab::Special  => self.show_vial_special(ui),
                         KeycodeTab::Custom   => self.show_vial_custom(ui),
                         _ => self.show_vial_generic(ui),
@@ -313,6 +337,121 @@ impl KeycodePicker {
     }
 
     fn show_pending_picker(&mut self, ctx: &egui::Context) {
+        // Macro number picker
+        if self.macro_editor_open == Some(255) {
+            ctx.input(|i| {
+                for event in &i.events {
+                    if let egui::Event::Key { key, pressed: true, .. } = event {
+                        if *key == egui::Key::Escape {
+                            self.macro_editor_open = None;
+                            self.open = false;
+                            return;
+                        }
+                    }
+                }
+            });
+            let mut still_open = true;
+            let resp_win = egui::Window::new("Pick macro")
+                .open(&mut still_open)
+                .collapsible(false)
+                .resizable(false)
+                .min_size(Vec2::new(350.0, 100.0))
+                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .show(ctx, |ui| {
+                    ui.label(RichText::new("Choose macro number. Esc to cancel.")
+                        .size(11.0).color(Color32::from_gray(140)));
+                    ui.add_space(6.0);
+                    ui.horizontal_wrapped(|ui| {
+                        for n in 0u8..16 {
+                            let has_content = self.macro_texts.get(n as usize).map(|s| !s.is_empty()).unwrap_or(false);
+                            let label = format!("M{}", n);
+                            let resp = ui.add(egui::Button::new(
+                                RichText::new(&label).size(11.0)
+                                    .color(if has_content { Color32::from_gray(220) } else { Color32::from_gray(100) })
+                            ).min_size(Vec2::new(40.0, 32.0)));
+                            if resp.clicked() {
+                                // Don't set result yet — editor will set it on close
+                                self.macro_editor_open = Some(n);
+                            }
+                            let tip = if has_content {
+                                format!("Macro {} — has content", n)
+                            } else {
+                                format!("Macro {} — empty", n)
+                            };
+                            resp.on_hover_text(tip);
+                        }
+                    });
+                });
+            // If a macro was selected, don't close
+            if self.macro_editor_open != Some(255) {
+                return; // editor will take over next frame
+            }
+            let clicked_outside = ctx.input(|i| i.pointer.button_clicked(egui::PointerButton::Primary))
+                && resp_win.as_ref().map(|r| !r.response.hovered()).unwrap_or(false);
+            if !still_open || clicked_outside {
+                self.macro_editor_open = None;
+                self.open = false;
+            }
+            return;
+        }
+
+        // Layer picker
+        if let Some(base) = self.vial_layer_pending {
+            ctx.input(|i| {
+                for event in &i.events {
+                    if let egui::Event::Key { key, pressed: true, .. } = event {
+                        if *key == egui::Key::Escape {
+                            self.vial_layer_pending = None;
+                            self.open = false;
+                            return;
+                        }
+                    }
+                }
+            });
+            let mut still_open = true;
+            let resp_win = egui::Window::new("Pick layer")
+                .open(&mut still_open)
+                .collapsible(false)
+                .resizable(false)
+                .min_size(Vec2::new(300.0, 100.0))
+                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .show(ctx, |ui| {
+                    ui.label(RichText::new("Choose which layer. Esc to cancel.")
+                        .size(11.0).color(Color32::from_gray(140)));
+                    ui.add_space(6.0);
+                    ui.horizontal_wrapped(|ui| {
+                        for n in 0u16..self.layer_names.len().max(4) as u16 {
+                            let raw = self.layer_names.get(n as usize).cloned().unwrap_or(n.to_string());
+                            let label = if !raw.is_empty() && raw != n.to_string() {
+                                format!("{}: {}", n, raw)
+                            } else {
+                                format!("Layer {}", n)
+                            };
+                            let resp = ui.add(egui::Button::new(RichText::new(&label).size(11.0))
+                                .min_size(Vec2::new(70.0, 32.0)));
+                            if resp.clicked() {
+                                let value = if base == 0x4000 {
+                                    // LT: layer in bits 8..11, tap kc in bits 0..7 (default 0)
+                                    0x4000 | ((n & 0xF) << 8)
+                                } else {
+                                    base + n
+                                };
+                                self.result = Some(value);
+                                self.vial_layer_pending = None;
+                                self.open = false;
+                            }
+                        }
+                    });
+                });
+            let clicked_outside = ctx.input(|i| i.pointer.button_clicked(egui::PointerButton::Primary))
+                && resp_win.as_ref().map(|r| !r.response.hovered()).unwrap_or(false);
+            if !still_open || clicked_outside {
+                self.vial_layer_pending = None;
+                self.open = false;
+            }
+            return;
+        }
+
         let pending = self.vial_quantum_pending_mod.or(self.vial_quantum_pending_mt);
         let is_mt = self.vial_quantum_pending_mod.is_none() && self.vial_quantum_pending_mt.is_some();
         // Physical key capture for pending
@@ -366,11 +505,12 @@ impl KeycodePicker {
                                 self.vial_quantum_pending_mt = None;
                                 self.open = false;
                             }
-                            resp.on_hover_text(kc.name);
+                            resp.on_hover_text(keycode_tooltip(kc.value, &[], &self.layer_names));
                         }
                     });
                 });
-            let clicked_outside = ctx.input(|i| i.pointer.any_click())
+            // Only check clicked_outside with primary button (not secondary which opened this)
+            let clicked_outside = ctx.input(|i| i.pointer.button_clicked(egui::PointerButton::Primary))
                 && resp_win.as_ref().map(|r| !r.response.hovered()).unwrap_or(false);
             if !still_open || clicked_outside {
                 self.vial_quantum_pending_mod = None;
@@ -415,63 +555,35 @@ impl KeycodePicker {
 
     fn show_vial_layers(&mut self, ui: &mut egui::Ui) {
         let ops: &[(u16, &str, &str)] = &[
-            (0x5220, "Hold\n(MO)",      "Hold to activate, release to return"),
-            (0x5260, "Toggle\n(TG)",    "Tap to toggle on/off"),
-            (0x5280, "One-Shot\n(OSL)", "Active for next keypress only"),
-            (0x52C0, "Tap-Tog\n(TT)",   "Hold = MO, tap = toggle"),
-            (0x5200, "Switch\n(TO)",    "Switch and stay on this layer"),
-            (0x5240, "Default\n(DF)",   "Set as permanent base layer"),
+            (0x5220, "MO — Momentary",   "Hold to activate, release to return"),
+            (0x5260, "TG — Toggle",      "Tap to toggle on/off"),
+            (0x5280, "OSL — One-Shot",   "Active for next keypress only"),
+            (0x52C0, "TT — Tap-Toggle",  "Hold = MO, tap = toggle"),
+            (0x5200, "TO — Switch",      "Switch and stay on this layer"),
+            (0x5240, "DF — Default",     "Set as permanent base layer"),
         ];
-        let col_w = 80.0_f32;
-        let row_h = 32.0_f32;
-        let dark = ui.visuals().dark_mode;
 
-        egui::Grid::new("vial_layers_grid").spacing([4.0, 2.0]).show(ui, |ui| {
-            ui.label("");
-            for (_, header, hint) in ops {
-                ui.add(egui::Label::new(RichText::new(*header).size(10.0).strong())
-                    .sense(egui::Sense::hover())).on_hover_text(*hint);
-            }
-            ui.end_row();
-
-            for n in 0u16..16 {
-                let raw = self.layer_names.get(n as usize).cloned().unwrap_or(n.to_string());
-                let is_named = !raw.is_empty() && raw != n.to_string();
-                let row_bg = if n % 2 == 0 {
-                    if dark { Color32::from_rgba_premultiplied(255,255,255,6) }
-                    else    { Color32::from_rgba_premultiplied(0,0,0,8) }
-                } else { Color32::TRANSPARENT };
-
-                let label_color = if is_named {
-                    Color32::from_rgb(91, 104, 223)
-                } else if dark { Color32::from_gray(110) } else { Color32::from_gray(160) };
-                ui.label(RichText::new(if is_named { raw.clone() } else { format!("Layer {}", n) })
-                    .size(11.5).color(label_color).strong());
-
-                for (base, header, _) in ops {
-                    let value = base + n;
-                    let tip = keycode_tooltip(value, &[], &self.layer_names);
-                    let op_short = header.split('\n').last().unwrap_or("")
-                        .trim_matches(|c| c == '(' || c == ')');
-                    let btn_text = format!("{}({})", op_short, n);
-                    let btn_color = if is_named {
-                        if dark { Color32::from_gray(220) } else { Color32::from_gray(30) }
-                    } else {
-                        if dark { Color32::from_gray(80) } else { Color32::from_gray(190) }
-                    };
-                    let fill = if is_named {
-                        if dark { Color32::from_rgb(38, 43, 88) } else { Color32::from_rgb(224, 227, 249) }
-                    } else { row_bg };
-                    let resp = ui.add(
-                        egui::Button::new(RichText::new(&btn_text).size(10.5).color(btn_color))
-                            .fill(fill).min_size(Vec2::new(col_w, row_h))
-                    );
-                    if resp.clicked() { self.result = Some(value); self.open = false; }
-                    resp.on_hover_text(tip);
+        ui.label(RichText::new("Pick layer action, then choose which layer").size(11.0).color(Color32::from_gray(150)));
+        ui.add_space(6.0);
+        ui.horizontal_wrapped(|ui| {
+            for (base, label, hint) in ops {
+                let resp = ui.add(egui::Button::new(RichText::new(*label).size(11.0))
+                    .min_size(Vec2::new(120.0, 38.0)));
+                if resp.clicked() {
+                    self.vial_layer_pending = Some(*base);
                 }
-                ui.end_row();
+                resp.on_hover_text(*hint);
             }
         });
+
+        // LT (Layer-Tap) — separate since base is 0x4000 + layer<<8
+        ui.add_space(6.0);
+        let lt_resp = ui.add(egui::Button::new(RichText::new("LT — Layer-Tap").size(11.0))
+            .min_size(Vec2::new(120.0, 38.0)));
+        if lt_resp.clicked() {
+            self.vial_layer_pending = Some(0x4000);
+        }
+        lt_resp.on_hover_text("Hold = activate layer, tap = keycode (set key via right-click afterwards)");
     }
 
     fn show_vial_modifiers(&mut self, ui: &mut egui::Ui) {
@@ -676,26 +788,184 @@ impl KeycodePicker {
         });
     }
 
+    fn show_macro_editor(&mut self, ctx: &egui::Context, active_macro: u8) {
+        let mut still_open = true;
+        egui::Window::new("Macro Editor")
+            .open(&mut still_open)
+            .collapsible(false)
+            .resizable(true)
+            .min_size(Vec2::new(500.0, 300.0))
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .show(ctx, |ui| {
+                // Tabs for each macro
+                ui.horizontal_wrapped(|ui| {
+                    for n in 0u8..16 {
+                        let is_active = n == active_macro;
+                        let has_content = self.macro_texts.get(n as usize).map(|s| !s.is_empty()).unwrap_or(false);
+                        let label = format!("M{}", n);
+                        let btn = egui::Button::new(
+                            RichText::new(&label).size(11.0)
+                                .color(if is_active { Color32::WHITE } else if has_content { Color32::from_gray(200) } else { Color32::from_gray(100) })
+                        ).fill(if is_active { Color32::from_rgb(91, 104, 223) } else { Color32::TRANSPARENT })
+                         .min_size(Vec2::new(32.0, 24.0));
+                        if ui.add(btn).clicked() {
+                            self.macro_editor_open = Some(n);
+                            // Also update the assigned keycode
+                            self.result = Some(0x7700 + n as u16);
+                        }
+                    }
+                });
+                ui.separator();
+
+                let n = self.macro_editor_open.unwrap_or(0) as usize;
+                while self.macro_texts.len() <= n { self.macro_texts.push(String::new()); }
+
+                ui.label(RichText::new(format!("Macro M{} — type the text this macro will send:", n)).size(12.0));
+                ui.add_space(4.0);
+
+                let text = &mut self.macro_texts[n];
+                ui.add(
+                    egui::TextEdit::multiline(text)
+                        .desired_rows(5)
+                        .desired_width(f32::INFINITY)
+                        .hint_text("Type macro content here...")
+                        .font(egui::FontId::monospace(13.0))
+                );
+
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    if ui.button("Clear").clicked() {
+                        self.macro_texts[n].clear();
+                    }
+                    ui.label(RichText::new(format!("{} characters", self.macro_texts[n].len())).size(10.0).color(Color32::from_gray(120)));
+                });
+
+                ui.add_space(4.0);
+                ui.label(RichText::new("Note: macro content is saved to keyboard when you close this editor")
+                    .size(10.0).color(Color32::from_gray(120)));
+            });
+
+        if !still_open {
+            let n = self.macro_editor_open.unwrap_or(0);
+            self.result = Some(0x7700 + n as u16);
+            self.macro_editor_open = None;
+            self.macros_dirty = true;
+            self.open = false;
+        }
+    }
+
+    fn show_vial_macros(&mut self, ui: &mut egui::Ui) {
+        ui.label(RichText::new("Assign a macro to this key, then choose which one").size(11.0).color(Color32::from_gray(150)));
+        ui.add_space(6.0);
+        let resp = ui.add(egui::Button::new(RichText::new("Macro").size(12.0))
+            .min_size(Vec2::new(120.0, 40.0)));
+        if resp.clicked() {
+            self.vial_layer_pending = None;
+            self.vial_quantum_pending_mod = None;
+            self.vial_quantum_pending_mt = None;
+            // Use macro_editor_open as signal to show macro number picker
+            self.macro_editor_open = Some(255); // 255 = "pick number" mode
+        }
+        resp.on_hover_text("Assign a macro — pick which macro number next");
+    }
+
     fn show_vial_rgb(&mut self, ui: &mut egui::Ui) {
-        let rgb_keys: &[(&str, u16, &str)] = &[
-            ("RGB\nTog",  0x7A00, "RGB Toggle on/off"),
-            ("RGB\nMod+", 0x7A01, "RGB Next mode"),
-            ("RGB\nMod-", 0x7A02, "RGB Previous mode"),
-            ("RGB\nHue+", 0x7A03, "RGB Hue increase"),
-            ("RGB\nHue-", 0x7A04, "RGB Hue decrease"),
-            ("RGB\nSat+", 0x7A05, "RGB Saturation increase"),
-            ("RGB\nSat-", 0x7A06, "RGB Saturation decrease"),
-            ("RGB\nBri+", 0x7A07, "RGB Brightness increase"),
-            ("RGB\nBri-", 0x7A08, "RGB Brightness decrease"),
-            ("RGB\nSpd+", 0x7A09, "RGB Speed increase"),
-            ("RGB\nSpd-", 0x7A0A, "RGB Speed decrease"),
-        ];
-        ui.label(RichText::new("RGB lighting controls").size(11.0).color(Color32::from_gray(150)));
+        // Backlight
+        ui.label(RichText::new("Backlight").size(11.0).color(Color32::from_gray(150)));
         ui.add_space(4.0);
+        let bl_keys: &[(&str, u16, &str)] = &[
+            ("Toggle",       0x7800, "Toggle backlight on/off"),
+            ("Cycle",        0x7801, "Cycle through backlight brightness levels"),
+            ("Breathing",    0x7802, "Toggle breathing effect on/off"),
+            ("On",           0x7805, "Turn backlight on"),
+            ("Off",          0x7806, "Turn backlight off"),
+            ("Brightness +", 0x7803, "Increase backlight brightness"),
+            ("Brightness -", 0x7804, "Decrease backlight brightness"),
+        ];
+        ui.horizontal_wrapped(|ui| {
+            for (label, value, tip) in bl_keys {
+                let resp = ui.add(egui::Button::new(RichText::new(*label).size(10.5))
+                    .min_size(Vec2::new(80.0, 36.0)));
+                if resp.clicked() { self.result = Some(*value); self.open = false; }
+                resp.on_hover_text(*tip);
+            }
+        });
+
+        ui.separator();
+        // RGB Underglow (QMK rgblight)
+        ui.label(RichText::new("RGB Underglow").size(11.0).color(Color32::from_gray(150)));
+        ui.add_space(4.0);
+        let rgb_keys: &[(&str, u16, &str)] = &[
+            ("Toggle",       0x7A00, "Toggle RGB lighting on/off"),
+            ("Next Mode",    0x7A01, "Switch to next RGB animation mode"),
+            ("Prev Mode",    0x7A02, "Switch to previous RGB animation mode"),
+            ("Hue +",        0x7A03, "Increase color hue"),
+            ("Hue -",        0x7A04, "Decrease color hue"),
+            ("Saturation +", 0x7A05, "Increase color saturation"),
+            ("Saturation -", 0x7A06, "Decrease color saturation"),
+            ("Brightness +", 0x7A07, "Increase brightness"),
+            ("Brightness -", 0x7A08, "Decrease brightness"),
+            ("Speed +",      0x7A09, "Increase animation speed"),
+            ("Speed -",      0x7A0A, "Decrease animation speed"),
+            ("Effect +",     0x7A0B, "Next RGB effect"),
+            ("Effect -",     0x7A0C, "Previous RGB effect"),
+        ];
         ui.horizontal_wrapped(|ui| {
             for (label, value, tip) in rgb_keys {
                 let resp = ui.add(egui::Button::new(RichText::new(*label).size(10.5))
-                    .min_size(Vec2::new(56.0, 42.0)));
+                    .min_size(Vec2::new(80.0, 36.0)));
+                if resp.clicked() { self.result = Some(*value); self.open = false; }
+                resp.on_hover_text(*tip);
+            }
+        });
+
+        ui.separator();
+        // RGB Matrix modes
+        ui.label(RichText::new("RGB Matrix Modes").size(11.0).color(Color32::from_gray(150)));
+        ui.add_space(4.0);
+        let rgbm_keys: &[(&str, u16, &str)] = &[
+            ("Plain",        0x7A0D, "RGB Matrix: solid color, no animation"),
+            ("Breathe",      0x7A0E, "RGB Matrix: breathing effect — smooth brightness fade"),
+            ("Rainbow",      0x7A0F, "RGB Matrix: rainbow gradient across all keys"),
+            ("Swirl",        0x7A10, "RGB Matrix: swirling rainbow pattern"),
+            ("Snake",        0x7A11, "RGB Matrix: snake animation moving across keys"),
+            ("Knight",       0x7A12, "RGB Matrix: Knight Rider scanning effect"),
+            ("Xmas",         0x7A13, "RGB Matrix: alternating red and green like Christmas lights"),
+            ("Gradient",     0x7A14, "RGB Matrix: static gradient effect"),
+            ("Test",         0x7A15, "RGB Matrix: test mode — cycles through R, G, B"),
+        ];
+        ui.horizontal_wrapped(|ui| {
+            for (label, value, tip) in rgbm_keys {
+                let resp = ui.add(egui::Button::new(RichText::new(*label).size(10.5))
+                    .min_size(Vec2::new(80.0, 36.0)));
+                if resp.clicked() { self.result = Some(*value); self.open = false; }
+                resp.on_hover_text(*tip);
+            }
+        });
+
+        ui.separator();
+        // RGB Matrix controls
+        ui.label(RichText::new("RGB Matrix Controls").size(11.0).color(Color32::from_gray(150)));
+        ui.add_space(4.0);
+        let rgbm_ctrl: &[(&str, u16, &str)] = &[
+            ("On",           0x7A16, "Turn RGB Matrix on"),
+            ("Off",          0x7A17, "Turn RGB Matrix off"),
+            ("Toggle",       0x7A18, "Toggle RGB Matrix on/off"),
+            ("Next",         0x7A19, "Next RGB Matrix animation"),
+            ("Previous",     0x7A1A, "Previous RGB Matrix animation"),
+            ("Hue +",        0x7A1B, "Increase RGB Matrix hue"),
+            ("Hue -",        0x7A1C, "Decrease RGB Matrix hue"),
+            ("Saturation +", 0x7A1D, "Increase RGB Matrix saturation"),
+            ("Saturation -", 0x7A1E, "Decrease RGB Matrix saturation"),
+            ("Brightness +", 0x7A1F, "Increase RGB Matrix brightness"),
+            ("Brightness -", 0x7A20, "Decrease RGB Matrix brightness"),
+            ("Speed +",      0x7A21, "Increase RGB Matrix animation speed"),
+            ("Speed -",      0x7A22, "Decrease RGB Matrix animation speed"),
+        ];
+        ui.horizontal_wrapped(|ui| {
+            for (label, value, tip) in rgbm_ctrl {
+                let resp = ui.add(egui::Button::new(RichText::new(*label).size(10.5))
+                    .min_size(Vec2::new(80.0, 36.0)));
                 if resp.clicked() { self.result = Some(*value); self.open = false; }
                 resp.on_hover_text(*tip);
             }

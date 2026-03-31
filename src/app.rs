@@ -72,6 +72,8 @@ struct ConnectResult {
     zmk_conn: Option<crate::zmk::ZmkConnection>,
     /// ZMK lock state at connect time
     zmk_lock_state: i32,
+    /// Macro texts read from device
+    macro_texts: Vec<String>,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -123,6 +125,8 @@ pub struct EntropyApp {
     hover_layer: Option<usize>,
     /// Key index hovered in previous frame (for hint display)
     prev_hovered_key: Option<usize>,
+    /// Set when secondary click was handled by a key (prevents global jump-back)
+    secondary_click_handled: bool,
     /// Animation progress for hover layer preview (0.0 = hidden, 1.0 = fully shown)
     hover_layer_progress: f32,
     /// Stack of layers to return to on right-click (last = most recent)
@@ -140,6 +144,10 @@ pub struct EntropyApp {
     zmk_has_unsaved: bool,
     /// Vial unlock dialog open
     unlock_open: bool,
+    vial_unlock_keys: Vec<(u8, u8)>,
+    vial_unlock_polling: bool,
+    vial_unlock_counter: u8,
+    vial_unlock_total: u8,
     /// Channel for ZMK background operation results
     #[cfg(not(target_arch = "wasm32"))]
     zmk_op_rx: Option<mpsc::Receiver<ZmkOpResult>>,
@@ -159,6 +167,7 @@ impl EntropyApp {
             scan_frame: 0,
             hover_layer: None,
             prev_hovered_key: None,
+            secondary_click_handled: false,
             hover_layer_progress: 0.0,
             jump_back_stack: Vec::new(),
             device_manager: DeviceManager::new(),
@@ -178,6 +187,10 @@ impl EntropyApp {
             zmk_lock_state: 1, // Unlocked by default
             zmk_has_unsaved: false,
             unlock_open: false,
+            vial_unlock_keys: vec![],
+            vial_unlock_polling: false,
+            vial_unlock_counter: 0,
+            vial_unlock_total: 50,
             #[cfg(not(target_arch = "wasm32"))]
             zmk_op_rx: None,
             #[cfg(not(target_arch = "wasm32"))]
@@ -290,12 +303,31 @@ impl EntropyApp {
                             }
                         }
 
+                        // Read macros
+                        let macro_texts = match dev_conn.get_macro_count() {
+                            Ok(count) => {
+                                log::info!("Macro count: {count}");
+                                match dev_conn.get_macro_buffer_size() {
+                                    Ok(size) => {
+                                        log::info!("Macro buffer size: {size}");
+                                        match dev_conn.get_macro_buffer(size) {
+                                            Ok(buf) => crate::hid::HidDevice::parse_macros(&buf, count),
+                                            Err(e) => { log::warn!("get_macro_buffer: {e}"); vec![String::new(); count as usize] }
+                                        }
+                                    }
+                                    Err(e) => { log::warn!("get_macro_buffer_size: {e}"); vec![String::new(); count as usize] }
+                                }
+                            }
+                            Err(e) => { log::warn!("get_macro_count: {e}"); vec![String::new(); 16] }
+                        };
+
                         Ok(ConnectResult {
                             device_name: dev.name.clone(),
+                            macro_texts,
                             layout,
                             layer_count,
                             zmk_conn: None,
-                            zmk_lock_state: 1, // Vial doesn't have lock state
+                            zmk_lock_state: 1,
                         })
                     }
 
@@ -329,6 +361,7 @@ impl EntropyApp {
                             };
                             return Ok(ConnectResult {
                                 device_name: dev.name.clone(),
+                                macro_texts: vec![],
                                 layout,
                                 layer_count: 0,
                                 zmk_conn: Some(conn),
@@ -373,6 +406,7 @@ impl EntropyApp {
 
                         Ok(ConnectResult {
                             device_name: dev.name.clone(),
+                            macro_texts: vec![],
                             layout,
                             layer_count,
                             zmk_conn: Some(conn),
@@ -417,6 +451,9 @@ impl EntropyApp {
                 self.current_device_name = r.device_name.clone();
                 self.zmk_lock_state = r.zmk_lock_state;
                 self.zmk_has_unsaved = false;
+                if !r.macro_texts.is_empty() {
+                    self.keycode_picker.macro_texts = r.macro_texts.clone();
+                }
 
                 // If ZMK keyboard is locked, show the unlock modal
                 if r.zmk_lock_state == crate::zmk_proto::core::LockState::Locked as i32 {
@@ -829,6 +866,7 @@ impl eframe::App for EntropyApp {
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Auto-scan for new devices every ~2 seconds (120 frames at 60fps)
+        self.secondary_click_handled = false;
         self.scan_frame += 1;
         if self.scan_frame >= 120 {
             self.scan_frame = 0;
@@ -880,28 +918,22 @@ impl eframe::App for EntropyApp {
         #[cfg(not(target_arch = "wasm32"))]
         self.poll_zmk_ops(ctx);
 
-        // Right-click anywhere = pop back one step (only if NOT hovering a layer key)
-        if !self.jump_back_stack.is_empty() {
-            let esc_pressed = ctx.input(|i| i.key_pressed(egui::Key::Escape));
-            let rclick = self.hover_layer.is_none() && ctx.input(|i| i.pointer.secondary_clicked());
-            if rclick || esc_pressed {
-                if let Some(back_layer) = self.jump_back_stack.pop() {
-                    self.selected_layer = back_layer;
-                }
-            }
-        }
+
 
         // Handle Vial keycode picker result
-        if let Some(kc_value) = self.keycode_picker.result.take() {
-            if let Some((layer, ki)) = self.selected_key {
-                #[cfg(not(target_arch = "wasm32"))]
-                self.assign_keycode(layer, ki, kc_value);
-                #[cfg(target_arch = "wasm32")]
-                if let Some(layout) = &mut self.layout {
-                    layout.set_keycode(layer, ki, kc_value);
+        // Don't consume result while macro editor is open
+        if self.keycode_picker.macro_editor_open.is_none() || self.keycode_picker.macro_editor_open == Some(255) {
+            if let Some(kc_value) = self.keycode_picker.result.take() {
+                if let Some((layer, ki)) = self.selected_key {
+                    #[cfg(not(target_arch = "wasm32"))]
+                    self.assign_keycode(layer, ki, kc_value);
+                    #[cfg(target_arch = "wasm32")]
+                    if let Some(layout) = &mut self.layout {
+                        layout.set_keycode(layer, ki, kc_value);
+                    }
                 }
+                self.selected_key = None;
             }
-            self.selected_key = None;
         }
 
         // Handle ZMK binding picker result
@@ -997,24 +1029,25 @@ impl eframe::App for EntropyApp {
                     {
 
 
-                        // Vial: Unlock button (if keyboard is locked) + Save to flash
+                        // Vial: Unlock button
                         if self.firmware == FirmwareProtocol::Vial && self.layout.is_some() {
-                            // Check if locked — show unlock button
-                            if let Some(hid) = &self.hid_device {
-                                if let Ok((locked, _)) = hid.get_unlock_status() {
-                                    if !locked {
-                                        if ui.add(egui::Button::new(RichText::new("🔒 Unlock")
-                                            .color(Color32::from_rgb(220, 120, 60)))
-                                            .fill(Color32::TRANSPARENT))
-                                            .on_hover_text("Keyboard is locked — click to start unlock sequence")
-                                            .clicked()
-                                        {
-                                            self.unlock_open = true;
-                                        }
-                                    }
+                            let is_unlocked = self.hid_device.as_ref()
+                                .and_then(|hid| hid.get_unlock_status().ok())
+                                .map(|(unlocked, _)| unlocked)
+                                .unwrap_or(false);
+                            if !is_unlocked {
+                                if ui.add(egui::Button::new(RichText::new("🔒 Unlock")
+                                    .color(Color32::from_rgb(220, 120, 60)))
+                                    .fill(Color32::TRANSPARENT))
+                                    .on_hover_text("Keyboard is locked — click to unlock")
+                                    .clicked()
+                                {
+                                    self.unlock_open = true;
                                 }
+                            } else {
+                                ui.label(RichText::new("🔓").size(14.0))
+                                    .on_hover_text("Keyboard is unlocked");
                             }
-
                         }
                     }
 
@@ -1078,7 +1111,164 @@ impl eframe::App for EntropyApp {
         });
 
         // Keycode picker modal
+        // Vial unlock modal
+        if self.unlock_open && self.firmware == FirmwareProtocol::Vial {
+            // Start unlock if not yet polling
+            if !self.vial_unlock_polling {
+                if let Some(hid) = &self.hid_device {
+                    match hid.unlock_start() {
+                        Ok(keys) => {
+                            self.vial_unlock_keys = keys;
+                            self.vial_unlock_polling = true;
+                        }
+                        Err(e) => {
+                            self.status_msg = format!("Unlock start failed: {e}");
+                            self.unlock_open = false;
+                        }
+                    }
+                }
+            }
+            // Poll unlock
+            if self.vial_unlock_polling {
+                if let Some(hid) = &self.hid_device {
+                    match hid.unlock_poll() {
+                        Ok((unlocked, _in_progress, counter)) => {
+                            self.vial_unlock_counter = counter;
+                            if unlocked {
+                                self.status_msg = "Keyboard unlocked!".into();
+                                self.unlock_open = false;
+                                self.vial_unlock_polling = false;
+                            }
+                        }
+                        Err(_) => {}
+                    }
+                }
+                ctx.request_repaint_after(std::time::Duration::from_millis(50));
+            }
+            // Fullscreen overlay with layout and highlighted keys
+            let unlock_keys = self.vial_unlock_keys.clone();
+            let counter = self.vial_unlock_counter;
+            let total = self.vial_unlock_total;
+
+            egui::Area::new(egui::Id::new("unlock_overlay"))
+                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .order(egui::Order::Foreground)
+                .show(ctx, |ui| {
+                    let screen = ui.ctx().screen_rect();
+                    // Dim background
+                    ui.painter().rect_filled(screen, 0.0, Color32::from_rgba_unmultiplied(0, 0, 0, 180));
+
+                    let center_x = screen.center().x;
+                    let top_y = screen.min.y + 40.0;
+
+                    // Title
+                    ui.painter().text(egui::pos2(center_x, top_y), egui::Align2::CENTER_CENTER,
+                        "🔓 Unlock Keyboard", FontId::proportional(24.0), Color32::WHITE);
+
+                    ui.painter().text(egui::pos2(center_x, top_y + 30.0), egui::Align2::CENTER_CENTER,
+                        "Hold the highlighted keys simultaneously", FontId::proportional(14.0), Color32::from_gray(180));
+
+                    // Progress bar
+                    let progress = if total > 0 { 1.0 - (counter as f32 / total as f32) } else { 0.0 };
+                    let bar_w = 300.0f32;
+                    let bar_h = 12.0f32;
+                    let bar_y = top_y + 55.0;
+                    let bar_rect = egui::Rect::from_min_size(
+                        egui::pos2(center_x - bar_w / 2.0, bar_y),
+                        egui::Vec2::new(bar_w, bar_h),
+                    );
+                    ui.painter().rect(bar_rect, 4.0, Color32::from_gray(40), egui::Stroke::NONE, egui::StrokeKind::Inside);
+                    let fill_rect = egui::Rect::from_min_size(
+                        bar_rect.min,
+                        egui::Vec2::new(bar_w * progress, bar_h),
+                    );
+                    ui.painter().rect(fill_rect, 4.0, Color32::from_rgb(91, 104, 223), egui::Stroke::NONE, egui::StrokeKind::Inside);
+
+                    // Draw layout keys with highlighted unlock keys
+                    if let Some(layout) = &self.layout {
+                        let base_unit = 54.0f32 * 0.85;
+                        let padding = 3.0f32;
+                        let mut min_x = f32::MAX; let mut min_y = f32::MAX;
+                        let mut max_x = f32::MIN; let mut max_y = f32::MIN;
+                        for key in &layout.keys {
+                            min_x = min_x.min(key.x); min_y = min_y.min(key.y);
+                            max_x = max_x.max(key.x + key.w); max_y = max_y.max(key.y + key.h);
+                        }
+                        let span_x = max_x - min_x; let span_y = max_y - min_y;
+                        let avail_w = screen.width() - 80.0;
+                        let avail_h = screen.height() - 160.0;
+                        let scale = (avail_w / (span_x * base_unit)).min(avail_h / (span_y * base_unit)).min(1.0);
+                        let unit = base_unit * scale;
+                        let layout_w = span_x * unit;
+                        let layout_h = span_y * unit;
+                        let off_x = center_x - layout_w / 2.0 - min_x * unit;
+                        let off_y = bar_y + 30.0 + (avail_h - layout_h) / 2.0 - min_y * unit;
+
+                        for (ki, key) in layout.keys.iter().enumerate() {
+                            let is_unlock = unlock_keys.iter().any(|(r, c)| key.row == *r && key.col == *c);
+                            let rect = egui::Rect::from_min_size(
+                                egui::pos2(off_x + key.x * unit + padding, off_y + key.y * unit + padding),
+                                egui::Vec2::new(key.w * unit - padding * 2.0, key.h * unit - padding * 2.0),
+                            );
+                            let bg = if is_unlock {
+                                Color32::from_rgb(91, 104, 223)
+                            } else {
+                                Color32::from_rgba_unmultiplied(48, 48, 52, 120)
+                            };
+                            let border = if is_unlock { Color32::from_rgb(120, 130, 255) } else { Color32::from_gray(60) };
+                            ui.painter().rect(rect, 5.0, bg, Stroke::new(1.0, border), egui::StrokeKind::Inside);
+
+                            let kc = layout.get_keycode(0, ki);
+                            let label = crate::keycode::keycode_label_with_names(kc, &layout.custom_keycodes, &self.layer_names);
+                            let text_color = if is_unlock { Color32::WHITE } else { Color32::from_gray(80) };
+                            ui.painter().text(rect.center(), egui::Align2::CENTER_CENTER, &label,
+                                FontId::proportional(9.0 * scale), text_color);
+                        }
+                    }
+
+                    // Cancel button at bottom
+                    let btn_rect = egui::Rect::from_center_size(
+                        egui::pos2(center_x, screen.max.y - 40.0),
+                        egui::Vec2::new(100.0, 32.0),
+                    );
+                    let btn_resp = ui.put(btn_rect, egui::Button::new("Cancel"));
+                    if btn_resp.clicked() {
+                        self.unlock_open = false;
+                        self.vial_unlock_polling = false;
+                    }
+                });
+        }
+
         self.keycode_picker.show(ctx);
+
+        // Write macros to device if changed
+        if self.keycode_picker.macros_dirty {
+            self.keycode_picker.macros_dirty = false;
+            if let Some(hid) = &self.hid_device {
+                // Check unlock status first
+                let unlocked = hid.get_unlock_status().map(|(u, _)| u).unwrap_or(false);
+                if !unlocked {
+                    self.status_msg = "Keyboard is locked — unlock first to save macros".into();
+                } else if let Ok(size) = hid.get_macro_buffer_size() {
+                    let buf = crate::hid::HidDevice::encode_macros(&self.keycode_picker.macro_texts, size);
+                    match hid.set_macro_buffer(&buf) {
+                        Ok(()) => self.status_msg = "Macros saved".into(),
+                        Err(e) => self.status_msg = format!("Macro write error: {e}"),
+                    }
+                }
+            }
+        }
+
+        // Right-click anywhere = pop back one step (only if NOT hovering a layer key and not handled by key)
+        if !self.jump_back_stack.is_empty() && !self.keycode_picker.open && !self.secondary_click_handled {
+            let esc_pressed = ctx.input(|i| i.key_pressed(egui::Key::Escape));
+            let rclick = self.hover_layer.is_none() && ctx.input(|i| i.pointer.secondary_clicked());
+            if rclick || esc_pressed {
+                if let Some(back_layer) = self.jump_back_stack.pop() {
+                    self.selected_layer = back_layer;
+                }
+            }
+        }
     }
 }
 
@@ -1348,15 +1538,27 @@ impl EntropyApp {
                 let any_hovered = self.prev_hovered_key.is_some();
                 if let Some(hl) = self.hover_layer {
                     let hl_name = self.layer_names.get(hl).cloned().unwrap_or_else(|| hl.to_string());
-                    ui.painter().text(egui::pos2(center_x, hint_y - 9.0), egui::Align2::CENTER_CENTER,
+                    let mut line = 0i32;
+                    let line_h = 13.0f32;
+                    let base_y = hint_y - 15.0;
+                    // Line 1: always
+                    ui.painter().text(egui::pos2(center_x, base_y + line as f32 * line_h), egui::Align2::CENTER_CENTER,
                         "Left click to change this key", hint_font.clone(), hint_color);
-                    // Don't show "go to layer" if it's the current layer
+                    line += 1;
+                    // Line 2: go to layer (if not current)
                     if hl != self.selected_layer {
-                        ui.painter().text(egui::pos2(center_x, hint_y + 5.0), egui::Align2::CENTER_CENTER,
+                        ui.painter().text(egui::pos2(center_x, base_y + line as f32 * line_h), egui::Align2::CENTER_CENTER,
                             &format!("Right click to go to layer {}: {}", hl, hl_name), hint_font.clone(), hint_color);
-                    } else if !self.jump_back_stack.is_empty() {
-                        ui.painter().text(egui::pos2(center_x, hint_y + 5.0), egui::Align2::CENTER_CENTER,
-                            "Right-click or Esc to go back", hint_font.clone(), hint_color);
+                        line += 1;
+                    }
+                    // Line 3: change layer number
+                    ui.painter().text(egui::pos2(center_x, base_y + line as f32 * line_h), egui::Align2::CENTER_CENTER,
+                        "Ctrl + Right click to change layer number", hint_font.clone(), hint_color);
+                    line += 1;
+                    // Line 4: go back (if in jump mode)
+                    if !self.jump_back_stack.is_empty() {
+                        ui.painter().text(egui::pos2(center_x, base_y + line as f32 * line_h), egui::Align2::CENTER_CENTER,
+                            "Esc to go back", hint_font.clone(), hint_color);
                     }
                     let _ = hint_font;
                 } else if !self.jump_back_stack.is_empty() {
@@ -1367,8 +1569,24 @@ impl EntropyApp {
                     ui.painter().text(egui::pos2(center_x, if any_hovered { hint_y + 5.0 } else { hint_y }), egui::Align2::CENTER_CENTER,
                         "Right-click or Esc to go back", hint_font, hint_color);
                 } else if any_hovered {
-                    ui.painter().text(egui::pos2(center_x, hint_y), egui::Align2::CENTER_CENTER,
-                        "Left click to change this key", hint_font, hint_color);
+                    // Check if hovered key is a mod key
+                    let hovered_is_mod = if self.firmware == FirmwareProtocol::Vial {
+                        self.prev_hovered_key.and_then(|ki| {
+                            self.layout.as_ref().map(|l| {
+                                let kc = l.get_keycode(self.selected_layer, ki);
+                                (kc >= 0x2000 && kc < 0x4000) || (kc >= 0x0100 && kc < 0x2000 && (kc & 0xFF) != 0)
+                            })
+                        }).unwrap_or(false)
+                    } else { false };
+                    if hovered_is_mod {
+                        ui.painter().text(egui::pos2(center_x, hint_y - 9.0), egui::Align2::CENTER_CENTER,
+                            "Left click to change this key", hint_font.clone(), hint_color);
+                        ui.painter().text(egui::pos2(center_x, hint_y + 5.0), egui::Align2::CENTER_CENTER,
+                            "Right click to change the modifier key", hint_font, hint_color);
+                    } else {
+                        ui.painter().text(egui::pos2(center_x, hint_y), egui::Align2::CENTER_CENTER,
+                            "Left click to change this key", hint_font, hint_color);
+                    }
                 }
 
                 // Edit icon after text on hover
@@ -1423,11 +1641,34 @@ impl EntropyApp {
                 }
             }
 
-            // Right-click on Vial mod key — open second picker to change tap/key
-            if !is_zmk && response.secondary_clicked() {
+            // Right-click on mod key — open second picker to change tap/key  
+            if response.secondary_clicked() && !is_zmk {
                 let kc = layout.get_keycode(self.selected_layer, *ki);
+                let ctrl_held = ui.input(|i| i.modifiers.ctrl);
+
+                // Ctrl+RClick on layer keys: change layer number
+                if ctrl_held {
+                    let layer_base: Option<u16> = if kc >= 0x5200 && kc < 0x5300 {
+                        Some(kc & 0xFFE0)
+                    } else if kc & 0xF000 == 0x4000 {
+                        Some(0x4000)
+                    } else {
+                        None
+                    };
+                    if let Some(base) = layer_base {
+                        self.selected_key = Some((self.selected_layer, *ki));
+                        self.keycode_picker.open = true;
+                        self.keycode_picker.layer_names = self.layer_names.clone();
+                        self.keycode_picker.firmware = self.firmware;
+                        self.keycode_picker.vial_layer_pending = Some(base);
+                        self.secondary_click_handled = true;
+                    }
+                }
                 // MT: 0x2000..0x3FFF, Mod+Key: 0x0100..0x1FFF with kc != 0
-                let pending_base: Option<u16> = if kc >= 0x2000 && kc < 0x4000 {
+                let is_layer_key = (kc >= 0x5200 && kc < 0x5300) || (kc & 0xF000 == 0x4000);
+                let pending_base: Option<u16> = if is_layer_key {
+                    None // layer keys handled above (Ctrl+RClick)
+                } else if kc >= 0x2000 && kc < 0x4000 {
                     Some(kc & 0xFF00) // MT base
                 } else if kc >= 0x0100 && kc < 0x2000 && (kc & 0xFF) != 0 {
                     Some(kc & 0xFF00) // Mod+Key base
@@ -1446,6 +1687,7 @@ impl EntropyApp {
                         self.keycode_picker.vial_quantum_pending_mod = Some(base);
                         self.keycode_picker.vial_quantum_pending_mt = None;
                     }
+                    self.secondary_click_handled = true;
                 }
             }
 
@@ -1484,6 +1726,7 @@ impl EntropyApp {
                     self.jump_back_stack.push(self.selected_layer);
                     self.selected_layer = preview_layer_idx;
                     self.hover_layer = None;
+                    self.secondary_click_handled = true;
                 }
             } else if is_zmk {
                 let binding = layout.get_zmk_binding(self.selected_layer, *ki);

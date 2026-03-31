@@ -437,6 +437,11 @@ pub fn keycode_label_with_names(value: u16, custom: &[(String, String)], layer_n
     if value == 0x0001 { return "▽".to_string(); }
     if value == 0x0000 { return "✕".to_string(); }
 
+    // Macro keycodes: 0x7700..0x770F
+    if value >= 0x7700 && value <= 0x770F {
+        return format!("M{}", value - 0x7700);
+    }
+
     format!("{:04X}", value)
 }
 
@@ -598,6 +603,11 @@ pub fn keycode_tooltip(value: u16, custom: &[(String, String)], layer_names: &[S
     // ── Simple keycodes ──────────────────────────────────────────────────────
     if let Some(kc) = find_keycode(value) {
         return simple_key_tooltip(kc);
+    }
+
+    // Macro keycodes
+    if value >= 0x7700 && value <= 0x770F {
+        return format!("Macro {} — sends a sequence of keystrokes", value - 0x7700);
     }
 
     format!("Unknown keycode (0x{:04X})", value)
