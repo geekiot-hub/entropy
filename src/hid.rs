@@ -182,32 +182,28 @@ impl HidDevice {
     }
 
     /// Check if keyboard is unlocked
-    pub fn get_unlock_status(&self) -> Result<(bool, u8)> {
+    /// Returns (unlocked, unlock_keys: Vec<(row,col)>)
+    pub fn get_unlock_status(&self) -> Result<(bool, Vec<(u8, u8)>)> {
         let resp = self.usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_GET_UNLOCK_STATUS])?;
-        // resp[0] = unlocked (1=yes), resp[1] = unlock_counter
+        // resp[0] = unlocked (1=yes), resp[1] = unlock_in_progress
+        // resp[2..] = pairs of (row, col), rest filled with 0xFF
         let unlocked = resp[0] == 1;
-        let counter = resp[1];
-        Ok((unlocked, counter))
-    }
-
-    /// Start unlock sequence — returns keys to hold (row, col pairs)
-    pub fn unlock_start(&self) -> Result<Vec<(u8, u8)>> {
-        let resp = self.usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_UNLOCK_START])?;
-        let _ = std::fs::write(
-            std::env::var("USERPROFILE").map(|p| format!("{}\\Desktop\\unlock_start_raw.txt", p)).unwrap_or("unlock_start_raw.txt".into()),
-            format!("{:02X?}", &resp[..16])
-        );
-        // Parse (row, col) pairs starting from resp[0], terminated by 255,255
         let mut keys = Vec::new();
-        let mut i = 0;
+        let mut i = 2;
         while i + 1 < resp.len() {
             let row = resp[i];
             let col = resp[i + 1];
-            if row == 255 && col == 255 { break; }
+            if row == 0xFF && col == 0xFF { break; }
             keys.push((row, col));
             i += 2;
         }
-        Ok(keys)
+        Ok((unlocked, keys))
+    }
+
+    /// Start unlock sequence — returns keys to hold (row, col pairs)
+    pub fn unlock_start(&self) -> Result<()> {
+        self.usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_UNLOCK_START])?;
+        Ok(())
     }
 
     /// Poll unlock status — returns (unlocked, in_progress)

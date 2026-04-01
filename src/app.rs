@@ -868,7 +868,7 @@ impl eframe::App for EntropyApp {
         // Auto-scan for new devices every ~2 seconds (120 frames at 60fps)
         self.secondary_click_handled = false;
         self.scan_frame += 1;
-        if self.scan_frame >= 120 {
+        if self.scan_frame >= 120 && !self.vial_unlock_polling {
             self.scan_frame = 0;
             let prev_count = self.device_manager.devices().len();
             self.device_manager.scan();
@@ -1029,11 +1029,11 @@ impl eframe::App for EntropyApp {
                     {
 
 
-                        // Vial: Unlock button
-                        if self.firmware == FirmwareProtocol::Vial && self.layout.is_some() {
+                        // Vial: Unlock button (don't poll status during unlock process)
+                        if self.firmware == FirmwareProtocol::Vial && self.layout.is_some() && !self.vial_unlock_polling {
                             let is_unlocked = self.hid_device.as_ref()
                                 .and_then(|hid| hid.get_unlock_status().ok())
-                                .map(|(unlocked, _)| unlocked)
+                                .map(|(unlocked, _keys)| unlocked)
                                 .unwrap_or(false);
                             if !is_unlocked {
                                 if ui.add(egui::Button::new(RichText::new("🔒 Unlock")
@@ -1116,9 +1116,16 @@ impl eframe::App for EntropyApp {
             // Start unlock if not yet polling
             if !self.vial_unlock_polling {
                 if let Some(hid) = &self.hid_device {
-                    match hid.unlock_start() {
-                        Ok(keys) => {
+                    // Get unlock keys from get_unlock_status
+                    match hid.get_unlock_status() {
+                        Ok((_, keys)) => {
                             self.vial_unlock_keys = keys;
+                        }
+                        Err(_) => {}
+                    }
+                    // Start the unlock process
+                    match hid.unlock_start() {
+                        Ok(()) => {
                             self.vial_unlock_polling = true;
                         }
                         Err(e) => {
@@ -1128,11 +1135,19 @@ impl eframe::App for EntropyApp {
                     }
                 }
             }
-            // Poll unlock
+            // Poll unlock — only poll, no other HID traffic during this
             if self.vial_unlock_polling {
+                // Small delay to let firmware scan matrix
+                std::thread::sleep(std::time::Duration::from_millis(10));
                 if let Some(hid) = &self.hid_device {
                     match hid.unlock_poll() {
-                        Ok((unlocked, _in_progress, counter)) => {
+                        Ok((unlocked, in_progress, counter)) => {
+                            let _ = std::fs::OpenOptions::new().create(true).append(true).open(
+                                std::env::var("USERPROFILE").map(|p| format!("{}\\Desktop\\unlock_poll.txt", p)).unwrap_or("unlock_poll.txt".into())
+                            ).and_then(|mut f| {
+                                use std::io::Write;
+                                writeln!(f, "u={} ip={} c={}", unlocked, in_progress, counter)
+                            });
                             self.vial_unlock_counter = counter;
                             if unlocked {
                                 self.status_msg = "Keyboard unlocked!".into();
@@ -1143,7 +1158,8 @@ impl eframe::App for EntropyApp {
                         Err(_) => {}
                     }
                 }
-                ctx.request_repaint_after(std::time::Duration::from_millis(50));
+                // Firmware checks timer_elapsed > 100ms; poll must be slower to avoid counter reset
+                ctx.request_repaint_after(std::time::Duration::from_millis(200));
             }
             // Fullscreen overlay with layout and highlighted keys
             let unlock_keys = self.vial_unlock_keys.clone();
@@ -1246,7 +1262,7 @@ impl eframe::App for EntropyApp {
             self.keycode_picker.macros_dirty = false;
             if let Some(hid) = &self.hid_device {
                 // Check unlock status first
-                let unlocked = hid.get_unlock_status().map(|(u, _)| u).unwrap_or(false);
+                let unlocked = hid.get_unlock_status().map(|(u, _keys)| u).unwrap_or(false);
                 if !unlocked {
                     self.status_msg = "Keyboard is locked — unlock first to save macros".into();
                 } else if let Ok(size) = hid.get_macro_buffer_size() {
