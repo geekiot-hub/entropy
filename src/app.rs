@@ -454,6 +454,7 @@ impl EntropyApp {
                 self.zmk_lock_state = r.zmk_lock_state;
                 self.zmk_has_unsaved = false;
                 if !r.macro_texts.is_empty() {
+                    self.keycode_picker.macro_count = r.macro_texts.len();
                     self.keycode_picker.macro_texts = r.macro_texts.clone();
                     // Parse macro texts into actions
                     // Parse macro texts → actions (Vial protocol v2: prefix 0x01 before actions)
@@ -1634,19 +1635,26 @@ impl EntropyApp {
                         "Right-click or Esc to go back", hint_font, hint_color);
                 } else if any_hovered {
                     // Check if hovered key is a mod key
-                    let hovered_is_mod = if self.firmware == FirmwareProtocol::Vial {
+                    let (hovered_is_mod, hovered_is_macro) = if self.firmware == FirmwareProtocol::Vial {
                         self.prev_hovered_key.and_then(|ki| {
                             self.layout.as_ref().map(|l| {
                                 let kc = l.get_keycode(self.selected_layer, ki);
-                                (kc >= 0x2000 && kc < 0x4000) || (kc >= 0x0100 && kc < 0x2000 && (kc & 0xFF) != 0)
+                                let is_mod = (kc >= 0x2000 && kc < 0x4000) || (kc >= 0x0100 && kc < 0x2000 && (kc & 0xFF) != 0);
+                                let is_macro = kc >= 0x7700 && kc <= 0x77FF;
+                                (is_mod, is_macro)
                             })
-                        }).unwrap_or(false)
-                    } else { false };
+                        }).unwrap_or((false, false))
+                    } else { (false, false) };
                     if hovered_is_mod {
                         ui.painter().text(egui::pos2(center_x, hint_y - 9.0), egui::Align2::CENTER_CENTER,
                             "Left click to change this key", hint_font.clone(), hint_color);
                         ui.painter().text(egui::pos2(center_x, hint_y + 5.0), egui::Align2::CENTER_CENTER,
                             "Right click to change the modifier key", hint_font, hint_color);
+                    } else if hovered_is_macro {
+                        ui.painter().text(egui::pos2(center_x, hint_y - 9.0), egui::Align2::CENTER_CENTER,
+                            "Left click to change this key", hint_font.clone(), hint_color);
+                        ui.painter().text(egui::pos2(center_x, hint_y + 5.0), egui::Align2::CENTER_CENTER,
+                            "Right click to edit macro", hint_font, hint_color);
                     } else {
                         ui.painter().text(egui::pos2(center_x, hint_y), egui::Align2::CENTER_CENTER,
                             "Left click to change this key", hint_font, hint_color);
@@ -1728,8 +1736,8 @@ impl EntropyApp {
                         self.secondary_click_handled = true;
                     }
                 }
-                // Macro keys: 0x7700..0x770F — RClick opens editor
-                if kc >= 0x7700 && kc <= 0x770F {
+                // Macro keys: 0x7700..0x77FF — RClick opens editor
+                if kc >= 0x7700 && kc <= 0x77FF {
                     let macro_n = (kc - 0x7700) as u8;
                     self.selected_key = Some((self.selected_layer, *ki));
                     self.keycode_picker.open = true;
@@ -1809,13 +1817,12 @@ impl EntropyApp {
             } else {
                 let kc = layout.get_keycode(self.selected_layer, *ki);
                 let is_mod_key = (kc >= 0x2000 && kc < 0x4000) || (kc >= 0x0100 && kc < 0x2000 && (kc & 0xFF) != 0);
-                let is_macro_key = kc >= 0x7700 && kc <= 0x770F;
+                let is_macro_key = kc >= 0x7700 && kc <= 0x77FF;
                 let tip = if is_mod_key {
                     let base_tip = keycode_tooltip(kc, &layout.custom_keycodes, &self.layer_names);
                     format!("{}\nRight-click to change the key", base_tip)
                 } else if is_macro_key {
-                    let base_tip = keycode_tooltip(kc, &layout.custom_keycodes, &self.layer_names);
-                    format!("{}\nRight-click to edit macro", base_tip)
+                    keycode_tooltip(kc, &layout.custom_keycodes, &self.layer_names)
                 } else {
                     keycode_tooltip(kc, &layout.custom_keycodes, &self.layer_names)
                 };

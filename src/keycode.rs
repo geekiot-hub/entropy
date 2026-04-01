@@ -437,8 +437,8 @@ pub fn keycode_label_with_names(value: u16, custom: &[(String, String)], layer_n
     if value == 0x0001 { return "▽".to_string(); }
     if value == 0x0000 { return "✕".to_string(); }
 
-    // Macro keycodes: 0x7700..0x770F
-    if value >= 0x7700 && value <= 0x770F {
+    // Macro keycodes: 0x7700..0x77FF
+    if value >= 0x7700 && value <= 0x77FF {
         return format!("M{}", value - 0x7700);
     }
 
@@ -606,7 +606,7 @@ pub fn keycode_tooltip(value: u16, custom: &[(String, String)], layer_names: &[S
     }
 
     // Macro keycodes
-    if value >= 0x7700 && value <= 0x770F {
+    if value >= 0x7700 && value <= 0x77FF {
         return format!("Macro {} — sends a sequence of keystrokes", value - 0x7700);
     }
 

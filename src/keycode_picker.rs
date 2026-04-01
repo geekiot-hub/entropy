@@ -33,6 +33,7 @@ pub struct KeycodePicker {
     pub vial_quantum_pending_mt: Option<u16>,
     pub vial_layer_pending: Option<u16>,
     /// Open macro editor for this macro number (0..15), None = closed
+    pub macro_count: usize,
     pub macro_editor_open: Option<u8>,
     /// Macro editor text buffers (one per macro)
     pub macro_texts: Vec<String>,
@@ -158,6 +159,7 @@ impl Default for KeycodePicker {
             vial_quantum_pending_mt: None,
             vial_layer_pending: None,
             macro_editor_open: None,
+            macro_count: 16,
             macro_texts: vec![String::new(); 16],
             macro_actions: vec![vec![]; 16],
             macro_add_action_open: false,
@@ -448,7 +450,7 @@ impl KeycodePicker {
                         .size(11.0).color(Color32::from_gray(140)));
                     ui.add_space(6.0);
                     ui.horizontal_wrapped(|ui| {
-                        for n in 0u8..16 {
+                        for n in 0..self.macro_count as u8 {
                             let has_content = self.macro_texts.get(n as usize).map(|s| !s.is_empty()).unwrap_or(false);
                             let label = format!("M{}", n);
                             let resp = ui.add(egui::Button::new(
@@ -897,7 +899,7 @@ impl KeycodePicker {
             .show(ctx, |ui| {
                 // Tabs for each macro
                 ui.horizontal_wrapped(|ui| {
-                    for n in 0u8..16 {
+                    for n in 0..self.macro_count as u8 {
                         let is_active = n == active_macro;
                         let has_content = self.macro_texts.get(n as usize).map(|s| !s.is_empty()).unwrap_or(false);
                         let label = format!("M{}", n);
@@ -930,28 +932,23 @@ impl KeycodePicker {
                 let mut remove_idx = None;
                 let mut move_up: Option<usize> = None;
                 let mut move_down: Option<usize> = None;
+                let avail_w = ui.available_width();
                 egui::ScrollArea::vertical().max_height(300.0).show(ui, |ui| {
                     let action_count = self.macro_actions[n].len();
-                    egui::Grid::new("macro_actions_grid")
-                        .num_columns(5)
-                        .spacing([6.0, 4.0])
-                        .min_col_width(0.0)
-                        .show(ui, |ui| {
-                        for (i, action) in self.macro_actions[n].iter_mut().enumerate() {
-                            // Col 1: move buttons
-                            ui.horizontal(|ui| {
-                                let arrow_size = Vec2::new(24.0, 22.0);
-                                let up_btn = egui::Button::new(RichText::new("↑").size(14.0))
-                                    .min_size(arrow_size)
-                                    .sense(if i > 0 { egui::Sense::click() } else { egui::Sense::hover() });
-                                let down_btn = egui::Button::new(RichText::new("↓").size(14.0))
-                                    .min_size(arrow_size)
-                                    .sense(if i + 1 < action_count { egui::Sense::click() } else { egui::Sense::hover() });
-                                if ui.add(up_btn).on_hover_text("Move up").clicked() && i > 0 { move_up = Some(i); }
-                                if ui.add(down_btn).on_hover_text("Move down").clicked() && i + 1 < action_count { move_down = Some(i); }
-                            });
+                    for (i, action) in self.macro_actions[n].iter_mut().enumerate() {
+                        ui.horizontal(|ui| {
+                            // Move buttons
+                            let arrow_size = Vec2::new(26.0, 26.0);
+                            let up_btn = egui::Button::new(RichText::new("↑").size(14.0))
+                                .min_size(arrow_size)
+                                .sense(if i > 0 { egui::Sense::click() } else { egui::Sense::hover() });
+                            let down_btn = egui::Button::new(RichText::new("↓").size(14.0))
+                                .min_size(arrow_size)
+                                .sense(if i + 1 < action_count { egui::Sense::click() } else { egui::Sense::hover() });
+                            if ui.add(up_btn).on_hover_text("Move up").clicked() && i > 0 { move_up = Some(i); }
+                            if ui.add(down_btn).on_hover_text("Move down").clicked() && i + 1 < action_count { move_down = Some(i); }
 
-                            // Col 2: action type
+                            // Type label — fixed width
                             let (type_label, type_color, tooltip) = match action {
                                 MacroAction::Text(_) => ("Text", Color32::from_rgb(91, 104, 223), "Types text characters one by one"),
                                 MacroAction::Tap(_) => ("Tap", Color32::from_rgb(91, 104, 223), "Press and release a key"),
@@ -959,14 +956,17 @@ impl KeycodePicker {
                                 MacroAction::Up(_) => ("Up", Color32::from_rgb(150, 200, 50), "Release a previously pressed key"),
                                 MacroAction::Delay(_) => ("Delay", Color32::from_gray(150), "Wait before next action"),
                             };
-                            ui.add(egui::Label::new(RichText::new(type_label).size(15.0).color(type_color).strong())
-                                .sense(egui::Sense::hover()))
-                                .on_hover_text(tooltip);
+                            ui.allocate_ui(Vec2::new(55.0, 30.0), |ui| {
+                                ui.add(egui::Label::new(RichText::new(type_label).size(15.0).color(type_color).strong())
+                                    .sense(egui::Sense::hover()))
+                                    .on_hover_text(tooltip);
+                            });
 
-                            // Col 3: value
+                            // Value
                             match action {
                                 MacroAction::Text(text) => {
-                                    ui.add_sized(Vec2::new(350.0, 28.0),
+                                    let text_w = (avail_w - 220.0).max(150.0);
+                                    ui.add_sized(Vec2::new(text_w, 30.0),
                                         egui::TextEdit::singleline(text)
                                         .hint_text("Type text here...")
                                         .font(egui::FontId::monospace(14.0)))
@@ -974,52 +974,45 @@ impl KeycodePicker {
                                 }
                                 MacroAction::Tap(kc) => {
                                     let label = crate::keycode::KEYCODES.iter().find(|k| k.value == *kc as u16).map(|k| k.label).unwrap_or("?");
-                                    if ui.add(egui::Button::new(RichText::new(label).size(18.0)).min_size(Vec2::new(100.0, 36.0)))
+                                    if ui.add(egui::Button::new(RichText::new(label).size(18.0)).min_size(Vec2::new(100.0, 30.0)))
                                         .on_hover_text("Click to change key — press and release this key")
-                                        .clicked() {
-                                        self.macro_key_pick = Some((n, i));
-                                    }
+                                        .clicked() { self.macro_key_pick = Some((n, i)); }
                                 }
                                 MacroAction::Down(kc) => {
                                     let label = crate::keycode::KEYCODES.iter().find(|k| k.value == *kc as u16).map(|k| k.label).unwrap_or("?");
-                                    if ui.add(egui::Button::new(RichText::new(label).size(18.0)).min_size(Vec2::new(100.0, 36.0)))
-                                        .on_hover_text("Click to change key — holds this key down until released with Up")
-                                        .clicked() {
-                                        self.macro_key_pick = Some((n, i));
-                                    }
+                                    if ui.add(egui::Button::new(RichText::new(label).size(18.0)).min_size(Vec2::new(100.0, 30.0)))
+                                        .on_hover_text("Click to change key — holds down until Up")
+                                        .clicked() { self.macro_key_pick = Some((n, i)); }
                                 }
                                 MacroAction::Up(kc) => {
                                     let label = crate::keycode::KEYCODES.iter().find(|k| k.value == *kc as u16).map(|k| k.label).unwrap_or("?");
-                                    if ui.add(egui::Button::new(RichText::new(label).size(18.0)).min_size(Vec2::new(100.0, 36.0)))
+                                    if ui.add(egui::Button::new(RichText::new(label).size(18.0)).min_size(Vec2::new(100.0, 30.0)))
                                         .on_hover_text("Click to change key — releases this key")
-                                        .clicked() {
-                                        self.macro_key_pick = Some((n, i));
-                                    }
+                                        .clicked() { self.macro_key_pick = Some((n, i)); }
                                 }
                                 MacroAction::Delay(ms) => {
                                     let mut ms_str = ms.to_string();
-                                    ui.horizontal(|ui| {
-                                        if ui.add(egui::TextEdit::singleline(&mut ms_str)
-                                            .desired_width(80.0)
-                                            .font(egui::FontId::monospace(14.0))).changed() {
-                                            if let Ok(v) = ms_str.parse::<u16>() { *ms = v; }
-                                        }
-                                        ui.label(RichText::new("ms").size(14.0));
-                                    }).response.on_hover_text("Pause in milliseconds before next action");
+                                    if ui.add_sized(Vec2::new(80.0, 30.0),
+                                        egui::TextEdit::singleline(&mut ms_str)
+                                        .font(egui::FontId::monospace(14.0))).changed() {
+                                        if let Ok(v) = ms_str.parse::<u16>() { *ms = v; }
+                                    }
+                                    ui.label(RichText::new("ms").size(14.0)).on_hover_text("Milliseconds to wait");
                                 }
                             }
 
-                            // Col 4: delete
-                            if ui.add(egui::Button::new(RichText::new("✕").size(14.0))
-                                .min_size(Vec2::new(30.0, 30.0)))
-                                .on_hover_text("Remove this action")
-                                .clicked() {
-                                remove_idx = Some(i);
-                            }
-
-                            ui.end_row();
-                        }
-                    });
+                            // Spacer to push ✕ to the right
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                if ui.add(egui::Button::new(RichText::new("✕").size(14.0))
+                                    .min_size(Vec2::new(30.0, 30.0)))
+                                    .on_hover_text("Remove this action")
+                                    .clicked() {
+                                    remove_idx = Some(i);
+                                }
+                            });
+                        });
+                        ui.add_space(2.0);
+                    }
                 });
                 if let Some(idx) = remove_idx {
                     if idx < self.macro_actions[n].len() {
