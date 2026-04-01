@@ -147,6 +147,7 @@ pub struct EntropyApp {
     vial_unlock_keys: Vec<(u8, u8)>,
     vial_unlock_polling: bool,
     vial_unlock_counter: u8,
+    vial_unlock_best: u8,
     vial_unlock_total: u8,
     /// Channel for ZMK background operation results
     #[cfg(not(target_arch = "wasm32"))]
@@ -190,6 +191,7 @@ impl EntropyApp {
             vial_unlock_keys: vec![],
             vial_unlock_polling: false,
             vial_unlock_counter: 0,
+            vial_unlock_best: 50,
             vial_unlock_total: 50,
             #[cfg(not(target_arch = "wasm32"))]
             zmk_op_rx: None,
@@ -453,6 +455,46 @@ impl EntropyApp {
                 self.zmk_has_unsaved = false;
                 if !r.macro_texts.is_empty() {
                     self.keycode_picker.macro_texts = r.macro_texts.clone();
+                    // Parse macro texts into actions
+                    // Parse macro texts → actions (Vial protocol v2: prefix 0x01 before actions)
+                    self.keycode_picker.macro_actions = r.macro_texts.iter().map(|text| {
+                        let bytes = text.as_bytes();
+                        let mut actions = Vec::new();
+                        let mut i = 0;
+                        while i < bytes.len() {
+                            if bytes[i] == 1 && i + 1 < bytes.len() {
+                                // SS_QMK_PREFIX
+                                match bytes[i + 1] {
+                                    1 if i + 2 < bytes.len() => { // SS_TAP
+                                        actions.push(crate::keycode_picker::MacroAction::Tap(bytes[i+2]));
+                                        i += 3;
+                                    }
+                                    2 if i + 2 < bytes.len() => { // SS_DOWN
+                                        actions.push(crate::keycode_picker::MacroAction::Down(bytes[i+2]));
+                                        i += 3;
+                                    }
+                                    3 if i + 2 < bytes.len() => { // SS_UP
+                                        actions.push(crate::keycode_picker::MacroAction::Up(bytes[i+2]));
+                                        i += 3;
+                                    }
+                                    4 if i + 3 < bytes.len() => { // SS_DELAY
+                                        let ms = (bytes[i+2] as u16 - 1) + (bytes[i+3] as u16 - 1) * 255;
+                                        actions.push(crate::keycode_picker::MacroAction::Delay(ms));
+                                        i += 4;
+                                    }
+                                    _ => { i += 2; } // skip unknown
+                                }
+                            } else {
+                                // Text character
+                                let start = i;
+                                while i < bytes.len() && bytes[i] != 1 { i += 1; }
+                                if let Ok(s) = std::str::from_utf8(&bytes[start..i]) {
+                                    actions.push(crate::keycode_picker::MacroAction::Text(s.to_string()));
+                                }
+                            }
+                        }
+                        actions
+                    }).collect();
                 }
 
                 // If ZMK keyboard is locked, show the unlock modal
@@ -1045,8 +1087,18 @@ impl eframe::App for EntropyApp {
                                     self.unlock_open = true;
                                 }
                             } else {
-                                ui.label(RichText::new("🔓").size(14.0))
-                                    .on_hover_text("Keyboard is unlocked");
+                                if ui.add(egui::Button::new(RichText::new("🔓 Lock"))
+                                    .fill(Color32::TRANSPARENT))
+                                    .on_hover_text("Lock keyboard — prevents accidental changes")
+                                    .clicked()
+                                {
+                                    if let Some(hid) = &self.hid_device {
+                                        match hid.lock() {
+                                            Ok(()) => self.status_msg = "Keyboard locked".into(),
+                                            Err(e) => self.status_msg = format!("Lock failed: {e}"),
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -1127,6 +1179,7 @@ impl eframe::App for EntropyApp {
                     match hid.unlock_start() {
                         Ok(()) => {
                             self.vial_unlock_polling = true;
+                            self.vial_unlock_best = 50;
                         }
                         Err(e) => {
                             self.status_msg = format!("Unlock start failed: {e}");
@@ -1135,20 +1188,15 @@ impl eframe::App for EntropyApp {
                     }
                 }
             }
-            // Poll unlock — only poll, no other HID traffic during this
+            // Poll unlock
             if self.vial_unlock_polling {
-                // Small delay to let firmware scan matrix
-                std::thread::sleep(std::time::Duration::from_millis(10));
                 if let Some(hid) = &self.hid_device {
                     match hid.unlock_poll() {
-                        Ok((unlocked, in_progress, counter)) => {
-                            let _ = std::fs::OpenOptions::new().create(true).append(true).open(
-                                std::env::var("USERPROFILE").map(|p| format!("{}\\Desktop\\unlock_poll.txt", p)).unwrap_or("unlock_poll.txt".into())
-                            ).and_then(|mut f| {
-                                use std::io::Write;
-                                writeln!(f, "u={} ip={} c={}", unlocked, in_progress, counter)
-                            });
+                        Ok((unlocked, _in_progress, counter)) => {
                             self.vial_unlock_counter = counter;
+                            if counter < self.vial_unlock_best {
+                                self.vial_unlock_best = counter;
+                            }
                             if unlocked {
                                 self.status_msg = "Keyboard unlocked!".into();
                                 self.unlock_open = false;
@@ -1158,12 +1206,12 @@ impl eframe::App for EntropyApp {
                         Err(_) => {}
                     }
                 }
-                // Firmware checks timer_elapsed > 100ms; poll must be slower to avoid counter reset
-                ctx.request_repaint_after(std::time::Duration::from_millis(200));
+                // Poll at ~120ms intervals (firmware timer threshold is 100ms)
+                ctx.request_repaint_after(std::time::Duration::from_millis(120));
             }
             // Fullscreen overlay with layout and highlighted keys
             let unlock_keys = self.vial_unlock_keys.clone();
-            let counter = self.vial_unlock_counter;
+            let counter = self.vial_unlock_best;
             let total = self.vial_unlock_total;
 
             egui::Area::new(egui::Id::new("unlock_overlay"))
@@ -1182,7 +1230,7 @@ impl eframe::App for EntropyApp {
                         "🔓 Unlock Keyboard", FontId::proportional(24.0), Color32::WHITE);
 
                     ui.painter().text(egui::pos2(center_x, top_y + 30.0), egui::Align2::CENTER_CENTER,
-                        "Hold the highlighted keys simultaneously", FontId::proportional(14.0), Color32::from_gray(180));
+                        "Press and hold the highlighted keys one by one", FontId::proportional(14.0), Color32::from_gray(180));
 
                     // Progress bar
                     let progress = if total > 0 { 1.0 - (counter as f32 / total as f32) } else { 0.0 };
@@ -1680,6 +1728,16 @@ impl EntropyApp {
                         self.secondary_click_handled = true;
                     }
                 }
+                // Macro keys: 0x7700..0x770F — RClick opens editor
+                if kc >= 0x7700 && kc <= 0x770F {
+                    let macro_n = (kc - 0x7700) as u8;
+                    self.selected_key = Some((self.selected_layer, *ki));
+                    self.keycode_picker.open = true;
+                    self.keycode_picker.layer_names = self.layer_names.clone();
+                    self.keycode_picker.firmware = self.firmware;
+                    self.keycode_picker.macro_editor_open = Some(macro_n);
+                    self.secondary_click_handled = true;
+                }
                 // MT: 0x2000..0x3FFF, Mod+Key: 0x0100..0x1FFF with kc != 0
                 let is_layer_key = (kc >= 0x5200 && kc < 0x5300) || (kc & 0xF000 == 0x4000);
                 let pending_base: Option<u16> = if is_layer_key {
@@ -1751,9 +1809,13 @@ impl EntropyApp {
             } else {
                 let kc = layout.get_keycode(self.selected_layer, *ki);
                 let is_mod_key = (kc >= 0x2000 && kc < 0x4000) || (kc >= 0x0100 && kc < 0x2000 && (kc & 0xFF) != 0);
+                let is_macro_key = kc >= 0x7700 && kc <= 0x770F;
                 let tip = if is_mod_key {
                     let base_tip = keycode_tooltip(kc, &layout.custom_keycodes, &self.layer_names);
                     format!("{}\nRight-click to change the key", base_tip)
+                } else if is_macro_key {
+                    let base_tip = keycode_tooltip(kc, &layout.custom_keycodes, &self.layer_names);
+                    format!("{}\nRight-click to edit macro", base_tip)
                 } else {
                     keycode_tooltip(kc, &layout.custom_keycodes, &self.layer_names)
                 };
