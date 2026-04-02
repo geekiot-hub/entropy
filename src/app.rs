@@ -74,6 +74,8 @@ struct ConnectResult {
     zmk_lock_state: i32,
     /// Macro texts read from device
     macro_texts: Vec<String>,
+    /// Tap dance entries
+    tap_dance_entries: Vec<crate::keycode_picker::TapDanceEntry>,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -323,9 +325,31 @@ impl EntropyApp {
                             Err(e) => { log::warn!("get_macro_count: {e}"); vec![String::new(); 16] }
                         };
 
+                        // Read tap dance entries
+                        let tap_dance_entries = match dev_conn.get_tap_dance_count() {
+                            Ok(count) => {
+                                log::info!("Tap dance count: {count}");
+                                let mut entries = Vec::new();
+                                for i in 0..count {
+                                    match dev_conn.get_tap_dance(i) {
+                                        Ok((tap, hold, dtap, taphold, term)) => {
+                                            entries.push(crate::keycode_picker::TapDanceEntry {
+                                                on_tap: tap, on_hold: hold, on_double_tap: dtap,
+                                                on_tap_hold: taphold, tapping_term: term,
+                                            });
+                                        }
+                                        Err(e) => { log::warn!("get_tap_dance({i}): {e}"); entries.push(Default::default()); }
+                                    }
+                                }
+                                entries
+                            }
+                            Err(e) => { log::warn!("get_tap_dance_count: {e}"); vec![] }
+                        };
+
                         Ok(ConnectResult {
                             device_name: dev.name.clone(),
                             macro_texts,
+                            tap_dance_entries,
                             layout,
                             layer_count,
                             zmk_conn: None,
@@ -364,6 +388,7 @@ impl EntropyApp {
                             return Ok(ConnectResult {
                                 device_name: dev.name.clone(),
                                 macro_texts: vec![],
+                                tap_dance_entries: vec![],
                                 layout,
                                 layer_count: 0,
                                 zmk_conn: Some(conn),
@@ -409,6 +434,7 @@ impl EntropyApp {
                         Ok(ConnectResult {
                             device_name: dev.name.clone(),
                             macro_texts: vec![],
+                                tap_dance_entries: vec![],
                             layout,
                             layer_count,
                             zmk_conn: Some(conn),
@@ -455,6 +481,7 @@ impl EntropyApp {
                 self.zmk_has_unsaved = false;
                 if !r.macro_texts.is_empty() {
                     self.keycode_picker.macro_count = r.macro_texts.len();
+                    self.keycode_picker.tap_dance_entries = r.tap_dance_entries.clone();
                     self.keycode_picker.macro_texts = r.macro_texts.clone();
                     // Parse macro texts into actions
                     // Parse macro texts → actions (Vial protocol v2: prefix 0x01 before actions)
@@ -1320,6 +1347,22 @@ impl eframe::App for EntropyApp {
                         Ok(()) => self.status_msg = "Macros saved".into(),
                         Err(e) => self.status_msg = format!("Macro write error: {e}"),
                     }
+                }
+            }
+        }
+
+        // Write tap dance to device if changed
+        if self.keycode_picker.tap_dance_dirty {
+            self.keycode_picker.tap_dance_dirty = false;
+            if let Some(hid) = &self.hid_device {
+                for (i, td) in self.keycode_picker.tap_dance_entries.iter().enumerate() {
+                    match hid.set_tap_dance(i as u8, td.on_tap, td.on_hold, td.on_double_tap, td.on_tap_hold, td.tapping_term) {
+                        Ok(()) => {}
+                        Err(e) => { self.status_msg = format!("Tap dance write error: {e}"); break; }
+                    }
+                }
+                if self.status_msg.is_empty() || self.status_msg.starts_with("✓") {
+                    self.status_msg = "✓ Tap dance saved".into();
                 }
             }
         }

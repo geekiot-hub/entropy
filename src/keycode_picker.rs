@@ -5,6 +5,15 @@ use crate::keycode::{gui_label, gui_sym, keycode_tooltip, KeycodeCategory, KEYCO
 use crate::zmk::{BehaviorInfo, ZmkBinding};
 use egui::{Color32, Key, RichText, Vec2};
 
+#[derive(Clone, Debug, Default)]
+pub struct TapDanceEntry {
+    pub on_tap: u16,
+    pub on_hold: u16,
+    pub on_double_tap: u16,
+    pub on_tap_hold: u16,
+    pub tapping_term: u16,
+}
+
 #[derive(Clone, Debug)]
 pub enum MacroAction {
     Text(String),
@@ -34,6 +43,11 @@ pub struct KeycodePicker {
     pub vial_layer_pending: Option<u16>,
     /// Open macro editor for this macro number (0..15), None = closed
     pub macro_count: usize,
+    pub tap_dance_entries: Vec<TapDanceEntry>,
+    pub tap_dance_editor_open: Option<u8>,
+    pub tap_dance_dirty: bool,
+    /// Which field is being edited: (td_idx, field: 0=tap,1=hold,2=dtap,3=taphold)
+    pub td_key_pick: Option<(usize, u8)>,
     pub macro_editor_open: Option<u8>,
     /// Macro editor text buffers (one per macro)
     pub macro_texts: Vec<String>,
@@ -63,6 +77,7 @@ pub enum KeycodeTab {
     Special,
     Rgb,
     Macro,
+    TapDance,
     Quantum,
     Custom,
     ZmkAdvanced,
@@ -80,6 +95,7 @@ impl KeycodeTab {
         KeycodeTab::Special,
         KeycodeTab::Rgb,
         KeycodeTab::Macro,
+        KeycodeTab::TapDance,
         KeycodeTab::Custom,
     ];
 
@@ -109,6 +125,7 @@ impl KeycodeTab {
             KeycodeTab::Special     => "Special",
             KeycodeTab::Rgb         => "RGB",
             KeycodeTab::Macro       => "Macros",
+            KeycodeTab::TapDance   => "Tap Dance",
             KeycodeTab::Quantum     => "Quantum",
             KeycodeTab::Custom      => "Custom",
             KeycodeTab::ZmkAdvanced => "Advanced",
@@ -160,6 +177,10 @@ impl Default for KeycodePicker {
             vial_layer_pending: None,
             macro_editor_open: None,
             macro_count: 16,
+            tap_dance_entries: vec![],
+            tap_dance_editor_open: None,
+            tap_dance_dirty: false,
+            td_key_pick: None,
             macro_texts: vec![String::new(); 16],
             macro_actions: vec![vec![]; 16],
             macro_add_action_open: false,
@@ -318,9 +339,23 @@ impl KeycodePicker {
             return;
         }
 
+        // Tap dance key picker
+        if let Some((td_idx, field)) = self.td_key_pick {
+            self.show_td_key_picker(ctx, td_idx, field);
+            return;
+        }
+
+        // Tap dance editor
+        if let Some(td_n) = self.tap_dance_editor_open {
+            if (td_n as usize) < self.tap_dance_entries.len() {
+                self.show_tap_dance_editor(ctx, td_n);
+                return;
+            }
+        }
+
         // Macro editor window
         if let Some(macro_n) = self.macro_editor_open {
-            if macro_n < 16 || macro_n == 254 {
+            if (macro_n as usize) < self.macro_count || macro_n == 254 {
                 self.show_macro_editor(ctx, if macro_n == 254 { 254 } else { macro_n });
                 return;
             }
@@ -414,6 +449,7 @@ impl KeycodePicker {
                         KeycodeTab::Quantum  => self.show_vial_quantum(ui),
                         KeycodeTab::Rgb      => self.show_vial_rgb(ui),
                         KeycodeTab::Macro    => self.show_vial_macros(ui),
+                        KeycodeTab::TapDance => self.show_vial_tap_dance(ui),
                         KeycodeTab::Special  => self.show_vial_special(ui),
                         KeycodeTab::Custom   => self.show_vial_custom(ui),
                         _ => self.show_vial_generic(ui),
@@ -876,10 +912,11 @@ impl KeycodePicker {
         });
     }
 
-    fn show_macro_editor(&mut self, ctx: &egui::Context, active_macro: u8) {
+    fn show_macro_editor(&mut self, ctx: &egui::Context, _active_macro: u8) {
+        let active_macro = self.macro_editor_open.unwrap_or(254);
         // Esc to close
         if ctx.input(|i| i.key_pressed(Key::Escape)) && self.macro_key_pick.is_none() {
-            if active_macro < 16 {
+            if (active_macro as usize) < self.macro_count {
                 let n = active_macro as usize;
                 self.encode_macro(n);
                 self.result = Some(0x7700 + active_macro as u16);
@@ -897,28 +934,33 @@ impl KeycodePicker {
             .min_size(Vec2::new(700.0, 450.0))
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
             .show(ctx, |ui| {
-                // Tabs for each macro
+                // Tabs for each macro (scrollable, 2 rows visible)
+                egui::ScrollArea::vertical().max_height(70.0).auto_shrink([false, false]).show(ui, |ui| {
                 ui.horizontal_wrapped(|ui| {
+                    ui.set_max_width(ui.available_width());
                     for n in 0..self.macro_count as u8 {
                         let is_active = n == active_macro;
                         let has_content = self.macro_texts.get(n as usize).map(|s| !s.is_empty()).unwrap_or(false);
                         let label = format!("M{}", n);
                         let btn = egui::Button::new(
-                            RichText::new(&label).size(14.0)
+                            RichText::new(&label).size(11.0)
                                 .color(if is_active { Color32::WHITE } else if has_content { Color32::from_gray(200) } else { Color32::from_gray(100) })
                         ).fill(if is_active { Color32::from_rgb(91, 104, 223) } else { Color32::TRANSPARENT })
-                         .min_size(Vec2::new(40.0, 30.0));
+                         .min_size(Vec2::new(34.0, 24.0));
                         if ui.add(btn).clicked() {
+                            // Extend arrays if needed
+                            while self.macro_texts.len() <= n as usize { self.macro_texts.push(String::new()); }
+                            while self.macro_actions.len() <= n as usize { self.macro_actions.push(vec![]); }
                             self.macro_editor_open = Some(n);
-                            // Also update the assigned keycode
                             self.result = Some(0x7700 + n as u16);
                         }
                     }
                 });
+                }); // end macro tabs ScrollArea
                 ui.separator();
 
                 let raw_n = self.macro_editor_open.unwrap_or(254);
-                if raw_n >= 16 {
+                if raw_n == 254 {
                     ui.label(RichText::new("Select a macro tab above to edit").size(16.0).color(Color32::from_gray(140)));
                     return;
                 }
@@ -1093,6 +1135,188 @@ impl KeycodePicker {
             self.macros_dirty = true;
             self.open = false;
         }
+    }
+
+    fn show_vial_tap_dance(&mut self, _ui: &mut egui::Ui) {
+        self.tap_dance_editor_open = Some(255); // 255 = open editor, no selection
+    }
+
+    fn show_tap_dance_editor(&mut self, ctx: &egui::Context, active_td: u8) {
+        if ctx.input(|i| i.key_pressed(Key::Escape)) && self.td_key_pick.is_none() {
+            self.tap_dance_editor_open = None;
+            self.tap_dance_dirty = true;
+            if active_td < self.tap_dance_entries.len() as u8 {
+                self.result = Some(0x7C00 + active_td as u16); // TD keycode
+            }
+            self.open = false;
+            return;
+        }
+
+        let mut still_open = true;
+        egui::Window::new("Tap Dance Editor")
+            .open(&mut still_open)
+            .collapsible(false)
+            .resizable(true)
+            .min_size(Vec2::new(600.0, 350.0))
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .show(ctx, |ui| {
+                // Tabs
+                ui.horizontal_wrapped(|ui| {
+                    for n in 0..self.tap_dance_entries.len() as u8 {
+                        let is_active = n == active_td;
+                        let label = format!("TD{}", n);
+                        let btn = egui::Button::new(
+                            RichText::new(&label).size(14.0)
+                                .color(if is_active { Color32::WHITE } else { Color32::from_gray(100) })
+                        ).fill(if is_active { Color32::from_rgb(91, 104, 223) } else { Color32::TRANSPARENT })
+                         .min_size(Vec2::new(42.0, 30.0));
+                        if ui.add(btn).clicked() {
+                            self.tap_dance_editor_open = Some(n);
+                        }
+                    }
+                });
+                ui.separator();
+
+                if active_td == 255 || active_td as usize >= self.tap_dance_entries.len() {
+                    ui.label(RichText::new("Select a tap dance tab above to edit").size(16.0).color(Color32::from_gray(140)));
+                    return;
+                }
+
+                let n = active_td as usize;
+                ui.label(RichText::new(format!("Tap Dance TD{}", n)).size(18.0).strong());
+                ui.add_space(8.0);
+
+                let fields = [
+                    ("On Tap", "Key sent on single tap", 0u8),
+                    ("On Hold", "Key sent when held", 1),
+                    ("On Double Tap", "Key sent on double tap", 2),
+                    ("On Tap + Hold", "Key sent on tap then hold", 3),
+                ];
+
+                egui::Grid::new("td_fields").spacing([8.0, 8.0]).show(ui, |ui| {
+                    for (label, tooltip, field_id) in &fields {
+                        ui.add(egui::Label::new(RichText::new(*label).size(15.0).strong())
+                            .sense(egui::Sense::hover()))
+                            .on_hover_text(*tooltip);
+
+                        let kc = match field_id {
+                            0 => self.tap_dance_entries[n].on_tap,
+                            1 => self.tap_dance_entries[n].on_hold,
+                            2 => self.tap_dance_entries[n].on_double_tap,
+                            3 => self.tap_dance_entries[n].on_tap_hold,
+                            _ => 0,
+                        };
+                        let kc_label = if kc == 0 {
+                            "None".to_string()
+                        } else {
+                            crate::keycode::keycode_label_with_names(kc, &[], &self.layer_names)
+                        };
+                        if ui.add(egui::Button::new(RichText::new(&kc_label).size(16.0))
+                            .min_size(Vec2::new(120.0, 36.0)))
+                            .on_hover_text(if kc == 0 { "Click to assign a key".to_string() } else { keycode_tooltip(kc, &[], &self.layer_names) })
+                            .clicked() {
+                            self.td_key_pick = Some((n, *field_id));
+                        }
+                        ui.end_row();
+                    }
+
+                    // Tapping term
+                    ui.add(egui::Label::new(RichText::new("Tapping Term").size(15.0).strong())
+                        .sense(egui::Sense::hover()))
+                        .on_hover_text("Time in ms to distinguish tap from hold (default: 200)");
+                    let mut term_str = self.tap_dance_entries[n].tapping_term.to_string();
+                    ui.horizontal(|ui| {
+                        if ui.add_sized(Vec2::new(80.0, 30.0),
+                            egui::TextEdit::singleline(&mut term_str)
+                            .font(egui::FontId::monospace(14.0))).changed() {
+                            if let Ok(v) = term_str.parse::<u16>() {
+                                self.tap_dance_entries[n].tapping_term = v;
+                            }
+                        }
+                        ui.label(RichText::new("ms").size(14.0));
+                    });
+                    ui.end_row();
+                });
+            });
+
+        if !still_open {
+            if active_td < self.tap_dance_entries.len() as u8 {
+                self.result = Some(0x7C00 + active_td as u16);
+            }
+            self.tap_dance_editor_open = None;
+            self.tap_dance_dirty = true;
+            self.open = false;
+        }
+    }
+
+    fn show_td_key_picker(&mut self, ctx: &egui::Context, td_idx: usize, field: u8) {
+        // Esc to cancel
+        if ctx.input(|i| i.key_pressed(Key::Escape)) {
+            self.td_key_pick = None;
+            return;
+        }
+        // Physical key capture
+        ctx.input(|i| {
+            for event in &i.events {
+                if let egui::Event::Key { key, pressed: true, modifiers, .. } = event {
+                    if let Some(qmk) = egui_key_to_qmk(*key, *modifiers) {
+                        if qmk > 0 && qmk < 0x0100 {
+                            if let Some(td) = self.tap_dance_entries.get_mut(td_idx) {
+                                match field {
+                                    0 => td.on_tap = qmk,
+                                    1 => td.on_hold = qmk,
+                                    2 => td.on_double_tap = qmk,
+                                    3 => td.on_tap_hold = qmk,
+                                    _ => {}
+                                }
+                            }
+                            self.td_key_pick = None;
+                        }
+                    }
+                }
+            }
+        });
+
+        let field_name = match field {
+            0 => "On Tap", 1 => "On Hold", 2 => "On Double Tap", 3 => "On Tap+Hold", _ => "?"
+        };
+        let mut still_open = true;
+        egui::Window::new(format!("Pick key for {}", field_name))
+            .open(&mut still_open)
+            .collapsible(false)
+            .resizable(false)
+            .min_size(Vec2::new(400.0, 200.0))
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .show(ctx, |ui| {
+                ui.label(RichText::new("Press a key on your keyboard, or click below. Esc to cancel.")
+                    .size(11.0).color(Color32::from_gray(140)));
+                ui.add_space(4.0);
+                // None button
+                if ui.add(egui::Button::new(RichText::new("None (clear)").size(12.0))
+                    .min_size(Vec2::new(100.0, 28.0))).clicked() {
+                    if let Some(td) = self.tap_dance_entries.get_mut(td_idx) {
+                        match field { 0 => td.on_tap = 0, 1 => td.on_hold = 0, 2 => td.on_double_tap = 0, 3 => td.on_tap_hold = 0, _ => {} }
+                    }
+                    self.td_key_pick = None;
+                }
+                ui.add_space(4.0);
+                ui.horizontal_wrapped(|ui| {
+                    for kc in KEYCODES.iter() {
+                        if !matches!(kc.category, KeycodeCategory::Basic | KeycodeCategory::Function | KeycodeCategory::Navigation) { continue; }
+                        if kc.value == 0 || kc.value >= 0x0100 { continue; }
+                        let resp = ui.add(egui::Button::new(RichText::new(kc.label).size(10.0))
+                            .min_size(Vec2::new(36.0, 28.0)));
+                        if resp.clicked() {
+                            if let Some(td) = self.tap_dance_entries.get_mut(td_idx) {
+                                match field { 0 => td.on_tap = kc.value, 1 => td.on_hold = kc.value, 2 => td.on_double_tap = kc.value, 3 => td.on_tap_hold = kc.value, _ => {} }
+                            }
+                            self.td_key_pick = None;
+                        }
+                        resp.on_hover_text(keycode_tooltip(kc.value, &[], &self.layer_names));
+                    }
+                });
+            });
+        if !still_open { self.td_key_pick = None; }
     }
 
     fn encode_macro(&mut self, n: usize) {

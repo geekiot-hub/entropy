@@ -441,6 +441,10 @@ pub fn keycode_label_with_names(value: u16, custom: &[(String, String)], layer_n
     if value >= 0x7700 && value <= 0x77FF {
         return format!("M{}", value - 0x7700);
     }
+    // Tap Dance keycodes: 0x7C00..0x7CFF
+    if value >= 0x7C00 && value <= 0x7CFF {
+        return format!("TD{}", value - 0x7C00);
+    }
 
     format!("{:04X}", value)
 }
@@ -608,6 +612,10 @@ pub fn keycode_tooltip(value: u16, custom: &[(String, String)], layer_names: &[S
     // Macro keycodes
     if value >= 0x7700 && value <= 0x77FF {
         return format!("Macro {} — sends a sequence of keystrokes", value - 0x7700);
+    }
+    // Tap Dance keycodes
+    if value >= 0x7C00 && value <= 0x7CFF {
+        return format!("Tap Dance {} — different actions on tap, hold, double tap", value - 0x7C00);
     }
 
     format!("Unknown keycode (0x{:04X})", value)

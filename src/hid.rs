@@ -29,6 +29,10 @@ const CMD_VIAL_GET_UNLOCK_STATUS: u8 = 0x05;
 const CMD_VIAL_UNLOCK_START: u8 = 0x06;
 const CMD_VIAL_UNLOCK_POLL: u8 = 0x07;
 const CMD_VIAL_LOCK: u8 = 0x08;
+const CMD_VIAL_DYNAMIC_ENTRY_OP: u8 = 0x09;
+const DYNAMIC_VIAL_GET_NUM_ENTRIES: u8 = 0x00;
+const DYNAMIC_VIAL_TAP_DANCE_GET: u8 = 0x01;
+const DYNAMIC_VIAL_TAP_DANCE_SET: u8 = 0x02;
 
 const BUFFER_FETCH_CHUNK: usize = 28;
 
@@ -298,6 +302,46 @@ impl HidDevice {
         }
         buf.resize(buf_size as usize, 0);
         buf
+    }
+
+    /// Get number of tap dance entries available
+    pub fn get_tap_dance_count(&self) -> Result<u8> {
+        let resp = self.usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_DYNAMIC_ENTRY_OP, DYNAMIC_VIAL_GET_NUM_ENTRIES])?;
+        Ok(resp[0]) // first byte = tap dance count
+    }
+
+    /// Get a tap dance entry: (on_tap, on_hold, on_double_tap, on_tap_hold, tapping_term)
+    pub fn get_tap_dance(&self, idx: u8) -> Result<(u16, u16, u16, u16, u16)> {
+        let resp = self.usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_DYNAMIC_ENTRY_OP, DYNAMIC_VIAL_TAP_DANCE_GET, idx])?;
+        // resp[0] = status (0=ok), resp[1..] = entry data
+        if resp[0] != 0 {
+            anyhow::bail!("tap dance get error: {}", resp[0]);
+        }
+        let on_tap = u16::from_le_bytes([resp[1], resp[2]]);
+        let on_hold = u16::from_le_bytes([resp[3], resp[4]]);
+        let on_double_tap = u16::from_le_bytes([resp[5], resp[6]]);
+        let on_tap_hold = u16::from_le_bytes([resp[7], resp[8]]);
+        let tapping_term = u16::from_le_bytes([resp[9], resp[10]]);
+        Ok((on_tap, on_hold, on_double_tap, on_tap_hold, tapping_term))
+    }
+
+    /// Set a tap dance entry
+    pub fn set_tap_dance(&self, idx: u8, on_tap: u16, on_hold: u16, on_double_tap: u16, on_tap_hold: u16, tapping_term: u16) -> Result<()> {
+        let mut cmd = [0u8; 32];
+        cmd[0] = CMD_VIA_VIAL_PREFIX;
+        cmd[1] = CMD_VIAL_DYNAMIC_ENTRY_OP;
+        cmd[2] = DYNAMIC_VIAL_TAP_DANCE_SET;
+        cmd[3] = idx;
+        cmd[4..6].copy_from_slice(&on_tap.to_le_bytes());
+        cmd[6..8].copy_from_slice(&on_hold.to_le_bytes());
+        cmd[8..10].copy_from_slice(&on_double_tap.to_le_bytes());
+        cmd[10..12].copy_from_slice(&on_tap_hold.to_le_bytes());
+        cmd[12..14].copy_from_slice(&tapping_term.to_le_bytes());
+        let resp = self.usb_send(&cmd)?;
+        if resp[0] != 0 {
+            anyhow::bail!("tap dance set error: {}", resp[0]);
+        }
+        Ok(())
     }
 
     pub fn get_switch_matrix(&self, rows: usize, cols: usize) -> Result<Vec<bool>> {
