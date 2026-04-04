@@ -935,24 +935,26 @@ impl KeycodePicker {
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
             .show(ctx, |ui| {
                 // Tabs for each macro (scrollable, 2 rows visible)
-                egui::ScrollArea::vertical().max_height(80.0).auto_shrink([false, false]).show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    for tab_n in 0..self.macro_count.min(128) as u8 {
-                        if tab_n > 0 && tab_n % 16 == 0 { ui.add_space(8.0); }
+                // Clickable macro buttons
+                ui.label("Switch macro:");
+                ui.horizontal_wrapped(|ui| {
+                    // Allow wrapping without constraining clickable areas
+                    for tab_n in 0..128u8 {
                         let is_active = tab_n == active_macro as u8;
                         let has_content = self.macro_texts.get(tab_n as usize).map(|s| !s.is_empty()).unwrap_or(false);
                         let label = format!("M{}", tab_n);
-                        let btn_color = if is_active { Color32::WHITE } else if has_content { Color32::from_gray(200) } else { Color32::from_gray(100) };
-                        let btn_fill = if is_active { Color32::from_rgb(91, 104, 223) } else { Color32::TRANSPARENT };
-                        let btn = egui::Button::new(RichText::new(&label).size(10.0).color(btn_color))
-                            .fill(btn_fill).min_size(Vec2::new(34.0, 22.0));
-                        if ui.add(btn).clicked() {
+                        let btn = egui::Button::new(RichText::new(&label).size(10.0)
+                            .color(if is_active { Color32::WHITE } else if has_content { Color32::from_gray(200) } else { Color32::from_gray(100) }))
+                            .fill(if is_active { Color32::from_rgb(91, 104, 223) } else { Color32::TRANSPARENT })
+                            .min_size(Vec2::new(34.0, 22.0));
+                        let resp = ui.add(btn);
+                        resp.on_hover_text(format!("Edit macro {}", tab_n));
+                        if resp.clicked() {
                             while self.macro_texts.len() <= tab_n as usize { self.macro_texts.push(String::new()); }
                             while self.macro_actions.len() <= tab_n as usize { self.macro_actions.push(vec![]); }
                             self.macro_editor_open = Some(tab_n);
                         }
                     }
-                });
                 });
                 ui.separator();
 
