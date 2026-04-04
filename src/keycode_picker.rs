@@ -935,7 +935,7 @@ impl KeycodePicker {
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
             .show(ctx, |ui| {
                 // Tabs for each macro (scrollable, 2 rows visible)
-                egui::ScrollArea::vertical().max_height(200.0).auto_shrink([false, false]).show(ui, |ui| {
+                egui::ScrollArea::vertical().max_height(80.0).auto_shrink([false, false]).show(ui, |ui| {
                 ui.horizontal_wrapped(|ui| {
                     ui.set_max_width(ui.available_width());
                     for tab_n in 0..self.macro_count as u8 {
