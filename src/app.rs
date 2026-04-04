@@ -1748,6 +1748,9 @@ impl EntropyApp {
                 self.keycode_picker.firmware = self.firmware;
                 self.keycode_picker.vial_quantum_pending_mod = None;
                 self.keycode_picker.vial_quantum_pending_mt = None;
+                // Reset all editor states so picker opens normally
+                self.keycode_picker.macro_editor_open = None;
+                self.keycode_picker.tap_dance_editor_open = None;
                 if is_zmk {
                     self.keycode_picker.zmk_behaviors = self.layout.as_ref()
                         .map(|l| l.zmk_behaviors.clone()).unwrap_or_default();
