@@ -1751,11 +1751,11 @@ impl EntropyApp {
                 // Reset all editor states so picker opens normally
                 self.keycode_picker.macro_editor_open = None;
                 self.keycode_picker.tap_dance_editor_open = None;
+                self.keycode_picker.selected_tab = crate::keycode_picker::KeycodeTab::Basic;
                 if is_zmk {
                     self.keycode_picker.zmk_behaviors = self.layout.as_ref()
                         .map(|l| l.zmk_behaviors.clone()).unwrap_or_default();
                     self.keycode_picker.zmk_layer_count = self.layer_count;
-                    self.keycode_picker.selected_tab = crate::keycode_picker::KeycodeTab::Basic;
                 }
             }
 

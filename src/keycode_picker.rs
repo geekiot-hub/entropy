@@ -935,24 +935,22 @@ impl KeycodePicker {
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
             .show(ctx, |ui| {
                 // Tabs for each macro (scrollable, 2 rows visible)
-                egui::ScrollArea::vertical().max_height(70.0).auto_shrink([false, false]).show(ui, |ui| {
+                egui::ScrollArea::vertical().max_height(200.0).auto_shrink([false, false]).show(ui, |ui| {
                 ui.horizontal_wrapped(|ui| {
                     ui.set_max_width(ui.available_width());
-                    for n in 0..self.macro_count as u8 {
-                        let is_active = n == active_macro;
-                        let has_content = self.macro_texts.get(n as usize).map(|s| !s.is_empty()).unwrap_or(false);
-                        let label = format!("M{}", n);
+                    for tab_n in 0..self.macro_count as u8 {
+                        let is_active = tab_n == active_macro as u8;
+                        let has_content = self.macro_texts.get(tab_n as usize).map(|s| !s.is_empty()).unwrap_or(false);
+                        let label = format!("M{}", tab_n);
                         let btn = egui::Button::new(
                             RichText::new(&label).size(11.0)
                                 .color(if is_active { Color32::WHITE } else if has_content { Color32::from_gray(200) } else { Color32::from_gray(100) })
                         ).fill(if is_active { Color32::from_rgb(91, 104, 223) } else { Color32::TRANSPARENT })
                          .min_size(Vec2::new(34.0, 24.0));
                         if ui.add(btn).clicked() {
-                            // Extend arrays if needed
-                            while self.macro_texts.len() <= n as usize { self.macro_texts.push(String::new()); }
-                            while self.macro_actions.len() <= n as usize { self.macro_actions.push(vec![]); }
-                            self.macro_editor_open = Some(n);
-                            self.result = Some(0x7700 + n as u16);
+                            while self.macro_texts.len() <= tab_n as usize { self.macro_texts.push(String::new()); }
+                            while self.macro_actions.len() <= tab_n as usize { self.macro_actions.push(vec![]); }
+                            self.macro_editor_open = Some(tab_n);
                         }
                     }
                 });
