@@ -54,6 +54,47 @@ fn save_layer_names(names: &[String], device_name: &str) {
         }
     }
 }
+
+fn macro_display_name(macro_names: &[String], idx: usize) -> String {
+    match macro_names.get(idx) {
+        Some(name) if !name.trim().is_empty() => name.clone(),
+        _ => format!("M{}", idx),
+    }
+}
+
+fn macro_custom_name(macro_names: &[String], idx: usize) -> Option<String> {
+    macro_names.get(idx).map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
+}
+
+fn keycode_label_with_macro_names(
+    value: u16,
+    custom: &[(String, String)],
+    layer_names: &[String],
+    macro_names: &[String],
+) -> String {
+    if (0x7700..=0x77FF).contains(&value) {
+        let idx = (value - 0x7700) as usize;
+        if let Some(name) = macro_custom_name(macro_names, idx) {
+            return format!("M{}\n{}", idx, name);
+        }
+        return format!("M{}", idx);
+    }
+    keycode_label_with_names(value, custom, layer_names)
+}
+
+fn keycode_tooltip_with_macro_names(
+    value: u16,
+    custom: &[(String, String)],
+    layer_names: &[String],
+    macro_names: &[String],
+) -> String {
+    if (0x7700..=0x77FF).contains(&value) {
+        let idx = (value - 0x7700) as usize;
+        let name = macro_display_name(macro_names, idx);
+        return format!("{} — macro {}", name, idx);
+    }
+    keycode_tooltip(value, custom, layer_names)
+}
 use crate::keyboard::KeyboardLayout;
 use crate::keycode::{keycode_label_with_names, keycode_tooltip};
 use crate::keycode_picker::KeycodePicker;
@@ -483,6 +524,7 @@ impl EntropyApp {
                     self.keycode_picker.macro_count = r.macro_texts.len();
                     self.keycode_picker.tap_dance_entries = r.tap_dance_entries.clone();
                     self.keycode_picker.macro_texts = r.macro_texts.clone();
+                    self.keycode_picker.macro_names = vec![String::new(); r.macro_texts.len()];
                     // Parse macro texts into actions
                     // Parse macro texts → actions (Vial protocol v2: prefix 0x01 before actions)
                     self.keycode_picker.macro_actions = r.macro_texts.iter().map(|text| {
@@ -991,19 +1033,16 @@ impl eframe::App for EntropyApp {
 
 
         // Handle Vial keycode picker result
-        // Don't consume result while macro editor is open
-        if self.keycode_picker.macro_editor_open.is_none() || self.keycode_picker.macro_editor_open == Some(255) {
-            if let Some(kc_value) = self.keycode_picker.result.take() {
-                if let Some((layer, ki)) = self.selected_key {
-                    #[cfg(not(target_arch = "wasm32"))]
-                    self.assign_keycode(layer, ki, kc_value);
-                    #[cfg(target_arch = "wasm32")]
-                    if let Some(layout) = &mut self.layout {
-                        layout.set_keycode(layer, ki, kc_value);
-                    }
+        if let Some(kc_value) = self.keycode_picker.result.take() {
+            if let Some((layer, ki)) = self.selected_key {
+                #[cfg(not(target_arch = "wasm32"))]
+                self.assign_keycode(layer, ki, kc_value);
+                #[cfg(target_arch = "wasm32")]
+                if let Some(layout) = &mut self.layout {
+                    layout.set_keycode(layer, ki, kc_value);
                 }
-                self.selected_key = None;
             }
+            self.selected_key = None;
         }
 
         // Handle ZMK binding picker result
@@ -1311,7 +1350,7 @@ impl eframe::App for EntropyApp {
                             ui.painter().rect(rect, 5.0, bg, Stroke::new(1.0, border), egui::StrokeKind::Inside);
 
                             let kc = layout.get_keycode(0, ki);
-                            let label = crate::keycode::keycode_label_with_names(kc, &layout.custom_keycodes, &self.layer_names);
+                            let label = keycode_label_with_macro_names(kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names);
                             let text_color = if is_unlock { Color32::WHITE } else { Color32::from_gray(80) };
                             ui.painter().text(rect.center(), egui::Align2::CENTER_CENTER, &label,
                                 FontId::proportional(9.0 * scale), text_color);
@@ -1606,8 +1645,17 @@ impl EntropyApp {
                 let name_hit = egui::Rect::from_center_size(egui::pos2(center_x, mid_y), Vec2::new(text_w + 12.0, 52.0));
                 let name_r = ui.allocate_rect(name_hit, Sense::click());
 
-                // Scroll wheel over the name area switches layers (down = next, up = prev)
-                if name_r.hovered() {
+                // Full layer switch zone from arrow to arrow for mouse wheel switching.
+                let left_hit  = egui::Rect::from_center_size(left_center,  Vec2::splat(48.0));
+                let right_hit = egui::Rect::from_center_size(right_center, Vec2::splat(48.0));
+                let wheel_hit = egui::Rect::from_min_max(
+                    egui::pos2(left_hit.left(), mid_y - 26.0),
+                    egui::pos2(right_hit.right(), mid_y + 26.0),
+                );
+                let wheel_r = ui.allocate_rect(wheel_hit, Sense::hover());
+
+                // Scroll wheel over the whole layer bar switches layers (down = next, up = prev)
+                if wheel_r.hovered() {
                     let scroll = ui.input(|i| i.raw_scroll_delta.y);
                     if scroll < 0.0 && selected > 0 {
                         self.selected_layer = selected - 1;
@@ -1617,8 +1665,6 @@ impl EntropyApp {
                 }
 
                 // Allocate arrows LAST so they have click priority over the name rect.
-                let left_hit  = egui::Rect::from_center_size(left_center,  Vec2::splat(48.0));
-                let right_hit = egui::Rect::from_center_size(right_center, Vec2::splat(48.0));
                 let left_r  = ui.allocate_rect(left_hit,  Sense::click());
                 let right_r = ui.allocate_rect(right_hit, Sense::click());
                 if left_r.hovered()  { ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand); }
@@ -1702,12 +1748,9 @@ impl EntropyApp {
                         ui.painter().text(egui::pos2(center_x, hint_y), egui::Align2::CENTER_CENTER,
                             "Left click to change this key", hint_font, hint_color);
                     }
-                }
-
-                // Edit icon after text on hover
-                if name_r.hovered() {
-                    let icon_pos = egui::pos2(center_x + text_w / 2.0 + 6.0, mid_y);
-                    ui.painter().text(icon_pos, egui::Align2::LEFT_CENTER, "✎", FontId::proportional(24.0), Color32::from_rgb(91, 104, 223));
+                } else if name_r.hovered() {
+                    ui.painter().text(egui::pos2(center_x, hint_y), egui::Align2::CENTER_CENTER,
+                        "Click to rename layer", hint_font, hint_color);
                 }
             }
         }
@@ -1749,7 +1792,6 @@ impl EntropyApp {
                 self.keycode_picker.vial_quantum_pending_mod = None;
                 self.keycode_picker.vial_quantum_pending_mt = None;
                 // Reset all editor states so picker opens normally
-                self.keycode_picker.macro_editor_open = None;
                 self.keycode_picker.tap_dance_editor_open = None;
                 self.keycode_picker.selected_tab = crate::keycode_picker::KeycodeTab::Basic;
                 if is_zmk {
@@ -1789,7 +1831,8 @@ impl EntropyApp {
                     self.keycode_picker.open = true;
                     self.keycode_picker.layer_names = self.layer_names.clone();
                     self.keycode_picker.firmware = self.firmware;
-                    self.keycode_picker.macro_editor_open = Some(macro_n);
+                    self.keycode_picker.selected_tab = crate::keycode_picker::KeycodeTab::Macro;
+                    self.keycode_picker.macro_inline_selected = Some(macro_n);
                     self.secondary_click_handled = true;
                 }
                 // MT: 0x2000..0x3FFF, Mod+Key: 0x0100..0x1FFF with kc != 0
@@ -1865,12 +1908,11 @@ impl EntropyApp {
                 let is_mod_key = (kc >= 0x2000 && kc < 0x4000) || (kc >= 0x0100 && kc < 0x2000 && (kc & 0xFF) != 0);
                 let is_macro_key = kc >= 0x7700 && kc <= 0x77FF;
                 let tip = if is_mod_key {
-                    let base_tip = keycode_tooltip(kc, &layout.custom_keycodes, &self.layer_names);
-                    format!("{}\nRight-click to change the key", base_tip)
+                    keycode_tooltip_with_macro_names(kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names)
                 } else if is_macro_key {
-                    keycode_tooltip(kc, &layout.custom_keycodes, &self.layer_names)
+                    keycode_tooltip_with_macro_names(kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names)
                 } else {
-                    keycode_tooltip(kc, &layout.custom_keycodes, &self.layer_names)
+                    keycode_tooltip_with_macro_names(kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names)
                 };
                 *response = response.clone().on_hover_text(tip);
             }
@@ -1968,7 +2010,7 @@ impl EntropyApp {
                         let label = if fallback_kc == 0x0000 || fallback_kc == 0x0001 {
                             "\u{25BD}".to_string()
                         } else {
-                            keycode_label_with_names(fallback_kc, &layout.custom_keycodes, &self.layer_names)
+                            keycode_label_with_macro_names(fallback_kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names)
                         };
                         draw_key_label_dimmed(&painter, draw_rect, &label, dark);
                     }
@@ -1981,7 +2023,7 @@ impl EntropyApp {
                 } else {
                     let border = if dark { Color32::from_rgb(55, 55, 60) } else { Color32::from_rgb(210, 210, 218) };
                     painter.rect(draw_rect, 6.0, bg, Stroke::new(1.0, border), egui::StrokeKind::Inside);
-                    let label = keycode_label_with_names(kc, &layout.custom_keycodes, &self.layer_names);
+                    let label = keycode_label_with_macro_names(kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names);
                     draw_key_label(&painter, draw_rect, &label, dark);
                 }
             }
