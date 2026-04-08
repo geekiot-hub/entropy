@@ -1,15 +1,15 @@
 /// QMK/Vial keycode definitions — protocol v6
 /// Reference: vial-gui/src/main/python/keycodes/keycodes_v6.py
 
-/// Returns the platform-appropriate label for the GUI/Super/Win/Cmd key.
-/// Windows → "Win", macOS → "⌘", Linux → "Super"
-pub fn gui_label(right: bool) -> &'static str {
+/// Returns the platform-appropriate generic label for the GUI/Super/Win/Cmd key.
+/// Side-specific info belongs in tooltips, not the keycap label.
+pub fn gui_label(_right: bool) -> &'static str {
     #[cfg(target_os = "macos")]
-    { if right { "R⌘" } else { "L⌘" } }
+    { "⌘" }
     #[cfg(target_os = "windows")]
-    { if right { "RWin" } else { "LWin" } }
+    { "Win" }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-    { if right { "RSuper" } else { "LSuper" } }
+    { "Super" }
 }
 
 /// Short GUI symbol for use in compound labels (e.g. MT, mod combos).
@@ -17,6 +17,39 @@ pub fn gui_sym() -> &'static str {
     #[cfg(target_os = "macos")] { "⌘" }
     #[cfg(target_os = "windows")] { "Win" }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))] { "Super" }
+}
+
+fn gui_mod_name() -> &'static str {
+    #[cfg(target_os = "macos")] { "Cmd" }
+    #[cfg(target_os = "windows")] { "Win" }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))] { "Super" }
+}
+
+fn gui_key_tooltip(right: bool) -> String {
+    #[cfg(target_os = "macos")]
+    {
+        if right {
+            "Right Cmd, macOS modifier key and app shortcuts".to_string()
+        } else {
+            "Left Cmd, macOS modifier key and app shortcuts".to_string()
+        }
+    }
+    #[cfg(target_os = "windows")]
+    {
+        if right {
+            "Right Win, Windows modifier key and OS shortcuts".to_string()
+        } else {
+            "Left Win, Windows modifier key and OS shortcuts".to_string()
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        if right {
+            "Right Super, desktop modifier key and OS shortcuts".to_string()
+        } else {
+            "Left Super, desktop modifier key and OS shortcuts".to_string()
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -86,7 +119,7 @@ pub const KEYCODES: &[Keycode] = &[
     Keycode { value: 0x0027, name: "KC_0", label: "0", category: KeycodeCategory::Basic },
 
     // ── Control ───────────────────────────────────────────────────────────────
-    Keycode { value: 0x0028, name: "KC_ENTER",  label: "⏎",    category: KeycodeCategory::Basic },
+    Keycode { value: 0x0028, name: "KC_ENTER",  label: "↵",    category: KeycodeCategory::Basic },
     Keycode { value: 0x0029, name: "KC_ESCAPE", label: "Esc",  category: KeycodeCategory::Basic },
     Keycode { value: 0x002A, name: "KC_BSPACE", label: "⌫",    category: KeycodeCategory::Basic },
     Keycode { value: 0x002B, name: "KC_TAB",    label: "Tab",  category: KeycodeCategory::Basic },
@@ -256,8 +289,8 @@ _",  category: KeycodeCategory::Basic },
 
     // ── QMK special ───────────────────────────────────────────────────────────
     Keycode { value: 0x7C16, name: "KC_GESC",  label: "~\nEsc", category: KeycodeCategory::Special },
-    Keycode { value: 0x7C77, name: "QK_BOOT",  label: "⚡\nBoot", category: KeycodeCategory::Special },
-    Keycode { value: 0x7C00, name: "DB_TOGG",  label: "🐛\nDbg", category: KeycodeCategory::Special },
+    Keycode { value: 0x7C00, name: "QK_BOOT",  label: "⚡\nBoot", category: KeycodeCategory::Special },
+    Keycode { value: 0x7C02, name: "DB_TOGG",  label: "🐛\nDbg", category: KeycodeCategory::Special },
     Keycode { value: 0x7800, name: "QK_LOCK",  label: "🔒\nLock",category: KeycodeCategory::Special },
     Keycode { value: 0x7C1A, name: "KC_LSPO",  label: "LSPO",  category: KeycodeCategory::Special },
     Keycode { value: 0x7C1B, name: "KC_RSPC",  label: "RSPC",  category: KeycodeCategory::Special },
@@ -305,9 +338,15 @@ pub fn keycode_label_with_names(value: u16, custom: &[(String, String)], layer_n
             _ => n.to_string(),
         }
     };
-    // GUI keys — platform-specific label
-    if value == 0x00E3 { return format!("L{}", gui_label(false)); }
-    if value == 0x00E7 { return format!("R{}", gui_label(true)); }
+    // Plain modifiers in the main layout should use readable text, not glyph icons
+    match value {
+        0x00E0 | 0x00E4 => return "Ctrl".to_string(),
+        0x00E1 | 0x00E5 => return "Shift".to_string(),
+        0x00E2 | 0x00E6 => return "Alt".to_string(),
+        0x00E3 => return gui_label(false).to_string(),
+        0x00E7 => return gui_label(false).to_string(),
+        _ => {}
+    }
 
     if let Some(kc) = find_keycode(value) {
         return kc.label.to_string();
@@ -337,10 +376,29 @@ pub fn keycode_label_with_names(value: u16, custom: &[(String, String)], layer_n
         return format!("USER{}", value - KB_BASE);
     }
 
-    // One-shot mod: 0x52A0 base
+    // One-shot mod: 0x52A0 / 0x52B0
     if value & 0xFF00 == 0x52A0 || value & 0xFF00 == 0x52B0 {
-        let mods = value & 0xFF;
-        let mod_str = decode_mods(mods, value >= 0x52B0);
+        let mod_str = match value {
+            0x52A2 => "Left Ctrl",
+            0x52B2 => "Right Ctrl",
+            0x52A1 => "Left Shift",
+            0x52B1 => "Right Shift",
+            0x52A4 => "Left Alt",
+            0x52B4 => "Right Alt",
+            0x52A8 => {
+                #[cfg(target_os = "macos")] { "Left Cmd" }
+                #[cfg(target_os = "windows")] { "Left Win" }
+                #[cfg(not(any(target_os = "macos", target_os = "windows")))] { "Left Super" }
+            }
+            0x52B8 => {
+                #[cfg(target_os = "macos")] { "Right Cmd" }
+                #[cfg(target_os = "windows")] { "Right Win" }
+                #[cfg(not(any(target_os = "macos", target_os = "windows")))] { "Right Super" }
+            }
+            0x52A7 => "Meh",
+            0x52AF => "Hyper",
+            _ => "Modifier",
+        };
         return format!("OSM/{}", mod_str);
     }
 
@@ -441,9 +499,9 @@ pub fn keycode_label_with_names(value: u16, custom: &[(String, String)], layer_n
     if value >= 0x7700 && value <= 0x77FF {
         return format!("M{}", value - 0x7700);
     }
-    // Tap Dance keycodes: 0x7C00..0x7CFF
-    if value >= 0x7C00 && value <= 0x7CFF {
-        return format!("TD{}", value - 0x7C00);
+    // Tap Dance keycodes: 0x5700..0x57FF
+    if value >= 0x5700 && value <= 0x57FF {
+        return format!("TD{}", value - 0x5700);
     }
 
     format!("{:04X}", value)
@@ -476,18 +534,18 @@ pub fn keycode_tooltip(value: u16, custom: &[(String, String)], layer_names: &[S
             _ => format!("layer {}", n),
         }
     };
-    let mod_name = |m: u16, right: bool| -> &'static str {
-        match (m, right) {
-            (0x01, false) | (0x01, true) => "Ctrl",
-            (0x02, false) | (0x02, true) => "Shift",
-            (0x04, false) | (0x04, true) => "Alt",
-            (0x08, false) | (0x08, true) => "Win/Cmd",
-            (0x07, _) => "Meh (Ctrl+Shift+Alt)",
-            (0x0F, _) => "Hyper (Ctrl+Shift+Alt+Win)",
-            (0x03, _) => "Ctrl+Shift",
-            (0x05, _) => "Ctrl+Alt",
-            (0x06, _) => "Shift+Alt",
-            _ => "modifier",
+    let mod_name = |m: u16, _right: bool| -> String {
+        match m & 0x0F {
+            0x01 => "Ctrl".into(),
+            0x02 => "Shift".into(),
+            0x04 => "Alt".into(),
+            0x08 => gui_mod_name().into(),
+            0x07 => "Meh (Ctrl+Shift+Alt)".into(),
+            0x0F => format!("Hyper (Ctrl+Shift+Alt+{})", gui_mod_name()),
+            0x03 => "Ctrl+Shift".into(),
+            0x05 => "Ctrl+Alt".into(),
+            0x06 => "Shift+Alt".into(),
+            _ => "modifier".into(),
         }
     };
     let side = |v: u16| if v & 0x10 != 0 { "Right " } else { "Left " };
@@ -569,19 +627,19 @@ pub fn keycode_tooltip(value: u16, custom: &[(String, String)], layer_names: &[S
             0x01 => "Ctrl+",
             0x02 => "Shift+",
             0x04 => "Alt+",
-            0x08 => "Win/Cmd+",
+            0x08 => return format!("Shortcut: {}+{}", gui_mod_name(), kc_str),
             0x03 => "Ctrl+Shift+",
             0x05 => "Ctrl+Alt+",
             0x06 => "Shift+Alt+",
             0x07 => "Meh (Ctrl+Shift+Alt)+",
-            0x09 => "Ctrl+Win+",
-            0x0C => "Alt+Win+",
-            0x0F => "Hyper (Ctrl+Shift+Alt+Win)+",
-            0x0A => "Shift+Win+",
+            0x09 => return format!("Shortcut: Ctrl+{}+{}", gui_mod_name(), kc_str),
+            0x0C => return format!("Shortcut: Alt+{}+{}", gui_mod_name(), kc_str),
+            0x0F => return format!("Shortcut: Hyper (Ctrl+Shift+Alt+{})+{}", gui_mod_name(), kc_str),
+            0x0A => return format!("Shortcut: Shift+{}+{}", gui_mod_name(), kc_str),
             0x11 => "Right Ctrl+",
             0x12 => "Right Shift+",
             0x14 => "Right Alt+",
-            0x18 => "Right Win+",
+            0x18 => return format!("Shortcut: Right {}+{}", gui_mod_name(), kc_str),
             _ => "Modifier+",
         };
         return format!("Shortcut: {}{}", combo, kc_str);
@@ -614,8 +672,8 @@ pub fn keycode_tooltip(value: u16, custom: &[(String, String)], layer_names: &[S
         return format!("Macro {} — sends a sequence of keystrokes", value - 0x7700);
     }
     // Tap Dance keycodes
-    if value >= 0x7C00 && value <= 0x7CFF {
-        return format!("Tap Dance {} — different actions on tap, hold, double tap", value - 0x7C00);
+    if value >= 0x5700 && value <= 0x57FF {
+        return format!("Tap Dance {} — different actions on tap, hold, double tap", value - 0x5700);
     }
 
     format!("Unknown keycode (0x{:04X})", value)
@@ -655,8 +713,8 @@ fn simple_key_tooltip(kc: &Keycode) -> String {
         "KC_RSHIFT" => "Right Shift — hold to type uppercase / shifted symbols",
         "KC_LALT"   => "Left Alt — modifier key (hold to activate shortcuts)",
         "KC_RALT"   => "Right Alt / AltGr — access special characters",
-        "KC_LGUI"   => "Left Win/Cmd — open start menu, OS shortcuts",
-        "KC_RGUI"   => "Right Win/Cmd — open start menu, OS shortcuts",
+        "KC_LGUI"   => return gui_key_tooltip(false),
+        "KC_RGUI"   => return gui_key_tooltip(true),
         // Navigation
         "KC_UP"       => "Arrow Up",
         "KC_DOWN"     => "Arrow Down",

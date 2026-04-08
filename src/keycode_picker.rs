@@ -88,8 +88,6 @@ impl KeycodeTab {
         KeycodeTab::Basic,
         KeycodeTab::Symbols,
         KeycodeTab::Modifiers,
-        KeycodeTab::Layers,
-        KeycodeTab::Media,
         KeycodeTab::Special,
         KeycodeTab::Rgb,
         KeycodeTab::Macro,
@@ -362,6 +360,13 @@ impl KeycodePicker {
     // ─────────────────────────── VIAL PICKER ────────────────────────────────
 
     fn show_vial(&mut self, ctx: &egui::Context) {
+        if self.selected_tab == KeycodeTab::Layers {
+            self.selected_tab = KeycodeTab::Modifiers;
+        }
+        if self.selected_tab == KeycodeTab::Media {
+            self.selected_tab = KeycodeTab::Special;
+        }
+
         if ctx.input(|i| i.key_pressed(Key::Escape)) {
             if self.vial_quantum_pending_mod.is_some() || self.vial_quantum_pending_mt.is_some() {
                 self.vial_quantum_pending_mod = None;
@@ -417,7 +422,7 @@ impl KeycodePicker {
 
         let mut still_open = true;
         let picker_size = Vec2::new(920.0, 560.0);
-        egui::Window::new("Keycode")
+        egui::Window::new("Key Editor")
             .open(&mut still_open)
             .collapsible(false)
             .resizable(false)
@@ -436,7 +441,14 @@ impl KeycodePicker {
                     for tab in KeycodeTab::VIAL_TABS {
                         if *tab == KeycodeTab::Custom && self.custom_keycodes.is_empty() { continue; }
                         let active = self.selected_tab == *tab;
-                        let btn = egui::Button::new(RichText::new(tab.label()).size(12.0))
+                        let text = if active {
+                            RichText::new(tab.label())
+                                .size(12.0)
+                                .color(ui.visuals().widgets.hovered.fg_stroke.color)
+                        } else {
+                            RichText::new(tab.label()).size(12.0)
+                        };
+                        let btn = egui::Button::new(text)
                             .fill(if active { Color32::from_rgb(91, 104, 223) } else { Color32::TRANSPARENT });
                         if ui.add(btn).clicked() {
                             self.selected_tab = *tab;
@@ -459,6 +471,7 @@ impl KeycodePicker {
                             .auto_shrink([false, false])
                             .show(ui, |ui| {
                                 ui.scope(|ui| {
+                                    let dark_mode = ui.visuals().dark_mode;
                                     let visuals = ui.visuals_mut();
                                     visuals.widgets.inactive.bg_fill = Color32::TRANSPARENT;
                                     visuals.widgets.inactive.weak_bg_fill = Color32::TRANSPARENT;
@@ -468,6 +481,17 @@ impl KeycodePicker {
                                     visuals.widgets.active.weak_bg_fill = Color32::TRANSPARENT;
                                     visuals.widgets.open.bg_fill = Color32::TRANSPARENT;
                                     visuals.widgets.open.weak_bg_fill = Color32::TRANSPARENT;
+                                    if dark_mode {
+                                        visuals.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(55, 55, 60));
+                                        visuals.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(75, 75, 82));
+                                        visuals.widgets.active.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(91, 104, 223));
+                                        visuals.widgets.open.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(91, 104, 223));
+                                    } else {
+                                        visuals.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(210, 210, 218));
+                                        visuals.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(185, 185, 196));
+                                        visuals.widgets.active.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(91, 104, 223));
+                                        visuals.widgets.open.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(91, 104, 223));
+                                    }
 
                                     if self.selected_tab == KeycodeTab::Basic {
                                         ui.add_space(88.0);
@@ -655,9 +679,9 @@ impl KeycodePicker {
         let rect = egui::Rect::from_min_size(egui::pos2(x, y), Vec2::new(width, cell_h));
         let tip = keycode_tooltip(value, &[], &self.layer_names);
         let stroke = if ui.visuals().dark_mode {
-            egui::Stroke::new(1.0, Color32::from_gray(110))
+            egui::Stroke::new(1.0, Color32::from_rgb(55, 55, 60))
         } else {
-            egui::Stroke::new(1.0, Color32::from_gray(150))
+            egui::Stroke::new(1.0, Color32::from_rgb(210, 210, 218))
         };
         let resp = ui.put(
             rect,
@@ -830,6 +854,7 @@ impl KeycodePicker {
     }
 
     fn show_vial_layers(&mut self, ui: &mut egui::Ui) {
+        ui.spacing_mut().item_spacing = Vec2::new(6.0, 8.0);
         let ops: &[(u16, &str, &str)] = &[
             (0x5220, "MO — Momentary",   "Hold to activate, release to return"),
             (0x5260, "TG — Toggle",      "Tap to toggle on/off"),
@@ -843,83 +868,48 @@ impl KeycodePicker {
         ui.add_space(6.0);
         ui.horizontal_wrapped(|ui| {
             for (base, label, hint) in ops {
-                let resp = ui.add(egui::Button::new(RichText::new(*label).size(11.0))
-                    .min_size(Vec2::new(120.0, 38.0)));
+                let resp = ui.add(egui::Button::new(RichText::new(*label).size(10.5))
+                    .min_size(Vec2::new(102.0, 34.0)));
                 if resp.clicked() {
                     self.vial_layer_pending = Some(*base);
                 }
                 resp.on_hover_text(*hint);
             }
+            let lt_resp = ui.add(egui::Button::new(RichText::new("LT — Layer-Tap").size(10.5))
+                .min_size(Vec2::new(102.0, 34.0)));
+            if lt_resp.clicked() {
+                self.vial_layer_pending = Some(0x4000);
+            }
+            lt_resp.on_hover_text("Hold = activate layer, tap = keycode (set key via right-click afterwards)");
         });
-
-        // LT (Layer-Tap) — separate since base is 0x4000 + layer<<8
-        ui.add_space(6.0);
-        let lt_resp = ui.add(egui::Button::new(RichText::new("LT — Layer-Tap").size(11.0))
-            .min_size(Vec2::new(120.0, 38.0)));
-        if lt_resp.clicked() {
-            self.vial_layer_pending = Some(0x4000);
-        }
-        lt_resp.on_hover_text("Hold = activate layer, tap = keycode (set key via right-click afterwards)");
     }
 
     fn show_vial_modifiers(&mut self, ui: &mut egui::Ui) {
-        let gui = gui_sym();
+        ui.spacing_mut().item_spacing = Vec2::new(6.0, 8.0);
+        let gui = gui_label(false);
         let lgui = gui_label(false);
-        let rgui = gui_label(true);
 
         ui.label(RichText::new("Plain modifiers").size(11.0).color(Color32::from_gray(150)));
         ui.add_space(4.0);
         let plain: Vec<(String, u16, String)> = vec![
-            ("⌃ LCtrl".into(),       0x00E0, "Left Control".into()),
-            ("⇧ LShift".into(),      0x00E1, "Left Shift".into()),
-            ("⌥ LAlt".into(),        0x00E2, "Left Alt".into()),
-            (format!("  L{}", lgui), 0x00E3, format!("Left {}", lgui)),
-            ("⌃ RCtrl".into(),       0x00E4, "Right Control".into()),
-            ("⇧ RShift".into(),      0x00E5, "Right Shift".into()),
-            ("⌥ RAlt".into(),        0x00E6, "Right Alt / AltGr".into()),
-            (format!("  R{}", rgui), 0x00E7, format!("Right {}", rgui)),
+            ("Ctrl".into(),         0x00E0, "Left Control".into()),
+            ("Shift".into(),        0x00E1, "Left Shift".into()),
+            ("Alt".into(),          0x00E2, "Left Alt".into()),
+            (gui.into(),            0x00E3, format!("Left {}", lgui)),
         ];
         ui.horizontal_wrapped(|ui| {
             for (label, value, tip) in &plain {
-                let resp = ui.add(egui::Button::new(RichText::new(label.as_str()).size(11.0))
-                    .min_size(Vec2::new(80.0, 38.0)));
+                let resp = ui.add(egui::Button::new(RichText::new(label.as_str()).size(10.5))
+                    .min_size(Vec2::new(68.0, 34.0)));
                 if resp.clicked() { self.result = Some(*value); self.open = false; }
                 resp.on_hover_text(tip.as_str());
             }
         });
 
-        ui.separator();
-        ui.label(RichText::new("Mod-Tap — hold for modifier, tap for regular key").size(11.0).color(Color32::from_gray(150)));
-        ui.add_space(2.0);
-        ui.label(RichText::new("Pick modifier below; tap key is set separately.").size(10.0).color(Color32::from_gray(120)));
-        ui.add_space(4.0);
-        let mt: Vec<(String, u16, String)> = vec![
-            ("MT Ctrl".into(),          0x2100, "Mod-Tap: hold=LCtrl".into()),
-            ("MT Shift".into(),         0x2200, "Mod-Tap: hold=LShift".into()),
-            ("MT Alt".into(),           0x2400, "Mod-Tap: hold=LAlt".into()),
-            (format!("MT {}", lgui),   0x2800, format!("Mod-Tap: hold=L{}", lgui)),
-            ("MT C+S".into(),          0x2300, "Mod-Tap: hold=Ctrl+Shift".into()),
-            ("MT C+A".into(),          0x2500, "Mod-Tap: hold=Ctrl+Alt".into()),
-            ("MT S+A".into(),          0x2600, "Mod-Tap: hold=Shift+Alt (LSA)".into()),
-            ("MT Meh".into(),          0x2700, "Mod-Tap: hold=Meh (Ctrl+Shift+Alt)".into()),
-            ("MT Hyper".into(),        0x2F00, "Mod-Tap: hold=Hyper (Ctrl+Shift+Alt+Win)".into()),
-            ("MT RCtrl".into(),        0x3100, "Mod-Tap: hold=RCtrl".into()),
-            ("MT RShift".into(),       0x3200, "Mod-Tap: hold=RShift".into()),
-            ("MT RAlt".into(),         0x3400, "Mod-Tap: hold=RAlt".into()),
-            (format!("MT R{}", rgui),  0x3800, format!("Mod-Tap: hold=R{}", rgui)),
-        ];
-        ui.horizontal_wrapped(|ui| {
-            for (label, value, tip) in &mt {
-                let resp = ui.add(egui::Button::new(RichText::new(label.as_str()).size(10.5))
-                    .min_size(Vec2::new(80.0, 38.0)));
-                if resp.clicked() {
-                    self.vial_quantum_pending_mt = Some(*value);
-                }
-                resp.on_hover_text(tip.as_str());
-            }
-        });
+        ui.add_space(12.0);
+        self.show_vial_layers(ui);
 
-        ui.separator();
+        ui.add_space(12.0);
         ui.label(RichText::new("Mod+Key — always sends modifier+key together").size(11.0).color(Color32::from_gray(150)));
         ui.add_space(4.0);
         let mk: Vec<(String, u16, String)> = vec![
@@ -937,7 +927,7 @@ impl KeycodePicker {
         ui.horizontal_wrapped(|ui| {
             for (label, value, tip) in &mk {
                 let resp = ui.add(egui::Button::new(RichText::new(label.as_str()).size(10.5))
-                    .min_size(Vec2::new(90.0, 38.0)));
+                    .min_size(Vec2::new(74.0, 34.0)));
                 if resp.clicked() {
                     self.vial_quantum_pending_mod = Some(*value);
                 }
@@ -945,25 +935,47 @@ impl KeycodePicker {
             }
         });
 
-        ui.separator();
+        ui.add_space(12.0);
+        ui.label(RichText::new("Mod-Tap — hold for modifier, tap for regular key").size(11.0).color(Color32::from_gray(150)));
+        ui.add_space(2.0);
+        ui.add_space(4.0);
+        let mt: Vec<(String, u16, String)> = vec![
+            ("MT Ctrl".into(),          0x2100, "Mod-Tap: hold=LCtrl".into()),
+            ("MT Shift".into(),         0x2200, "Mod-Tap: hold=LShift".into()),
+            ("MT Alt".into(),           0x2400, "Mod-Tap: hold=LAlt".into()),
+            (format!("MT {}", lgui),   0x2800, format!("Mod-Tap: hold=L{}", lgui)),
+            ("MT C+S".into(),          0x2300, "Mod-Tap: hold=Ctrl+Shift".into()),
+            ("MT C+A".into(),          0x2500, "Mod-Tap: hold=Ctrl+Alt".into()),
+            ("MT S+A".into(),          0x2600, "Mod-Tap: hold=Shift+Alt (LSA)".into()),
+            ("MT Meh".into(),          0x2700, "Mod-Tap: hold=Meh (Ctrl+Shift+Alt)".into()),
+            ("MT Hyper".into(),        0x2F00, "Mod-Tap: hold=Hyper (Ctrl+Shift+Alt+Win)".into()),
+        ];
+        ui.horizontal_wrapped(|ui| {
+            for (label, value, tip) in &mt {
+                let resp = ui.add(egui::Button::new(RichText::new(label.as_str()).size(10.5))
+                    .min_size(Vec2::new(68.0, 34.0)));
+                if resp.clicked() {
+                    self.vial_quantum_pending_mt = Some(*value);
+                }
+                resp.on_hover_text(tip.as_str());
+            }
+        });
+
+        ui.add_space(12.0);
         ui.label(RichText::new("One-Shot Mod — active for next keypress only").size(11.0).color(Color32::from_gray(150)));
         ui.add_space(4.0);
         let osm: Vec<(String, u16, String)> = vec![
-            ("OSM LCtrl".into(),        0x52A2, "One-Shot Left Ctrl".into()),
-            ("OSM LShift".into(),       0x52A1, "One-Shot Left Shift — tap to capitalise next letter".into()),
-            ("OSM LAlt".into(),         0x52A4, "One-Shot Left Alt".into()),
-            (format!("OSM L{}", lgui),  0x52A8, format!("One-Shot Left {}", lgui)),
-            ("OSM RCtrl".into(),        0x52B2, "One-Shot Right Ctrl".into()),
-            ("OSM RShift".into(),       0x52B1, "One-Shot Right Shift".into()),
-            ("OSM RAlt".into(),         0x52B4, "One-Shot Right Alt / AltGr".into()),
-            (format!("OSM R{}", rgui),  0x52B8, format!("One-Shot Right {}", rgui)),
+            ("OSM Ctrl".into(),         0x52A2, "One-Shot Left Ctrl".into()),
+            ("OSM Shift".into(),        0x52A1, "One-Shot Left Shift — tap to capitalise next letter".into()),
+            ("OSM Alt".into(),          0x52A4, "One-Shot Left Alt".into()),
+            (format!("OSM {}", lgui),   0x52A8, format!("One-Shot Left {}", lgui)),
             ("OSM Meh".into(),          0x52A7, "One-Shot Meh (Ctrl+Shift+Alt)".into()),
             ("OSM Hyper".into(),        0x52AF, "One-Shot Hyper (Ctrl+Shift+Alt+Win)".into()),
         ];
         ui.horizontal_wrapped(|ui| {
             for (label, value, tip) in &osm {
                 let resp = ui.add(egui::Button::new(RichText::new(label.as_str()).size(10.5))
-                    .min_size(Vec2::new(80.0, 38.0)));
+                    .min_size(Vec2::new(68.0, 34.0)));
                 if resp.clicked() { self.result = Some(*value); self.open = false; }
                 resp.on_hover_text(tip.as_str());
             }
@@ -1309,7 +1321,7 @@ impl KeycodePicker {
             self.tap_dance_editor_open = None;
             self.tap_dance_dirty = true;
             if active_td < self.tap_dance_entries.len() as u8 {
-                self.result = Some(0x7C00 + active_td as u16); // TD keycode
+                self.result = Some(0x5700 + active_td as u16); // TD keycode
             }
             self.open = false;
             return;
@@ -1404,7 +1416,7 @@ impl KeycodePicker {
 
         if !still_open {
             if active_td < self.tap_dance_entries.len() as u8 {
-                self.result = Some(0x7C00 + active_td as u16);
+                self.result = Some(0x5700 + active_td as u16);
             }
             self.tap_dance_editor_open = None;
             self.tap_dance_dirty = true;
@@ -1562,7 +1574,7 @@ impl KeycodePicker {
             }
         });
 
-        ui.separator();
+        ui.add_space(12.0);
         // RGB Underglow (QMK rgblight)
         ui.label(RichText::new("RGB Underglow").size(11.0).color(Color32::from_gray(150)));
         ui.add_space(4.0);
@@ -1590,7 +1602,7 @@ impl KeycodePicker {
             }
         });
 
-        ui.separator();
+        ui.add_space(12.0);
         // RGB Matrix modes
         ui.label(RichText::new("RGB Matrix Modes").size(11.0).color(Color32::from_gray(150)));
         ui.add_space(4.0);
@@ -1614,7 +1626,7 @@ impl KeycodePicker {
             }
         });
 
-        ui.separator();
+        ui.add_space(12.0);
         // RGB Matrix controls
         ui.label(RichText::new("RGB Matrix Controls").size(11.0).color(Color32::from_gray(150)));
         ui.add_space(4.0);
@@ -1645,10 +1657,14 @@ impl KeycodePicker {
 
     fn show_vial_special(&mut self, ui: &mut egui::Ui) {
         let special_keys: &[(&str, u16, &str)] = &[
-            ("~\nEsc",    0x7C16, "Grave/Escape — sends Esc normally, ` when Shift/GUI held"),
-            ("⚡\nBoot",  0x7C77, "QK_BOOT — put keyboard into flash mode"),
-            ("🐛\nDbg",   0x7C00, "DB_TOGG — toggle debug mode"),
-            ("🔒\nLock",  0x7800, "QK_LOCK — hold to lock remaining keys until pressed again"),
+            ("~
+Esc",    0x7C16, "Grave/Escape — sends Esc normally, ` when Shift/GUI held"),
+            ("⚡
+Boot",  0x7C00, "QK_BOOT — put keyboard into flash mode"),
+            ("🐛
+Dbg",   0x7C02, "DB_TOGG — toggle debug mode"),
+            ("🔒
+Lock",  0x7800, "QK_LOCK — hold to lock remaining keys until pressed again"),
             ("LSPO",      0x7C1A, "Left Shift when held, ( when tapped"),
             ("RSPC",      0x7C1B, "Right Shift when held, ) when tapped"),
             ("LCPO",      0x7C18, "Left Ctrl when held, ( when tapped"),
@@ -1671,6 +1687,63 @@ impl KeycodePicker {
                 resp.on_hover_text(*tip);
             }
         });
+
+        ui.add_space(10.0);
+        ui.label(RichText::new("Mouse").size(11.0).color(Color32::from_gray(150)));
+        ui.add_space(4.0);
+        ui.horizontal_wrapped(|ui| {
+            for kc in crate::keycode::KEYCODES.iter().filter(|kc| matches!(kc.category, crate::keycode::KeycodeCategory::Mouse)) {
+                let resp = if let Some(suffix) = kc.label.strip_prefix("🖱") {
+                    let resp = ui.add_sized(Vec2::new(56.0, 42.0), egui::Button::new(""));
+                    let visuals = ui.style().interact(&resp);
+                    let mouse_galley = ui.painter().layout_no_wrap(
+                        "🖱".to_owned(),
+                        egui::FontId::proportional(15.5),
+                        visuals.fg_stroke.color,
+                    );
+                    let suffix_galley = ui.painter().layout_no_wrap(
+                        suffix.to_owned(),
+                        egui::FontId::proportional(10.5),
+                        visuals.fg_stroke.color,
+                    );
+                    let spacing = if suffix.is_empty() { 0.0 } else { 1.0 };
+                    let mouse_width = mouse_galley.size().x;
+                    let mouse_height = mouse_galley.size().y;
+                    let suffix_width = suffix_galley.size().x;
+                    let suffix_height = suffix_galley.size().y;
+                    let total_width = mouse_width + spacing + suffix_width;
+                    let start_x = resp.rect.center().x - total_width / 2.0;
+                    let mouse_pos = egui::pos2(start_x, resp.rect.center().y - mouse_height / 2.0);
+                    ui.painter().galley(mouse_pos, mouse_galley, visuals.fg_stroke.color);
+                    if !suffix.is_empty() {
+                        let suffix_pos = egui::pos2(
+                            start_x + mouse_width + spacing,
+                            resp.rect.center().y - suffix_height / 2.0,
+                        );
+                        ui.painter().galley(suffix_pos, suffix_galley, visuals.fg_stroke.color);
+                    }
+                    resp
+                } else {
+                    ui.add(egui::Button::new(RichText::new(kc.label).size(10.5))
+                        .min_size(Vec2::new(56.0, 42.0)))
+                };
+                if resp.clicked() { self.result = Some(kc.value); self.open = false; }
+                resp.on_hover_text(crate::keycode::keycode_tooltip(kc.value, &[], &self.layer_names));
+            }
+        });
+
+        ui.add_space(10.0);
+        ui.label(RichText::new("Media").size(11.0).color(Color32::from_gray(150)));
+        ui.add_space(4.0);
+        ui.horizontal_wrapped(|ui| {
+            for kc in crate::keycode::KEYCODES.iter().filter(|kc| matches!(kc.category, crate::keycode::KeycodeCategory::Media)) {
+                let resp = ui.add(egui::Button::new(RichText::new(kc.label).size(10.5))
+                    .min_size(Vec2::new(56.0, 42.0)));
+                if resp.clicked() { self.result = Some(kc.value); self.open = false; }
+                resp.on_hover_text(crate::keycode::keycode_tooltip(kc.value, &[], &self.layer_names));
+            }
+        });
+
         ui.add_space(10.0);
         ui.label(RichText::new("Extra function keys").size(11.0).color(Color32::from_gray(150)));
         ui.add_space(4.0);
@@ -1684,9 +1757,7 @@ impl KeycodePicker {
         });
     }
 
-    // ─────────────────────────── ZMK PICKER ─────────────────────────────────
-
-    fn show_zmk(&mut self, ctx: &egui::Context) {
+fn show_zmk(&mut self, ctx: &egui::Context) {
         // Physical key capture for ZMK
         let captured = ctx.input(|i| {
             for event in &i.events {
@@ -1731,7 +1802,14 @@ impl KeycodePicker {
                 ui.horizontal_wrapped(|ui| {
                     for tab in KeycodeTab::ZMK_TABS {
                         let active = self.selected_tab == *tab;
-                        let btn = egui::Button::new(RichText::new(tab.label()).size(12.0))
+                        let text = if active {
+                            RichText::new(tab.label())
+                                .size(12.0)
+                                .color(ui.visuals().widgets.hovered.fg_stroke.color)
+                        } else {
+                            RichText::new(tab.label()).size(12.0)
+                        };
+                        let btn = egui::Button::new(text)
                             .fill(if active { Color32::from_rgb(91, 104, 223) } else { Color32::TRANSPARENT });
                         if ui.add(btn).clicked() { self.selected_tab = *tab; }
                     }
@@ -1857,12 +1935,12 @@ impl KeycodePicker {
 
         // Modifier HID usages
         let mods: &[(&str, u32, &str)] = &[
-            ("⌃ LCtrl",       0x000700E0, "Left Control"),
-            ("⇧ LShift",      0x000700E1, "Left Shift"),
-            ("⌥ LAlt",        0x000700E2, "Left Alt"),
-            ("⌃ RCtrl",       0x000700E4, "Right Control"),
-            ("⇧ RShift",      0x000700E5, "Right Shift"),
-            ("⌥ RAlt",        0x000700E6, "Right Alt / AltGr"),
+            ("Ctrl",          0x000700E0, "Left Control"),
+            ("Shift",         0x000700E1, "Left Shift"),
+            ("Alt",           0x000700E2, "Left Alt"),
+            ("Ctrl",          0x000700E4, "Right Control"),
+            ("Shift",         0x000700E5, "Right Shift"),
+            ("Alt",           0x000700E6, "Right Alt / AltGr"),
         ];
 
         ui.label(RichText::new("Hold modifiers (Key Press)").size(11.0).color(Color32::from_gray(150)));
@@ -1879,11 +1957,11 @@ impl KeycodePicker {
                 }
             }
             if let Some(id) = key_press_id {
-                let resp = ui.add(egui::Button::new(RichText::new(format!("L{}", lgui)).size(11.0))
+                let resp = ui.add(egui::Button::new(RichText::new(lgui).size(11.0))
                     .min_size(Vec2::new(80.0, 38.0)));
                 if resp.clicked() { self.zmk_assign(id, lgui_usage, 0); }
                 resp.on_hover_text(format!("Left {}", lgui));
-                let resp = ui.add(egui::Button::new(RichText::new(format!("R{}", rgui)).size(11.0))
+                let resp = ui.add(egui::Button::new(RichText::new(rgui).size(11.0))
                     .min_size(Vec2::new(80.0, 38.0)));
                 if resp.clicked() { self.zmk_assign(id, rgui_usage, 0); }
                 resp.on_hover_text(format!("Right {}", rgui));
@@ -1913,11 +1991,11 @@ impl KeycodePicker {
                 }
             }
             if let Some(id) = sticky_id {
-                let resp = ui.add(egui::Button::new(RichText::new(format!("SK L{}", lgui)).size(10.5))
+                let resp = ui.add(egui::Button::new(RichText::new(format!("SK {}", lgui)).size(10.5))
                     .min_size(Vec2::new(80.0, 38.0)));
                 if resp.clicked() { self.zmk_assign(id, lgui_usage, 0); }
                 resp.on_hover_text(format!("One-Shot Left {}", lgui));
-                let resp = ui.add(egui::Button::new(RichText::new(format!("SK R{}", rgui)).size(10.5))
+                let resp = ui.add(egui::Button::new(RichText::new(format!("SK {}", rgui)).size(10.5))
                     .min_size(Vec2::new(80.0, 38.0)));
                 if resp.clicked() { self.zmk_assign(id, rgui_usage, 0); }
                 resp.on_hover_text(format!("One-Shot Right {}", rgui));
