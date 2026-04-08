@@ -1,7 +1,7 @@
 /// Keycode picker modal — supports both Vial (QMK keycodes) and ZMK (behaviors).
 
 use crate::firmware::FirmwareProtocol;
-use crate::keycode::{gui_label, gui_sym, keycode_tooltip, KeycodeCategory, KEYCODES};
+use crate::keycode::{gui_label, gui_mod_name, gui_sym, key_label_font_sizes, keycode_label_with_names, keycode_tooltip, KeycodeCategory, KEYCODES};
 use crate::zmk::{BehaviorInfo, ZmkBinding};
 use egui::{Color32, Key, RichText, Vec2};
 
@@ -29,7 +29,9 @@ pub struct KeycodePicker {
     pub search_query: String,
     pub result: Option<u16>,
     pub custom_keycodes: Vec<(String, String, u16)>,
+    pub supports_rgb: bool,
     pub layer_names: Vec<String>,
+    pub layer_count: usize,
     pub listening: bool,
     // ZMK
     pub firmware: FirmwareProtocol,
@@ -44,6 +46,8 @@ pub struct KeycodePicker {
     /// Open macro editor for this macro number (0..15), None = closed
     pub macro_count: usize,
     pub tap_dance_entries: Vec<TapDanceEntry>,
+    pub tap_dance_names: Vec<String>,
+    pub tap_dance_undo_stack: Vec<(usize, TapDanceEntry, String)>,
     pub tap_dance_editor_open: Option<u8>,
     pub tap_dance_dirty: bool,
     /// Which field is being edited: (td_idx, field: 0=tap,1=hold,2=dtap,3=taphold)
@@ -115,7 +119,7 @@ impl KeycodeTab {
             KeycodeTab::Navigation  => "Nav",
             KeycodeTab::Modifiers   => "Mods",
             KeycodeTab::Layers      => "Layers",
-            KeycodeTab::Media       => "Media & Mouse",
+            KeycodeTab::Media       => "Media, Apps, System",
             KeycodeTab::Mouse       => "Mouse",
             KeycodeTab::Numpad      => "Numpad",
             KeycodeTab::Special     => "Special",
@@ -162,7 +166,9 @@ impl Default for KeycodePicker {
             search_query: String::new(),
             result: None,
             custom_keycodes: vec![],
+            supports_rgb: true,
             layer_names: (0..16).map(|i| i.to_string()).collect(),
+            layer_count: 4,
             listening: false,
             firmware: FirmwareProtocol::Vial,
             zmk_behaviors: vec![],
@@ -175,6 +181,8 @@ impl Default for KeycodePicker {
             macro_inline_selected: None,
             macro_count: 16,
             tap_dance_entries: vec![],
+            tap_dance_names: vec![],
+            tap_dance_undo_stack: vec![],
             tap_dance_editor_open: None,
             tap_dance_dirty: false,
             td_key_pick: None,
@@ -309,12 +317,24 @@ impl KeycodePicker {
                             }
                         }
                     });
+                    let gui = gui_mod_name().to_string();
                     ui.horizontal_wrapped(|ui| {
                         for kc in KEYCODES.iter() {
-                            if !matches!(kc.category, KeycodeCategory::Basic | KeycodeCategory::Function | KeycodeCategory::Navigation) { continue; }
+                            if !matches!(kc.category, KeycodeCategory::Basic | KeycodeCategory::Function | KeycodeCategory::Navigation | KeycodeCategory::Modifier) { continue; }
                             if kc.value == 0 || kc.value >= 0x0100 { continue; }
-                            let resp = ui.add(egui::Button::new(RichText::new(kc.label).size(10.0))
-                                .min_size(Vec2::new(36.0, 28.0)));
+                            let (button_label, button_size) = match kc.value {
+                                0x00E0 => ("Left\nCtrl".to_string(), Vec2::new(56.0, 32.0)),
+                                0x00E4 => ("Right\nCtrl".to_string(), Vec2::new(56.0, 32.0)),
+                                0x00E1 => ("Left\nShift".to_string(), Vec2::new(56.0, 32.0)),
+                                0x00E5 => ("Right\nShift".to_string(), Vec2::new(56.0, 32.0)),
+                                0x00E2 => ("Left\nAlt".to_string(), Vec2::new(56.0, 32.0)),
+                                0x00E6 => ("Right\nAlt".to_string(), Vec2::new(56.0, 32.0)),
+                                0x00E3 => (format!("Left\n{}", gui), Vec2::new(56.0, 32.0)),
+                                0x00E7 => (format!("Right\n{}", gui), Vec2::new(56.0, 32.0)),
+                                _ => (kc.label.to_string(), Vec2::new(36.0, 28.0)),
+                            };
+                            let resp = ui.add(egui::Button::new(RichText::new(button_label).size(10.0))
+                                .min_size(button_size));
                             if resp.clicked() {
                                 if let Some(action) = self.macro_actions.get_mut(macro_idx).and_then(|a| a.get_mut(action_idx)) {
                                     match action {
@@ -343,13 +363,6 @@ impl KeycodePicker {
             return;
         }
 
-        // Tap dance editor
-        if let Some(td_n) = self.tap_dance_editor_open {
-            if (td_n as usize) < self.tap_dance_entries.len() {
-                self.show_tap_dance_editor(ctx, td_n);
-                return;
-            }
-        }
 
         match self.firmware {
             FirmwareProtocol::Vial => self.show_vial(ctx),
@@ -436,9 +449,14 @@ impl KeycodePicker {
                     .size(11.0).color(Color32::from_gray(140)));
                 ui.add_space(4.0);
 
+                if self.selected_tab == KeycodeTab::Rgb && !self.supports_rgb {
+                    self.selected_tab = KeycodeTab::Basic;
+                }
+
                 // Tab bar
                 ui.horizontal_wrapped(|ui| {
                     for tab in KeycodeTab::VIAL_TABS {
+                        if *tab == KeycodeTab::Rgb && !self.supports_rgb { continue; }
                         if *tab == KeycodeTab::Custom && self.custom_keycodes.is_empty() { continue; }
                         let active = self.selected_tab == *tab;
                         let text = if active {
@@ -475,20 +493,25 @@ impl KeycodePicker {
                                     let visuals = ui.visuals_mut();
                                     visuals.widgets.inactive.bg_fill = Color32::TRANSPARENT;
                                     visuals.widgets.inactive.weak_bg_fill = Color32::TRANSPARENT;
-                                    visuals.widgets.hovered.bg_fill = Color32::TRANSPARENT;
-                                    visuals.widgets.hovered.weak_bg_fill = Color32::TRANSPARENT;
+                                    let picker_hover_fill = if dark_mode {
+                                        Color32::from_rgb(60, 60, 65)
+                                    } else {
+                                        Color32::from_rgb(232, 232, 240)
+                                    };
+                                    visuals.widgets.hovered.bg_fill = picker_hover_fill;
+                                    visuals.widgets.hovered.weak_bg_fill = picker_hover_fill;
                                     visuals.widgets.active.bg_fill = Color32::TRANSPARENT;
                                     visuals.widgets.active.weak_bg_fill = Color32::TRANSPARENT;
                                     visuals.widgets.open.bg_fill = Color32::TRANSPARENT;
                                     visuals.widgets.open.weak_bg_fill = Color32::TRANSPARENT;
                                     if dark_mode {
                                         visuals.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(55, 55, 60));
-                                        visuals.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(75, 75, 82));
+                                        visuals.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(55, 55, 60));
                                         visuals.widgets.active.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(91, 104, 223));
                                         visuals.widgets.open.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(91, 104, 223));
                                     } else {
                                         visuals.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(210, 210, 218));
-                                        visuals.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(185, 185, 196));
+                                        visuals.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(210, 210, 218));
                                         visuals.widgets.active.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(91, 104, 223));
                                         visuals.widgets.open.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(91, 104, 223));
                                     }
@@ -526,6 +549,14 @@ impl KeycodePicker {
                         self.encode_macro(raw_n as usize);
                         self.result = Some(0x7700 + raw_n as u16);
                         self.macros_dirty = true;
+                    }
+                }
+            }
+            if self.selected_tab == KeycodeTab::TapDance {
+                if let Some(td_n) = self.tap_dance_editor_open {
+                    if (td_n as usize) < self.tap_dance_entries.len() {
+                        self.result = Some(0x5700 + td_n as u16);
+                        self.tap_dance_dirty = true;
                     }
                 }
             }
@@ -678,18 +709,87 @@ impl KeycodePicker {
         let width = span as f32 * cell_w + span.saturating_sub(1) as f32 * gap;
         let rect = egui::Rect::from_min_size(egui::pos2(x, y), Vec2::new(width, cell_h));
         let tip = keycode_tooltip(value, &[], &self.layer_names);
-        let stroke = if ui.visuals().dark_mode {
+        let inactive_stroke = if ui.visuals().dark_mode {
             egui::Stroke::new(1.0, Color32::from_rgb(55, 55, 60))
         } else {
             egui::Stroke::new(1.0, Color32::from_rgb(210, 210, 218))
         };
+        let hover_stroke = if ui.visuals().dark_mode {
+            egui::Stroke::new(1.0, Color32::from_rgb(55, 55, 60))
+        } else {
+            egui::Stroke::new(1.0, Color32::from_rgb(210, 210, 218))
+        };
+        let hover_fill = if ui.visuals().dark_mode {
+            Color32::from_rgb(60, 60, 65)
+        } else {
+            Color32::from_rgb(232, 232, 240)
+        };
         let resp = ui.put(
             rect,
-            egui::Button::new(RichText::new(label).size(11.0))
+            egui::Button::new("")
                 .min_size(Vec2::new(width, cell_h))
                 .fill(Color32::TRANSPARENT)
-                .stroke(stroke),
+                .stroke(inactive_stroke),
         );
+        if resp.hovered() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+            ui.painter().rect_filled(
+                resp.rect,
+                ui.visuals().widgets.hovered.corner_radius,
+                hover_fill,
+            );
+            ui.painter().rect_stroke(
+                resp.rect,
+                ui.visuals().widgets.hovered.corner_radius,
+                hover_stroke,
+                egui::StrokeKind::Outside,
+            );
+        }
+        let visuals = ui.style().interact(&resp);
+        let (top_size, bottom_size) = key_label_font_sizes(label);
+        if let Some((top, bottom)) = label.split_once('\n') {
+            let top_color = visuals.fg_stroke.color.gamma_multiply(0.75);
+            let top_galley = ui.painter().layout_no_wrap(
+                top.to_owned(),
+                egui::FontId::proportional(top_size.unwrap_or(9.0)),
+                top_color,
+            );
+            let bottom_galley = ui.painter().layout_no_wrap(
+                bottom.to_owned(),
+                egui::FontId::proportional(bottom_size),
+                visuals.fg_stroke.color,
+            );
+            ui.painter().galley(
+                egui::pos2(
+                    resp.rect.center().x - top_galley.size().x / 2.0,
+                    resp.rect.center().y - 7.0 - top_galley.size().y / 2.0,
+                ),
+                top_galley,
+                top_color,
+            );
+            ui.painter().galley(
+                egui::pos2(
+                    resp.rect.center().x - bottom_galley.size().x / 2.0,
+                    resp.rect.center().y + 6.0 - bottom_galley.size().y / 2.0,
+                ),
+                bottom_galley,
+                visuals.fg_stroke.color,
+            );
+        } else {
+            let galley = ui.painter().layout_no_wrap(
+                label.to_owned(),
+                egui::FontId::proportional(bottom_size),
+                visuals.fg_stroke.color,
+            );
+            ui.painter().galley(
+                egui::pos2(
+                    resp.rect.center().x - galley.size().x / 2.0,
+                    resp.rect.center().y - galley.size().y / 2.0,
+                ),
+                galley,
+                visuals.fg_stroke.color,
+            );
+        }
         if resp.clicked() {
             self.result = Some(value);
             self.open = false;
@@ -800,8 +900,11 @@ impl KeycodePicker {
         let x_offset = ((available_width - width).max(0.0) * 0.5).floor();
         let (rect, _) = ui.allocate_exact_size(Vec2::new(available_width, height), egui::Sense::hover());
         let origin = egui::pos2(rect.min.x + x_offset, rect.min.y);
-        for &(row, col, span, label, value) in keys {
-            self.basic_key_button_at(ui, origin, cell_w, cell_h, gap, row, col, span, label, value);
+        for &(row, col, span, fallback_label, value) in keys {
+            let display_label = crate::keycode::find_keycode(value)
+                .map(|_| keycode_label_with_names(value, &[], &self.layer_names))
+                .unwrap_or_else(|| fallback_label.to_string());
+            self.basic_key_button_at(ui, origin, cell_w, cell_h, gap, row, col, span, &display_label, value);
         }
     }
 
@@ -831,7 +934,7 @@ impl KeycodePicker {
                 let resp = ui.add(
                     egui::Button::new(RichText::new(kc.label).size(11.0))
                         .min_size(Vec2::new(52.0, 38.0)),
-                );
+                ).on_hover_cursor(egui::CursorIcon::PointingHand);
                 if resp.clicked() { self.result = Some(kc.value); self.open = false; }
                 resp.on_hover_text(tip);
             }
@@ -846,7 +949,7 @@ impl KeycodePicker {
                 let resp = ui.add(
                     egui::Button::new(RichText::new(label).size(11.0))
                         .min_size(Vec2::new(52.0, 38.0)),
-                );
+                ).on_hover_cursor(egui::CursorIcon::PointingHand);
                 if resp.clicked() { self.result = Some(*value); self.open = false; }
                 resp.on_hover_text(tip);
             }
@@ -864,19 +967,21 @@ impl KeycodePicker {
             (0x5240, "DF — Default",     "Set as permanent base layer"),
         ];
 
-        ui.label(RichText::new("Pick layer action, then choose which layer").size(11.0).color(Color32::from_gray(150)));
+        ui.label(RichText::new("Layers: choose a layer action, then pick the target layer").size(11.0).color(Color32::from_gray(150)));
         ui.add_space(6.0);
         ui.horizontal_wrapped(|ui| {
             for (base, label, hint) in ops {
                 let resp = ui.add(egui::Button::new(RichText::new(*label).size(10.5))
-                    .min_size(Vec2::new(102.0, 34.0)));
+                    .min_size(Vec2::new(102.0, 34.0)))
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
                 if resp.clicked() {
                     self.vial_layer_pending = Some(*base);
                 }
                 resp.on_hover_text(*hint);
             }
             let lt_resp = ui.add(egui::Button::new(RichText::new("LT — Layer-Tap").size(10.5))
-                .min_size(Vec2::new(102.0, 34.0)));
+                .min_size(Vec2::new(102.0, 34.0)))
+                .on_hover_cursor(egui::CursorIcon::PointingHand);
             if lt_resp.clicked() {
                 self.vial_layer_pending = Some(0x4000);
             }
@@ -900,7 +1005,8 @@ impl KeycodePicker {
         ui.horizontal_wrapped(|ui| {
             for (label, value, tip) in &plain {
                 let resp = ui.add(egui::Button::new(RichText::new(label.as_str()).size(10.5))
-                    .min_size(Vec2::new(68.0, 34.0)));
+                    .min_size(Vec2::new(68.0, 34.0)))
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
                 if resp.clicked() { self.result = Some(*value); self.open = false; }
                 resp.on_hover_text(tip.as_str());
             }
@@ -927,7 +1033,8 @@ impl KeycodePicker {
         ui.horizontal_wrapped(|ui| {
             for (label, value, tip) in &mk {
                 let resp = ui.add(egui::Button::new(RichText::new(label.as_str()).size(10.5))
-                    .min_size(Vec2::new(74.0, 34.0)));
+                    .min_size(Vec2::new(74.0, 34.0)))
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
                 if resp.clicked() {
                     self.vial_quantum_pending_mod = Some(*value);
                 }
@@ -953,7 +1060,8 @@ impl KeycodePicker {
         ui.horizontal_wrapped(|ui| {
             for (label, value, tip) in &mt {
                 let resp = ui.add(egui::Button::new(RichText::new(label.as_str()).size(10.5))
-                    .min_size(Vec2::new(68.0, 34.0)));
+                    .min_size(Vec2::new(68.0, 34.0)))
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
                 if resp.clicked() {
                     self.vial_quantum_pending_mt = Some(*value);
                 }
@@ -975,7 +1083,8 @@ impl KeycodePicker {
         ui.horizontal_wrapped(|ui| {
             for (label, value, tip) in &osm {
                 let resp = ui.add(egui::Button::new(RichText::new(label.as_str()).size(10.5))
-                    .min_size(Vec2::new(68.0, 34.0)));
+                    .min_size(Vec2::new(68.0, 34.0)))
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
                 if resp.clicked() { self.result = Some(*value); self.open = false; }
                 resp.on_hover_text(tip.as_str());
             }
@@ -995,7 +1104,8 @@ impl KeycodePicker {
                     if !matches!(kc.category, KeycodeCategory::Basic | KeycodeCategory::Function | KeycodeCategory::Navigation) { continue; }
                     if kc.value >= 0x0200 { continue; }
                     let resp = ui.add(egui::Button::new(RichText::new(kc.label).size(11.0))
-                        .min_size(Vec2::new(44.0, 34.0)));
+                        .min_size(Vec2::new(44.0, 34.0)))
+                        .on_hover_cursor(egui::CursorIcon::PointingHand);
                     if resp.clicked() {
                         self.result = Some(base | kc.value);
                         self.vial_quantum_pending_mod = None;
@@ -1017,7 +1127,8 @@ impl KeycodePicker {
                     if !matches!(kc.category, KeycodeCategory::Basic | KeycodeCategory::Function | KeycodeCategory::Navigation) { continue; }
                     if kc.value >= 0x0200 { continue; }
                     let resp = ui.add(egui::Button::new(RichText::new(kc.label).size(11.0))
-                        .min_size(Vec2::new(44.0, 34.0)));
+                        .min_size(Vec2::new(44.0, 34.0)))
+                        .on_hover_cursor(egui::CursorIcon::PointingHand);
                     if resp.clicked() {
                         self.result = Some(base | kc.value);
                         self.vial_quantum_pending_mt = None;
@@ -1049,7 +1160,8 @@ impl KeycodePicker {
         ui.horizontal_wrapped(|ui| {
             for (label, base, tip) in &mod_bases {
                 let resp = ui.add(egui::Button::new(RichText::new(label.as_str()).size(10.5))
-                    .min_size(Vec2::new(72.0, 36.0)));
+                    .min_size(Vec2::new(72.0, 36.0)))
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
                 if resp.clicked() { self.vial_quantum_pending_mod = Some(*base); }
                 resp.on_hover_text(tip.as_str());
             }
@@ -1069,7 +1181,8 @@ impl KeycodePicker {
         ui.horizontal_wrapped(|ui| {
             for (label, base, tip) in &mt_bases {
                 let resp = ui.add(egui::Button::new(RichText::new(label.as_str()).size(10.5))
-                    .min_size(Vec2::new(72.0, 36.0)));
+                    .min_size(Vec2::new(72.0, 36.0)))
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
                 if resp.clicked() { self.vial_quantum_pending_mt = Some(*base); }
                 resp.on_hover_text(tip.as_str());
             }
@@ -1079,7 +1192,7 @@ impl KeycodePicker {
     fn show_macro_editor_contents(&mut self, ui: &mut egui::Ui, raw_n: u8, grid_id: &'static str, add_action_id: &'static str, footer_text: &'static str) -> u8 {
         let mut selected_macro = raw_n;
 
-        ui.label("Switch macro:");
+        ui.label("Choose macro:");
         egui::Frame::none().show(ui, |ui| {
             ui.set_max_height(80.0);
             egui::ScrollArea::vertical().max_height(80.0).auto_shrink([false, false]).show(ui, |ui| {
@@ -1088,11 +1201,30 @@ impl KeycodePicker {
                         let is_active = i == selected_macro;
                         let has_content = self.macro_has_content(i as usize);
                         let display_name = self.macro_display_name(i as usize);
-                        let text_color = if is_active { Color32::WHITE } else if has_content { Color32::from_gray(200) } else { Color32::from_gray(100) };
                         let fill = if is_active { Color32::from_rgb(91, 104, 223) } else { Color32::TRANSPARENT };
                         let mut resp = ui.add_sized(Vec2::new(48.0, 28.0), egui::Button::new("").fill(fill));
                         let rect = resp.rect;
                         let painter = ui.painter();
+                        if resp.hovered() {
+                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                            if !is_active {
+                                let hover_fill = if ui.visuals().dark_mode {
+                                    Color32::from_rgb(60, 60, 65)
+                                } else {
+                                    Color32::from_rgb(232, 232, 240)
+                                };
+                                painter.rect_filled(rect, ui.visuals().widgets.hovered.corner_radius, hover_fill);
+                            }
+                        }
+                        let text_color = if is_active {
+                            Color32::WHITE
+                        } else if resp.hovered() {
+                            ui.visuals().widgets.hovered.fg_stroke.color
+                        } else if has_content {
+                            Color32::from_gray(200)
+                        } else {
+                            Color32::from_gray(100)
+                        };
                         let id_text = format!("M{}", i);
                         if display_name != id_text {
                             painter.text(
@@ -1138,21 +1270,23 @@ impl KeycodePicker {
         let n = selected_macro as usize;
         self.ensure_macro_meta_len(n);
 
-        ui.label(RichText::new(format!("Macro {}", self.macro_display_name(n))).size(18.0).strong());
+        let macro_font_size = 14.0;
+        let macro_hint_font_size = 13.0;
         ui.add_space(4.0);
-        ui.horizontal(|ui| {
-            ui.label(RichText::new("Name:").size(13.0).color(Color32::from_gray(160)));
-            if let Some(name) = self.macro_names.get_mut(n) {
-                let resp = ui.add_sized(
-                    Vec2::new(220.0, 28.0),
-                    egui::TextEdit::singleline(name).hint_text("Optional macro name")
-                );
-                if resp.changed() {
-                    let trimmed: String = name.chars().take(7).collect();
-                    *name = trimmed;
-                }
+        if let Some(name) = self.macro_names.get_mut(n) {
+            let resp = ui.add_sized(
+                Vec2::new(110.0, 28.0),
+                egui::TextEdit::singleline(name)
+                    .hint_text("Macro name")
+                    .font(egui::FontId::proportional(macro_font_size))
+                    .horizontal_align(egui::Align::Center)
+                    .vertical_align(egui::Align::Center)
+            );
+            if resp.changed() {
+                let trimmed: String = name.chars().take(7).collect();
+                *name = trimmed;
             }
-        });
+        }
         ui.add_space(6.0);
 
         let mut remove_idx = None;
@@ -1164,10 +1298,10 @@ impl KeycodePicker {
             for (i, action) in self.macro_actions[n].iter_mut().enumerate() {
                 ui.horizontal(|ui| {
                     let arrow_size = Vec2::new(26.0, 26.0);
-                    let up_btn = egui::Button::new(RichText::new("↑").size(14.0))
+                    let up_btn = egui::Button::new(RichText::new("↑").size(macro_font_size))
                         .min_size(arrow_size)
                         .sense(if i > 0 { egui::Sense::click() } else { egui::Sense::hover() });
-                    let down_btn = egui::Button::new(RichText::new("↓").size(14.0))
+                    let down_btn = egui::Button::new(RichText::new("↓").size(macro_font_size))
                         .min_size(arrow_size)
                         .sense(if i + 1 < action_count { egui::Sense::click() } else { egui::Sense::hover() });
                     if ui.add(up_btn).on_hover_text("Move up").clicked() && i > 0 { move_up = Some(i); }
@@ -1181,7 +1315,7 @@ impl KeycodePicker {
                         MacroAction::Delay(_) => ("Delay", Color32::from_gray(150), "Wait before next action"),
                     };
                     ui.allocate_ui(Vec2::new(55.0, 30.0), |ui| {
-                        ui.add(egui::Label::new(RichText::new(type_label).size(15.0).color(type_color).strong())
+                        ui.add(egui::Label::new(RichText::new(type_label).size(macro_font_size).color(type_color).strong())
                             .sense(egui::Sense::hover()))
                             .on_hover_text(tooltip);
                     });
@@ -1192,24 +1326,26 @@ impl KeycodePicker {
                             ui.add_sized(Vec2::new(text_w, 30.0),
                                 egui::TextEdit::singleline(text)
                                 .hint_text("Type text here...")
-                                .font(egui::FontId::monospace(14.0)))
+                                .font(egui::FontId::proportional(macro_font_size))
+                                .horizontal_align(egui::Align::Min)
+                                .vertical_align(egui::Align::Center))
                                 .on_hover_text("Characters to type when this macro runs");
                         }
                         MacroAction::Tap(kc) => {
                             let label = crate::keycode::KEYCODES.iter().find(|k| k.value == *kc as u16).map(|k| k.label).unwrap_or("?");
-                            if ui.add(egui::Button::new(RichText::new(label).size(18.0)).min_size(Vec2::new(100.0, 30.0)))
+                            if ui.add(egui::Button::new(RichText::new(label).size(macro_font_size)).min_size(Vec2::new(100.0, 30.0)))
                                 .on_hover_text("Click to change key — press and release this key")
                                 .clicked() { self.macro_key_pick = Some((n, i)); }
                         }
                         MacroAction::Down(kc) => {
                             let label = crate::keycode::KEYCODES.iter().find(|k| k.value == *kc as u16).map(|k| k.label).unwrap_or("?");
-                            if ui.add(egui::Button::new(RichText::new(label).size(18.0)).min_size(Vec2::new(100.0, 30.0)))
+                            if ui.add(egui::Button::new(RichText::new(label).size(macro_font_size)).min_size(Vec2::new(100.0, 30.0)))
                                 .on_hover_text("Click to change key — holds down until Up")
                                 .clicked() { self.macro_key_pick = Some((n, i)); }
                         }
                         MacroAction::Up(kc) => {
                             let label = crate::keycode::KEYCODES.iter().find(|k| k.value == *kc as u16).map(|k| k.label).unwrap_or("?");
-                            if ui.add(egui::Button::new(RichText::new(label).size(18.0)).min_size(Vec2::new(100.0, 30.0)))
+                            if ui.add(egui::Button::new(RichText::new(label).size(macro_font_size)).min_size(Vec2::new(100.0, 30.0)))
                                 .on_hover_text("Click to change key — releases this key")
                                 .clicked() { self.macro_key_pick = Some((n, i)); }
                         }
@@ -1217,15 +1353,17 @@ impl KeycodePicker {
                             let mut ms_str = ms.to_string();
                             if ui.add_sized(Vec2::new(80.0, 30.0),
                                 egui::TextEdit::singleline(&mut ms_str)
-                                .font(egui::FontId::monospace(14.0))).changed() {
+                                .font(egui::FontId::proportional(macro_font_size))
+                                .horizontal_align(egui::Align::Center)
+                                .vertical_align(egui::Align::Center)).changed() {
                                 if let Ok(v) = ms_str.parse::<u16>() { *ms = v; }
                             }
-                            ui.label(RichText::new("ms").size(14.0)).on_hover_text("Milliseconds to wait");
+                            ui.label(RichText::new("ms").size(macro_font_size).color(Color32::from_gray(140))).on_hover_text("Milliseconds to wait");
                         }
                     }
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.add(egui::Button::new(RichText::new("✕").size(14.0))
+                        if ui.add(egui::Button::new(RichText::new("✕").size(macro_font_size))
                             .min_size(Vec2::new(30.0, 30.0)))
                             .on_hover_text("Remove this action")
                             .clicked() {
@@ -1257,7 +1395,7 @@ impl KeycodePicker {
         ui.add_space(6.0);
         ui.horizontal(|ui| {
             egui::ComboBox::from_id_salt(add_action_id)
-                .selected_text(RichText::new("+ Add action").size(14.0))
+                .selected_text(RichText::new("+ Add action").size(macro_font_size))
                 .width(160.0)
                 .show_ui(ui, |ui| {
                     if ui.selectable_label(false, "Text — type characters").clicked() {
@@ -1280,7 +1418,7 @@ impl KeycodePicker {
                     }
                 });
 
-            if ui.add(egui::Button::new("Clear all"))
+            if ui.add(egui::Button::new(RichText::new("Clear all").size(macro_font_size)))
                 .on_hover_text("Remove all actions from this macro")
                 .clicked() {
                 self.macro_undo_stack.push((n, self.macro_actions[n].clone()));
@@ -1293,7 +1431,7 @@ impl KeycodePicker {
                 }
             }
             if !self.macro_undo_stack.is_empty() {
-                if ui.add(egui::Button::new("↩ Undo"))
+                if ui.add(egui::Button::new(RichText::new("↩ Undo").size(macro_font_size)))
                     .on_hover_text("Undo last change")
                     .clicked() {
                     if let Some((idx, prev)) = self.macro_undo_stack.pop() {
@@ -1307,13 +1445,218 @@ impl KeycodePicker {
 
         ui.add_space(4.0);
         ui.label(RichText::new(footer_text)
-            .size(10.0).color(Color32::from_gray(120)));
+            .size(macro_hint_font_size).color(Color32::from_gray(120)));
 
         selected_macro
     }
 
-    fn show_vial_tap_dance(&mut self, _ui: &mut egui::Ui) {
-        self.tap_dance_editor_open = Some(255); // 255 = open editor, no selection
+    fn show_vial_tap_dance(&mut self, ui: &mut egui::Ui) {
+        if self.tap_dance_entries.is_empty() {
+            self.tap_dance_editor_open = None;
+            ui.label(RichText::new("No Tap Dance slots available on this keyboard").size(16.0).color(Color32::from_gray(140)));
+            return;
+        }
+
+        let selected = match self.tap_dance_editor_open {
+            Some(n) if (n as usize) < self.tap_dance_entries.len() => n,
+            _ => 0,
+        };
+        self.tap_dance_editor_open = Some(selected);
+        self.ensure_tap_dance_name_len(selected as usize);
+
+        ui.label("Choose tap dance:");
+        egui::Frame::none().show(ui, |ui| {
+            ui.set_max_height(80.0);
+            egui::ScrollArea::vertical().max_height(80.0).auto_shrink([false, false]).show(ui, |ui| {
+                egui::Grid::new("tap_dance_grid_inline").num_columns(16).spacing([2.0, 2.0]).show(ui, |ui| {
+                    for n in 0..self.tap_dance_entries.len() as u8 {
+                        self.ensure_tap_dance_name_len(n as usize);
+                        let is_active = n == selected;
+                        let display_name = self.tap_dance_display_name(n as usize);
+                        let id_text = format!("TD{}", n);
+                        let fill = if is_active { Color32::from_rgb(91, 104, 223) } else { Color32::TRANSPARENT };
+                        let mut resp = ui.add_sized(Vec2::new(48.0, 28.0), egui::Button::new("").fill(fill));
+                        let rect = resp.rect;
+                        let painter = ui.painter();
+                        if resp.hovered() {
+                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                            if !is_active {
+                                let hover_fill = if ui.visuals().dark_mode {
+                                    Color32::from_rgb(60, 60, 65)
+                                } else {
+                                    Color32::from_rgb(232, 232, 240)
+                                };
+                                painter.rect_filled(rect, ui.visuals().widgets.hovered.corner_radius, hover_fill);
+                            }
+                        }
+                        let text_color = if is_active {
+                            Color32::WHITE
+                        } else if resp.hovered() {
+                            ui.visuals().widgets.hovered.fg_stroke.color
+                        } else {
+                            Color32::from_gray(100)
+                        };
+                        if display_name != id_text {
+                            painter.text(
+                                egui::pos2(rect.center().x, rect.top() + 8.0),
+                                egui::Align2::CENTER_CENTER,
+                                &id_text,
+                                egui::FontId::proportional(10.5),
+                                text_color,
+                            );
+                            painter.text(
+                                egui::pos2(rect.center().x, rect.bottom() - 8.0),
+                                egui::Align2::CENTER_CENTER,
+                                display_name.clone(),
+                                egui::FontId::proportional(10.5),
+                                text_color,
+                            );
+                            resp = resp.on_hover_text(display_name.clone());
+                        } else {
+                            painter.text(
+                                rect.center(),
+                                egui::Align2::CENTER_CENTER,
+                                &id_text,
+                                egui::FontId::proportional(12.0),
+                                text_color,
+                            );
+                        }
+                        if resp.clicked() {
+                            self.tap_dance_editor_open = Some(n);
+                        }
+                        if (n + 1) % 16 == 0 { ui.end_row(); }
+                    }
+                });
+            });
+        });
+        ui.separator();
+
+        let n = self.tap_dance_editor_open.unwrap_or(0) as usize;
+        self.ensure_tap_dance_name_len(n);
+        let td_font_size = 14.0;
+        let td_hint_font_size = 13.0;
+        ui.add_space(4.0);
+        let prev_name = self.tap_dance_names.get(n).cloned().unwrap_or_default();
+        let mut edited_name = prev_name.clone();
+        let resp = ui.add_sized(
+            Vec2::new(110.0, 28.0),
+            egui::TextEdit::singleline(&mut edited_name)
+                .hint_text("TD name")
+                .font(egui::FontId::proportional(td_font_size))
+                .horizontal_align(egui::Align::Center)
+                .vertical_align(egui::Align::Center)
+        );
+        if resp.changed() {
+            let trimmed: String = edited_name.chars().take(7).collect();
+            if trimmed != prev_name {
+                self.push_tap_dance_undo(n);
+                self.ensure_tap_dance_name_len(n);
+                self.tap_dance_names[n] = trimmed;
+                self.tap_dance_dirty = true;
+            }
+        }
+        ui.add_space(8.0);
+
+        let fields = [
+            ("On Tap", "Key sent on single tap", 0u8),
+            ("On Hold", "Key sent when held", 1),
+            ("On Double Tap", "Key sent on double tap", 2),
+            ("On Tap + Hold", "Key sent on tap then hold", 3),
+        ];
+
+        egui::Grid::new("td_fields_inline").spacing([8.0, 8.0]).show(ui, |ui| {
+            for (label, tooltip, field_id) in &fields {
+                ui.add(egui::Label::new(RichText::new(*label).size(td_font_size).strong())
+                    .sense(egui::Sense::hover()))
+                    .on_hover_text(*tooltip);
+
+                let kc = match field_id {
+                    0 => self.tap_dance_entries[n].on_tap,
+                    1 => self.tap_dance_entries[n].on_hold,
+                    2 => self.tap_dance_entries[n].on_double_tap,
+                    3 => self.tap_dance_entries[n].on_tap_hold,
+                    _ => 0,
+                };
+                let kc_label = if kc == 0 {
+                    "None".to_string()
+                } else {
+                    crate::keycode::keycode_label_with_names(kc, &[], &self.layer_names)
+                };
+                if ui.add(egui::Button::new(RichText::new(&kc_label).size(td_font_size))
+                    .min_size(Vec2::new(120.0, 30.0)))
+                    .on_hover_text(if kc == 0 { "Click to assign a key".to_string() } else { keycode_tooltip(kc, &[], &self.layer_names) })
+                    .clicked() {
+                    self.td_key_pick = Some((n, *field_id));
+                }
+                ui.end_row();
+            }
+
+            ui.add(egui::Label::new(RichText::new("Tapping Term").size(td_font_size).strong())
+                .sense(egui::Sense::hover()))
+                .on_hover_text("Time in ms to distinguish tap from hold (default: 200)");
+            ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                ui.spacing_mut().item_spacing.x = 6.0;
+                let prev_term = self.tap_dance_entries[n].tapping_term;
+                let mut term_str = prev_term.to_string();
+                if ui.add_sized(Vec2::new(76.0, 30.0),
+                    egui::TextEdit::singleline(&mut term_str)
+                    .font(egui::FontId::proportional(td_font_size))
+                    .horizontal_align(egui::Align::Center)
+                    .vertical_align(egui::Align::Center)).changed() {
+                    if let Ok(v) = term_str.parse::<u16>() {
+                        let v = v.clamp(10, 3000);
+                        if v != prev_term {
+                            self.push_tap_dance_undo(n);
+                            self.tap_dance_entries[n].tapping_term = v;
+                            self.tap_dance_dirty = true;
+                        }
+                    }
+                }
+                ui.label(RichText::new("ms").size(td_font_size).color(Color32::from_gray(140)));
+            });
+            ui.end_row();
+        });
+
+        ui.add_space(8.0);
+        ui.horizontal(|ui| {
+            if ui.add(egui::Button::new(RichText::new("Clear all").size(td_font_size)))
+                .on_hover_text("Clear all actions for this tap dance")
+                .clicked() {
+                self.push_tap_dance_undo(n);
+                if let Some(td) = self.tap_dance_entries.get_mut(n) {
+                    td.on_tap = 0;
+                    td.on_hold = 0;
+                    td.on_double_tap = 0;
+                    td.on_tap_hold = 0;
+                    td.tapping_term = 200;
+                }
+                if n < self.tap_dance_names.len() {
+                    self.tap_dance_names[n].clear();
+                }
+                self.tap_dance_dirty = true;
+            }
+            if !self.tap_dance_undo_stack.is_empty() {
+                if ui.add(egui::Button::new(RichText::new("↩ Undo").size(td_font_size)))
+                    .on_hover_text("Undo last tap dance change")
+                    .clicked() {
+                    if let Some((idx, prev, prev_name)) = self.tap_dance_undo_stack.pop() {
+                        if idx < self.tap_dance_entries.len() {
+                            self.tap_dance_entries[idx] = prev;
+                        }
+                        self.ensure_tap_dance_name_len(idx);
+                        if idx < self.tap_dance_names.len() {
+                            self.tap_dance_names[idx] = prev_name;
+                        }
+                        self.tap_dance_editor_open = Some(idx as u8);
+                        self.tap_dance_dirty = true;
+                    }
+                }
+            }
+        });
+
+        ui.add_space(4.0);
+        ui.label(RichText::new("Saved to keyboard when you close the keycode picker")
+            .size(td_hint_font_size).color(Color32::from_gray(120)));
     }
 
     fn show_tap_dance_editor(&mut self, ctx: &egui::Context, active_td: u8) {
@@ -1351,6 +1694,11 @@ impl KeycodePicker {
                     }
                 });
                 ui.separator();
+
+                if self.tap_dance_entries.is_empty() {
+                    ui.label(RichText::new("No Tap Dance slots available on this keyboard").size(16.0).color(Color32::from_gray(140)));
+                    return;
+                }
 
                 if active_td == 255 || active_td as usize >= self.tap_dance_entries.len() {
                     ui.label(RichText::new("Select a tap dance tab above to edit").size(16.0).color(Color32::from_gray(140)));
@@ -1425,26 +1773,17 @@ impl KeycodePicker {
     }
 
     fn show_td_key_picker(&mut self, ctx: &egui::Context, td_idx: usize, field: u8) {
-        // Esc to cancel
         if ctx.input(|i| i.key_pressed(Key::Escape)) {
             self.td_key_pick = None;
             return;
         }
-        // Physical key capture
+
         ctx.input(|i| {
             for event in &i.events {
                 if let egui::Event::Key { key, pressed: true, modifiers, .. } = event {
                     if let Some(qmk) = egui_key_to_qmk(*key, *modifiers) {
                         if qmk > 0 && qmk < 0x0100 {
-                            if let Some(td) = self.tap_dance_entries.get_mut(td_idx) {
-                                match field {
-                                    0 => td.on_tap = qmk,
-                                    1 => td.on_hold = qmk,
-                                    2 => td.on_double_tap = qmk,
-                                    3 => td.on_tap_hold = qmk,
-                                    _ => {}
-                                }
-                            }
+                            self.set_tap_dance_field(td_idx, field, qmk);
                             self.td_key_pick = None;
                         }
                     }
@@ -1455,40 +1794,114 @@ impl KeycodePicker {
         let field_name = match field {
             0 => "On Tap", 1 => "On Hold", 2 => "On Double Tap", 3 => "On Tap+Hold", _ => "?"
         };
+        let helper_text = match field {
+            0 => "Best for normal keys, navigation, media and special actions.",
+            1 => "Hold actions are limited to left/right modifiers and layers.",
+            2 => "Best for a second tap action, usually another normal key or command.",
+            3 => "Tap-then-hold actions are limited to left/right modifiers and layers.",
+            _ => "Press a key on your keyboard, or click below. Esc to cancel.",
+        };
+        let td_choices: Vec<(u16, String, String)> = if matches!(field, 1 | 3) {
+            let gui = gui_label(false).to_string();
+            let mut out: Vec<(u16, String, String)> = vec![
+                (0x00E0, "Left\nCtrl".into(), "Left Control".into()),
+                (0x00E4, "Right\nCtrl".into(), "Right Control".into()),
+                (0x00E1, "Left\nShift".into(), "Left Shift".into()),
+                (0x00E5, "Right\nShift".into(), "Right Shift".into()),
+                (0x00E2, "Left\nAlt".into(), "Left Alt".into()),
+                (0x00E6, "Right\nAlt".into(), "Right Alt".into()),
+                (0x00E3, format!("Left\n{}", gui), format!("Left {}", gui)),
+                (0x00E7, format!("Right\n{}", gui), format!("Right {}", gui)),
+            ];
+            out.extend(self.tap_dance_layer_choices().into_iter().map(|(value, _label)| {
+                let layer = (value & 0x1F) as usize;
+                let layer_name = self.layer_names.get(layer).cloned().unwrap_or_else(|| layer.to_string());
+                (value, format!("MO({})\n{}", layer, layer_name), format!("Momentarily activate layer {} while held", layer_name))
+            }));
+            out
+        } else {
+            KEYCODES.iter()
+                .filter(|kc| {
+                    kc.value != 0
+                        && kc.value != 0x0001
+                        && !kc.name.starts_with("RGB_")
+                        && matches!(kc.category, KeycodeCategory::Basic | KeycodeCategory::Function | KeycodeCategory::Navigation | KeycodeCategory::Media | KeycodeCategory::Special)
+                })
+                .map(|kc| (
+                    kc.value,
+                    keycode_label_with_names(kc.value, &[], &self.layer_names),
+                    keycode_tooltip(kc.value, &[], &self.layer_names),
+                ))
+                .collect()
+        };
+        let picker_height = 280.0;
+        let choices_height = 180.0;
         let mut still_open = true;
         egui::Window::new(format!("Pick key for {}", field_name))
             .open(&mut still_open)
             .collapsible(false)
-            .resizable(false)
-            .min_size(Vec2::new(400.0, 200.0))
+            .resizable(true)
+            .min_size(Vec2::new(560.0, picker_height))
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
             .show(ctx, |ui| {
                 ui.label(RichText::new("Press a key on your keyboard, or click below. Esc to cancel.")
                     .size(11.0).color(Color32::from_gray(140)));
+                ui.label(RichText::new(helper_text).size(10.5).color(Color32::from_gray(120)));
                 ui.add_space(4.0);
-                // None button
                 if ui.add(egui::Button::new(RichText::new("None (clear)").size(12.0))
                     .min_size(Vec2::new(100.0, 28.0))).clicked() {
-                    if let Some(td) = self.tap_dance_entries.get_mut(td_idx) {
-                        match field { 0 => td.on_tap = 0, 1 => td.on_hold = 0, 2 => td.on_double_tap = 0, 3 => td.on_tap_hold = 0, _ => {} }
-                    }
+                    self.set_tap_dance_field(td_idx, field, 0);
                     self.td_key_pick = None;
                 }
                 ui.add_space(4.0);
-                ui.horizontal_wrapped(|ui| {
-                    for kc in KEYCODES.iter() {
-                        if !matches!(kc.category, KeycodeCategory::Basic | KeycodeCategory::Function | KeycodeCategory::Navigation) { continue; }
-                        if kc.value == 0 || kc.value >= 0x0100 { continue; }
-                        let resp = ui.add(egui::Button::new(RichText::new(kc.label).size(10.0))
-                            .min_size(Vec2::new(36.0, 28.0)));
-                        if resp.clicked() {
-                            if let Some(td) = self.tap_dance_entries.get_mut(td_idx) {
-                                match field { 0 => td.on_tap = kc.value, 1 => td.on_hold = kc.value, 2 => td.on_double_tap = kc.value, 3 => td.on_tap_hold = kc.value, _ => {} }
+                egui::ScrollArea::vertical().max_height(choices_height).auto_shrink([false, false]).show(ui, |ui| {
+                    ui.horizontal_wrapped(|ui| {
+                        for (value, label, tip) in &td_choices {
+                            let button_size = if matches!(field, 1 | 3) { Vec2::new(78.0, 36.0) } else { Vec2::new(64.0, 34.0) };
+                            let resp = ui.add_sized(button_size, egui::Button::new(""));
+                            if resp.hovered() { ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand); }
+                            let visuals = ui.style().interact(&resp);
+                            if let Some((top, bottom)) = label.split_once('\n') {
+                                let top_color = visuals.fg_stroke.color.gamma_multiply(0.65);
+                                let top_galley = ui.painter().layout_no_wrap(
+                                    top.to_owned(),
+                                    egui::FontId::proportional(9.5),
+                                    top_color,
+                                );
+                                let bottom_galley = ui.painter().layout_no_wrap(
+                                    bottom.to_owned(),
+                                    egui::FontId::proportional(10.5),
+                                    visuals.fg_stroke.color,
+                                );
+                                ui.painter().galley(
+                                    egui::pos2(resp.rect.center().x - top_galley.size().x / 2.0, resp.rect.center().y - 8.5 - top_galley.size().y / 2.0),
+                                    top_galley,
+                                    top_color,
+                                );
+                                ui.painter().galley(
+                                    egui::pos2(resp.rect.center().x - bottom_galley.size().x / 2.0, resp.rect.center().y + 6.0 - bottom_galley.size().y / 2.0),
+                                    bottom_galley,
+                                    visuals.fg_stroke.color,
+                                );
+                            } else {
+                                let galley = ui.painter().layout_no_wrap(
+                                    label.to_owned(),
+                                    egui::FontId::proportional(10.0),
+                                    visuals.fg_stroke.color,
+                                );
+                                ui.painter().galley(
+                                    egui::pos2(resp.rect.center().x - galley.size().x / 2.0, resp.rect.center().y - galley.size().y / 2.0),
+                                    galley,
+                                    visuals.fg_stroke.color,
+                                );
                             }
-                            self.td_key_pick = None;
+                            if resp.clicked() {
+                                self.set_tap_dance_field(td_idx, field, *value);
+                                self.td_key_pick = None;
+                            }
+                            resp.on_hover_text(tip.as_str());
                         }
-                        resp.on_hover_text(keycode_tooltip(kc.value, &[], &self.layer_names));
-                    }
+                    });
                 });
             });
         if !still_open { self.td_key_pick = None; }
@@ -1514,6 +1927,61 @@ impl KeycodePicker {
 
     fn macro_custom_name(&self, n: usize) -> Option<String> {
         self.macro_names.get(n).map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
+    }
+
+    fn ensure_tap_dance_name_len(&mut self, n: usize) {
+        while self.tap_dance_names.len() <= n { self.tap_dance_names.push(String::new()); }
+    }
+
+    fn tap_dance_display_name(&self, n: usize) -> String {
+        match self.tap_dance_names.get(n) {
+            Some(name) if !name.trim().is_empty() => name.clone(),
+            _ => format!("TD{}", n),
+        }
+    }
+
+    fn push_tap_dance_undo(&mut self, n: usize) {
+        self.ensure_tap_dance_name_len(n);
+        if let Some(td) = self.tap_dance_entries.get(n).cloned() {
+            let name = self.tap_dance_names.get(n).cloned().unwrap_or_default();
+            self.tap_dance_undo_stack.push((n, td, name));
+        }
+    }
+
+    fn tap_dance_layer_choices(&self) -> Vec<(u16, String)> {
+        let count = self.layer_count.max(1).min(self.layer_names.len().max(1));
+        (0..count)
+            .map(|layer| {
+                let name = self.layer_names.get(layer).cloned().unwrap_or_else(|| layer.to_string());
+                (0x5220 | layer as u16, format!("MO({})", name))
+            })
+            .collect()
+    }
+
+    fn set_tap_dance_field(&mut self, n: usize, field: u8, value: u16) {
+        if n >= self.tap_dance_entries.len() { return; }
+        let current = match self.tap_dance_entries.get(n) {
+            Some(td) => match field {
+                0 => td.on_tap,
+                1 => td.on_hold,
+                2 => td.on_double_tap,
+                3 => td.on_tap_hold,
+                _ => return,
+            },
+            None => return,
+        };
+        if current == value { return; }
+        self.push_tap_dance_undo(n);
+        if let Some(td) = self.tap_dance_entries.get_mut(n) {
+            match field {
+                0 => td.on_tap = value,
+                1 => td.on_hold = value,
+                2 => td.on_double_tap = value,
+                3 => td.on_tap_hold = value,
+                _ => {}
+            }
+        }
+        self.tap_dance_dirty = true;
     }
 
     fn encode_macro(&mut self, n: usize) {
@@ -1562,13 +2030,14 @@ impl KeycodePicker {
             ("Breathing",    0x7802, "Toggle breathing effect on/off"),
             ("On",           0x7805, "Turn backlight on"),
             ("Off",          0x7806, "Turn backlight off"),
-            ("Brightness +", 0x7803, "Increase backlight brightness"),
             ("Brightness -", 0x7804, "Decrease backlight brightness"),
+            ("Brightness +", 0x7803, "Increase backlight brightness"),
         ];
         ui.horizontal_wrapped(|ui| {
             for (label, value, tip) in bl_keys {
                 let resp = ui.add(egui::Button::new(RichText::new(*label).size(10.5))
-                    .min_size(Vec2::new(80.0, 36.0)));
+                    .min_size(Vec2::new(80.0, 36.0)))
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
                 if resp.clicked() { self.result = Some(*value); self.open = false; }
                 resp.on_hover_text(*tip);
             }
@@ -1580,23 +2049,24 @@ impl KeycodePicker {
         ui.add_space(4.0);
         let rgb_keys: &[(&str, u16, &str)] = &[
             ("Toggle",       0x7A00, "Toggle RGB lighting on/off"),
-            ("Next Mode",    0x7A01, "Switch to next RGB animation mode"),
             ("Prev Mode",    0x7A02, "Switch to previous RGB animation mode"),
-            ("Hue +",        0x7A03, "Increase color hue"),
+            ("Next Mode",    0x7A01, "Switch to next RGB animation mode"),
             ("Hue -",        0x7A04, "Decrease color hue"),
-            ("Saturation +", 0x7A05, "Increase color saturation"),
+            ("Hue +",        0x7A03, "Increase color hue"),
             ("Saturation -", 0x7A06, "Decrease color saturation"),
-            ("Brightness +", 0x7A07, "Increase brightness"),
+            ("Saturation +", 0x7A05, "Increase color saturation"),
             ("Brightness -", 0x7A08, "Decrease brightness"),
-            ("Speed +",      0x7A09, "Increase animation speed"),
+            ("Brightness +", 0x7A07, "Increase brightness"),
             ("Speed -",      0x7A0A, "Decrease animation speed"),
-            ("Effect +",     0x7A0B, "Next RGB effect"),
+            ("Speed +",      0x7A09, "Increase animation speed"),
             ("Effect -",     0x7A0C, "Previous RGB effect"),
+            ("Effect +",     0x7A0B, "Next RGB effect"),
         ];
         ui.horizontal_wrapped(|ui| {
             for (label, value, tip) in rgb_keys {
                 let resp = ui.add(egui::Button::new(RichText::new(*label).size(10.5))
-                    .min_size(Vec2::new(80.0, 36.0)));
+                    .min_size(Vec2::new(80.0, 36.0)))
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
                 if resp.clicked() { self.result = Some(*value); self.open = false; }
                 resp.on_hover_text(*tip);
             }
@@ -1620,7 +2090,8 @@ impl KeycodePicker {
         ui.horizontal_wrapped(|ui| {
             for (label, value, tip) in rgbm_keys {
                 let resp = ui.add(egui::Button::new(RichText::new(*label).size(10.5))
-                    .min_size(Vec2::new(80.0, 36.0)));
+                    .min_size(Vec2::new(80.0, 36.0)))
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
                 if resp.clicked() { self.result = Some(*value); self.open = false; }
                 resp.on_hover_text(*tip);
             }
@@ -1634,21 +2105,22 @@ impl KeycodePicker {
             ("On",           0x7A16, "Turn RGB Matrix on"),
             ("Off",          0x7A17, "Turn RGB Matrix off"),
             ("Toggle",       0x7A18, "Toggle RGB Matrix on/off"),
-            ("Next",         0x7A19, "Next RGB Matrix animation"),
             ("Previous",     0x7A1A, "Previous RGB Matrix animation"),
-            ("Hue +",        0x7A1B, "Increase RGB Matrix hue"),
+            ("Next",         0x7A19, "Next RGB Matrix animation"),
             ("Hue -",        0x7A1C, "Decrease RGB Matrix hue"),
-            ("Saturation +", 0x7A1D, "Increase RGB Matrix saturation"),
+            ("Hue +",        0x7A1B, "Increase RGB Matrix hue"),
             ("Saturation -", 0x7A1E, "Decrease RGB Matrix saturation"),
-            ("Brightness +", 0x7A1F, "Increase RGB Matrix brightness"),
+            ("Saturation +", 0x7A1D, "Increase RGB Matrix saturation"),
             ("Brightness -", 0x7A20, "Decrease RGB Matrix brightness"),
-            ("Speed +",      0x7A21, "Increase RGB Matrix animation speed"),
+            ("Brightness +", 0x7A1F, "Increase RGB Matrix brightness"),
             ("Speed -",      0x7A22, "Decrease RGB Matrix animation speed"),
+            ("Speed +",      0x7A21, "Increase RGB Matrix animation speed"),
         ];
         ui.horizontal_wrapped(|ui| {
             for (label, value, tip) in rgbm_ctrl {
                 let resp = ui.add(egui::Button::new(RichText::new(*label).size(10.5))
-                    .min_size(Vec2::new(80.0, 36.0)));
+                    .min_size(Vec2::new(80.0, 36.0)))
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
                 if resp.clicked() { self.result = Some(*value); self.open = false; }
                 resp.on_hover_text(*tip);
             }
@@ -1656,21 +2128,25 @@ impl KeycodePicker {
     }
 
     fn show_vial_special(&mut self, ui: &mut egui::Ui) {
-        let special_keys: &[(&str, u16, &str)] = &[
-            ("~
-Esc",    0x7C16, "Grave/Escape — sends Esc normally, ` when Shift/GUI held"),
+        let special_keys: Vec<(String, u16, String)> = vec![
+            ("Esc
+~".into(),       0x7C16, format!("Grave/Escape — sends Esc normally, ` when Shift or {} is held", gui_mod_name())),
             ("⚡
-Boot",  0x7C00, "QK_BOOT — put keyboard into flash mode"),
+Boot".into(),     0x7C00, "QK_BOOT — put keyboard into flash mode".into()),
             ("🐛
-Dbg",   0x7C02, "DB_TOGG — toggle debug mode"),
+Debug".into(),    0x7C02, "DB_TOGG — toggle debug mode".into()),
             ("🔒
-Lock",  0x7800, "QK_LOCK — hold to lock remaining keys until pressed again"),
-            ("LSPO",      0x7C1A, "Left Shift when held, ( when tapped"),
-            ("RSPC",      0x7C1B, "Right Shift when held, ) when tapped"),
-            ("LCPO",      0x7C18, "Left Ctrl when held, ( when tapped"),
-            ("RCPC",      0x7C19, "Right Ctrl when held, ) when tapped"),
-            ("SftEnt",    0x7C1E, "Shift when held, Enter when tapped"),
-            ("GEsc",      0x7C16, "Grave/Escape dual-function key"),
+Lock".into(),     0x7800, "QK_LOCK — hold to lock remaining keys until pressed again".into()),
+            ("Shift
+(".into(),     0x7C1A, "Left Shift when held, ( when tapped".into()),
+            ("Shift
+)".into(),     0x7C1B, "Right Shift when held, ) when tapped".into()),
+            ("Ctrl
+(".into(),      0x7C18, "Left Ctrl when held, ( when tapped".into()),
+            ("Ctrl
+)".into(),      0x7C19, "Right Ctrl when held, ) when tapped".into()),
+            ("Shift
+Enter".into(), 0x7C1E, "Shift when held, Enter when tapped".into()),
         ];
         let extra_fn_keys: &[(&str, u16)] = &[
             ("F13", 0x0068), ("F14", 0x0069), ("F15", 0x006A), ("F16", 0x006B),
@@ -1680,11 +2156,33 @@ Lock",  0x7800, "QK_LOCK — hold to lock remaining keys until pressed again"),
         ui.label(RichText::new("Special QMK keys").size(11.0).color(Color32::from_gray(150)));
         ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| {
-            for (label, value, tip) in special_keys {
-                let resp = ui.add(egui::Button::new(RichText::new(*label).size(10.5))
-                    .min_size(Vec2::new(56.0, 42.0)));
+            for (label, value, tip) in &special_keys {
+                let resp = ui.add_sized(Vec2::new(56.0, 42.0), egui::Button::new(""))
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
+                let visuals = ui.style().interact(&resp);
+                let galleys: Vec<_> = label
+                    .split('\n')
+                    .map(|line| {
+                        ui.painter().layout_no_wrap(
+                            line.to_owned(),
+                            egui::FontId::proportional(10.5),
+                            visuals.fg_stroke.color,
+                        )
+                    })
+                    .collect();
+                let line_spacing = 1.0;
+                let total_height: f32 = galleys.iter().map(|galley| galley.size().y).sum::<f32>()
+                    + line_spacing * (galleys.len().saturating_sub(1) as f32);
+                let mut y = resp.rect.center().y - total_height / 2.0;
+                for galley in galleys {
+                    let x = resp.rect.center().x - galley.size().x / 2.0;
+                    let pos = egui::pos2(x, y);
+                    let height = galley.size().y;
+                    ui.painter().galley(pos, galley, visuals.fg_stroke.color);
+                    y += height + line_spacing;
+                }
                 if resp.clicked() { self.result = Some(*value); self.open = false; }
-                resp.on_hover_text(*tip);
+                resp.on_hover_text(tip.as_str());
             }
         });
 
@@ -1693,13 +2191,15 @@ Lock",  0x7800, "QK_LOCK — hold to lock remaining keys until pressed again"),
         ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| {
             for kc in crate::keycode::KEYCODES.iter().filter(|kc| matches!(kc.category, crate::keycode::KeycodeCategory::Mouse)) {
-                let resp = if let Some(suffix) = kc.label.strip_prefix("🖱") {
-                    let resp = ui.add_sized(Vec2::new(56.0, 42.0), egui::Button::new(""));
-                    let visuals = ui.style().interact(&resp);
+                let resp = ui.add_sized(Vec2::new(56.0, 42.0), egui::Button::new(""))
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
+                let visuals = ui.style().interact(&resp);
+                let icon_color = visuals.fg_stroke.color.gamma_multiply(0.6);
+                if let Some(suffix) = kc.label.strip_prefix("🖱") {
                     let mouse_galley = ui.painter().layout_no_wrap(
                         "🖱".to_owned(),
                         egui::FontId::proportional(15.5),
-                        visuals.fg_stroke.color,
+                        icon_color,
                     );
                     let suffix_galley = ui.painter().layout_no_wrap(
                         suffix.to_owned(),
@@ -1714,7 +2214,7 @@ Lock",  0x7800, "QK_LOCK — hold to lock remaining keys until pressed again"),
                     let total_width = mouse_width + spacing + suffix_width;
                     let start_x = resp.rect.center().x - total_width / 2.0;
                     let mouse_pos = egui::pos2(start_x, resp.rect.center().y - mouse_height / 2.0);
-                    ui.painter().galley(mouse_pos, mouse_galley, visuals.fg_stroke.color);
+                    ui.painter().galley(mouse_pos, mouse_galley, icon_color);
                     if !suffix.is_empty() {
                         let suffix_pos = egui::pos2(
                             start_x + mouse_width + spacing,
@@ -1722,25 +2222,109 @@ Lock",  0x7800, "QK_LOCK — hold to lock remaining keys until pressed again"),
                         );
                         ui.painter().galley(suffix_pos, suffix_galley, visuals.fg_stroke.color);
                     }
-                    resp
+                } else if let Some((icon, text)) = kc.label.split_once(' ') {
+                    let icon_galley = ui.painter().layout_no_wrap(
+                        icon.to_owned(),
+                        egui::FontId::proportional(11.0),
+                        icon_color,
+                    );
+                    let text_galley = ui.painter().layout_no_wrap(
+                        text.to_owned(),
+                        egui::FontId::proportional(10.5),
+                        visuals.fg_stroke.color,
+                    );
+                    let spacing = 2.0;
+                    let icon_width = icon_galley.size().x;
+                    let icon_height = icon_galley.size().y;
+                    let text_height = text_galley.size().y;
+                    let total_width = icon_width + spacing + text_galley.size().x;
+                    let start_x = resp.rect.center().x - total_width / 2.0;
+                    let icon_pos = egui::pos2(start_x, resp.rect.center().y - icon_height / 2.0);
+                    ui.painter().galley(icon_pos, icon_galley, icon_color);
+                    let text_pos = egui::pos2(
+                        start_x + icon_width + spacing,
+                        resp.rect.center().y - text_height / 2.0,
+                    );
+                    ui.painter().galley(text_pos, text_galley, visuals.fg_stroke.color);
                 } else {
-                    ui.add(egui::Button::new(RichText::new(kc.label).size(10.5))
-                        .min_size(Vec2::new(56.0, 42.0)))
-                };
+                    let galley = ui.painter().layout_no_wrap(
+                        kc.label.to_owned(),
+                        egui::FontId::proportional(10.5),
+                        visuals.fg_stroke.color,
+                    );
+                    let pos = egui::pos2(
+                        resp.rect.center().x - galley.size().x / 2.0,
+                        resp.rect.center().y - galley.size().y / 2.0,
+                    );
+                    ui.painter().galley(pos, galley, visuals.fg_stroke.color);
+                }
                 if resp.clicked() { self.result = Some(kc.value); self.open = false; }
                 resp.on_hover_text(crate::keycode::keycode_tooltip(kc.value, &[], &self.layer_names));
             }
         });
 
+        let media_keys: &[(&str, &str, u16)] = &[
+            ("🔇", "Mute",    0x00A8),
+            ("🔉", "Vol-",    0x00AA),
+            ("🔊", "Vol+",    0x00A9),
+            ("⏮", "Prev",    0x00AC),
+            ("⏭", "Next",    0x00AB),
+            ("⏹", "Stop",    0x00AD),
+            ("⏯", "Play",    0x00AE),
+            ("🎵", "Media",   0x00AF),
+            ("✉", "Mail",    0x00B0),
+            ("∑", "Calc",    0x00B1),
+            ("📁", "Files",   0x00B2),
+            ("🔍", "Search",  0x00B3),
+            ("🌐", "Home",    0x00B4),
+            ("←", "Back",    0x00B5),
+            ("→", "Fwd",     0x00B6),
+            ("⏹", "Web",     0x00B7),
+            ("↻", "Reload",  0x00B8),
+            ("★", "Favs",    0x00B9),
+            ("🌙", "Sleep",   0x00A5),
+            ("☀", "Wake",    0x00A6),
+            ("🔅", "Bright-", 0x00BB),
+            ("🔆", "Bright+", 0x00A7),
+            ("⏻", "Power",   0x0066),
+        ];
+
         ui.add_space(10.0);
-        ui.label(RichText::new("Media").size(11.0).color(Color32::from_gray(150)));
+        ui.label(RichText::new("Media, Apps, System").size(11.0).color(Color32::from_gray(150)));
         ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| {
-            for kc in crate::keycode::KEYCODES.iter().filter(|kc| matches!(kc.category, crate::keycode::KeycodeCategory::Media)) {
-                let resp = ui.add(egui::Button::new(RichText::new(kc.label).size(10.5))
-                    .min_size(Vec2::new(56.0, 42.0)));
-                if resp.clicked() { self.result = Some(kc.value); self.open = false; }
-                resp.on_hover_text(crate::keycode::keycode_tooltip(kc.value, &[], &self.layer_names));
+            for (icon, text, value) in media_keys {
+                let resp = ui.add_sized(Vec2::new(56.0, 42.0), egui::Button::new(""))
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
+                let visuals = ui.style().interact(&resp);
+                let icon_color = visuals.fg_stroke.color.gamma_multiply(0.6);
+                let icon_galley = ui.painter().layout_no_wrap(
+                    (*icon).to_owned(),
+                    egui::FontId::proportional(10.5),
+                    icon_color,
+                );
+                let text_galley = ui.painter().layout_no_wrap(
+                    (*text).to_owned(),
+                    egui::FontId::proportional(10.5),
+                    visuals.fg_stroke.color,
+                );
+                let line_spacing = 1.0;
+                let icon_width = icon_galley.size().x;
+                let icon_height = icon_galley.size().y;
+                let text_width = text_galley.size().x;
+                let total_height = icon_height + line_spacing + text_galley.size().y;
+                let icon_pos = egui::pos2(
+                    resp.rect.center().x - icon_width / 2.0,
+                    resp.rect.center().y - total_height / 2.0,
+                );
+                ui.painter().galley(icon_pos, icon_galley, icon_color);
+                let text_pos = egui::pos2(
+                    resp.rect.center().x - text_width / 2.0,
+                    icon_pos.y + icon_height + line_spacing,
+                );
+                ui.painter().galley(text_pos, text_galley, visuals.fg_stroke.color);
+                if resp.clicked() { self.result = Some(*value); self.open = false; }
+                resp.on_hover_text(crate::keycode::keycode_tooltip(*value, &[], &self.layer_names));
             }
         });
 

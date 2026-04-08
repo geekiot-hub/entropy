@@ -32,8 +32,14 @@ fn main() -> eframe::Result<()> {
         "Entropy",
         options,
         Box::new(|cc| {
-            // DejaVu Sans as primary font + NotoSansSymbols2 as fallback for ⬅⬆⬇➡⌫⏎⏯⏭⏮▽⌘⌃⌥⇧ etc.
+            // Roboto as primary UI font, with Unicode/symbol fallbacks.
             let mut fonts = egui::FontDefinitions::default();
+            fonts.font_data.insert(
+                "roboto".to_owned(),
+                egui::FontData::from_static(
+                    include_bytes!("../assets/Roboto-Regular.ttf")
+                ).into(),
+            );
             fonts.font_data.insert(
                 "dejavu".to_owned(),
                 egui::FontData::from_static(
@@ -55,9 +61,16 @@ fn main() -> eframe::Result<()> {
             let prop = fonts.families
                 .entry(egui::FontFamily::Proportional)
                 .or_default();
-            prop.insert(0, "dejavu".to_owned());
+            prop.insert(0, "roboto".to_owned());
+            prop.push("dejavu".to_owned());
             prop.push("noto_symbols".to_owned());
             prop.push("noto_emoji".to_owned());
+            let mono = fonts.families
+                .entry(egui::FontFamily::Monospace)
+                .or_default();
+            mono.push("dejavu".to_owned());
+            mono.push("noto_symbols".to_owned());
+            mono.push("noto_emoji".to_owned());
             cc.egui_ctx.set_fonts(fonts);
             Ok(Box::new(EntropyApp::new(cc)))
         }),

@@ -55,6 +55,36 @@ fn save_layer_names(names: &[String], device_name: &str) {
     }
 }
 
+fn tap_dance_names_path(device_name: &str) -> std::path::PathBuf {
+    let dir = dirs::config_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join("entropy");
+    std::fs::create_dir_all(&dir).ok();
+    let slug = device_id_slug(device_name);
+    dir.join(format!("tap_dance_names_{}.json", slug))
+}
+
+fn load_tap_dance_names(device_name: &str) -> Vec<String> {
+    let path = tap_dance_names_path(device_name);
+    if let Ok(data) = std::fs::read_to_string(&path) {
+        if let Ok(v) = serde_json::from_str::<Vec<String>>(&data) {
+            return v;
+        }
+    }
+    vec![]
+}
+
+fn save_tap_dance_names(names: &[String], device_name: &str) {
+    if let Ok(data) = serde_json::to_string(names) {
+        let path = tap_dance_names_path(device_name);
+        if let Err(e) = std::fs::write(&path, &data) {
+            log::warn!("save_tap_dance_names failed at {:?}: {e}", path);
+        } else {
+            log::info!("save_tap_dance_names ok → {:?}", path);
+        }
+    }
+}
+
 fn macro_display_name(macro_names: &[String], idx: usize) -> String {
     match macro_names.get(idx) {
         Some(name) if !name.trim().is_empty() => name.clone(),
@@ -66,11 +96,23 @@ fn macro_custom_name(macro_names: &[String], idx: usize) -> Option<String> {
     macro_names.get(idx).map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
 }
 
+fn tap_dance_display_name(tap_dance_names: &[String], idx: usize) -> String {
+    match tap_dance_names.get(idx) {
+        Some(name) if !name.trim().is_empty() => name.clone(),
+        _ => format!("TD{}", idx),
+    }
+}
+
+fn tap_dance_custom_name(tap_dance_names: &[String], idx: usize) -> Option<String> {
+    tap_dance_names.get(idx).map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
+}
+
 fn keycode_label_with_macro_names(
     value: u16,
     custom: &[(String, String)],
     layer_names: &[String],
     macro_names: &[String],
+    tap_dance_names: &[String],
 ) -> String {
     if (0x7700..=0x77FF).contains(&value) {
         let idx = (value - 0x7700) as usize;
@@ -78,6 +120,13 @@ fn keycode_label_with_macro_names(
             return format!("M{}\n{}", idx, name);
         }
         return format!("M{}", idx);
+    }
+    if (0x5700..=0x57FF).contains(&value) {
+        let idx = (value - 0x5700) as usize;
+        if let Some(name) = tap_dance_custom_name(tap_dance_names, idx) {
+            return format!("TD{}\n{}", idx, name);
+        }
+        return format!("TD{}", idx);
     }
     keycode_label_with_names(value, custom, layer_names)
 }
@@ -87,16 +136,22 @@ fn keycode_tooltip_with_macro_names(
     custom: &[(String, String)],
     layer_names: &[String],
     macro_names: &[String],
+    tap_dance_names: &[String],
 ) -> String {
     if (0x7700..=0x77FF).contains(&value) {
         let idx = (value - 0x7700) as usize;
         let name = macro_display_name(macro_names, idx);
         return format!("{} — macro {}", name, idx);
     }
+    if (0x5700..=0x57FF).contains(&value) {
+        let idx = (value - 0x5700) as usize;
+        let name = tap_dance_display_name(tap_dance_names, idx);
+        return format!("{} — tap dance {}", name, idx);
+    }
     keycode_tooltip(value, custom, layer_names)
 }
 use crate::keyboard::KeyboardLayout;
-use crate::keycode::{keycode_label_with_names, keycode_tooltip};
+use crate::keycode::{key_label_font_sizes, keycode_label_with_names, keycode_tooltip};
 use crate::keycode_picker::KeycodePicker;
 use egui::{Color32, FontId, RichText, Sense, Stroke, Vec2};
 
@@ -139,6 +194,42 @@ enum ZmkOpResult {
     LockStateChanged(i32),
 }
 
+fn toggle_handed_modifier(value: u16) -> Option<u16> {
+    match value {
+        0x00E0 => Some(0x00E4),
+        0x00E4 => Some(0x00E0),
+        0x00E1 => Some(0x00E5),
+        0x00E5 => Some(0x00E1),
+        0x00E2 => Some(0x00E6),
+        0x00E6 => Some(0x00E2),
+        0x00E3 => Some(0x00E7),
+        0x00E7 => Some(0x00E3),
+        0x52A1 => Some(0x52B1),
+        0x52B1 => Some(0x52A1),
+        0x52A2 => Some(0x52B2),
+        0x52B2 => Some(0x52A2),
+        0x52A4 => Some(0x52B4),
+        0x52B4 => Some(0x52A4),
+        0x52A8 => Some(0x52B8),
+        0x52B8 => Some(0x52A8),
+        _ => {
+            let base = value & 0xFF00;
+            let low = value & 0x00FF;
+            match base {
+                0x2100 => Some(0x3100 | low),
+                0x3100 => Some(0x2100 | low),
+                0x2200 => Some(0x3200 | low),
+                0x3200 => Some(0x2200 | low),
+                0x2400 => Some(0x3400 | low),
+                0x3400 => Some(0x2400 | low),
+                0x2800 => Some(0x3800 | low),
+                0x3800 => Some(0x2800 | low),
+                _ => None,
+            }
+        }
+    }
+}
+
 pub struct EntropyApp {
     device_manager: DeviceManager,
     selected_device: Option<usize>,
@@ -170,6 +261,8 @@ pub struct EntropyApp {
     prev_hovered_key: Option<usize>,
     /// Set when secondary click was handled by a key (prevents global jump-back)
     secondary_click_handled: bool,
+    /// Deferred left/right modifier swap, applied after Ctrl is released
+    pending_handed_swap: Option<(usize, usize, u16)>,
     /// Animation progress for hover layer preview (0.0 = hidden, 1.0 = fully shown)
     hover_layer_progress: f32,
     /// Stack of layers to return to on right-click (last = most recent)
@@ -212,6 +305,7 @@ impl EntropyApp {
             hover_layer: None,
             prev_hovered_key: None,
             secondary_click_handled: false,
+            pending_handed_swap: None,
             hover_layer_progress: 0.0,
             jump_back_stack: Vec::new(),
             device_manager: DeviceManager::new(),
@@ -420,6 +514,7 @@ impl EntropyApp {
                                 keys: vec![],
                                 layers: vec![],
                                 custom_keycodes: vec![],
+                                supports_rgb: false,
                                 firmware: FirmwareProtocol::Zmk,
                                 zmk_bindings: vec![],
                                 zmk_behaviors: vec![],
@@ -520,9 +615,9 @@ impl EntropyApp {
                 self.current_device_name = r.device_name.clone();
                 self.zmk_lock_state = r.zmk_lock_state;
                 self.zmk_has_unsaved = false;
+                self.keycode_picker.tap_dance_entries = r.tap_dance_entries.clone();
                 if !r.macro_texts.is_empty() {
                     self.keycode_picker.macro_count = r.macro_texts.len();
-                    self.keycode_picker.tap_dance_entries = r.tap_dance_entries.clone();
                     self.keycode_picker.macro_texts = r.macro_texts.clone();
                     self.keycode_picker.macro_names = vec![String::new(); r.macro_texts.len()];
                     // Parse macro texts into actions
@@ -600,6 +695,9 @@ impl EntropyApp {
 
                 // Populate picker based on firmware
                 self.keycode_picker.firmware = self.firmware;
+                self.keycode_picker.supports_rgb = r.layout.supports_rgb;
+                self.keycode_picker.layer_count = r.layout.layers.len().max(1);
+                self.keycode_picker.tap_dance_names = load_tap_dance_names(&device_name);
                 if self.firmware == FirmwareProtocol::Vial {
                     const USER_BASE: u16 = 0x7E40;
                     self.keycode_picker.custom_keycodes = r.layout.custom_keycodes.iter().enumerate()
@@ -979,6 +1077,17 @@ impl eframe::App for EntropyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Auto-scan for new devices every ~2 seconds (120 frames at 60fps)
         self.secondary_click_handled = false;
+        if let Some((layer, ki, kc)) = self.pending_handed_swap {
+            if !ctx.input(|i| i.modifiers.ctrl) {
+                #[cfg(not(target_arch = "wasm32"))]
+                self.assign_keycode(layer, ki, kc);
+                #[cfg(target_arch = "wasm32")]
+                if let Some(layout) = &mut self.layout {
+                    layout.set_keycode(layer, ki, kc);
+                }
+                self.pending_handed_swap = None;
+            }
+        }
         self.scan_frame += 1;
         if self.scan_frame >= 120 && !self.vial_unlock_polling {
             self.scan_frame = 0;
@@ -1016,7 +1125,7 @@ impl eframe::App for EntropyApp {
             v.extreme_bg_color = Color32::from_rgb(235, 235, 235);
             v.widgets.noninteractive.bg_fill = Color32::from_rgb(245, 245, 245);
             v.widgets.inactive.bg_fill = Color32::from_rgb(255, 255, 255);
-            v.widgets.hovered.bg_fill = Color32::from_rgb(235, 235, 235);
+            v.widgets.hovered.bg_fill = Color32::from_rgb(232, 232, 240);
             v.widgets.active.bg_fill = Color32::from_rgb(91, 104, 223);
             v.selection.bg_fill = Color32::from_rgba_unmultiplied(91, 104, 223, 80);
             ctx.set_visuals(v);
@@ -1350,7 +1459,7 @@ impl eframe::App for EntropyApp {
                             ui.painter().rect(rect, 5.0, bg, Stroke::new(1.0, border), egui::StrokeKind::Inside);
 
                             let kc = layout.get_keycode(0, ki);
-                            let label = keycode_label_with_macro_names(kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names);
+                            let label = keycode_label_with_macro_names(kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names, &self.keycode_picker.tap_dance_names);
                             let text_color = if is_unlock { Color32::WHITE } else { Color32::from_gray(80) };
                             ui.painter().text(rect.center(), egui::Align2::CENTER_CENTER, &label,
                                 FontId::proportional(9.0 * scale), text_color);
@@ -1391,15 +1500,23 @@ impl eframe::App for EntropyApp {
         }
 
         // Write tap dance to device if changed
-        if self.keycode_picker.tap_dance_dirty {
-            self.keycode_picker.tap_dance_dirty = false;
+        if self.keycode_picker.tap_dance_dirty && !self.keycode_picker.open {
+            let mut td_save_ok = true;
             if let Some(hid) = &self.hid_device {
                 for (i, td) in self.keycode_picker.tap_dance_entries.iter().enumerate() {
                     match hid.set_tap_dance(i as u8, td.on_tap, td.on_hold, td.on_double_tap, td.on_tap_hold, td.tapping_term) {
                         Ok(()) => {}
-                        Err(e) => { self.status_msg = format!("Tap dance write error: {e}"); break; }
+                        Err(e) => {
+                            self.status_msg = format!("Tap dance write error: {e}");
+                            td_save_ok = false;
+                            break;
+                        }
                     }
                 }
+            }
+            if td_save_ok {
+                save_tap_dance_names(&self.keycode_picker.tap_dance_names, &self.current_device_name);
+                self.keycode_picker.tap_dance_dirty = false;
                 if self.status_msg.is_empty() || self.status_msg.starts_with("✓") {
                     self.status_msg = "✓ Tap dance saved".into();
                 }
@@ -1688,7 +1805,8 @@ impl EntropyApp {
                 // Hint text below layer name
                 let hint_color = if self.dark_mode { Color32::from_gray(100) } else { Color32::from_gray(160) };
                 let hint_font = FontId::proportional(11.0);
-                let hint_y = bar_y + layer_bar_h - 2.0;
+                let secondary_hint_font = FontId::proportional(10.5);
+                let hint_y = bar_y + layer_bar_h + 18.0;
                 let any_hovered = self.prev_hovered_key.is_some();
                 if let Some(hl) = self.hover_layer {
                     let hl_name = self.layer_names.get(hl).cloned().unwrap_or_else(|| hl.to_string());
@@ -1724,26 +1842,43 @@ impl EntropyApp {
                         "Right-click or Esc to go back", hint_font, hint_color);
                 } else if any_hovered {
                     // Check if hovered key is a mod key
-                    let (hovered_is_mod, hovered_is_macro) = if self.firmware == FirmwareProtocol::Vial {
+                    let (hovered_is_mod, hovered_can_swap_side, hovered_is_macro, hovered_is_tap_dance) = if self.firmware == FirmwareProtocol::Vial {
                         self.prev_hovered_key.and_then(|ki| {
                             self.layout.as_ref().map(|l| {
                                 let kc = l.get_keycode(self.selected_layer, ki);
-                                let is_mod = (kc >= 0x2000 && kc < 0x4000) || (kc >= 0x0100 && kc < 0x2000 && (kc & 0xFF) != 0);
+                                let is_plain_mod = (0x00E0..=0x00E7).contains(&kc) || matches!(kc, 0x52A1 | 0x52A2 | 0x52A4 | 0x52A7 | 0x52A8 | 0x52AF | 0x52B1 | 0x52B2 | 0x52B4 | 0x52B8);
+                                let is_mod = is_plain_mod || (kc >= 0x2000 && kc < 0x4000) || (kc >= 0x0100 && kc < 0x2000 && (kc & 0xFF) != 0);
+                                let can_swap_side = toggle_handed_modifier(kc).is_some();
                                 let is_macro = kc >= 0x7700 && kc <= 0x77FF;
-                                (is_mod, is_macro)
+                                let is_tap_dance = kc >= 0x5700 && kc <= 0x57FF;
+                                (is_mod, can_swap_side, is_macro, is_tap_dance)
                             })
-                        }).unwrap_or((false, false))
-                    } else { (false, false) };
+                        }).unwrap_or((false, false, false, false))
+                    } else { (false, false, false, false) };
                     if hovered_is_mod {
-                        ui.painter().text(egui::pos2(center_x, hint_y - 9.0), egui::Align2::CENTER_CENTER,
-                            "Left click to change this key", hint_font.clone(), hint_color);
-                        ui.painter().text(egui::pos2(center_x, hint_y + 5.0), egui::Align2::CENTER_CENTER,
-                            "Right click to change the modifier key", hint_font, hint_color);
+                        if hovered_can_swap_side {
+                            ui.painter().text(egui::pos2(center_x, hint_y - 22.0), egui::Align2::CENTER_CENTER,
+                                "Left click to change this key", hint_font.clone(), hint_color);
+                            ui.painter().text(egui::pos2(center_x, hint_y - 4.0), egui::Align2::CENTER_CENTER,
+                                "Right click to change the modifier key", secondary_hint_font.clone(), hint_color);
+                            ui.painter().text(egui::pos2(center_x, hint_y + 12.0), egui::Align2::CENTER_CENTER,
+                                "Ctrl+right-click to switch left/right side", secondary_hint_font, hint_color);
+                        } else {
+                            ui.painter().text(egui::pos2(center_x, hint_y - 14.0), egui::Align2::CENTER_CENTER,
+                                "Left click to change this key", hint_font.clone(), hint_color);
+                            ui.painter().text(egui::pos2(center_x, hint_y + 4.0), egui::Align2::CENTER_CENTER,
+                                "Right click to change the modifier key", secondary_hint_font, hint_color);
+                        }
                     } else if hovered_is_macro {
-                        ui.painter().text(egui::pos2(center_x, hint_y - 9.0), egui::Align2::CENTER_CENTER,
+                        ui.painter().text(egui::pos2(center_x, hint_y - 14.0), egui::Align2::CENTER_CENTER,
                             "Left click to change this key", hint_font.clone(), hint_color);
-                        ui.painter().text(egui::pos2(center_x, hint_y + 5.0), egui::Align2::CENTER_CENTER,
-                            "Right click to edit macro", hint_font, hint_color);
+                        ui.painter().text(egui::pos2(center_x, hint_y + 4.0), egui::Align2::CENTER_CENTER,
+                            "Right click to edit macro", secondary_hint_font.clone(), hint_color);
+                    } else if hovered_is_tap_dance {
+                        ui.painter().text(egui::pos2(center_x, hint_y - 14.0), egui::Align2::CENTER_CENTER,
+                            "Left click to change this key", hint_font.clone(), hint_color);
+                        ui.painter().text(egui::pos2(center_x, hint_y + 4.0), egui::Align2::CENTER_CENTER,
+                            "Right click to edit tap dance", secondary_hint_font, hint_color);
                     } else {
                         ui.painter().text(egui::pos2(center_x, hint_y), egui::Align2::CENTER_CENTER,
                             "Left click to change this key", hint_font, hint_color);
@@ -1808,20 +1943,28 @@ impl EntropyApp {
 
                 // Ctrl+RClick on layer keys: change layer number
                 if ctrl_held {
-                    let layer_base: Option<u16> = if kc >= 0x5200 && kc < 0x5300 {
-                        Some(kc & 0xFFE0)
-                    } else if kc & 0xF000 == 0x4000 {
-                        Some(0x4000)
-                    } else {
-                        None
-                    };
-                    if let Some(base) = layer_base {
-                        self.selected_key = Some((self.selected_layer, *ki));
-                        self.keycode_picker.open = true;
-                        self.keycode_picker.layer_names = self.layer_names.clone();
-                        self.keycode_picker.firmware = self.firmware;
-                        self.keycode_picker.vial_layer_pending = Some(base);
+                    if let Some(swapped) = toggle_handed_modifier(kc) {
+                        self.pending_handed_swap = Some((self.selected_layer, *ki, swapped));
                         self.secondary_click_handled = true;
+                    } else {
+                        let layer_base: Option<u16> = if kc >= 0x5200 && kc < 0x5300 {
+                            Some(kc & 0xFFE0)
+                        } else if kc & 0xF000 == 0x4000 {
+                            Some(0x4000)
+                        } else {
+                            None
+                        };
+                        if let Some(base) = layer_base {
+                            self.selected_key = Some((self.selected_layer, *ki));
+                            self.keycode_picker.open = true;
+                            self.keycode_picker.layer_names = self.layer_names.clone();
+                            self.keycode_picker.firmware = self.firmware;
+                            self.keycode_picker.vial_layer_pending = Some(base);
+                            self.secondary_click_handled = true;
+                        }
+                    }
+                    if self.secondary_click_handled {
+                        continue;
                     }
                 }
                 // Macro keys: 0x7700..0x77FF — RClick opens editor
@@ -1833,6 +1976,17 @@ impl EntropyApp {
                     self.keycode_picker.firmware = self.firmware;
                     self.keycode_picker.selected_tab = crate::keycode_picker::KeycodeTab::Macro;
                     self.keycode_picker.macro_inline_selected = Some(macro_n);
+                    self.secondary_click_handled = true;
+                }
+                // Tap Dance keys: 0x5700..0x57FF — RClick opens editor
+                if kc >= 0x5700 && kc <= 0x57FF {
+                    let td_n = (kc - 0x5700) as u8;
+                    self.selected_key = Some((self.selected_layer, *ki));
+                    self.keycode_picker.open = true;
+                    self.keycode_picker.layer_names = self.layer_names.clone();
+                    self.keycode_picker.firmware = self.firmware;
+                    self.keycode_picker.selected_tab = crate::keycode_picker::KeycodeTab::TapDance;
+                    self.keycode_picker.tap_dance_editor_open = Some(td_n);
                     self.secondary_click_handled = true;
                 }
                 // MT: 0x2000..0x3FFF, Mod+Key: 0x0100..0x1FFF with kc != 0
@@ -1907,13 +2061,7 @@ impl EntropyApp {
                 let kc = layout.get_keycode(self.selected_layer, *ki);
                 let is_mod_key = (kc >= 0x2000 && kc < 0x4000) || (kc >= 0x0100 && kc < 0x2000 && (kc & 0xFF) != 0);
                 let is_macro_key = kc >= 0x7700 && kc <= 0x77FF;
-                let tip = if is_mod_key {
-                    keycode_tooltip_with_macro_names(kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names)
-                } else if is_macro_key {
-                    keycode_tooltip_with_macro_names(kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names)
-                } else {
-                    keycode_tooltip_with_macro_names(kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names)
-                };
+                let tip = keycode_tooltip_with_macro_names(kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names, &self.keycode_picker.tap_dance_names);
                 *response = response.clone().on_hover_text(tip);
             }
         }
@@ -2010,7 +2158,7 @@ impl EntropyApp {
                         let label = if fallback_kc == 0x0000 || fallback_kc == 0x0001 {
                             "\u{25BD}".to_string()
                         } else {
-                            keycode_label_with_macro_names(fallback_kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names)
+                            keycode_label_with_macro_names(fallback_kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names, &self.keycode_picker.tap_dance_names)
                         };
                         draw_key_label_dimmed(&painter, draw_rect, &label, dark);
                     }
@@ -2023,7 +2171,7 @@ impl EntropyApp {
                 } else {
                     let border = if dark { Color32::from_rgb(55, 55, 60) } else { Color32::from_rgb(210, 210, 218) };
                     painter.rect(draw_rect, 6.0, bg, Stroke::new(1.0, border), egui::StrokeKind::Inside);
-                    let label = keycode_label_with_macro_names(kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names);
+                    let label = keycode_label_with_macro_names(kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names, &self.keycode_picker.tap_dance_names);
                     draw_key_label(&painter, draw_rect, &label, dark);
                 }
             }
@@ -2052,13 +2200,15 @@ fn draw_key_label_dimmed(painter: &egui::Painter, rect: egui::Rect, label: &str,
     } else {
         (None, label)
     };
+    let (top_size, bottom_size) = key_label_font_sizes(label);
 
     if let Some(top_str) = top {
         let center = rect.center();
-        painter.text(egui::pos2(center.x, center.y - 7.0), egui::Align2::CENTER_CENTER, top_str, FontId::proportional(9.0), dim_top);
-        painter.text(egui::pos2(center.x, center.y + 6.0), egui::Align2::CENTER_CENTER, bottom, FontId::proportional(11.0), dim);
+        painter.text(egui::pos2(center.x, center.y - 7.0), egui::Align2::CENTER_CENTER, top_str, FontId::proportional(top_size.unwrap_or(9.0)), dim_top);
+        painter.text(egui::pos2(center.x, center.y + 6.0), egui::Align2::CENTER_CENTER, bottom, FontId::proportional(bottom_size), dim);
     } else {
-        painter.text(rect.center(), egui::Align2::CENTER_CENTER, bottom, FontId::proportional(11.0), dim);
+        let font_size = if bottom == "↵" { 16.0 } else { bottom_size };
+        painter.text(rect.center(), egui::Align2::CENTER_CENTER, bottom, FontId::proportional(font_size), dim);
     }
 }
 
@@ -2083,20 +2233,41 @@ fn draw_key_label_alpha(painter: &egui::Painter, rect: egui::Rect, label: &str, 
     } else {
         (None, label)
     };
+    let (top_size, bottom_size) = key_label_font_sizes(label);
     let top_color = with_alpha(if dark { Color32::from_rgb(130, 130, 145) } else { Color32::from_rgb(130, 130, 150) }, alpha);
     let main_color = with_alpha(if dark { Color32::from_rgb(232, 232, 240) } else { Color32::from_rgb(26, 26, 30) }, alpha);
     if let Some(top_str) = top {
         let center = rect.center();
-        painter.text(egui::pos2(center.x, center.y - 7.0), egui::Align2::CENTER_CENTER, top_str, FontId::proportional(9.0), top_color);
-        painter.text(egui::pos2(center.x, center.y + 6.0), egui::Align2::CENTER_CENTER, bottom, FontId::proportional(11.0), main_color);
+        painter.text(egui::pos2(center.x, center.y - 7.0), egui::Align2::CENTER_CENTER, top_str, FontId::proportional(top_size.unwrap_or(9.0)), top_color);
+        painter.text(egui::pos2(center.x, center.y + 6.0), egui::Align2::CENTER_CENTER, bottom, FontId::proportional(bottom_size), main_color);
     } else {
-        painter.text(rect.center(), egui::Align2::CENTER_CENTER, bottom, FontId::proportional(11.0), main_color);
+        let font_size = if bottom == "↵" { 16.0 } else { bottom_size };
+        painter.text(rect.center(), egui::Align2::CENTER_CENTER, bottom, FontId::proportional(font_size), main_color);
     }
 }
 
 fn draw_key_label_dimmed_alpha(painter: &egui::Painter, rect: egui::Rect, label: &str, dark: bool, alpha: f32) {
-    let color = with_alpha(if dark { Color32::from_rgb(80, 80, 90) } else { Color32::from_rgb(180, 180, 195) }, alpha);
-    painter.text(rect.center(), egui::Align2::CENTER_CENTER, label, FontId::proportional(11.0), color);
+    let dim = with_alpha(if dark { Color32::from_rgb(80, 80, 90) } else { Color32::from_rgb(180, 180, 195) }, alpha);
+    let dim_top = with_alpha(if dark { Color32::from_rgb(60, 60, 70) } else { Color32::from_rgb(190, 190, 205) }, alpha);
+    let (top, bottom) = if let Some(pos) = label.find('/') {
+        (Some(&label[..pos]), &label[pos+1..])
+    } else if label.contains('\n') {
+        let mut parts = label.splitn(2, '\n');
+        let t = parts.next().unwrap_or("");
+        let b = parts.next().unwrap_or(label);
+        (Some(t), b)
+    } else {
+        (None, label)
+    };
+    let (top_size, bottom_size) = key_label_font_sizes(label);
+    if let Some(top_str) = top {
+        let center = rect.center();
+        painter.text(egui::pos2(center.x, center.y - 7.0), egui::Align2::CENTER_CENTER, top_str, FontId::proportional(top_size.unwrap_or(9.0)), dim_top);
+        painter.text(egui::pos2(center.x, center.y + 6.0), egui::Align2::CENTER_CENTER, bottom, FontId::proportional(bottom_size), dim);
+    } else {
+        let font_size = if bottom == "↵" { 16.0 } else { bottom_size };
+        painter.text(rect.center(), egui::Align2::CENTER_CENTER, bottom, FontId::proportional(font_size), dim);
+    }
 }
 
 fn draw_key_label(painter: &egui::Painter, rect: egui::Rect, label: &str, dark: bool) {
@@ -2113,6 +2284,7 @@ fn draw_key_label(painter: &egui::Painter, rect: egui::Rect, label: &str, dark: 
     } else {
         (None, label)
     };
+    let (top_size, bottom_size) = key_label_font_sizes(label);
 
     if let Some(top_str) = top {
         // Two-line layout
@@ -2122,14 +2294,15 @@ fn draw_key_label(painter: &egui::Painter, rect: egui::Rect, label: &str, dark: 
 
         let top_color = if dark { Color32::from_rgb(130, 130, 145) } else { Color32::from_rgb(130, 130, 150) };
         let main_color = if dark { Color32::from_rgb(232, 232, 240) } else { Color32::from_rgb(26, 26, 30) };
-        painter.text(top_pos, egui::Align2::CENTER_CENTER, top_str, FontId::proportional(9.0), top_color);
-        painter.text(bot_pos, egui::Align2::CENTER_CENTER, bottom, FontId::proportional(11.0), main_color);
+        painter.text(top_pos, egui::Align2::CENTER_CENTER, top_str, FontId::proportional(top_size.unwrap_or(9.0)), top_color);
+        painter.text(bot_pos, egui::Align2::CENTER_CENTER, bottom, FontId::proportional(bottom_size), main_color);
     } else {
+        let font_size = if bottom == "↵" { 16.0 } else { bottom_size };
         painter.text(
             rect.center(),
             egui::Align2::CENTER_CENTER,
             bottom,
-            FontId::proportional(11.0),
+            FontId::proportional(font_size),
             if dark { Color32::from_rgb(232, 232, 240) } else { Color32::from_rgb(26, 26, 30) },
         );
     }

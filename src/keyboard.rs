@@ -34,6 +34,9 @@ pub struct KeyboardLayout {
     pub layers: Vec<Vec<u16>>, // layers[layer][key_idx] = keycode (Vial)
     /// Custom keycodes from vial JSON: (name, short_label)
     pub custom_keycodes: Vec<(String, String)>,
+    /// Whether the keyboard definition exposes a lighting section for RGB/backlight controls
+    #[serde(default)]
+    pub supports_rgb: bool,
     /// Firmware type
     #[serde(default = "default_firmware")]
     pub firmware: FirmwareProtocol,
@@ -246,6 +249,7 @@ impl KeyboardLayout {
         };
 
         let num_keys = keys.len();
+        let supports_rgb = json.get("lighting").is_some();
         Ok(Self {
             name,
             rows,
@@ -253,6 +257,7 @@ impl KeyboardLayout {
             keys,
             layers: vec![vec![0u16; num_keys]; 4],
             custom_keycodes,
+            supports_rgb,
             firmware: FirmwareProtocol::Vial,
             zmk_bindings: vec![],
             zmk_behaviors: vec![],

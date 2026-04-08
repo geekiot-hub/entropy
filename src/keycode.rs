@@ -19,10 +19,42 @@ pub fn gui_sym() -> &'static str {
     #[cfg(not(any(target_os = "macos", target_os = "windows")))] { "Super" }
 }
 
-fn gui_mod_name() -> &'static str {
+pub fn gui_mod_name() -> &'static str {
     #[cfg(target_os = "macos")] { "Cmd" }
     #[cfg(target_os = "windows")] { "Win" }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))] { "Super" }
+}
+
+pub fn key_label_font_sizes(label: &str) -> (Option<f32>, f32) {
+    let lines: Vec<&str> = label.split('\n').collect();
+    let is_symbol_line = |line: &str| {
+        let trimmed = line.trim();
+        !trimmed.is_empty()
+            && trimmed.chars().count() <= 3
+            && trimmed.chars().all(|c| !c.is_alphanumeric() && !c.is_whitespace())
+    };
+
+    match lines.as_slice() {
+        [single] => {
+            let trimmed = single.trim();
+            let size = if trimmed == "↵" {
+                16.0
+            } else if trimmed == "⟵" {
+                12.5
+            } else if is_symbol_line(single) {
+                14.0
+            } else {
+                12.0
+            };
+            (None, size)
+        }
+        [top, bottom] => {
+            let top_size = if is_symbol_line(top) { 10.5 } else { 9.0 };
+            let bottom_size = if is_symbol_line(bottom) { 12.0 } else { 11.0 };
+            (Some(top_size), bottom_size)
+        }
+        _ => (Some(9.0), 11.0),
+    }
 }
 
 fn gui_key_tooltip(right: bool) -> String {
@@ -121,34 +153,39 @@ pub const KEYCODES: &[Keycode] = &[
     // ── Control ───────────────────────────────────────────────────────────────
     Keycode { value: 0x0028, name: "KC_ENTER",  label: "↵",    category: KeycodeCategory::Basic },
     Keycode { value: 0x0029, name: "KC_ESCAPE", label: "Esc",  category: KeycodeCategory::Basic },
-    Keycode { value: 0x002A, name: "KC_BSPACE", label: "⌫",    category: KeycodeCategory::Basic },
+    Keycode { value: 0x002A, name: "KC_BSPACE", label: "⟵",    category: KeycodeCategory::Basic },
     Keycode { value: 0x002B, name: "KC_TAB",    label: "Tab",  category: KeycodeCategory::Basic },
     Keycode { value: 0x002C, name: "KC_SPACE",  label: "Space",category: KeycodeCategory::Basic },
     Keycode { value: 0x0039, name: "KC_CAPSLOCK",label: "⇪",   category: KeycodeCategory::Basic },
     Keycode { value: 0x0065, name: "KC_APPLICATION", label: "Menu", category: KeycodeCategory::Basic },
 
     // ── Punctuation ───────────────────────────────────────────────────────────
-    Keycode { value: 0x002D, name: "KC_MINUS",   label: "-
-_",  category: KeycodeCategory::Basic },
-    Keycode { value: 0x002E, name: "KC_EQUAL",   label: "=
-+",  category: KeycodeCategory::Basic },
-    Keycode { value: 0x002F, name: "KC_LBRACKET",label: "[
-{",  category: KeycodeCategory::Basic },
-    Keycode { value: 0x0030, name: "KC_RBRACKET",label: "]
-}",  category: KeycodeCategory::Basic },
-    Keycode { value: 0x0031, name: "KC_BSLASH",  label: "\\ |", category: KeycodeCategory::Basic },
-    Keycode { value: 0x0032, name: "KC_NONUS_HASH", label: "# ~", category: KeycodeCategory::Basic },
-    Keycode { value: 0x0033, name: "KC_SCOLON",  label: ";
-:",  category: KeycodeCategory::Basic },
-    Keycode { value: 0x0034, name: "KC_QUOTE",   label: "' \"", category: KeycodeCategory::Basic },
-    Keycode { value: 0x0035, name: "KC_GRAVE",   label: "` ~",  category: KeycodeCategory::Basic },
-    Keycode { value: 0x0036, name: "KC_COMMA",   label: ",
-<",  category: KeycodeCategory::Basic },
-    Keycode { value: 0x0037, name: "KC_DOT",     label: ".
->",  category: KeycodeCategory::Basic },
-    Keycode { value: 0x0038, name: "KC_SLASH",   label: "/
-?",  category: KeycodeCategory::Basic },
-    Keycode { value: 0x0064, name: "KC_NONUS_BSLASH", label: "\\ |", category: KeycodeCategory::Basic },
+    Keycode { value: 0x002D, name: "KC_MINUS",   label: "_
+-",  category: KeycodeCategory::Basic },
+    Keycode { value: 0x002E, name: "KC_EQUAL",   label: "+
+=",  category: KeycodeCategory::Basic },
+    Keycode { value: 0x002F, name: "KC_LBRACKET",label: "{
+[",  category: KeycodeCategory::Basic },
+    Keycode { value: 0x0030, name: "KC_RBRACKET",label: "}
+]",  category: KeycodeCategory::Basic },
+    Keycode { value: 0x0031, name: "KC_BSLASH",  label: "|
+\\", category: KeycodeCategory::Basic },
+    Keycode { value: 0x0032, name: "KC_NONUS_HASH", label: "~
+#", category: KeycodeCategory::Basic },
+    Keycode { value: 0x0033, name: "KC_SCOLON",  label: ":
+;",  category: KeycodeCategory::Basic },
+    Keycode { value: 0x0034, name: "KC_QUOTE",   label: "\"
+'", category: KeycodeCategory::Basic },
+    Keycode { value: 0x0035, name: "KC_GRAVE",   label: "~
+`",  category: KeycodeCategory::Basic },
+    Keycode { value: 0x0036, name: "KC_COMMA",   label: "<
+,",  category: KeycodeCategory::Basic },
+    Keycode { value: 0x0037, name: "KC_DOT",     label: ">
+.",  category: KeycodeCategory::Basic },
+    Keycode { value: 0x0038, name: "KC_SLASH",   label: "?
+/",  category: KeycodeCategory::Basic },
+    Keycode { value: 0x0064, name: "KC_NONUS_BSLASH", label: "|
+\\", category: KeycodeCategory::Basic },
 
     // ── Shifted symbols (LSFT(kc) shortcuts) ─────────────────────────────────
     // These are 0x0200 | basic_kc
@@ -247,29 +284,29 @@ _",  category: KeycodeCategory::Basic },
     Keycode { value: 0x00E7, name: "KC_RGUI",   label: "RGUI", category: KeycodeCategory::Modifier },
 
     // ── Media ─────────────────────────────────────────────────────────────────
-    Keycode { value: 0x00A8, name: "KC_MUTE",  label: "🔇",   category: KeycodeCategory::Media },
-    Keycode { value: 0x00A9, name: "KC_VOLU",  label: "🔊",   category: KeycodeCategory::Media },
-    Keycode { value: 0x00AA, name: "KC_VOLD",  label: "🔉",   category: KeycodeCategory::Media },
-    Keycode { value: 0x00AB, name: "KC_MNXT",  label: "⏭",   category: KeycodeCategory::Media },
-    Keycode { value: 0x00AC, name: "KC_MPRV",  label: "⏮",   category: KeycodeCategory::Media },
-    Keycode { value: 0x00AD, name: "KC_MSTP",  label: "⏹",   category: KeycodeCategory::Media },
-    Keycode { value: 0x00AE, name: "KC_MPLY",  label: "⏯",   category: KeycodeCategory::Media },
-    Keycode { value: 0x00AF, name: "KC_MSEL",  label: "MSel", category: KeycodeCategory::Media },
-    Keycode { value: 0x00B0, name: "KC_MAIL",  label: "✉ Mail",category: KeycodeCategory::Media },
-    Keycode { value: 0x00B1, name: "KC_CALC",  label: "Calc", category: KeycodeCategory::Media },
-    Keycode { value: 0x00B2, name: "KC_MYCM",  label: "MyPC", category: KeycodeCategory::Media },
-    Keycode { value: 0x00B3, name: "KC_WSCH",  label: "🔍",   category: KeycodeCategory::Media },
-    Keycode { value: 0x00B4, name: "KC_WHOM",  label: "🌐",   category: KeycodeCategory::Media },
-    Keycode { value: 0x00B5, name: "KC_WBAK",  label: "⬅ Web",category: KeycodeCategory::Media },
-    Keycode { value: 0x00B6, name: "KC_WFWD",  label: "➡ Web",category: KeycodeCategory::Media },
-    Keycode { value: 0x00B7, name: "KC_WSTP",  label: "⏹ Web",category: KeycodeCategory::Media },
-    Keycode { value: 0x00B8, name: "KC_WREF",  label: "Rfsh", category: KeycodeCategory::Media },
-    Keycode { value: 0x00B9, name: "KC_WFAV",  label: "★ Fav",category: KeycodeCategory::Media },
-    Keycode { value: 0x00A5, name: "KC_SLEP",  label: "💤",   category: KeycodeCategory::Media },
-    Keycode { value: 0x00A6, name: "KC_WAKE",  label: "Wake", category: KeycodeCategory::Media },
-    Keycode { value: 0x00A7, name: "KC_BRIU",  label: "🔆",   category: KeycodeCategory::Media },
-    Keycode { value: 0x00BB, name: "KC_BRID",  label: "🔅",  category: KeycodeCategory::Media },
-    Keycode { value: 0x0066, name: "KC_PWR",   label: "⏻",   category: KeycodeCategory::Media },
+    Keycode { value: 0x00A8, name: "KC_MUTE",  label: "🔇\nMute",    category: KeycodeCategory::Media },
+    Keycode { value: 0x00A9, name: "KC_VOLU",  label: "🔊\nVol+",    category: KeycodeCategory::Media },
+    Keycode { value: 0x00AA, name: "KC_VOLD",  label: "🔉\nVol-",    category: KeycodeCategory::Media },
+    Keycode { value: 0x00AB, name: "KC_MNXT",  label: "⏭\nNext",    category: KeycodeCategory::Media },
+    Keycode { value: 0x00AC, name: "KC_MPRV",  label: "⏮\nPrev",    category: KeycodeCategory::Media },
+    Keycode { value: 0x00AD, name: "KC_MSTP",  label: "⏹\nStop",    category: KeycodeCategory::Media },
+    Keycode { value: 0x00AE, name: "KC_MPLY",  label: "⏯\nPlay",    category: KeycodeCategory::Media },
+    Keycode { value: 0x00AF, name: "KC_MSEL",  label: "🎵\nMedia",   category: KeycodeCategory::Media },
+    Keycode { value: 0x00B0, name: "KC_MAIL",  label: "✉\nMail",    category: KeycodeCategory::Media },
+    Keycode { value: 0x00B1, name: "KC_CALC",  label: "∑\nCalc",    category: KeycodeCategory::Media },
+    Keycode { value: 0x00B2, name: "KC_MYCM",  label: "📁\nFiles",   category: KeycodeCategory::Media },
+    Keycode { value: 0x00B3, name: "KC_WSCH",  label: "🔍\nSearch",  category: KeycodeCategory::Media },
+    Keycode { value: 0x00B4, name: "KC_WHOM",  label: "🌐\nHome",    category: KeycodeCategory::Media },
+    Keycode { value: 0x00B5, name: "KC_WBAK",  label: "←\nBack",    category: KeycodeCategory::Media },
+    Keycode { value: 0x00B6, name: "KC_WFWD",  label: "→\nFwd",     category: KeycodeCategory::Media },
+    Keycode { value: 0x00B7, name: "KC_WSTP",  label: "⏹\nWeb",     category: KeycodeCategory::Media },
+    Keycode { value: 0x00B8, name: "KC_WREF",  label: "↻\nReload",  category: KeycodeCategory::Media },
+    Keycode { value: 0x00B9, name: "KC_WFAV",  label: "★\nFavs",    category: KeycodeCategory::Media },
+    Keycode { value: 0x00A5, name: "KC_SLEP",  label: "🌙\nSleep",   category: KeycodeCategory::Media },
+    Keycode { value: 0x00A6, name: "KC_WAKE",  label: "☀\nWake",    category: KeycodeCategory::Media },
+    Keycode { value: 0x00A7, name: "KC_BRIU",  label: "🔆\nBright+", category: KeycodeCategory::Media },
+    Keycode { value: 0x00BB, name: "KC_BRID",  label: "🔅\nBright-", category: KeycodeCategory::Media },
+    Keycode { value: 0x0066, name: "KC_PWR",   label: "⏻\nPower",   category: KeycodeCategory::Media },
 
     // ── Mouse ─────────────────────────────────────────────────────────────────
     Keycode { value: 0x00F0, name: "KC_MS_U", label: "🖱⬆",  category: KeycodeCategory::Mouse },
@@ -288,15 +325,15 @@ _",  category: KeycodeCategory::Basic },
 
 
     // ── QMK special ───────────────────────────────────────────────────────────
-    Keycode { value: 0x7C16, name: "KC_GESC",  label: "~\nEsc", category: KeycodeCategory::Special },
+    Keycode { value: 0x7C16, name: "KC_GESC",  label: "Esc\n~", category: KeycodeCategory::Special },
     Keycode { value: 0x7C00, name: "QK_BOOT",  label: "⚡\nBoot", category: KeycodeCategory::Special },
-    Keycode { value: 0x7C02, name: "DB_TOGG",  label: "🐛\nDbg", category: KeycodeCategory::Special },
+    Keycode { value: 0x7C02, name: "DB_TOGG",  label: "🐛\nDebug", category: KeycodeCategory::Special },
     Keycode { value: 0x7800, name: "QK_LOCK",  label: "🔒\nLock",category: KeycodeCategory::Special },
-    Keycode { value: 0x7C1A, name: "KC_LSPO",  label: "LSPO",  category: KeycodeCategory::Special },
-    Keycode { value: 0x7C1B, name: "KC_RSPC",  label: "RSPC",  category: KeycodeCategory::Special },
-    Keycode { value: 0x7C18, name: "KC_LCPO",  label: "LCPO",  category: KeycodeCategory::Special },
-    Keycode { value: 0x7C19, name: "KC_RCPC",  label: "RCPC",  category: KeycodeCategory::Special },
-    Keycode { value: 0x7C1E, name: "KC_SFTENT",label: "SftEnt",category: KeycodeCategory::Special },
+    Keycode { value: 0x7C1A, name: "KC_LSPO",  label: "Shift\n(", category: KeycodeCategory::Special },
+    Keycode { value: 0x7C1B, name: "KC_RSPC",  label: "Shift\n)", category: KeycodeCategory::Special },
+    Keycode { value: 0x7C18, name: "KC_LCPO",  label: "Ctrl\n(",  category: KeycodeCategory::Special },
+    Keycode { value: 0x7C19, name: "KC_RCPC",  label: "Ctrl\n)",  category: KeycodeCategory::Special },
+    Keycode { value: 0x7C1E, name: "KC_SFTENT",label: "Shift\nEnter",category: KeycodeCategory::Special },
     Keycode { value: 0x7C14, name: "QK_MAKE",  label: "Make",  category: KeycodeCategory::Special },
     Keycode { value: 0x7C15, name: "KC_ASTG",  label: "ASpeed",category: KeycodeCategory::Special },
     // RGB Light
@@ -706,6 +743,20 @@ fn simple_key_tooltip(kc: &Keycode) -> String {
         "KC_SPACE"       => "Space",
         "KC_CAPSLOCK"    => "Caps Lock — toggle uppercase input",
         "KC_APPLICATION" => "Menu key — open right-click context menu",
+        // Punctuation
+        "KC_MINUS"      => "Minus — type -, Shift gives underscore (_)",
+        "KC_EQUAL"      => "Equals — type =, Shift gives plus (+)",
+        "KC_LBRACKET"   => "Left bracket — type [, Shift gives left brace ({)",
+        "KC_RBRACKET"   => "Right bracket — type ], Shift gives right brace (})",
+        "KC_BSLASH"     => "Backslash — type \\, Shift gives pipe (|)",
+        "KC_NONUS_HASH" => "Non-US hash key — type #, Shift gives tilde (~)",
+        "KC_SCOLON"     => "Semicolon key — tap for semicolon (;), Shift gives colon (:)",
+        "KC_QUOTE"      => "Quote — type apostrophe ('), Shift gives double quote (\")",
+        "KC_GRAVE"      => "Grave accent — type `, Shift gives tilde (~)",
+        "KC_COMMA"      => "Comma — type comma (,), Shift gives less-than (<)",
+        "KC_DOT"        => "Period — type dot (.), Shift gives greater-than (>)",
+        "KC_SLASH"      => "Slash — type /, Shift gives question mark (?)",
+        "KC_NONUS_BSLASH" => "Non-US backslash key — type \\, Shift gives pipe (|)",
         // Modifiers
         "KC_LCTRL"  => "Left Ctrl — modifier key (hold to activate shortcuts)",
         "KC_RCTRL"  => "Right Ctrl — modifier key (hold to activate shortcuts)",
@@ -778,7 +829,7 @@ fn simple_key_tooltip(kc: &Keycode) -> String {
         "KC_KP_EQUAL"    => "Numpad = (equals)",
         "KC_KP_COMMA"    => "Numpad , (comma)",
         // QMK special
-        "KC_GESC"   => "Grave/Escape — sends Esc normally, ` when Shift or GUI is held",
+        "KC_GESC"   => return format!("Grave/Escape — sends Esc normally, ` when Shift or {} is held", gui_mod_name()),
         "QK_BOOT"   => "Bootloader — put keyboard into flash mode",
         "DB_TOGG"   => "Debug toggle — enable/disable debug output",
         "QK_LOCK"   => "Lock — lock a key in pressed state until pressed again",

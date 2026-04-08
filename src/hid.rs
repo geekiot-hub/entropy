@@ -29,7 +29,7 @@ const CMD_VIAL_GET_UNLOCK_STATUS: u8 = 0x05;
 const CMD_VIAL_UNLOCK_START: u8 = 0x06;
 const CMD_VIAL_UNLOCK_POLL: u8 = 0x07;
 const CMD_VIAL_LOCK: u8 = 0x08;
-const CMD_VIAL_DYNAMIC_ENTRY_OP: u8 = 0x09;
+const CMD_VIAL_DYNAMIC_ENTRY_OP: u8 = 0x0D;
 const DYNAMIC_VIAL_GET_NUM_ENTRIES: u8 = 0x00;
 const DYNAMIC_VIAL_TAP_DANCE_GET: u8 = 0x01;
 const DYNAMIC_VIAL_TAP_DANCE_SET: u8 = 0x02;
@@ -307,7 +307,7 @@ impl HidDevice {
     /// Get number of tap dance entries available
     pub fn get_tap_dance_count(&self) -> Result<u8> {
         let resp = self.usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_DYNAMIC_ENTRY_OP, DYNAMIC_VIAL_GET_NUM_ENTRIES])?;
-        Ok(resp[0]) // first byte = tap dance count
+        Ok(resp[1]) // second byte matches macro count response layout
     }
 
     /// Get a tap dance entry: (on_tap, on_hold, on_double_tap, on_tap_hold, tapping_term)
