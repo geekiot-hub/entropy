@@ -36,4 +36,4 @@ WASM build coming soon.
 
 ## License
 
-MIT
+GPL-2.0-or-later
