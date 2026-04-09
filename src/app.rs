@@ -85,6 +85,95 @@ fn save_tap_dance_names(names: &[String], device_name: &str) {
     }
 }
 
+fn combo_names_path(device_name: &str) -> std::path::PathBuf {
+    let dir = dirs::config_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join("entropy");
+    std::fs::create_dir_all(&dir).ok();
+    let slug = device_id_slug(device_name);
+    dir.join(format!("combo_names_{}.json", slug))
+}
+
+fn load_combo_names(device_name: &str) -> Vec<String> {
+    let path = combo_names_path(device_name);
+    if let Ok(data) = std::fs::read_to_string(&path) {
+        if let Ok(v) = serde_json::from_str::<Vec<String>>(&data) {
+            return v;
+        }
+    }
+    vec![]
+}
+
+fn save_combo_names(names: &[String], device_name: &str) {
+    if let Ok(data) = serde_json::to_string(names) {
+        let path = combo_names_path(device_name);
+        if let Err(e) = std::fs::write(&path, &data) {
+            log::warn!("save_combo_names failed at {:?}: {e}", path);
+        } else {
+            log::info!("save_combo_names ok → {:?}", path);
+        }
+    }
+}
+
+fn combo_display_name(combo_names: &[String], idx: usize) -> String {
+    match combo_names.get(idx) {
+        Some(name) if !name.trim().is_empty() => name.clone(),
+        _ => format!("C{}", idx),
+    }
+}
+
+fn app_accent() -> Color32 {
+    Color32::from_rgb(91, 104, 223)
+}
+
+fn app_panel_fill(dark: bool) -> Color32 {
+    if dark {
+        Color32::from_rgb(30, 30, 30)
+    } else {
+        Color32::from_rgb(245, 245, 245)
+    }
+}
+
+fn app_window_fill(dark: bool) -> Color32 {
+    if dark {
+        Color32::from_rgb(37, 37, 38)
+    } else {
+        Color32::from_rgb(255, 255, 255)
+    }
+}
+
+fn app_surface_fill(dark: bool) -> Color32 {
+    if dark {
+        Color32::from_rgb(45, 45, 48)
+    } else {
+        Color32::from_rgb(255, 255, 255)
+    }
+}
+
+fn app_hover_fill(dark: bool) -> Color32 {
+    if dark {
+        Color32::from_rgb(60, 60, 65)
+    } else {
+        Color32::from_rgb(232, 232, 240)
+    }
+}
+
+fn app_border_color(dark: bool) -> Color32 {
+    if dark {
+        Color32::from_rgb(72, 72, 78)
+    } else {
+        Color32::from_rgb(220, 220, 228)
+    }
+}
+
+fn app_muted_text(dark: bool) -> Color32 {
+    if dark {
+        Color32::from_gray(150)
+    } else {
+        Color32::from_gray(120)
+    }
+}
+
 fn macro_display_name(macro_names: &[String], idx: usize) -> String {
     match macro_names.get(idx) {
         Some(name) if !name.trim().is_empty() => name.clone(),
@@ -152,7 +241,7 @@ fn keycode_tooltip_with_macro_names(
 }
 use crate::keyboard::KeyboardLayout;
 use crate::keycode::{key_label_font_sizes, keycode_label_with_names, keycode_tooltip};
-use crate::keycode_picker::KeycodePicker;
+use crate::keycode_picker::{egui_key_to_qmk, KeycodePicker, KeycodeTab};
 use egui::{Color32, FontId, RichText, Sense, Stroke, Vec2};
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -172,6 +261,10 @@ struct ConnectResult {
     macro_texts: Vec<String>,
     /// Tap dance entries
     tap_dance_entries: Vec<crate::keycode_picker::TapDanceEntry>,
+    /// Combo entries
+    combo_entries: Vec<ComboEntry>,
+    /// Global combo timeout/term from QMK settings, if supported
+    combo_term: Option<u16>,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -230,6 +323,30 @@ fn toggle_handed_modifier(value: u16) -> Option<u16> {
     }
 }
 
+#[derive(Clone, Debug, Default)]
+struct ComboEntry {
+    keys: [u16; 4],
+    output: u16,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum MainMenuTab {
+    Keyboard,
+    Advanced,
+    Settings,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ComboPickField {
+    Trigger(usize),
+    Output,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SettingsTab {
+    MatrixTester,
+}
+
 pub struct EntropyApp {
     device_manager: DeviceManager,
     selected_device: Option<usize>,
@@ -268,6 +385,27 @@ pub struct EntropyApp {
     /// Stack of layers to return to on right-click (last = most recent)
     jump_back_stack: Vec<usize>,
     dark_mode: bool,
+    main_menu_tab: MainMenuTab,
+    combo_entries: Vec<ComboEntry>,
+    combo_names: Vec<String>,
+    selected_combo: usize,
+    combo_dirty: bool,
+    combo_names_dirty: bool,
+    combo_term: Option<u16>,
+    combo_term_dirty: bool,
+    combo_window_open: bool,
+    combo_reopen_after_pick: bool,
+    combo_visible_count: usize,
+    combo_capture_open: bool,
+    combo_capture_keys: Vec<u16>,
+    combo_undo_stack: Vec<(Vec<ComboEntry>, Vec<String>, Option<u16>, usize, usize)>,
+    combo_pick_target: Option<(usize, ComboPickField)>,
+    matrix_tester_pressed: Vec<bool>,
+    matrix_tester_ever_pressed: Vec<bool>,
+    matrix_tester_last_poll: std::time::Instant,
+    matrix_tester_unlock_prompted: bool,
+    macro_auto_unlock_cancelled: bool,
+    settings_tab: SettingsTab,
     layer_names: Vec<String>,
     editing_layer: Option<usize>, // layer being renamed
     editing_layer_text: String,
@@ -317,6 +455,27 @@ impl EntropyApp {
             keycode_picker: KeycodePicker::default(),
             status_msg: String::new(),
             dark_mode: false,
+            main_menu_tab: MainMenuTab::Keyboard,
+            combo_entries: vec![],
+            combo_names: vec![],
+            selected_combo: 0,
+            combo_dirty: false,
+            combo_names_dirty: false,
+            combo_term: None,
+            combo_term_dirty: false,
+            combo_window_open: false,
+            combo_reopen_after_pick: false,
+            combo_visible_count: 1,
+            combo_capture_open: false,
+            combo_capture_keys: Vec::new(),
+            combo_undo_stack: Vec::new(),
+            combo_pick_target: None,
+            matrix_tester_pressed: Vec::new(),
+            matrix_tester_ever_pressed: Vec::new(),
+            matrix_tester_last_poll: std::time::Instant::now(),
+            matrix_tester_unlock_prompted: false,
+            macro_auto_unlock_cancelled: false,
+            settings_tab: SettingsTab::MatrixTester,
             layer_names: load_layer_names("default"),
             editing_layer: None,
             editing_layer_text: String::new(),
@@ -364,6 +523,17 @@ impl EntropyApp {
         self.zmk_has_unsaved = false;
         self.zmk_lock_state = 1; // assume unlocked until we know
         self.zmk_no_extra_layers = false;
+        self.combo_window_open = false;
+        self.combo_reopen_after_pick = false;
+        self.combo_visible_count = 1;
+        self.combo_capture_open = false;
+        self.combo_capture_keys.clear();
+        self.combo_undo_stack.clear();
+        self.combo_pick_target = None;
+        self.combo_dirty = false;
+        self.combo_names_dirty = false;
+        self.combo_term_dirty = false;
+        self.reset_matrix_tester_state();
 
         let (tx, rx) = mpsc::channel();
         self.connect_state = ConnectState::Loading(rx);
@@ -460,6 +630,35 @@ impl EntropyApp {
                             Err(e) => { log::warn!("get_macro_count: {e}"); vec![String::new(); 16] }
                         };
 
+                        let combo_entries = match dev_conn.get_combo_count() {
+                            Ok(count) => {
+                                log::info!("Combo count: {count}");
+                                let mut entries = Vec::new();
+                                for i in 0..count {
+                                    match dev_conn.get_combo(i) {
+                                        Ok((keys, output)) => entries.push(ComboEntry { keys, output }),
+                                        Err(e) => {
+                                            log::warn!("get_combo({i}): {e}");
+                                            entries.push(Default::default());
+                                        }
+                                    }
+                                }
+                                entries
+                            }
+                            Err(e) => {
+                                log::warn!("get_combo_count: {e}");
+                                vec![]
+                            }
+                        };
+
+                        let combo_term = match dev_conn.get_qmk_setting_u16(2) {
+                            Ok(value) => Some(value),
+                            Err(e) => {
+                                log::warn!("get_qmk_setting_u16(combo_term): {e}");
+                                None
+                            }
+                        };
+
                         // Read tap dance entries
                         let tap_dance_entries = match dev_conn.get_tap_dance_count() {
                             Ok(count) => {
@@ -485,6 +684,8 @@ impl EntropyApp {
                             device_name: dev.name.clone(),
                             macro_texts,
                             tap_dance_entries,
+                            combo_entries,
+                            combo_term,
                             layout,
                             layer_count,
                             zmk_conn: None,
@@ -525,6 +726,8 @@ impl EntropyApp {
                                 device_name: dev.name.clone(),
                                 macro_texts: vec![],
                                 tap_dance_entries: vec![],
+                                combo_entries: vec![],
+                                combo_term: None,
                                 layout,
                                 layer_count: 0,
                                 zmk_conn: Some(conn),
@@ -571,6 +774,8 @@ impl EntropyApp {
                             device_name: dev.name.clone(),
                             macro_texts: vec![],
                                 tap_dance_entries: vec![],
+                                combo_entries: vec![],
+                                combo_term: None,
                             layout,
                             layer_count,
                             zmk_conn: Some(conn),
@@ -616,6 +821,24 @@ impl EntropyApp {
                 self.zmk_lock_state = r.zmk_lock_state;
                 self.zmk_has_unsaved = false;
                 self.keycode_picker.tap_dance_entries = r.tap_dance_entries.clone();
+                self.combo_entries = r.combo_entries.clone();
+                self.combo_names = load_combo_names(&self.current_device_name);
+                self.combo_names.resize(self.combo_entries.len(), String::new());
+                self.combo_term = r.combo_term.or(Some(50));
+                let highest_used_combo = self
+                    .combo_entries
+                    .iter()
+                    .enumerate()
+                    .filter(|(i, combo)| {
+                        combo.output != 0
+                            || combo.keys.iter().any(|&k| k != 0)
+                            || self.combo_names.get(*i).map(|n| !n.trim().is_empty()).unwrap_or(false)
+                    })
+                    .map(|(i, _)| i + 1)
+                    .max()
+                    .unwrap_or(1);
+                self.combo_visible_count = highest_used_combo.min(self.combo_entries.len().max(1));
+                self.selected_combo = self.selected_combo.min(self.combo_visible_count.saturating_sub(1));
                 if !r.macro_texts.is_empty() {
                     self.keycode_picker.macro_count = r.macro_texts.len();
                     self.keycode_picker.macro_texts = r.macro_texts.clone();
@@ -710,6 +933,7 @@ impl EntropyApp {
                 self.keycode_picker.layer_names = self.layer_names.clone();
 
                 self.layout = Some(r.layout);
+                self.refresh_layer_picker_content_flags();
 
                 // Open persistent HID connection for Vial real-time writes
                 if self.firmware == FirmwareProtocol::Vial {
@@ -855,6 +1079,275 @@ impl EntropyApp {
 
     /// Assign keycode and immediately write to device (blocking, but single HID op — fast).
     #[cfg(not(target_arch = "wasm32"))]
+    fn refresh_layer_picker_content_flags(&mut self) {
+        if let Some(layout) = &self.layout {
+            self.keycode_picker.layer_has_content = layout.layers.iter()
+                .map(|keys| keys.iter().any(|&kc| kc != 0x0000 && kc != 0x0001))
+                .collect();
+        }
+    }
+
+    fn reset_matrix_tester_state(&mut self) {
+        self.matrix_tester_pressed.clear();
+        self.matrix_tester_ever_pressed.clear();
+        self.matrix_tester_last_poll = std::time::Instant::now();
+        self.matrix_tester_unlock_prompted = false;
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn is_vial_locked(&self) -> bool {
+        self.firmware == FirmwareProtocol::Vial
+            && self.layout.is_some()
+            && !self.vial_unlock_polling
+            && self.hid_device.as_ref()
+                .and_then(|hid| hid.get_unlock_status().ok())
+                .map(|(unlocked, _)| unlocked)
+                .map(|unlocked| !unlocked)
+                .unwrap_or(false)
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn is_vial_locked(&self) -> bool {
+        false
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn reopen_vial_hid(&mut self) {
+        if let Some(dev) = self.selected_device.and_then(|i| self.device_manager.devices().get(i)) {
+            match crate::hid::HidDevice::open(&dev.path) {
+                Ok(hid) => {
+                    self.hid_device = Some(hid);
+                }
+                Err(e) => {
+                    self.hid_device = None;
+                    self.status_msg = format!("Reconnect failed: {e}");
+                }
+            }
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn cancel_vial_unlock(&mut self, suppress_macro_auto_unlock: bool) {
+        if let Some(hid) = &self.hid_device {
+            match hid.lock() {
+                Ok(()) => {
+                    self.status_msg = "Keyboard unlock cancelled".into();
+                }
+                Err(e) => {
+                    self.status_msg = format!("Cancel unlock failed: {e}");
+                }
+            }
+        }
+        self.unlock_open = false;
+        self.vial_unlock_polling = false;
+        self.vial_unlock_counter = 0;
+        self.vial_unlock_best = 50;
+        self.matrix_tester_unlock_prompted = false;
+        if suppress_macro_auto_unlock {
+            self.macro_auto_unlock_cancelled = true;
+        }
+        self.reopen_vial_hid();
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn poll_matrix_tester(&mut self, ctx: &egui::Context, layout: &KeyboardLayout) {
+        if self.main_menu_tab != MainMenuTab::Settings || self.firmware != FirmwareProtocol::Vial {
+            return;
+        }
+        if self.unlock_open || self.vial_unlock_polling {
+            return;
+        }
+        let Some(hid) = &self.hid_device else {
+            return;
+        };
+
+        let now = std::time::Instant::now();
+        if now.duration_since(self.matrix_tester_last_poll) >= std::time::Duration::from_millis(50) {
+            self.matrix_tester_last_poll = now;
+            match hid.get_switch_matrix(layout.rows, layout.cols) {
+                Ok(pressed) => {
+                    if self.matrix_tester_ever_pressed.len() != pressed.len() {
+                        self.matrix_tester_ever_pressed = vec![false; pressed.len()];
+                    }
+                    for (idx, &is_pressed) in pressed.iter().enumerate() {
+                        if is_pressed {
+                            if let Some(seen) = self.matrix_tester_ever_pressed.get_mut(idx) {
+                                *seen = true;
+                            }
+                        }
+                    }
+                    self.matrix_tester_pressed = pressed;
+                }
+                Err(e) => {
+                    log::warn!("Matrix poll error: {e}");
+                }
+            }
+        }
+        ctx.request_repaint_after(std::time::Duration::from_millis(50));
+    }
+
+    fn draw_settings_screen(&mut self, ui: &mut egui::Ui, layout: &KeyboardLayout, ctx: &egui::Context, content_top: f32) {
+        #[cfg(not(target_arch = "wasm32"))]
+        self.poll_matrix_tester(ctx, layout);
+
+        let dark = ui.visuals().dark_mode;
+        let content_rect = egui::Rect::from_min_max(
+            egui::pos2(ui.min_rect().left() + 20.0, content_top),
+            egui::pos2(ui.min_rect().right() - 20.0, ui.max_rect().bottom() - 16.0),
+        );
+
+        let top_line_y = content_rect.top() + 18.0;
+        let supported = self.firmware == FirmwareProtocol::Vial;
+        let hid_ready = {
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                self.hid_device.is_some()
+            }
+            #[cfg(target_arch = "wasm32")]
+            {
+                false
+            }
+        };
+
+        if supported && hid_ready && self.is_vial_locked() && !self.unlock_open && !self.matrix_tester_unlock_prompted {
+            self.unlock_open = true;
+            self.matrix_tester_unlock_prompted = true;
+            self.status_msg = "Keyboard is locked, unlock it to use Matrix Tester".into();
+        }
+
+        let total_keys = layout.keys.len();
+        let tested_count = layout
+            .keys
+            .iter()
+            .filter(|key| {
+                let idx = key.row as usize * layout.cols + key.col as usize;
+                self.matrix_tester_ever_pressed.get(idx).copied().unwrap_or(false)
+            })
+            .count();
+
+        ui.painter().text(
+            egui::pos2(content_rect.left() + 4.0, top_line_y),
+            egui::Align2::LEFT_CENTER,
+            "Press switches on the keyboard to verify every matrix position.",
+            FontId::proportional(13.0),
+            app_muted_text(dark),
+        );
+        ui.painter().text(
+            egui::pos2(content_rect.left() + 4.0, top_line_y + 22.0),
+            egui::Align2::LEFT_CENTER,
+            format!("Tested: {tested_count}/{total_keys}"),
+            FontId::proportional(14.0),
+            if tested_count == total_keys && total_keys > 0 {
+                Color32::from_rgb(72, 168, 110)
+            } else {
+                app_muted_text(dark)
+            },
+        );
+
+        let reset_rect = egui::Rect::from_min_size(
+            egui::pos2(content_rect.right() - 88.0, top_line_y - 15.0),
+            Vec2::new(84.0, 30.0),
+        );
+        if ui.put(reset_rect, egui::Button::new("Reset")).clicked() {
+            self.reset_matrix_tester_state();
+        }
+
+        let painter = ui.painter();
+        let idle_fill = if dark { Color32::from_rgb(34, 34, 38) } else { Color32::from_rgb(252, 252, 254) };
+        let tested_fill = if dark { Color32::from_rgb(42, 68, 52) } else { Color32::from_rgb(232, 245, 236) };
+
+        let board_top = top_line_y + 48.0;
+        let board_rect = egui::Rect::from_min_max(
+            egui::pos2(content_rect.left(), board_top),
+            egui::pos2(content_rect.right(), content_rect.bottom()),
+        );
+
+        if !supported {
+            painter.text(
+                board_rect.center(),
+                egui::Align2::CENTER_CENTER,
+                "Matrix Tester is currently available only for Vial keyboards.",
+                FontId::proportional(15.0),
+                app_muted_text(dark),
+            );
+            return;
+        }
+
+        if !hid_ready {
+            painter.text(
+                board_rect.center(),
+                egui::Align2::CENTER_CENTER,
+                "Connect a Vial keyboard to start live switch testing.",
+                FontId::proportional(15.0),
+                app_muted_text(dark),
+            );
+            return;
+        }
+
+        let base_unit = 54.0_f32 * 1.15;
+        let padding = 4.0_f32;
+        let mut min_x = f32::MAX;
+        let mut min_y = f32::MAX;
+        let mut max_x = f32::MIN;
+        let mut max_y = f32::MIN;
+        for key in &layout.keys {
+            min_x = min_x.min(key.x);
+            min_y = min_y.min(key.y);
+            max_x = max_x.max(key.x + key.w);
+            max_y = max_y.max(key.y + key.h);
+        }
+        if min_x == f32::MAX {
+            return;
+        }
+
+        let span_x = max_x - min_x;
+        let span_y = max_y - min_y;
+        let margin = 40.0_f32;
+        let scale_x = (board_rect.width() - margin) / (span_x * base_unit).max(1.0);
+        let scale_y = (board_rect.height() - margin) / (span_y * base_unit).max(1.0);
+        let scale = scale_x.min(scale_y).min(1.0);
+        let unit = base_unit * scale;
+        let layout_w = span_x * unit;
+        let layout_h = span_y * unit;
+        let offset_x = board_rect.center().x - layout_w / 2.0 - min_x * unit;
+        let offset_y = board_rect.center().y - layout_h / 2.0 - min_y * unit;
+
+        for key in &layout.keys {
+            let matrix_idx = key.row as usize * layout.cols + key.col as usize;
+            let is_pressed = self.matrix_tester_pressed.get(matrix_idx).copied().unwrap_or(false);
+            let was_pressed = self.matrix_tester_ever_pressed.get(matrix_idx).copied().unwrap_or(false);
+            let rect = egui::Rect::from_min_size(
+                egui::pos2(
+                    offset_x + key.x * unit + padding,
+                    offset_y + key.y * unit + padding,
+                ),
+                Vec2::new(key.w * unit - padding * 2.0, key.h * unit - padding * 2.0),
+            );
+
+            let fill = if is_pressed {
+                app_accent()
+            } else if was_pressed {
+                tested_fill
+            } else {
+                idle_fill
+            };
+            let stroke = if is_pressed {
+                Color32::from_rgb(130, 140, 255)
+            } else if was_pressed {
+                Color32::from_rgb(104, 152, 120)
+            } else {
+                app_border_color(dark)
+            };
+            painter.rect(
+                rect,
+                10.0,
+                fill,
+                Stroke::new(1.0, stroke),
+                egui::StrokeKind::Inside,
+            );
+        }
+    }
+
     fn assign_keycode(&mut self, layer: usize, ki: usize, kc_value: u16) {
         // Save old value for undo
         let old_kc = self.layout.as_ref().map(|l| l.get_keycode(layer, ki)).unwrap_or(0);
@@ -863,6 +1356,7 @@ impl EntropyApp {
         if let Some(layout) = &mut self.layout {
             layout.set_keycode(layer, ki, kc_value);
         }
+        self.refresh_layer_picker_content_flags();
 
         let key = match self.layout.as_ref().and_then(|l| l.keys.get(ki)) {
             Some(k) => k.clone(),
@@ -1105,29 +1599,43 @@ impl eframe::App for EntropyApp {
         // Apply theme
         if self.dark_mode {
             let mut v = egui::Visuals::dark();
-            // VS Code Dark+ style
-            v.panel_fill = Color32::from_rgb(30, 30, 30);
-            v.window_fill = Color32::from_rgb(37, 37, 38);
-            v.faint_bg_color = Color32::from_rgb(37, 37, 38);
+            v.panel_fill = app_panel_fill(true);
+            v.window_fill = app_window_fill(true);
+            v.faint_bg_color = app_window_fill(true);
             v.extreme_bg_color = Color32::from_rgb(24, 24, 24);
-            v.widgets.noninteractive.bg_fill = Color32::from_rgb(37, 37, 38);
-            v.widgets.inactive.bg_fill = Color32::from_rgb(45, 45, 48);
-            v.widgets.hovered.bg_fill = Color32::from_rgb(60, 60, 65);
-            v.widgets.active.bg_fill = Color32::from_rgb(91, 104, 223);
+            v.widgets.noninteractive.bg_fill = app_window_fill(true);
+            v.widgets.noninteractive.bg_stroke = Stroke::new(1.0, app_border_color(true));
+            v.widgets.inactive.bg_fill = app_surface_fill(true);
+            v.widgets.inactive.weak_bg_fill = app_surface_fill(true);
+            v.widgets.inactive.bg_stroke = Stroke::new(1.0, app_border_color(true));
+            v.widgets.hovered.bg_fill = app_hover_fill(true);
+            v.widgets.hovered.weak_bg_fill = app_hover_fill(true);
+            v.widgets.hovered.bg_stroke = Stroke::new(1.0, Color32::from_rgb(96, 96, 104));
+            v.widgets.active.bg_fill = app_accent();
+            v.widgets.active.weak_bg_fill = app_accent();
+            v.widgets.active.bg_stroke = Stroke::new(1.0, Color32::from_rgb(130, 140, 255));
             v.selection.bg_fill = Color32::from_rgba_unmultiplied(91, 104, 223, 120);
+            v.interact_cursor = Some(egui::CursorIcon::PointingHand);
             ctx.set_visuals(v);
         } else {
             let mut v = egui::Visuals::light();
-            // Figma/Linear-style light
-            v.panel_fill = Color32::from_rgb(245, 245, 245);
-            v.window_fill = Color32::from_rgb(255, 255, 255);
-            v.faint_bg_color = Color32::from_rgb(245, 245, 245);
+            v.panel_fill = app_panel_fill(false);
+            v.window_fill = app_window_fill(false);
+            v.faint_bg_color = app_panel_fill(false);
             v.extreme_bg_color = Color32::from_rgb(235, 235, 235);
-            v.widgets.noninteractive.bg_fill = Color32::from_rgb(245, 245, 245);
-            v.widgets.inactive.bg_fill = Color32::from_rgb(255, 255, 255);
-            v.widgets.hovered.bg_fill = Color32::from_rgb(232, 232, 240);
-            v.widgets.active.bg_fill = Color32::from_rgb(91, 104, 223);
+            v.widgets.noninteractive.bg_fill = app_panel_fill(false);
+            v.widgets.noninteractive.bg_stroke = Stroke::new(1.0, app_border_color(false));
+            v.widgets.inactive.bg_fill = app_surface_fill(false);
+            v.widgets.inactive.weak_bg_fill = app_surface_fill(false);
+            v.widgets.inactive.bg_stroke = Stroke::new(1.0, app_border_color(false));
+            v.widgets.hovered.bg_fill = app_hover_fill(false);
+            v.widgets.hovered.weak_bg_fill = app_hover_fill(false);
+            v.widgets.hovered.bg_stroke = Stroke::new(1.0, Color32::from_rgb(206, 206, 216));
+            v.widgets.active.bg_fill = app_accent();
+            v.widgets.active.weak_bg_fill = app_accent();
+            v.widgets.active.bg_stroke = Stroke::new(1.0, Color32::from_rgb(126, 138, 236));
             v.selection.bg_fill = Color32::from_rgba_unmultiplied(91, 104, 223, 80);
+            v.interact_cursor = Some(egui::CursorIcon::PointingHand);
             ctx.set_visuals(v);
         }
 
@@ -1143,7 +1651,20 @@ impl eframe::App for EntropyApp {
 
         // Handle Vial keycode picker result
         if let Some(kc_value) = self.keycode_picker.result.take() {
-            if let Some((layer, ki)) = self.selected_key {
+            if let Some((combo_idx, field)) = self.combo_pick_target.take() {
+                self.push_combo_undo();
+                if let Some(combo) = self.combo_entries.get_mut(combo_idx) {
+                    match field {
+                        ComboPickField::Trigger(key_idx) => combo.keys[key_idx] = kc_value,
+                        ComboPickField::Output => combo.output = kc_value,
+                    }
+                    self.combo_dirty = true;
+                }
+                if self.combo_reopen_after_pick {
+                    self.combo_window_open = true;
+                    self.combo_reopen_after_pick = false;
+                }
+            } else if let Some((layer, ki)) = self.selected_key {
                 #[cfg(not(target_arch = "wasm32"))]
                 self.assign_keycode(layer, ki, kc_value);
                 #[cfg(target_arch = "wasm32")]
@@ -1164,8 +1685,28 @@ impl eframe::App for EntropyApp {
         }
 
         // Deselect key when picker is closed without choosing
-        if !self.keycode_picker.open && self.selected_key.is_some() {
+        if !self.keycode_picker.open
+            && self.selected_key.is_some()
+            && self.keycode_picker.result.is_none()
+            && self.keycode_picker.zmk_result.is_none()
+        {
             self.selected_key = None;
+        }
+
+        if !self.keycode_picker.open || self.keycode_picker.selected_tab != KeycodeTab::Macro {
+            self.macro_auto_unlock_cancelled = false;
+        }
+
+        if self.firmware == FirmwareProtocol::Vial
+            && self.keycode_picker.open
+            && self.keycode_picker.selected_tab == KeycodeTab::Macro
+            && !self.unlock_open
+            && !self.vial_unlock_polling
+            && !self.macro_auto_unlock_cancelled
+            && self.is_vial_locked()
+        {
+            self.unlock_open = true;
+            self.status_msg = "Keyboard is locked, unlock it to edit macros".into();
         }
 
         // Arrow keys Left/Right switch layers (when picker is closed)
@@ -1208,33 +1749,6 @@ impl eframe::App for EntropyApp {
                 ui.label(RichText::new("⌨ Entropy").size(18.0).strong());
                 ui.separator();
 
-                let label = match self.selected_device {
-                    Some(i) => self.device_manager.devices().get(i)
-                        .map(|d| d.name.clone())
-                        .unwrap_or("Unknown".into()),
-                    None => "No device selected".into(),
-                };
-
-                let prev_selected = self.selected_device;
-                egui::ComboBox::from_id_salt("device_selector")
-                    .selected_text(&label)
-                    .show_ui(ui, |ui| {
-                        for (i, dev) in self.device_manager.devices().iter().enumerate() {
-                            ui.selectable_value(&mut self.selected_device, Some(i), &dev.name);
-                        }
-                        if self.device_manager.devices().is_empty() {
-                            ui.label("No devices found");
-                        }
-                    });
-
-                #[cfg(not(target_arch = "wasm32"))]
-                if self.selected_device != prev_selected {
-                    if let Some(idx) = self.selected_device {
-                        self.start_connect(idx);
-                    }
-                }
-
-
                 #[cfg(not(target_arch = "wasm32"))]
                 if !self.undo_stack.is_empty() {
                     if ui.button("↩ Undo").on_hover_text("Undo last change").clicked() {
@@ -1248,7 +1762,7 @@ impl eframe::App for EntropyApp {
 
 
                         // Vial: Unlock button (don't poll status during unlock process)
-                        if self.firmware == FirmwareProtocol::Vial && self.layout.is_some() && !self.vial_unlock_polling {
+                        if self.firmware == FirmwareProtocol::Vial && self.layout.is_some() && !self.vial_unlock_polling && !self.unlock_open {
                             let is_unlocked = self.hid_device.as_ref()
                                 .and_then(|hid| hid.get_unlock_status().ok())
                                 .map(|(unlocked, _keys)| unlocked)
@@ -1377,6 +1891,7 @@ impl eframe::App for EntropyApp {
                                 self.status_msg = "Keyboard unlocked!".into();
                                 self.unlock_open = false;
                                 self.vial_unlock_polling = false;
+                                self.macro_auto_unlock_cancelled = false;
                             }
                         }
                         Err(_) => {}
@@ -1466,37 +1981,86 @@ impl eframe::App for EntropyApp {
                         }
                     }
 
-                    // Cancel button at bottom
-                    let btn_rect = egui::Rect::from_center_size(
-                        egui::pos2(center_x, screen.max.y - 40.0),
-                        egui::Vec2::new(100.0, 32.0),
-                    );
-                    let btn_resp = ui.put(btn_rect, egui::Button::new("Cancel"));
-                    if btn_resp.clicked() {
-                        self.unlock_open = false;
-                        self.vial_unlock_polling = false;
-                    }
                 });
         }
 
-        self.keycode_picker.show(ctx);
+        if self.combo_window_open {
+            self.show_combo_window(ctx);
+        }
+
+        if !self.unlock_open && !self.vial_unlock_polling {
+            self.keycode_picker.show(ctx);
+        }
+        if self.combo_pick_target.is_some()
+            && !self.keycode_picker.open
+            && self.keycode_picker.result.is_none()
+        {
+            self.combo_pick_target = None;
+            if self.combo_reopen_after_pick {
+                self.combo_window_open = true;
+                self.combo_reopen_after_pick = false;
+            }
+        }
 
         // Write macros to device if changed
         if self.keycode_picker.macros_dirty {
-            self.keycode_picker.macros_dirty = false;
-            if let Some(hid) = &self.hid_device {
-                // Check unlock status first
-                let unlocked = hid.get_unlock_status().map(|(u, _keys)| u).unwrap_or(false);
-                if !unlocked {
-                    self.status_msg = "Keyboard is locked — unlock first to save macros".into();
-                } else if let Ok(size) = hid.get_macro_buffer_size() {
-                    let buf = crate::hid::HidDevice::encode_macros(&self.keycode_picker.macro_texts, size);
-                    match hid.set_macro_buffer(&buf) {
-                        Ok(()) => self.status_msg = "Macros saved".into(),
-                        Err(e) => self.status_msg = format!("Macro write error: {e}"),
+            if self.unlock_open || self.vial_unlock_polling {
+                // Defer macro write until unlock flow fully finishes.
+            } else if self.is_vial_locked() {
+                self.unlock_open = true;
+                self.status_msg = "Keyboard is locked, unlock it to save macros".into();
+            } else {
+                self.keycode_picker.macros_dirty = false;
+                if let Some(hid) = &self.hid_device {
+                    if let Ok(size) = hid.get_macro_buffer_size() {
+                        let buf = crate::hid::HidDevice::encode_macros(&self.keycode_picker.macro_texts, size);
+                        match hid.set_macro_buffer(&buf) {
+                            Ok(()) => self.status_msg = "Macros saved".into(),
+                            Err(e) => self.status_msg = format!("Macro write error: {e}"),
+                        }
                     }
                 }
             }
+        }
+
+        // Write combos to device if changed
+        if self.combo_dirty && !self.keycode_picker.open {
+            let mut combo_save_ok = true;
+            if let Some(hid) = &self.hid_device {
+                for (i, combo) in self.combo_entries.iter().enumerate() {
+                    match hid.set_combo(i as u8, combo.keys, combo.output) {
+                        Ok(()) => {}
+                        Err(e) => {
+                            self.status_msg = format!("Combo write error: {e}");
+                            combo_save_ok = false;
+                            break;
+                        }
+                    }
+                }
+            }
+            if combo_save_ok {
+                self.combo_dirty = false;
+                self.status_msg = "Combos saved".into();
+            }
+        }
+
+        if self.combo_term_dirty && !self.keycode_picker.open {
+            let mut term_save_ok = true;
+            if let (Some(hid), Some(value)) = (&self.hid_device, self.combo_term) {
+                if let Err(e) = hid.set_qmk_setting_u16(2, value) {
+                    self.status_msg = format!("Combo timeout write error: {e}");
+                    term_save_ok = false;
+                }
+            }
+            if term_save_ok {
+                self.combo_term_dirty = false;
+                self.status_msg = "Combo timeout saved".into();
+            }
+        }
+
+        if self.combo_names_dirty {
+            save_combo_names(&self.combo_names, &self.current_device_name);
+            self.combo_names_dirty = false;
         }
 
         // Write tap dance to device if changed
@@ -1603,6 +2167,422 @@ impl EntropyApp {
 }
 
 impl EntropyApp {
+    fn push_combo_undo(&mut self) {
+        self.combo_undo_stack.push((
+            self.combo_entries.clone(),
+            self.combo_names.clone(),
+            self.combo_term,
+            self.selected_combo,
+            self.combo_visible_count,
+        ));
+        if self.combo_undo_stack.len() > 64 {
+            self.combo_undo_stack.remove(0);
+        }
+    }
+
+    fn apply_combo_capture(&mut self) {
+        if !(2..=4).contains(&self.combo_capture_keys.len()) {
+            return;
+        }
+        self.push_combo_undo();
+        if let Some(combo) = self.combo_entries.get_mut(self.selected_combo) {
+            combo.keys = [0; 4];
+            for (idx, kc) in self.combo_capture_keys.iter().copied().enumerate().take(4) {
+                combo.keys[idx] = kc;
+            }
+            self.combo_dirty = true;
+        }
+        self.combo_capture_open = false;
+        self.combo_capture_keys.clear();
+    }
+
+    fn cancel_combo_capture(&mut self) {
+        self.combo_capture_open = false;
+        self.combo_capture_keys.clear();
+    }
+
+    fn show_combo_window(&mut self, ctx: &egui::Context) {
+        if !self.keycode_picker.open && ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            if self.combo_capture_open {
+                self.cancel_combo_capture();
+            } else {
+                self.combo_window_open = false;
+                self.combo_capture_open = false;
+                self.combo_capture_keys.clear();
+                return;
+            }
+        }
+
+        if self.combo_capture_open {
+            if ctx.input(|i| i.key_pressed(egui::Key::Enter)) {
+                self.apply_combo_capture();
+            } else {
+                for event in ctx.input(|i| i.events.clone()) {
+                    if let egui::Event::Key { key, pressed: true, modifiers, .. } = event {
+                        if matches!(key, egui::Key::Enter | egui::Key::Escape) {
+                            continue;
+                        }
+                        if let Some(kc) = egui_key_to_qmk(key, modifiers) {
+                            if !self.combo_capture_keys.contains(&kc) && self.combo_capture_keys.len() < 4 {
+                                self.combo_capture_keys.push(kc);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let mut open = self.combo_window_open;
+        egui::Window::new("Combo")
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(false)
+            .default_width(360.0)
+            .min_width(360.0)
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .show(ctx, |ui| {
+                ui.style_mut().visuals.button_frame = true;
+                if ui.visuals().dark_mode {
+                    ui.style_mut().visuals.widgets.inactive.bg_fill = Color32::from_rgb(48, 48, 58);
+                    ui.style_mut().visuals.widgets.inactive.weak_bg_fill = Color32::from_rgb(48, 48, 58);
+                    ui.style_mut().visuals.widgets.inactive.bg_stroke = Stroke::new(1.0, Color32::from_gray(110));
+                    ui.style_mut().visuals.widgets.hovered.bg_fill = Color32::from_rgb(68, 68, 88);
+                    ui.style_mut().visuals.widgets.hovered.weak_bg_fill = Color32::from_rgb(68, 68, 88);
+                    ui.style_mut().visuals.widgets.hovered.bg_stroke = Stroke::new(1.0, Color32::from_rgb(130, 130, 160));
+                    ui.style_mut().visuals.widgets.active.bg_fill = Color32::from_rgb(78, 78, 102);
+                    ui.style_mut().visuals.widgets.active.weak_bg_fill = Color32::from_rgb(78, 78, 102);
+                    ui.style_mut().visuals.widgets.active.bg_stroke = Stroke::new(1.0, Color32::from_rgb(150, 150, 184));
+                } else {
+                    ui.style_mut().visuals.widgets.inactive.bg_fill = Color32::from_rgb(255, 255, 255);
+                    ui.style_mut().visuals.widgets.inactive.weak_bg_fill = Color32::from_rgb(255, 255, 255);
+                    ui.style_mut().visuals.widgets.inactive.bg_stroke = Stroke::new(1.0, Color32::from_rgb(222, 222, 228));
+                    ui.style_mut().visuals.widgets.hovered.bg_fill = Color32::from_rgb(234, 232, 242);
+                    ui.style_mut().visuals.widgets.hovered.weak_bg_fill = Color32::from_rgb(234, 232, 242);
+                    ui.style_mut().visuals.widgets.hovered.bg_stroke = Stroke::new(1.0, Color32::from_rgb(210, 206, 223));
+                    ui.style_mut().visuals.widgets.active.bg_fill = Color32::from_rgb(228, 225, 238);
+                    ui.style_mut().visuals.widgets.active.weak_bg_fill = Color32::from_rgb(228, 225, 238);
+                    ui.style_mut().visuals.widgets.active.bg_stroke = Stroke::new(1.0, Color32::from_rgb(202, 198, 216));
+                }
+
+                ui.vertical_centered(|ui| {
+                    ui.label(
+                        RichText::new("Press multiple keys together to send a separate keycode.")
+                            .size(12.0)
+                            .color(Color32::from_gray(150)),
+                    );
+                });
+
+                if self.firmware != FirmwareProtocol::Vial {
+                    ui.label(RichText::new("Dynamic combos are not supported for this firmware.").color(Color32::from_gray(140)));
+                    return;
+                }
+
+                if self.combo_entries.is_empty() {
+                    ui.label(RichText::new("This keyboard does not report any dynamic combo slots.").color(Color32::from_gray(140)));
+                    return;
+                }
+
+                self.selected_combo = self.selected_combo.min(self.combo_entries.len().saturating_sub(1));
+                self.combo_names.resize(self.combo_entries.len(), String::new());
+
+                let combo_undo_snapshot = (
+                    self.combo_entries.clone(),
+                    self.combo_names.clone(),
+                    self.combo_term,
+                    self.selected_combo,
+                    self.combo_visible_count,
+                );
+
+                self.combo_visible_count = self.combo_visible_count.clamp(1, self.combo_entries.len().max(1));
+                self.selected_combo = self.selected_combo.min(self.combo_visible_count.saturating_sub(1));
+
+                let combo_outline_stroke = if ui.visuals().dark_mode {
+                    Stroke::new(1.0, Color32::from_gray(110))
+                } else {
+                    Stroke::new(1.0, Color32::from_gray(175))
+                };
+
+                ui.horizontal_wrapped(|ui| {
+                    for idx in 0..self.combo_visible_count {
+                        let tab_stroke = if idx == self.selected_combo {
+                            Stroke::new(1.5, Color32::from_rgb(91, 104, 223))
+                        } else {
+                            combo_outline_stroke
+                        };
+                        let tab_label = match self.combo_names.get(idx) {
+                            Some(name) if !name.trim().is_empty() => name.trim().to_string(),
+                            _ => format!("C{}", idx),
+                        };
+                        let tab_text = if idx == self.selected_combo {
+                            RichText::new(tab_label).size(12.5).color(ui.visuals().widgets.inactive.fg_stroke.color)
+                        } else {
+                            RichText::new(tab_label).size(12.5)
+                        };
+                        let tab = egui::Button::new(tab_text)
+                            .frame(true)
+                            .stroke(tab_stroke)
+                            .min_size(Vec2::new(48.0, 28.0));
+                        let resp = ui.add(tab);
+                        if resp.hovered() {
+                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                        }
+                        if resp.clicked() {
+                            self.selected_combo = idx;
+                        }
+                    }
+
+                    let add_combo_btn = egui::Button::new(RichText::new("+").size(16.0))
+                        .frame(true)
+                        .stroke(combo_outline_stroke);
+                    let resp = ui.add_enabled(self.combo_visible_count < self.combo_entries.len(), add_combo_btn);
+                    if resp.hovered() && self.combo_visible_count < self.combo_entries.len() {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                    }
+                    if resp.clicked() {
+                        let next_idx = self.combo_visible_count.min(self.combo_entries.len().saturating_sub(1));
+                        self.combo_visible_count = (self.combo_visible_count + 1).min(self.combo_entries.len());
+                        self.selected_combo = next_idx;
+                    }
+                });
+
+                ui.add_space(12.0);
+                let combo_idx = self.selected_combo;
+                let content_width = 340.0_f32;
+                let compact_field_width = ((content_width - 110.0) * 0.5).round();
+                let name_field_width = ((content_width * 0.66) * 0.5).round();
+
+                ui.vertical_centered(|ui| {
+                    ui.allocate_ui_with_layout(
+                        Vec2::new(content_width, 0.0),
+                        egui::Layout::top_down(egui::Align::Min),
+                        |ui| {
+                            let mut combo_name_changed = false;
+                            if let Some(name) = self.combo_names.get_mut(combo_idx) {
+                                let resp = ui.add(
+                                    egui::TextEdit::singleline(name)
+                                        .desired_width(name_field_width)
+                                        .hint_text("Name")
+                                        .char_limit(9),
+                                );
+                                combo_name_changed = resp.changed();
+                                resp.clone().on_hover_text("Stored locally in Entropy.");
+                                if resp.hovered() {
+                                    ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
+                                }
+                            }
+                            if combo_name_changed {
+                                self.combo_undo_stack.push(combo_undo_snapshot.clone());
+                                self.combo_names_dirty = true;
+                            }
+
+                            let output_label = if self.combo_entries[combo_idx].output == 0 {
+                                "Pick output".to_string()
+                            } else {
+                                keycode_label_with_macro_names(
+                                    self.combo_entries[combo_idx].output,
+                                    self.layout.as_ref().map(|l| l.custom_keycodes.as_slice()).unwrap_or(&[]),
+                                    &self.layer_names,
+                                    &self.keycode_picker.macro_names,
+                                    &self.keycode_picker.tap_dance_names,
+                                ).replace('\n', " ")
+                            };
+
+                            ui.add_space(12.0);
+                            ui.label(RichText::new("Input keys").size(13.0).strong());
+                            ui.add_space(6.0);
+                            let input_summary = {
+                                let keys: Vec<String> = if self.combo_capture_open {
+                                    self.combo_capture_keys
+                                        .iter()
+                                        .copied()
+                                        .map(|kc| {
+                                            keycode_label_with_macro_names(
+                                                kc,
+                                                self.layout.as_ref().map(|l| l.custom_keycodes.as_slice()).unwrap_or(&[]),
+                                                &self.layer_names,
+                                                &self.keycode_picker.macro_names,
+                                                &self.keycode_picker.tap_dance_names,
+                                            ).replace('\n', " ")
+                                        })
+                                        .collect()
+                                } else {
+                                    self.combo_entries[combo_idx]
+                                        .keys
+                                        .iter()
+                                        .copied()
+                                        .filter(|&kc| kc != 0)
+                                        .map(|kc| {
+                                            keycode_label_with_macro_names(
+                                                kc,
+                                                self.layout.as_ref().map(|l| l.custom_keycodes.as_slice()).unwrap_or(&[]),
+                                                &self.layer_names,
+                                                &self.keycode_picker.macro_names,
+                                                &self.keycode_picker.tap_dance_names,
+                                            ).replace('\n', " ")
+                                        })
+                                        .collect()
+                                };
+                                if keys.is_empty() {
+                                    if self.combo_capture_open {
+                                        "Press 2-4 keys".to_string()
+                                    } else {
+                                        "Record 2-4 keys".to_string()
+                                    }
+                                } else {
+                                    keys.join(" + ")
+                                }
+                            };
+                            let field_resp = ui.horizontal_centered(|ui| {
+                                let field_btn = egui::Button::new(RichText::new(input_summary).size(13.0))
+                                    .frame(true)
+                                    .stroke(combo_outline_stroke);
+                                ui.add_sized(Vec2::new(compact_field_width, 32.0), field_btn)
+                            }).inner;
+                            if field_resp.hovered() {
+                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                            }
+                            if field_resp.clicked() {
+                                self.combo_capture_keys.clear();
+                                self.combo_capture_open = true;
+                            }
+                            if self.combo_capture_open {
+                                let clicked_outside_input = ctx.input(|i| {
+                                    i.pointer.any_pressed()
+                                        && i.pointer
+                                            .interact_pos()
+                                            .map(|pos| !field_resp.rect.contains(pos))
+                                            .unwrap_or(false)
+                                });
+                                if clicked_outside_input {
+                                    self.apply_combo_capture();
+                                }
+                            }
+
+                            ui.add_space(10.0);
+                            ui.label(RichText::new("Output key").size(13.0).strong());
+                            ui.add_space(6.0);
+                            let resp = ui.horizontal_centered(|ui| {
+                                let btn = egui::Button::new(RichText::new(&output_label).size(13.0))
+                                    .frame(true)
+                                    .stroke(combo_outline_stroke);
+                                ui.add_sized(Vec2::new(compact_field_width, 32.0), btn)
+                            }).inner;
+                            if resp.hovered() {
+                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                            }
+                            if resp.clicked() {
+                                self.combo_pick_target = Some((combo_idx, ComboPickField::Output));
+                                self.combo_reopen_after_pick = true;
+                                self.combo_window_open = false;
+                                self.keycode_picker.result = None;
+                                self.keycode_picker.selected_tab = KeycodeTab::Basic;
+                                self.keycode_picker.open = true;
+                            }
+
+                            ui.add_space(12.0);
+                            ui.horizontal_centered(|ui| {
+                                let clear_btn = egui::Button::new("Clear combo")
+                                    .frame(true)
+                                    .stroke(combo_outline_stroke);
+                                let clear_resp = ui.add(clear_btn);
+                                if clear_resp.hovered() {
+                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                }
+                                if clear_resp.clicked() {
+                                    self.push_combo_undo();
+                                    self.combo_entries[combo_idx] = ComboEntry::default();
+                                    if let Some(name) = self.combo_names.get_mut(combo_idx) {
+                                        name.clear();
+                                    }
+                                    self.combo_dirty = true;
+                                    self.combo_names_dirty = true;
+                                }
+
+                                let delete_btn = egui::Button::new("Delete combo")
+                                    .frame(true)
+                                    .stroke(combo_outline_stroke);
+                                let delete_resp = ui.add_enabled(combo_idx > 0 && self.combo_visible_count > 1, delete_btn);
+                                if delete_resp.hovered() && combo_idx > 0 && self.combo_visible_count > 1 {
+                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                }
+                                if delete_resp.clicked() {
+                                    self.push_combo_undo();
+                                    for idx in combo_idx..self.combo_visible_count.saturating_sub(1) {
+                                        self.combo_entries[idx] = self.combo_entries[idx + 1].clone();
+                                        self.combo_names[idx] = self.combo_names.get(idx + 1).cloned().unwrap_or_default();
+                                    }
+                                    let last_idx = self.combo_visible_count.saturating_sub(1);
+                                    if last_idx < self.combo_entries.len() {
+                                        self.combo_entries[last_idx] = ComboEntry::default();
+                                    }
+                                    if last_idx < self.combo_names.len() {
+                                        self.combo_names[last_idx].clear();
+                                    }
+                                    self.combo_visible_count = self.combo_visible_count.saturating_sub(1).max(1);
+                                    self.selected_combo = combo_idx.min(self.combo_visible_count.saturating_sub(1));
+                                    self.combo_dirty = true;
+                                    self.combo_names_dirty = true;
+                                }
+
+                                let undo_btn = egui::Button::new("Undo")
+                                    .frame(true)
+                                    .stroke(combo_outline_stroke);
+                                let undo_resp = ui.add_enabled(!self.combo_undo_stack.is_empty(), undo_btn);
+                                if undo_resp.hovered() && !self.combo_undo_stack.is_empty() {
+                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                }
+                                if undo_resp.clicked() {
+                                    if let Some((entries, names, term, selected, visible_count)) = self.combo_undo_stack.pop() {
+                                        self.combo_entries = entries;
+                                        self.combo_names = names;
+                                        self.combo_term = term;
+                                        self.combo_visible_count = visible_count.clamp(1, self.combo_entries.len().max(1));
+                                        self.selected_combo = selected.min(self.combo_visible_count.saturating_sub(1));
+                                        self.combo_dirty = true;
+                                        self.combo_names_dirty = true;
+                                        self.combo_term_dirty = true;
+                                    }
+                                }
+                            });
+
+                            if let Some(current_combo_term) = self.combo_term {
+                                ui.add_space(14.0);
+                                ui.separator();
+                                ui.add_space(10.0);
+                                ui.label(RichText::new("Time out period for combos").size(13.0).strong());
+                                ui.add_space(4.0);
+                                let mut combo_term_text = current_combo_term.to_string();
+                                ui.horizontal_centered(|ui| {
+                                    let resp = ui.add(
+                                        egui::TextEdit::singleline(&mut combo_term_text)
+                                            .desired_width(45.0)
+                                            .hint_text("ms"),
+                                    );
+                                    if resp.hovered() {
+                                        ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
+                                    }
+                                    ui.label("ms");
+                                    if resp.changed() {
+                                        let filtered: String = combo_term_text.chars().filter(|c| c.is_ascii_digit()).collect();
+                                        if let Ok(parsed) = filtered.parse::<u16>() {
+                                            self.combo_undo_stack.push(combo_undo_snapshot.clone());
+                                            self.combo_term = Some(parsed.max(1));
+                                            self.combo_term_dirty = true;
+                                        }
+                                    }
+                                });
+                            }
+                        },
+                    );
+                });
+            });
+        self.combo_window_open = open;
+        if !self.combo_window_open {
+            self.combo_capture_open = false;
+            self.combo_capture_keys.clear();
+        }
+    }
+
     fn draw_layout(&mut self, ui: &mut egui::Ui, layout: &KeyboardLayout, ctx: &egui::Context) {
         let base_unit = 54.0_f32 * 1.15; // +15%
         let padding = 4.0_f32;
@@ -1634,10 +2614,411 @@ impl EntropyApp {
 
         let layout_w = span_x * unit;
         let layout_h = span_y * unit;
-        // Reserve space at top for layer switcher
+        // Reserve space at top for main tabs + layer switcher
+        let main_tabs_h = 32.0_f32;
+        let main_tabs_gap = 4.0_f32;
         let layer_bar_h = 68.0_f32;
+        let top_reserved_h = main_tabs_h + main_tabs_gap + layer_bar_h;
+        let top_base_y = ui.min_rect().top() + 6.0;
         let offset_x = (avail.x - layout_w) / 2.0 + ui.min_rect().left() - min_x * unit;
-        let offset_y = (avail.y - layout_h - layer_bar_h) / 2.0 + ui.min_rect().top() - min_y * unit + layer_bar_h;
+        let offset_y = (avail.y - layout_h - top_reserved_h) / 2.0 + ui.min_rect().top() - min_y * unit + top_reserved_h;
+
+        // ── Main menu tabs ────────────────────────────────────────────────
+        {
+            let center_x = ui.min_rect().center().x;
+            let tabs_y = top_base_y;
+            let tab_size = Vec2::new(112.0, 28.0);
+            let tab_gap = 8.0;
+            let total_w = tab_size.x * 3.0 + tab_gap * 2.0;
+            let start_x = center_x - total_w / 2.0;
+            let tabs = [
+                (MainMenuTab::Keyboard, "Device"),
+                (MainMenuTab::Advanced, "Advanced"),
+                (MainMenuTab::Settings, "Settings"),
+            ];
+            let mut device_tab_rect = None;
+            let mut device_tab_hovered = false;
+            let mut advanced_tab_rect = None;
+            let mut advanced_tab_hovered = false;
+            let mut settings_tab_rect = None;
+            let mut settings_tab_hovered = false;
+
+            for (idx, (tab, label)) in tabs.iter().enumerate() {
+                let slot_rect = egui::Rect::from_min_size(
+                    egui::pos2(start_x + idx as f32 * (tab_size.x + tab_gap), tabs_y),
+                    tab_size,
+                );
+                let text_rect = {
+                    let text_w = ui.fonts(|f| {
+                        f.layout_no_wrap(
+                            (*label).to_owned(),
+                            FontId::proportional(15.0),
+                            ui.visuals().widgets.inactive.fg_stroke.color,
+                        )
+                        .size()
+                        .x
+                    });
+                    egui::Rect::from_center_size(slot_rect.center(), Vec2::new(text_w + 20.0, tab_size.y))
+                };
+                let resp = ui.allocate_rect(text_rect, Sense::click());
+                if matches!(tab, MainMenuTab::Keyboard) {
+                    device_tab_rect = Some(text_rect);
+                    device_tab_hovered = resp.hovered();
+                }
+                if matches!(tab, MainMenuTab::Advanced) {
+                    advanced_tab_rect = Some(text_rect);
+                    advanced_tab_hovered = resp.hovered();
+                }
+                if matches!(tab, MainMenuTab::Settings) {
+                    settings_tab_rect = Some(text_rect);
+                    settings_tab_hovered = resp.hovered();
+                }
+                if resp.hovered() {
+                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                }
+                if resp.clicked() {
+                    match tab {
+                        MainMenuTab::Keyboard => {
+                            self.main_menu_tab = MainMenuTab::Keyboard;
+                        }
+                        MainMenuTab::Advanced => {
+                            self.main_menu_tab = MainMenuTab::Keyboard;
+                        }
+                        MainMenuTab::Settings => {
+                            if self.main_menu_tab != MainMenuTab::Settings {
+                                self.reset_matrix_tester_state();
+                            }
+                            self.matrix_tester_unlock_prompted = false;
+                            self.main_menu_tab = MainMenuTab::Settings;
+                        }
+                    }
+                }
+
+                let is_active = !matches!(tab, MainMenuTab::Advanced) && self.main_menu_tab == *tab;
+                let text_color = if is_active {
+                    ui.visuals().widgets.inactive.fg_stroke.color
+                } else if resp.hovered() {
+                    if ui.visuals().dark_mode {
+                        Color32::from_gray(135)
+                    } else {
+                        Color32::from_gray(120)
+                    }
+                } else if ui.visuals().dark_mode {
+                    Color32::from_gray(90)
+                } else {
+                    Color32::from_gray(150)
+                };
+
+                ui.painter().text(
+                    slot_rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    *label,
+                    FontId::proportional(15.0),
+                    text_color,
+                );
+            }
+
+            let divider_color = if ui.visuals().dark_mode {
+                Color32::from_gray(105)
+            } else {
+                Color32::from_gray(170)
+            };
+            let divider_top = tabs_y + 4.0;
+            let divider_bottom = tabs_y + tab_size.y - 4.0;
+            for sep_idx in 1..3 {
+                let x = start_x + sep_idx as f32 * tab_size.x + (sep_idx as f32 - 0.5) * tab_gap;
+                ui.painter().line_segment(
+                    [egui::pos2(x, divider_top), egui::pos2(x, divider_bottom)],
+                    egui::Stroke::new(1.5, divider_color),
+                );
+            }
+
+            if let Some(device_rect) = device_tab_rect {
+                let dropdown_id = ui.make_persistent_id("device_dropdown_open");
+                let was_open = ui
+                    .ctx()
+                    .data(|d| d.get_temp::<bool>(dropdown_id))
+                    .unwrap_or(false);
+                let has_lock_button = self.firmware == FirmwareProtocol::Vial
+                    && self.layout.is_some()
+                    && !self.vial_unlock_polling
+                    && !self.unlock_open;
+                let is_unlocked = if has_lock_button {
+                    self.hid_device.as_ref()
+                        .and_then(|hid| hid.get_unlock_status().ok())
+                        .map(|(unlocked, _keys)| unlocked)
+                        .unwrap_or(false)
+                } else {
+                    false
+                };
+                let device_count = self.device_manager.devices().len();
+                let device_rows = device_count.max(1) as f32;
+                let devices_h = 8.0 + device_rows * 26.0;
+                let lock_h = if has_lock_button { 32.0 } else { 0.0 };
+                let dropdown_size = Vec2::new(240.0, devices_h + lock_h + 8.0);
+                let dropdown_rect = egui::Rect::from_min_size(
+                    egui::pos2(device_rect.center().x - dropdown_size.x / 2.0, device_rect.bottom() + 6.0),
+                    dropdown_size,
+                );
+                let hover_bridge_rect = device_rect.union(dropdown_rect).expand(3.0);
+                let pointer_over_bridge = ui
+                    .ctx()
+                    .input(|i| i.pointer.hover_pos())
+                    .map(|pos| hover_bridge_rect.contains(pos))
+                    .unwrap_or(false);
+                let show_dropdown = device_tab_hovered || (was_open && pointer_over_bridge);
+
+                if show_dropdown {
+                    let area_id = ui.make_persistent_id("device_dropdown_area");
+                    egui::Area::new(area_id)
+                        .order(egui::Order::Foreground)
+                        .fixed_pos(dropdown_rect.min)
+                        .show(ctx, |ui| {
+                            let dropdown_fill = if ui.visuals().dark_mode {
+                                Color32::from_gray(32)
+                            } else {
+                                Color32::from_gray(248)
+                            };
+                            egui::Frame::new()
+                                .fill(dropdown_fill)
+                                .stroke(egui::Stroke::NONE)
+                                .corner_radius(8.0)
+                                .inner_margin(egui::Margin::same(8))
+                                .show(ui, |ui| {
+                                    ui.set_min_width(dropdown_size.x);
+
+                                    let prev_selected = self.selected_device;
+                                    if self.device_manager.devices().is_empty() {
+                                        ui.add_sized(
+                                            [dropdown_size.x - 16.0, 26.0],
+                                            egui::Label::new("No devices found"),
+                                        );
+                                    } else {
+                                        for (i, dev) in self.device_manager.devices().iter().enumerate() {
+                                            let is_selected = self.selected_device == Some(i);
+                                            let resp = ui.add_sized(
+                                                [dropdown_size.x - 16.0, 26.0],
+                                                egui::Button::new(
+                                                    RichText::new(&dev.name).color(if is_selected {
+                                                        ui.visuals().widgets.inactive.fg_stroke.color
+                                                    } else if ui.visuals().dark_mode {
+                                                        Color32::from_gray(170)
+                                                    } else {
+                                                        Color32::from_gray(90)
+                                                    })
+                                                )
+                                                .fill(if is_selected {
+                                                    if ui.visuals().dark_mode {
+                                                        Color32::from_gray(46)
+                                                    } else {
+                                                        Color32::from_gray(236)
+                                                    }
+                                                } else {
+                                                    Color32::TRANSPARENT
+                                                })
+                                                .stroke(egui::Stroke::NONE),
+                                            );
+                                            if resp.clicked() {
+                                                self.selected_device = Some(i);
+                                            }
+                                        }
+                                    }
+
+                                    #[cfg(not(target_arch = "wasm32"))]
+                                    if self.selected_device != prev_selected {
+                                        if let Some(idx) = self.selected_device {
+                                            self.start_connect(idx);
+                                        }
+                                    }
+
+                                    if has_lock_button {
+                                        ui.add_space(6.0);
+                                        let lock_label = if is_unlocked { "🔓 Lock" } else { "🔒 Unlock" };
+                                        let lock_text = if !is_unlocked {
+                                            RichText::new(lock_label).color(Color32::from_rgb(220, 120, 60))
+                                        } else {
+                                            RichText::new(lock_label)
+                                        };
+                                        if ui.add_sized(
+                                            [dropdown_size.x - 16.0, 26.0],
+                                            egui::Button::new(lock_text)
+                                                .fill(Color32::TRANSPARENT)
+                                                .stroke(egui::Stroke::NONE),
+                                        ).clicked() {
+                                            if is_unlocked {
+                                                if let Some(hid) = &self.hid_device {
+                                                    match hid.lock() {
+                                                        Ok(()) => self.status_msg = "Keyboard locked".into(),
+                                                        Err(e) => self.status_msg = format!("Lock failed: {e}"),
+                                                    }
+                                                }
+                                            } else {
+                                                self.unlock_open = true;
+                                            }
+                                        }
+                                    }
+                                });
+                        });
+
+                    ui.ctx().data_mut(|d| d.insert_temp(dropdown_id, device_tab_hovered || pointer_over_bridge));
+                } else {
+                    ui.ctx().data_mut(|d| d.insert_temp(dropdown_id, false));
+                }
+            }
+
+            if let Some(advanced_rect) = advanced_tab_rect {
+                let dropdown_id = ui.make_persistent_id("advanced_dropdown_open");
+                let was_open = ui
+                    .ctx()
+                    .data(|d| d.get_temp::<bool>(dropdown_id))
+                    .unwrap_or(false);
+                let dropdown_rect = egui::Rect::from_min_size(
+                    egui::pos2(advanced_rect.center().x - 68.0, advanced_rect.bottom() + 6.0),
+                    Vec2::new(136.0, 36.0),
+                );
+                let hover_bridge_rect = advanced_rect.union(dropdown_rect).expand(3.0);
+                let pointer_over_bridge = ui
+                    .ctx()
+                    .input(|i| i.pointer.hover_pos())
+                    .map(|pos| hover_bridge_rect.contains(pos))
+                    .unwrap_or(false);
+                let show_dropdown = advanced_tab_hovered || (was_open && pointer_over_bridge);
+
+                if show_dropdown {
+                    let dropdown_fill = if ui.visuals().dark_mode {
+                        Color32::from_gray(32)
+                    } else {
+                        Color32::from_gray(248)
+                    };
+                    ui.painter().rect(
+                        dropdown_rect,
+                        8.0,
+                        dropdown_fill,
+                        egui::Stroke::NONE,
+                        egui::StrokeKind::Inside,
+                    );
+
+                    let combo_rect = dropdown_rect.shrink2(Vec2::new(6.0, 4.0));
+                    let combo_resp = ui.allocate_rect(combo_rect, Sense::click());
+                    if combo_resp.hovered() {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                    }
+                    if combo_resp.clicked() {
+                        self.main_menu_tab = MainMenuTab::Keyboard;
+                        self.combo_window_open = true;
+                    }
+
+                    let combo_fill = if combo_resp.hovered() {
+                        if ui.visuals().dark_mode {
+                            Color32::from_gray(46)
+                        } else {
+                            Color32::from_gray(238)
+                        }
+                    } else {
+                        Color32::TRANSPARENT
+                    };
+                    ui.painter().rect(
+                        combo_rect,
+                        6.0,
+                        combo_fill,
+                        egui::Stroke::NONE,
+                        egui::StrokeKind::Inside,
+                    );
+                    ui.painter().text(
+                        combo_rect.center(),
+                        egui::Align2::CENTER_CENTER,
+                        "Combo",
+                        FontId::proportional(14.0),
+                        ui.visuals().widgets.inactive.fg_stroke.color,
+                    );
+
+                    ui.ctx().data_mut(|d| d.insert_temp(dropdown_id, advanced_tab_hovered || combo_resp.hovered() || pointer_over_bridge));
+                } else {
+                    ui.ctx().data_mut(|d| d.insert_temp(dropdown_id, false));
+                }
+            }
+
+            if let Some(settings_rect) = settings_tab_rect {
+                let dropdown_id = ui.make_persistent_id("settings_dropdown_open");
+                let was_open = ui
+                    .ctx()
+                    .data(|d| d.get_temp::<bool>(dropdown_id))
+                    .unwrap_or(false);
+                let dropdown_rect = egui::Rect::from_min_size(
+                    egui::pos2(settings_rect.center().x - 76.0, settings_rect.bottom() + 6.0),
+                    Vec2::new(152.0, 36.0),
+                );
+                let hover_bridge_rect = settings_rect.union(dropdown_rect).expand(3.0);
+                let pointer_over_bridge = ui
+                    .ctx()
+                    .input(|i| i.pointer.hover_pos())
+                    .map(|pos| hover_bridge_rect.contains(pos))
+                    .unwrap_or(false);
+                let show_dropdown = settings_tab_hovered || (was_open && pointer_over_bridge);
+
+                if show_dropdown {
+                    let dropdown_fill = if ui.visuals().dark_mode {
+                        Color32::from_gray(32)
+                    } else {
+                        Color32::from_gray(248)
+                    };
+                    ui.painter().rect(
+                        dropdown_rect,
+                        8.0,
+                        dropdown_fill,
+                        egui::Stroke::NONE,
+                        egui::StrokeKind::Inside,
+                    );
+
+                    let matrix_rect = dropdown_rect.shrink2(Vec2::new(6.0, 4.0));
+                    let matrix_resp = ui.allocate_rect(matrix_rect, Sense::click());
+                    if matrix_resp.hovered() {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                    }
+                    if matrix_resp.clicked() {
+                        self.settings_tab = SettingsTab::MatrixTester;
+                        if self.main_menu_tab != MainMenuTab::Settings {
+                            self.reset_matrix_tester_state();
+                        }
+                        self.matrix_tester_unlock_prompted = false;
+                        self.main_menu_tab = MainMenuTab::Settings;
+                    }
+
+                    let matrix_fill = if matrix_resp.hovered() {
+                        if ui.visuals().dark_mode {
+                            Color32::from_gray(46)
+                        } else {
+                            Color32::from_gray(238)
+                        }
+                    } else {
+                        Color32::TRANSPARENT
+                    };
+                    ui.painter().rect(
+                        matrix_rect,
+                        6.0,
+                        matrix_fill,
+                        egui::Stroke::NONE,
+                        egui::StrokeKind::Inside,
+                    );
+                    ui.painter().text(
+                        matrix_rect.center(),
+                        egui::Align2::CENTER_CENTER,
+                        "Matrix Tester",
+                        FontId::proportional(14.0),
+                        ui.visuals().widgets.inactive.fg_stroke.color,
+                    );
+
+                    ui.ctx().data_mut(|d| d.insert_temp(dropdown_id, settings_tab_hovered || matrix_resp.hovered() || pointer_over_bridge));
+                } else {
+                    ui.ctx().data_mut(|d| d.insert_temp(dropdown_id, false));
+                }
+            }
+        }
+
+        if self.main_menu_tab == MainMenuTab::Settings {
+            self.draw_settings_screen(ui, layout, ctx, top_base_y + main_tabs_h + 14.0);
+            return;
+        }
 
         // ── Layer switcher ─────────────────────────────────────────────────
         {
@@ -1763,8 +3144,9 @@ impl EntropyApp {
                 let name_r = ui.allocate_rect(name_hit, Sense::click());
 
                 // Full layer switch zone from arrow to arrow for mouse wheel switching.
-                let left_hit  = egui::Rect::from_center_size(left_center,  Vec2::splat(48.0));
-                let right_hit = egui::Rect::from_center_size(right_center, Vec2::splat(48.0));
+                // Keep click/hover hitboxes close to the actual arrow glyph size.
+                let left_hit  = egui::Rect::from_center_size(left_center,  Vec2::new(28.0, 44.0));
+                let right_hit = egui::Rect::from_center_size(right_center, Vec2::new(28.0, 44.0));
                 let wheel_hit = egui::Rect::from_min_max(
                     egui::pos2(left_hit.left(), mid_y - 26.0),
                     egui::pos2(right_hit.right(), mid_y + 26.0),
@@ -2337,6 +3719,9 @@ impl EntropyApp {
         }
 
         for (key_idx, _, response) in &keys {
+            if response.hovered() {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+            }
             if response.clicked() {
                 self.selected_key = Some((self.selected_layer, *key_idx));
             }
