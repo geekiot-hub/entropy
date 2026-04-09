@@ -2769,7 +2769,8 @@ impl EntropyApp {
                     .input(|i| i.pointer.hover_pos())
                     .map(|pos| hover_bridge_rect.contains(pos))
                     .unwrap_or(false);
-                let show_dropdown = device_tab_hovered || (was_open && pointer_over_bridge);
+                let show_dropdown = !advanced_tab_hovered && !settings_tab_hovered
+                    && (device_tab_hovered || (was_open && pointer_over_bridge));
 
                 if show_dropdown {
                     let area_id = ui.make_persistent_id("device_dropdown_area");
@@ -2882,7 +2883,8 @@ impl EntropyApp {
                     .input(|i| i.pointer.hover_pos())
                     .map(|pos| hover_bridge_rect.contains(pos))
                     .unwrap_or(false);
-                let show_dropdown = advanced_tab_hovered || (was_open && pointer_over_bridge);
+                let show_dropdown = !device_tab_hovered && !settings_tab_hovered
+                    && (advanced_tab_hovered || (was_open && pointer_over_bridge));
 
                 if show_dropdown {
                     let dropdown_fill = if ui.visuals().dark_mode {
@@ -2954,7 +2956,8 @@ impl EntropyApp {
                     .input(|i| i.pointer.hover_pos())
                     .map(|pos| hover_bridge_rect.contains(pos))
                     .unwrap_or(false);
-                let show_dropdown = settings_tab_hovered || (was_open && pointer_over_bridge);
+                let show_dropdown = !device_tab_hovered && !advanced_tab_hovered
+                    && (settings_tab_hovered || (was_open && pointer_over_bridge));
 
                 if show_dropdown {
                     let dropdown_fill = if ui.visuals().dark_mode {
