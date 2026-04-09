@@ -2499,6 +2499,18 @@ Enter".into(), 0x7C1E, "Shift when held, Enter when tapped".into()),
                 resp.on_hover_text(format!("Function key {}", label));
             }
         });
+
+        ui.add_space(10.0);
+        ui.label(RichText::new("Numpad").size(11.0).color(Color32::from_gray(150)));
+        ui.add_space(4.0);
+        ui.horizontal_wrapped(|ui| {
+            for kc in crate::keycode::KEYCODES.iter().filter(|kc| matches!(kc.category, crate::keycode::KeycodeCategory::Numpad)) {
+                let resp = ui.add(egui::Button::new(RichText::new(kc.label).size(11.0))
+                    .min_size(Vec2::new(56.0, 42.0)));
+                if resp.clicked() { self.result = Some(kc.value); self.open = false; }
+                resp.on_hover_text(crate::keycode::keycode_tooltip(kc.value, &[], &self.layer_names));
+            }
+        });
     }
 
 fn show_zmk(&mut self, ctx: &egui::Context) {
