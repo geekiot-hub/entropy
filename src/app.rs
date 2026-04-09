@@ -2799,10 +2799,15 @@ impl EntropyApp {
                                     } else {
                                         for (i, dev) in self.device_manager.devices().iter().enumerate() {
                                             let is_selected = self.selected_device == Some(i);
+                                            let label = if is_selected {
+                                                format!("✓ {}", dev.name)
+                                            } else {
+                                                dev.name.clone()
+                                            };
                                             let resp = ui.add_sized(
                                                 [dropdown_size.x - 16.0, 26.0],
                                                 egui::Button::new(
-                                                    RichText::new(&dev.name).color(if is_selected {
+                                                    RichText::new(label).color(if is_selected {
                                                         ui.visuals().widgets.inactive.fg_stroke.color
                                                     } else if ui.visuals().dark_mode {
                                                         Color32::from_gray(170)
@@ -2810,15 +2815,7 @@ impl EntropyApp {
                                                         Color32::from_gray(90)
                                                     })
                                                 )
-                                                .fill(if is_selected {
-                                                    if ui.visuals().dark_mode {
-                                                        Color32::from_gray(46)
-                                                    } else {
-                                                        Color32::from_gray(236)
-                                                    }
-                                                } else {
-                                                    Color32::TRANSPARENT
-                                                })
+                                                .fill(Color32::TRANSPARENT)
                                                 .stroke(egui::Stroke::NONE),
                                             );
                                             if resp.clicked() {
