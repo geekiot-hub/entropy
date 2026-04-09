@@ -1577,7 +1577,9 @@ impl KeycodePicker {
                     }
                 });
 
-            if ui.add(egui::Button::new(RichText::new("Clear all").size(macro_font_size)))
+            let can_clear_macro = self.macro_has_content(n)
+                || self.macro_names.get(n).map(|s| !s.trim().is_empty()).unwrap_or(false);
+            if ui.add_enabled(can_clear_macro, egui::Button::new(RichText::new("Clear all").size(macro_font_size)))
                 .on_hover_text("Remove all actions from this macro")
                 .clicked() {
                 self.macro_undo_stack.push((n, self.macro_actions[n].clone()));
@@ -1786,7 +1788,11 @@ impl KeycodePicker {
 
         ui.add_space(8.0);
         ui.horizontal(|ui| {
-            if ui.add(egui::Button::new(RichText::new("Clear all").size(td_font_size)))
+            let can_clear_tap_dance = self.tap_dance_entries.get(n).map(|td| {
+                td.on_tap != 0 || td.on_hold != 0 || td.on_double_tap != 0 || td.on_tap_hold != 0 || td.tapping_term != 200
+            }).unwrap_or(false)
+                || self.tap_dance_names.get(n).map(|s| !s.trim().is_empty()).unwrap_or(false);
+            if ui.add_enabled(can_clear_tap_dance, egui::Button::new(RichText::new("Clear all").size(td_font_size)))
                 .on_hover_text("Clear all actions for this tap dance")
                 .clicked() {
                 self.push_tap_dance_undo(n);
