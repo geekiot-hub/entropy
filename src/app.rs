@@ -1348,6 +1348,41 @@ impl EntropyApp {
         }
     }
 
+    fn apply_picker_results(&mut self) {
+        if let Some(kc_value) = self.keycode_picker.result.take() {
+            if let Some((combo_idx, field)) = self.combo_pick_target.take() {
+                self.push_combo_undo();
+                if let Some(combo) = self.combo_entries.get_mut(combo_idx) {
+                    match field {
+                        ComboPickField::Trigger(key_idx) => combo.keys[key_idx] = kc_value,
+                        ComboPickField::Output => combo.output = kc_value,
+                    }
+                    self.combo_dirty = true;
+                }
+                if self.combo_reopen_after_pick {
+                    self.combo_window_open = true;
+                    self.combo_reopen_after_pick = false;
+                }
+            } else if let Some((layer, ki)) = self.selected_key {
+                #[cfg(not(target_arch = "wasm32"))]
+                self.assign_keycode(layer, ki, kc_value);
+                #[cfg(target_arch = "wasm32")]
+                if let Some(layout) = &mut self.layout {
+                    layout.set_keycode(layer, ki, kc_value);
+                }
+            }
+            self.selected_key = None;
+        }
+
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(binding) = self.keycode_picker.zmk_result.take() {
+            if let Some((layer, ki)) = self.selected_key {
+                self.assign_zmk_binding(layer, ki, binding);
+            }
+            self.selected_key = None;
+        }
+    }
+
     fn assign_keycode(&mut self, layer: usize, ki: usize, kc_value: u16) {
         // Save old value for undo
         let old_kc = self.layout.as_ref().map(|l| l.get_keycode(layer, ki)).unwrap_or(0);
@@ -1649,40 +1684,7 @@ impl eframe::App for EntropyApp {
 
 
 
-        // Handle Vial keycode picker result
-        if let Some(kc_value) = self.keycode_picker.result.take() {
-            if let Some((combo_idx, field)) = self.combo_pick_target.take() {
-                self.push_combo_undo();
-                if let Some(combo) = self.combo_entries.get_mut(combo_idx) {
-                    match field {
-                        ComboPickField::Trigger(key_idx) => combo.keys[key_idx] = kc_value,
-                        ComboPickField::Output => combo.output = kc_value,
-                    }
-                    self.combo_dirty = true;
-                }
-                if self.combo_reopen_after_pick {
-                    self.combo_window_open = true;
-                    self.combo_reopen_after_pick = false;
-                }
-            } else if let Some((layer, ki)) = self.selected_key {
-                #[cfg(not(target_arch = "wasm32"))]
-                self.assign_keycode(layer, ki, kc_value);
-                #[cfg(target_arch = "wasm32")]
-                if let Some(layout) = &mut self.layout {
-                    layout.set_keycode(layer, ki, kc_value);
-                }
-            }
-            self.selected_key = None;
-        }
-
-        // Handle ZMK binding picker result
-        #[cfg(not(target_arch = "wasm32"))]
-        if let Some(binding) = self.keycode_picker.zmk_result.take() {
-            if let Some((layer, ki)) = self.selected_key {
-                self.assign_zmk_binding(layer, ki, binding);
-            }
-            self.selected_key = None;
-        }
+        self.apply_picker_results();
 
         // Deselect key when picker is closed without choosing
         if !self.keycode_picker.open
@@ -1990,6 +1992,7 @@ impl eframe::App for EntropyApp {
 
         if !self.unlock_open && !self.vial_unlock_polling {
             self.keycode_picker.show(ctx);
+            self.apply_picker_results();
         }
         if self.combo_pick_target.is_some()
             && !self.keycode_picker.open
