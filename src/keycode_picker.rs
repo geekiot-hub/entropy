@@ -2505,8 +2505,33 @@ Enter".into(), 0x7C1E, "Shift when held, Enter when tapped".into()),
         ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| {
             for kc in crate::keycode::KEYCODES.iter().filter(|kc| matches!(kc.category, crate::keycode::KeycodeCategory::Numpad)) {
-                let resp = ui.add(egui::Button::new(RichText::new(kc.label).size(11.0))
-                    .min_size(Vec2::new(56.0, 42.0)));
+                let display = match kc.name {
+                    "KC_NUMLOCK" => "Num\nLock",
+                    "KC_PSLASH" => "÷",
+                    "KC_PAST" => "×",
+                    "KC_PMNS" => "−",
+                    "KC_PPLS" => "+",
+                    "KC_PENT" => "Enter",
+                    "KC_P1" => "1",
+                    "KC_P2" => "2",
+                    "KC_P3" => "3",
+                    "KC_P4" => "4",
+                    "KC_P5" => "5",
+                    "KC_P6" => "6",
+                    "KC_P7" => "7",
+                    "KC_P8" => "8",
+                    "KC_P9" => "9",
+                    "KC_P0" => "0",
+                    "KC_PDOT" => ".",
+                    "KC_PCMM" => ",",
+                    "KC_PEQL" => "=",
+                    _ => kc.label,
+                };
+                let font_size = if display.contains('\n') || display.len() > 2 { 10.5 } else { 13.0 };
+                let resp = ui.add(
+                    egui::Button::new(RichText::new(display).size(font_size))
+                        .min_size(Vec2::new(56.0, 42.0))
+                );
                 if resp.clicked() { self.result = Some(kc.value); self.open = false; }
                 resp.on_hover_text(crate::keycode::keycode_tooltip(kc.value, &[], &self.layer_names));
             }
