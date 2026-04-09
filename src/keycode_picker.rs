@@ -2503,10 +2503,23 @@ Enter".into(), 0x7C1E, "Shift when held, Enter when tapped".into()),
         ui.add_space(10.0);
         ui.label(RichText::new("Numpad").size(11.0).color(Color32::from_gray(150)));
         ui.add_space(4.0);
+        if let Some(kc) = crate::keycode::KEYCODES.iter().find(|kc| kc.name == "KC_NUMLOCK") {
+            let muted = if ui.visuals().dark_mode {
+                Color32::from_gray(105)
+            } else {
+                Color32::from_gray(145)
+            };
+            let resp = ui.add(
+                egui::Button::new(RichText::new("Num").size(11.0).color(muted))
+                    .min_size(Vec2::new(56.0, 34.0))
+            );
+            if resp.clicked() { self.result = Some(kc.value); self.open = false; }
+            resp.on_hover_text(crate::keycode::keycode_tooltip(kc.value, &[], &self.layer_names));
+            ui.add_space(6.0);
+        }
         ui.horizontal_wrapped(|ui| {
-            for kc in crate::keycode::KEYCODES.iter().filter(|kc| matches!(kc.category, crate::keycode::KeycodeCategory::Numpad)) {
+            for kc in crate::keycode::KEYCODES.iter().filter(|kc| matches!(kc.category, crate::keycode::KeycodeCategory::Numpad) && kc.name != "KC_NUMLOCK") {
                 let display = match kc.name {
-                    "KC_NUMLOCK" => "Num\nLock",
                     "KC_PSLASH" => "÷",
                     "KC_PAST" => "×",
                     "KC_PMNS" => "−",
@@ -2527,7 +2540,7 @@ Enter".into(), 0x7C1E, "Shift when held, Enter when tapped".into()),
                     "KC_PEQL" => "=",
                     _ => kc.label,
                 };
-                let font_size = if display.contains('\n') || display.len() > 2 { 10.5 } else { 13.0 };
+                let font_size = if display.len() > 2 { 10.5 } else { 13.0 };
                 let resp = ui.add(
                     egui::Button::new(RichText::new(display).size(font_size))
                         .min_size(Vec2::new(56.0, 42.0))
