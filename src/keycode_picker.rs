@@ -2523,6 +2523,30 @@ Enter".into(), 0x7C1E, "Shift when held, Enter when tapped".into()),
         });
 
         ui.add_space(10.0);
+        ui.label(RichText::new("OS shortcuts").size(11.0).color(Color32::from_gray(150)));
+        ui.add_space(4.0);
+        let os_shortcuts: &[(&str, u16, &str)] = &[
+            ("Next Word\nWin/Linux", 0x0100 | 0x004F, "Ctrl + Right Arrow"),
+            ("Prev Word\nWin/Linux", 0x0100 | 0x0050, "Ctrl + Left Arrow"),
+            ("Next App\nWin/Linux",  0x0400 | 0x002B, "Alt + Tab"),
+            ("Prev App\nWin/Linux",  0x0600 | 0x002B, "Shift + Alt + Tab"),
+            ("Next Word\nmacOS",     0x0400 | 0x004F, "Option + Right Arrow"),
+            ("Prev Word\nmacOS",     0x0400 | 0x0050, "Option + Left Arrow"),
+            ("Next App\nmacOS",      0x0800 | 0x002B, "Command + Tab"),
+            ("Prev App\nmacOS",      0x0A00 | 0x002B, "Shift + Command + Tab"),
+        ];
+        ui.horizontal_wrapped(|ui| {
+            for (label, value, tip) in os_shortcuts {
+                let resp = ui.add_sized(
+                    Vec2::new(112.0, 44.0),
+                    egui::Button::new(RichText::new(*label).size(10.5))
+                );
+                if resp.clicked() { self.result = Some(*value); self.open = false; }
+                resp.on_hover_text(*tip);
+            }
+        });
+
+        ui.add_space(10.0);
         ui.label(RichText::new("Numpad").size(11.0).color(Color32::from_gray(150)));
         ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| {
