@@ -2530,7 +2530,10 @@ Enter".into(), 0x7C1E, "Shift when held, Enter when tapped".into()),
                     "KC_PDOT" => ".",
                     "KC_PCMM" => ",",
                     "KC_PEQL" => "=",
-                    _ => kc.label,
+                    _ => kc.label
+                        .strip_prefix("Num ")
+                        .or_else(|| kc.label.strip_prefix("Numpad "))
+                        .unwrap_or(kc.label),
                 };
                 let font_size = if display.len() > 2 { 10.5 } else { 13.0 };
                 let mut resp = ui.add_sized(Vec2::new(56.0, 42.0), egui::Button::new(""));
