@@ -2153,6 +2153,24 @@ impl eframe::App for EntropyApp {
                 });
         }
 
+        let any_floating_window_open = self.combo_window_open
+            || self.key_override_window_open
+            || self.keycode_picker.open;
+        if any_floating_window_open {
+            let screen_rect = ctx.screen_rect();
+            egui::Area::new("window_backdrop".into())
+                .order(egui::Order::Foreground)
+                .fixed_pos(screen_rect.min)
+                .show(ctx, |ui| {
+                    ui.set_min_size(screen_rect.size());
+                    ui.painter().rect_filled(
+                        egui::Rect::from_min_size(egui::Pos2::ZERO, screen_rect.size()),
+                        0.0,
+                        Color32::from_black_alpha(if ctx.style().visuals.dark_mode { 96 } else { 48 }),
+                    );
+                });
+        }
+
         if self.combo_window_open {
             self.show_combo_window(ctx);
         }
@@ -2539,7 +2557,7 @@ impl EntropyApp {
             .frame(
                 egui::Frame::window(ctx.style().as_ref())
                     .fill(app_window_fill(dark))
-                    .stroke(egui::Stroke::new(1.0, app_border_color(dark)))
+                    .stroke(egui::Stroke::NONE)
                     .inner_margin(egui::Margin::same(8))
             )
             .show(ctx, |ui| {
@@ -2873,6 +2891,12 @@ impl EntropyApp {
             .default_width(360.0)
             .min_width(360.0)
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .frame(
+                egui::Frame::window(ctx.style().as_ref())
+                    .fill(app_window_fill(ctx.style().visuals.dark_mode))
+                    .stroke(egui::Stroke::NONE)
+                    .inner_margin(egui::Margin::same(10))
+            )
             .show(ctx, |ui| {
                 ui.style_mut().visuals.button_frame = true;
                 if ui.visuals().dark_mode {
