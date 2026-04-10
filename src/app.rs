@@ -2532,19 +2532,21 @@ impl EntropyApp {
         let mut open = self.key_override_window_open;
         egui::Window::new("Key Overrides")
             .open(&mut open)
+            .collapsible(false)
             .resizable(false)
             .fixed_size(Vec2::new(448.0, 468.0))
             .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
-            .show(ctx, |ui| {
-                let frame = egui::Frame::window(ui.style())
+            .frame(
+                egui::Frame::window(ctx.style().as_ref())
                     .fill(app_window_fill(dark))
                     .stroke(egui::Stroke::new(1.0, app_border_color(dark)))
-                    .inner_margin(egui::Margin::same(8));
-                frame.show(ui, |ui| {
-                    if self.key_override_entries.is_empty() {
-                        ui.label("Key Overrides are not supported by this keyboard.");
-                        return;
-                    }
+                    .inner_margin(egui::Margin::same(8))
+            )
+            .show(ctx, |ui| {
+                if self.key_override_entries.is_empty() {
+                    ui.label("Key Overrides are not supported by this keyboard.");
+                    return;
+                }
 
                     if self.selected_key_override >= self.key_override_entries.len() {
                         self.selected_key_override = 0;
@@ -2822,13 +2824,12 @@ impl EntropyApp {
                         }
                     });
 
-                    Self::normalize_key_override_entry(&mut edited);
-                    if edited != current {
-                        self.push_key_override_undo();
-                        self.key_override_entries[idx] = edited;
-                        self.write_key_override(idx);
-                    }
-                });
+                Self::normalize_key_override_entry(&mut edited);
+                if edited != current {
+                    self.push_key_override_undo();
+                    self.key_override_entries[idx] = edited;
+                    self.write_key_override(idx);
+                }
             });
         self.key_override_window_open = open;
     }
