@@ -2542,32 +2542,51 @@ Enter".into(), 0x7C1E, "Shift when held, Enter when tapped".into()),
                 Color32::from_gray(145)
             };
             for (os, text, value, tip) in os_shortcuts {
-                let resp = ui.add_sized(Vec2::new(112.0, 44.0), egui::Button::new(""));
+                let resp = ui.add_sized(Vec2::new(56.0, 44.0), egui::Button::new(""));
                 let visuals = ui.style().interact(&resp);
                 let painter = ui.painter();
+                let os_display = match *os {
+                    "Win/Linux" => "Win/Lnx",
+                    other => other,
+                };
+                let (text_top, text_bottom) = text.split_once(' ').unwrap_or((text, ""));
                 let os_galley = painter.layout_no_wrap(
-                    (*os).to_owned(),
-                    egui::FontId::proportional(9.5),
+                    os_display.to_owned(),
+                    egui::FontId::proportional(7.5),
                     os_text_color,
                 );
-                let text_galley = painter.layout_no_wrap(
-                    (*text).to_owned(),
-                    egui::FontId::proportional(10.5),
+                let top_galley = painter.layout_no_wrap(
+                    text_top.to_owned(),
+                    egui::FontId::proportional(8.5),
                     visuals.fg_stroke.color,
                 );
-                let line_spacing = 1.0;
-                let os_height = os_galley.size().y;
-                let total_height = os_height + line_spacing + text_galley.size().y;
+                let bottom_galley = painter.layout_no_wrap(
+                    text_bottom.to_owned(),
+                    egui::FontId::proportional(8.5),
+                    visuals.fg_stroke.color,
+                );
+                let line_spacing = 0.0;
+                let os_size = os_galley.size();
+                let top_size = top_galley.size();
+                let bottom_size = bottom_galley.size();
+                let total_height = os_size.y + line_spacing + top_size.y + line_spacing + bottom_size.y;
                 let os_pos = egui::pos2(
-                    resp.rect.center().x - os_galley.size().x / 2.0,
+                    resp.rect.center().x - os_size.x / 2.0,
                     resp.rect.center().y - total_height / 2.0,
                 );
                 painter.galley(os_pos, os_galley, os_text_color);
-                let text_pos = egui::pos2(
-                    resp.rect.center().x - text_galley.size().x / 2.0,
-                    os_pos.y + os_height + line_spacing,
+                let top_pos = egui::pos2(
+                    resp.rect.center().x - top_size.x / 2.0,
+                    os_pos.y + os_size.y + line_spacing,
                 );
-                painter.galley(text_pos, text_galley, visuals.fg_stroke.color);
+                painter.galley(top_pos, top_galley, visuals.fg_stroke.color);
+                if !text_bottom.is_empty() {
+                    let bottom_pos = egui::pos2(
+                        resp.rect.center().x - bottom_size.x / 2.0,
+                        top_pos.y + top_size.y + line_spacing,
+                    );
+                    painter.galley(bottom_pos, bottom_galley, visuals.fg_stroke.color);
+                }
                 if resp.clicked() { self.result = Some(*value); self.open = false; }
                 resp.on_hover_text(*tip);
             }
