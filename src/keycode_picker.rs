@@ -2546,14 +2546,14 @@ Enter".into(), 0x7C1E, "Shift when held, Enter when tapped".into()),
                     ui.visuals().widgets.inactive.fg_stroke.color
                 };
                 painter.text(
-                    egui::pos2(rect.center().x, rect.top() + 10.0),
+                    egui::pos2(rect.center().x, rect.center().y - 6.0),
                     egui::Align2::CENTER_CENTER,
                     "Num",
                     egui::FontId::proportional(9.5),
                     num_text_color,
                 );
                 painter.text(
-                    egui::pos2(rect.center().x, rect.bottom() - 10.0),
+                    egui::pos2(rect.center().x, rect.center().y + 6.0),
                     egui::Align2::CENTER_CENTER,
                     display,
                     egui::FontId::proportional(font_size),
