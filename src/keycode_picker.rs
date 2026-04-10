@@ -1079,6 +1079,7 @@ impl KeycodePicker {
 
     fn show_vial_generic(&mut self, ui: &mut egui::Ui) {
         let custom_pairs: Vec<(String, String)> = self.custom_keycodes.iter()
+            .filter(|(n, _, _)| n != "LAYER_PREV" && n != "LAYER_NEXT")
             .map(|(n, l, _)| (n.clone(), l.clone()))
             .collect();
         ui.horizontal_wrapped(|ui| {
@@ -1141,27 +1142,6 @@ impl KeycodePicker {
             }
             lt_resp.on_hover_text("Hold = activate layer, tap = keycode (set key via right-click afterwards)");
 
-            if let Some((_, _, value)) = self.custom_keycodes.iter().find(|(name, _, _)| name == "LAYER_PREV") {
-                let resp = ui.add(egui::Button::new(RichText::new("Layer Previous").size(10.5))
-                    .min_size(Vec2::new(118.0, 34.0)))
-                    .on_hover_cursor(egui::CursorIcon::PointingHand);
-                if resp.clicked() {
-                    self.result = Some(*value);
-                    self.open = false;
-                }
-                resp.on_hover_text("Switch to the previous layer in the firmware layer cycle");
-            }
-
-            if let Some((_, _, value)) = self.custom_keycodes.iter().find(|(name, _, _)| name == "LAYER_NEXT") {
-                let resp = ui.add(egui::Button::new(RichText::new("Layer Next").size(10.5))
-                    .min_size(Vec2::new(118.0, 34.0)))
-                    .on_hover_cursor(egui::CursorIcon::PointingHand);
-                if resp.clicked() {
-                    self.result = Some(*value);
-                    self.open = false;
-                }
-                resp.on_hover_text("Switch to the next layer in the firmware layer cycle");
-            }
         });
     }
 
@@ -1190,6 +1170,36 @@ impl KeycodePicker {
 
         ui.add_space(12.0);
         self.show_vial_layers(ui);
+
+        let layer_prev = self.custom_keycodes.iter().find(|(name, _, _)| name == "LAYER_PREV");
+        let layer_next = self.custom_keycodes.iter().find(|(name, _, _)| name == "LAYER_NEXT");
+        if layer_prev.is_some() || layer_next.is_some() {
+            ui.add_space(12.0);
+            ui.label(RichText::new("Layer cycle").size(11.0).color(Color32::from_gray(150)));
+            ui.add_space(4.0);
+            ui.horizontal_wrapped(|ui| {
+                if let Some((_, _, value)) = layer_prev {
+                    let resp = ui.add(egui::Button::new(RichText::new("Layer Previous").size(10.5))
+                        .min_size(Vec2::new(118.0, 34.0)))
+                        .on_hover_cursor(egui::CursorIcon::PointingHand);
+                    if resp.clicked() {
+                        self.result = Some(*value);
+                        self.open = false;
+                    }
+                    resp.on_hover_text("Switch to the previous layer in the firmware layer cycle");
+                }
+                if let Some((_, _, value)) = layer_next {
+                    let resp = ui.add(egui::Button::new(RichText::new("Layer Next").size(10.5))
+                        .min_size(Vec2::new(118.0, 34.0)))
+                        .on_hover_cursor(egui::CursorIcon::PointingHand);
+                    if resp.clicked() {
+                        self.result = Some(*value);
+                        self.open = false;
+                    }
+                    resp.on_hover_text("Switch to the next layer in the firmware layer cycle");
+                }
+            });
+        }
 
         ui.add_space(12.0);
         ui.label(RichText::new("Mod+Key — always sends modifier+key together").size(11.0).color(Color32::from_gray(150)));
