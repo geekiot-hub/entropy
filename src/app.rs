@@ -2533,13 +2533,13 @@ impl EntropyApp {
         egui::Window::new("Key Overrides")
             .open(&mut open)
             .resizable(false)
-            .fixed_size(Vec2::new(480.0, 620.0))
+            .fixed_size(Vec2::new(448.0, 520.0))
             .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
             .show(ctx, |ui| {
                 let frame = egui::Frame::window(ui.style())
                     .fill(app_window_fill(dark))
                     .stroke(egui::Stroke::new(1.0, app_border_color(dark)))
-                    .inner_margin(egui::Margin::same(12));
+                    .inner_margin(egui::Margin::same(8));
                 frame.show(ui, |ui| {
                     if self.key_override_entries.is_empty() {
                         ui.label("Key Overrides are not supported by this keyboard.");
@@ -2586,17 +2586,17 @@ impl EntropyApp {
                         }
                     });
 
-                    ui.add_space(8.0);
+                    ui.add_space(6.0);
                     let idx = self.selected_key_override;
                     let current = self.key_override_entries[idx].clone();
                     let mut edited = current.clone();
-                    let content_width = 340.0_f32;
-                    let field_width = 170.0_f32;
-                    let name_field_width = 112.0_f32;
+                    let content_width = 372.0_f32;
+                    let field_width = 190.0_f32;
+                    let name_field_width = 118.0_f32;
 
                     ui.vertical_centered(|ui| {
                         egui::ScrollArea::vertical()
-                            .max_height(420.0)
+                            .max_height(344.0)
                             .auto_shrink([false, false])
                             .show(ui, |ui| {
                                 ui.allocate_ui_with_layout(
@@ -2657,12 +2657,12 @@ impl EntropyApp {
                                             &self.keycode_picker.tap_dance_names,
                                         );
 
-                                        ui.add_space(8.0);
-                                        ui.label(RichText::new("Trigger").size(13.0).strong());
+                                        ui.add_space(6.0);
+                                        ui.label(RichText::new("Trigger").size(12.0).strong());
                                         ui.add_space(4.0);
                                         ui.horizontal_centered(|ui| {
                                             let trigger_resp = ui.add(
-                                                egui::Button::new(RichText::new(trigger_label).size(13.0))
+                                                egui::Button::new(RichText::new(trigger_label).size(12.0))
                                                     .min_size(Vec2::new(field_width, 34.0)),
                                             ).on_hover_cursor(egui::CursorIcon::PointingHand);
                                             if trigger_resp.clicked() {
@@ -2671,7 +2671,7 @@ impl EntropyApp {
                                             trigger_resp.on_hover_text(trigger_tip);
                                         });
 
-                                        ui.add_space(8.0);
+                                        ui.add_space(6.0);
                                         let suppressed_resp = egui::CollapsingHeader::new(
                                             RichText::new("Suppressed mods").size(11.0).color(app_muted_text(dark))
                                         )
@@ -2684,7 +2684,7 @@ impl EntropyApp {
                                             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                         }
 
-                                        ui.add_space(6.0);
+                                        ui.add_space(4.0);
                                         let trigger_mods_resp = egui::CollapsingHeader::new(
                                             RichText::new("Trigger mods").size(11.0).color(app_muted_text(dark))
                                         )
@@ -2697,7 +2697,7 @@ impl EntropyApp {
                                             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                         }
 
-                                        ui.add_space(6.0);
+                                        ui.add_space(4.0);
                                         let negative_mods_resp = egui::CollapsingHeader::new(
                                             RichText::new("Negative mods").size(11.0).color(app_muted_text(dark))
                                         )
@@ -2710,12 +2710,12 @@ impl EntropyApp {
                                             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                         }
 
-                                        ui.add_space(8.0);
-                                        ui.label(RichText::new("Replacement").size(13.0).strong());
+                                        ui.add_space(6.0);
+                                        ui.label(RichText::new("Replacement").size(12.0).strong());
                                         ui.add_space(4.0);
                                         ui.horizontal_centered(|ui| {
                                             let replacement_resp = ui.add(
-                                                egui::Button::new(RichText::new(replacement_label).size(13.0))
+                                                egui::Button::new(RichText::new(replacement_label).size(12.0))
                                                     .min_size(Vec2::new(field_width, 34.0)),
                                             ).on_hover_cursor(egui::CursorIcon::PointingHand);
                                             if replacement_resp.clicked() {
@@ -2724,7 +2724,7 @@ impl EntropyApp {
                                             replacement_resp.on_hover_text(replacement_tip);
                                         });
 
-                                        ui.add_space(8.0);
+                                        ui.add_space(6.0);
                                         let layers_resp = egui::CollapsingHeader::new(
                                             RichText::new("Enable on layers").size(11.0).color(app_muted_text(dark))
                                         )
@@ -2737,7 +2737,7 @@ impl EntropyApp {
                                             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                         }
 
-                                        ui.add_space(8.0);
+                                        ui.add_space(6.0);
                                         ui.label(RichText::new("How this override behaves").size(11.0).color(app_muted_text(dark)));
                                         ui.add_space(2.0);
                                         ui.checkbox(&mut edited.options.activation_trigger_down, "Activate as soon as the trigger key is pressed");
@@ -2751,7 +2751,7 @@ impl EntropyApp {
                             });
                     });
 
-                    ui.add_space(12.0);
+                    ui.add_space(8.0);
                     ui.horizontal_centered(|ui| {
                         let clear_btn = egui::Button::new("Clear")
                             .frame(true)
