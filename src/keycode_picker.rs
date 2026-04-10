@@ -473,6 +473,7 @@ impl KeycodePicker {
         if let Some((macro_idx, action_idx)) = self.macro_key_pick {
             let mut pick_open = true;
             egui::Window::new("Pick key")
+                .order(egui::Order::Foreground)
                 .open(&mut pick_open)
                 .collapsible(false)
                 .resizable(false)
@@ -632,6 +633,7 @@ impl KeycodePicker {
         let mut still_open = true;
         let picker_size = Vec2::new(920.0, 560.0);
         egui::Window::new("Key Editor")
+            .order(egui::Order::Foreground)
             .open(&mut still_open)
             .collapsible(false)
             .resizable(false)

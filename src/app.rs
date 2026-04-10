@@ -2544,6 +2544,7 @@ impl EntropyApp {
         let dark = ctx.style().visuals.dark_mode;
         let mut open = self.key_override_window_open;
         egui::Window::new("Key Overrides")
+            .order(egui::Order::Foreground)
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
@@ -2880,6 +2881,7 @@ impl EntropyApp {
 
         let mut open = self.combo_window_open;
         egui::Window::new("Combo")
+            .order(egui::Order::Foreground)
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
