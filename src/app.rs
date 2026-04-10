@@ -265,6 +265,8 @@ struct ConnectResult {
     combo_entries: Vec<ComboEntry>,
     /// Global combo timeout/term from QMK settings, if supported
     combo_term: Option<u16>,
+    /// Key Override entries
+    key_override_entries: Vec<KeyOverrideEntry>,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -327,6 +329,58 @@ fn toggle_handed_modifier(value: u16) -> Option<u16> {
 struct ComboEntry {
     keys: [u16; 4],
     output: u16,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct KeyOverrideOptionsState {
+    activation_trigger_down: bool,
+    activation_required_mod_down: bool,
+    activation_negative_mod_up: bool,
+    one_mod: bool,
+    no_reregister_trigger: bool,
+    no_unregister_on_other_key_down: bool,
+    enabled: bool,
+}
+
+impl KeyOverrideOptionsState {
+    fn from_bits(bits: u8) -> Self {
+        Self {
+            activation_trigger_down: bits & (1 << 0) != 0,
+            activation_required_mod_down: bits & (1 << 1) != 0,
+            activation_negative_mod_up: bits & (1 << 2) != 0,
+            one_mod: bits & (1 << 3) != 0,
+            no_reregister_trigger: bits & (1 << 4) != 0,
+            no_unregister_on_other_key_down: bits & (1 << 5) != 0,
+            enabled: bits & (1 << 7) != 0,
+        }
+    }
+
+    fn bits(&self) -> u8 {
+        (self.activation_trigger_down as u8) << 0
+            | (self.activation_required_mod_down as u8) << 1
+            | (self.activation_negative_mod_up as u8) << 2
+            | (self.one_mod as u8) << 3
+            | (self.no_reregister_trigger as u8) << 4
+            | (self.no_unregister_on_other_key_down as u8) << 5
+            | (self.enabled as u8) << 7
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct KeyOverrideEntry {
+    trigger: u16,
+    replacement: u16,
+    layers: u16,
+    trigger_mods: u8,
+    negative_mod_mask: u8,
+    suppressed_mods: u8,
+    options: KeyOverrideOptionsState,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum KeyOverridePickField {
+    Trigger,
+    Replacement,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -400,6 +454,11 @@ pub struct EntropyApp {
     combo_capture_keys: Vec<u16>,
     combo_undo_stack: Vec<(Vec<ComboEntry>, Vec<String>, Option<u16>, usize, usize)>,
     combo_pick_target: Option<(usize, ComboPickField)>,
+    key_override_entries: Vec<KeyOverrideEntry>,
+    key_override_window_open: bool,
+    selected_key_override: usize,
+    key_override_pick_target: Option<KeyOverridePickField>,
+    key_override_reopen_after_pick: bool,
     matrix_tester_pressed: Vec<bool>,
     matrix_tester_ever_pressed: Vec<bool>,
     matrix_tester_last_poll: std::time::Instant,
@@ -470,6 +529,11 @@ impl EntropyApp {
             combo_capture_keys: Vec::new(),
             combo_undo_stack: Vec::new(),
             combo_pick_target: None,
+            key_override_entries: Vec::new(),
+            key_override_window_open: false,
+            selected_key_override: 0,
+            key_override_pick_target: None,
+            key_override_reopen_after_pick: false,
             matrix_tester_pressed: Vec::new(),
             matrix_tester_ever_pressed: Vec::new(),
             matrix_tester_last_poll: std::time::Instant::now(),
@@ -533,6 +597,11 @@ impl EntropyApp {
         self.combo_dirty = false;
         self.combo_names_dirty = false;
         self.combo_term_dirty = false;
+        self.key_override_entries.clear();
+        self.key_override_window_open = false;
+        self.selected_key_override = 0;
+        self.key_override_pick_target = None;
+        self.key_override_reopen_after_pick = false;
         self.reset_matrix_tester_state();
 
         let (tx, rx) = mpsc::channel();
@@ -679,6 +748,30 @@ impl EntropyApp {
                             }
                             Err(e) => { log::warn!("get_tap_dance_count: {e}"); vec![] }
                         };
+                        let key_override_entries = match dev_conn.get_key_override_count() {
+                            Ok(count) => {
+                                log::info!("Key Override count: {count}");
+                                let mut entries = Vec::new();
+                                for i in 0..count {
+                                    match dev_conn.get_key_override(i) {
+                                        Ok((trigger, replacement, layers, trigger_mods, negative_mod_mask, suppressed_mods, options)) => {
+                                            entries.push(KeyOverrideEntry {
+                                                trigger,
+                                                replacement,
+                                                layers,
+                                                trigger_mods,
+                                                negative_mod_mask,
+                                                suppressed_mods,
+                                                options: KeyOverrideOptionsState::from_bits(options),
+                                            });
+                                        }
+                                        Err(e) => { log::warn!("get_key_override({i}): {e}"); entries.push(Default::default()); }
+                                    }
+                                }
+                                entries
+                            }
+                            Err(e) => { log::warn!("get_key_override_count: {e}"); vec![] }
+                        };
 
                         Ok(ConnectResult {
                             device_name: dev.name.clone(),
@@ -686,6 +779,7 @@ impl EntropyApp {
                             tap_dance_entries,
                             combo_entries,
                             combo_term,
+                            key_override_entries,
                             layout,
                             layer_count,
                             zmk_conn: None,
@@ -728,6 +822,7 @@ impl EntropyApp {
                                 tap_dance_entries: vec![],
                                 combo_entries: vec![],
                                 combo_term: None,
+                                key_override_entries: vec![],
                                 layout,
                                 layer_count: 0,
                                 zmk_conn: Some(conn),
@@ -776,6 +871,7 @@ impl EntropyApp {
                                 tap_dance_entries: vec![],
                                 combo_entries: vec![],
                                 combo_term: None,
+                                key_override_entries: vec![],
                             layout,
                             layer_count,
                             zmk_conn: Some(conn),
@@ -822,6 +918,8 @@ impl EntropyApp {
                 self.zmk_has_unsaved = false;
                 self.keycode_picker.tap_dance_entries = r.tap_dance_entries.clone();
                 self.combo_entries = r.combo_entries.clone();
+                self.key_override_entries = r.key_override_entries.clone();
+                self.selected_key_override = 0;
                 self.combo_names = load_combo_names(&self.current_device_name);
                 self.combo_names.resize(self.combo_entries.len(), String::new());
                 self.combo_term = r.combo_term.or(Some(50));
@@ -1366,6 +1464,19 @@ impl EntropyApp {
                 if self.combo_reopen_after_pick {
                     self.combo_window_open = true;
                     self.combo_reopen_after_pick = false;
+                }
+            } else if let Some(field) = self.key_override_pick_target.take() {
+                let idx = self.selected_key_override.min(self.key_override_entries.len().saturating_sub(1));
+                if let Some(entry) = self.key_override_entries.get_mut(idx) {
+                    match field {
+                        KeyOverridePickField::Trigger => entry.trigger = kc_value,
+                        KeyOverridePickField::Replacement => entry.replacement = kc_value,
+                    }
+                }
+                self.write_key_override(idx);
+                if self.key_override_reopen_after_pick {
+                    self.key_override_window_open = true;
+                    self.key_override_reopen_after_pick = false;
                 }
             } else if let Some((layer, ki)) = self.selected_key {
                 #[cfg(not(target_arch = "wasm32"))]
@@ -1993,6 +2104,9 @@ impl eframe::App for EntropyApp {
         if self.combo_window_open {
             self.show_combo_window(ctx);
         }
+        if self.key_override_window_open {
+            self.show_key_override_window(ctx);
+        }
 
         if !self.unlock_open && !self.vial_unlock_polling {
             self.keycode_picker.show(ctx);
@@ -2006,6 +2120,16 @@ impl eframe::App for EntropyApp {
             if self.combo_reopen_after_pick {
                 self.combo_window_open = true;
                 self.combo_reopen_after_pick = false;
+            }
+        }
+        if self.key_override_pick_target.is_some()
+            && !self.keycode_picker.open
+            && self.keycode_picker.result.is_none()
+        {
+            self.key_override_pick_target = None;
+            if self.key_override_reopen_after_pick {
+                self.key_override_window_open = true;
+                self.key_override_reopen_after_pick = false;
             }
         }
 
@@ -2206,6 +2330,225 @@ impl EntropyApp {
     fn cancel_combo_capture(&mut self) {
         self.combo_capture_open = false;
         self.combo_capture_keys.clear();
+    }
+
+    fn write_key_override(&mut self, idx: usize) {
+        let Some(entry) = self.key_override_entries.get(idx).cloned() else { return; };
+        let Some(hid) = &self.hid_device else { return; };
+        if let Err(e) = hid.set_key_override(
+            idx as u8,
+            entry.trigger,
+            entry.replacement,
+            entry.layers,
+            entry.trigger_mods,
+            entry.negative_mod_mask,
+            entry.suppressed_mods,
+            entry.options.bits(),
+        ) {
+            self.status_msg = format!("Failed to save Key Override {}: {}", idx + 1, e);
+            log::warn!("set_key_override({idx}) failed: {e}");
+        }
+    }
+
+    fn open_key_override_picker(&mut self, target: KeyOverridePickField) {
+        self.key_override_pick_target = Some(target);
+        self.key_override_reopen_after_pick = true;
+        self.key_override_window_open = false;
+        self.keycode_picker.result = None;
+        self.keycode_picker.open = true;
+    }
+
+    fn draw_key_override_layers(ui: &mut egui::Ui, layers: &mut u16) -> bool {
+        let mut changed = false;
+        egui::Grid::new(ui.id().with("ko_layers_grid")).num_columns(8).spacing([10.0, 6.0]).show(ui, |ui| {
+            for row in 0..2 {
+                for col in 0..8 {
+                    let idx = row * 8 + col;
+                    let mut checked = (*layers & (1 << idx)) != 0;
+                    if ui.checkbox(&mut checked, idx.to_string()).changed() {
+                        if checked {
+                            *layers |= 1 << idx;
+                        } else {
+                            *layers &= !(1 << idx);
+                        }
+                        changed = true;
+                    }
+                }
+                ui.end_row();
+            }
+        });
+        ui.horizontal(|ui| {
+            if ui.button("Enable all").clicked() {
+                if *layers != u16::MAX {
+                    *layers = u16::MAX;
+                    changed = true;
+                }
+            }
+            if ui.button("Disable all").clicked() {
+                if *layers != 0 {
+                    *layers = 0;
+                    changed = true;
+                }
+            }
+        });
+        changed
+    }
+
+    fn draw_key_override_mod_mask(ui: &mut egui::Ui, mask: &mut u8, id: &str) -> bool {
+        let mut changed = false;
+        let labels = ["LCtrl", "LShift", "LAlt", "LGui", "RCtrl", "RShift", "RAlt", "RGui"];
+        egui::Grid::new(ui.id().with(id)).num_columns(4).spacing([10.0, 6.0]).show(ui, |ui| {
+            for row in 0..2 {
+                for col in 0..4 {
+                    let idx = row * 4 + col;
+                    let mut checked = (*mask & (1 << idx)) != 0;
+                    if ui.checkbox(&mut checked, labels[idx]).changed() {
+                        if checked {
+                            *mask |= 1 << idx;
+                        } else {
+                            *mask &= !(1 << idx);
+                        }
+                        changed = true;
+                    }
+                }
+                ui.end_row();
+            }
+        });
+        changed
+    }
+
+    fn show_key_override_window(&mut self, ctx: &egui::Context) {
+        if !self.keycode_picker.open && ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            self.key_override_window_open = false;
+            return;
+        }
+
+        let dark = ctx.style().visuals.dark_mode;
+        let mut open = self.key_override_window_open;
+        egui::Window::new("Key Overrides")
+            .open(&mut open)
+            .resizable(true)
+            .default_width(620.0)
+            .min_width(540.0)
+            .show(ctx, |ui| {
+                let frame = egui::Frame::window(ui.style())
+                    .fill(app_window_fill(dark))
+                    .stroke(egui::Stroke::new(1.0, app_border_color(dark)))
+                    .inner_margin(egui::Margin::same(12));
+                frame.show(ui, |ui| {
+                    if self.key_override_entries.is_empty() {
+                        ui.label("Key Overrides are not supported by this keyboard.");
+                        return;
+                    }
+
+                    if self.selected_key_override >= self.key_override_entries.len() {
+                        self.selected_key_override = 0;
+                    }
+
+                    ui.horizontal_wrapped(|ui| {
+                        for idx in 0..self.key_override_entries.len() {
+                            let active = idx == self.selected_key_override;
+                            let label = (idx + 1).to_string();
+                            if ui.selectable_label(active, label).clicked() {
+                                self.selected_key_override = idx;
+                            }
+                        }
+                    });
+                    ui.separator();
+
+                    let idx = self.selected_key_override;
+                    let current = self.key_override_entries[idx].clone();
+                    let mut edited = current.clone();
+
+                    let custom = self.layout.as_ref().map(|l| l.custom_keycodes.as_slice()).unwrap_or(&[]);
+                    let trigger_label = keycode_label_with_macro_names(
+                        edited.trigger,
+                        custom,
+                        &self.layer_names,
+                        &self.keycode_picker.macro_names,
+                        &self.keycode_picker.tap_dance_names,
+                    );
+                    let replacement_label = keycode_label_with_macro_names(
+                        edited.replacement,
+                        custom,
+                        &self.layer_names,
+                        &self.keycode_picker.macro_names,
+                        &self.keycode_picker.tap_dance_names,
+                    );
+                    let trigger_tip = keycode_tooltip_with_macro_names(
+                        edited.trigger,
+                        custom,
+                        &self.layer_names,
+                        &self.keycode_picker.macro_names,
+                        &self.keycode_picker.tap_dance_names,
+                    );
+                    let replacement_tip = keycode_tooltip_with_macro_names(
+                        edited.replacement,
+                        custom,
+                        &self.layer_names,
+                        &self.keycode_picker.macro_names,
+                        &self.keycode_picker.tap_dance_names,
+                    );
+
+                    egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+                        ui.checkbox(&mut edited.options.enabled, "Enable");
+                        ui.add_space(10.0);
+
+                        ui.label(RichText::new("Enable on layers").size(11.0).color(app_muted_text(dark)));
+                        if Self::draw_key_override_layers(ui, &mut edited.layers) {
+                        }
+                        ui.add_space(10.0);
+
+                        ui.label(RichText::new("Trigger").size(11.0).color(app_muted_text(dark)));
+                        let trigger_resp = ui.add(
+                            egui::Button::new(RichText::new(trigger_label).size(11.0))
+                                .min_size(Vec2::new(180.0, 34.0))
+                        ).on_hover_cursor(egui::CursorIcon::PointingHand);
+                        if trigger_resp.clicked() {
+                            self.open_key_override_picker(KeyOverridePickField::Trigger);
+                        }
+                        trigger_resp.on_hover_text(trigger_tip);
+                        ui.add_space(10.0);
+
+                        ui.label(RichText::new("Trigger mods").size(11.0).color(app_muted_text(dark)));
+                        Self::draw_key_override_mod_mask(ui, &mut edited.trigger_mods, "ko_trigger_mods");
+                        ui.add_space(10.0);
+
+                        ui.label(RichText::new("Negative mods").size(11.0).color(app_muted_text(dark)));
+                        Self::draw_key_override_mod_mask(ui, &mut edited.negative_mod_mask, "ko_negative_mods");
+                        ui.add_space(10.0);
+
+                        ui.label(RichText::new("Suppressed mods").size(11.0).color(app_muted_text(dark)));
+                        Self::draw_key_override_mod_mask(ui, &mut edited.suppressed_mods, "ko_suppressed_mods");
+                        ui.add_space(10.0);
+
+                        ui.label(RichText::new("Replacement").size(11.0).color(app_muted_text(dark)));
+                        let replacement_resp = ui.add(
+                            egui::Button::new(RichText::new(replacement_label).size(11.0))
+                                .min_size(Vec2::new(180.0, 34.0))
+                        ).on_hover_cursor(egui::CursorIcon::PointingHand);
+                        if replacement_resp.clicked() {
+                            self.open_key_override_picker(KeyOverridePickField::Replacement);
+                        }
+                        replacement_resp.on_hover_text(replacement_tip);
+                        ui.add_space(10.0);
+
+                        ui.label(RichText::new("Options").size(11.0).color(app_muted_text(dark)));
+                        ui.checkbox(&mut edited.options.activation_trigger_down, "Activate when the trigger key is pressed down");
+                        ui.checkbox(&mut edited.options.activation_required_mod_down, "Activate when a necessary modifier is pressed down");
+                        ui.checkbox(&mut edited.options.activation_negative_mod_up, "Activate when a negative modifier is released");
+                        ui.checkbox(&mut edited.options.one_mod, "Activate on one modifier");
+                        ui.checkbox(&mut edited.options.no_reregister_trigger, "Don't register the trigger key again after the override is deactivated");
+                        ui.checkbox(&mut edited.options.no_unregister_on_other_key_down, "Don't deactivate when another key is pressed down");
+                    });
+
+                    if edited != current {
+                        self.key_override_entries[idx] = edited;
+                        self.write_key_override(idx);
+                    }
+                });
+            });
+        self.key_override_window_open = open;
     }
 
     fn show_combo_window(&mut self, ctx: &egui::Context) {
@@ -2878,8 +3221,8 @@ impl EntropyApp {
                     .data(|d| d.get_temp::<bool>(dropdown_id))
                     .unwrap_or(false);
                 let dropdown_rect = egui::Rect::from_min_size(
-                    egui::pos2(advanced_rect.center().x - 68.0, advanced_rect.bottom() + 6.0),
-                    Vec2::new(136.0, 36.0),
+                    egui::pos2(advanced_rect.center().x - 76.0, advanced_rect.bottom() + 6.0),
+                    Vec2::new(152.0, 72.0),
                 );
                 let hover_bridge_rect = advanced_rect.union(dropdown_rect).expand(3.0);
                 let pointer_over_bridge = ui
@@ -2904,7 +3247,10 @@ impl EntropyApp {
                         egui::StrokeKind::Inside,
                     );
 
-                    let combo_rect = dropdown_rect.shrink2(Vec2::new(6.0, 4.0));
+                    let combo_rect = egui::Rect::from_min_max(
+                        dropdown_rect.min + Vec2::new(6.0, 4.0),
+                        egui::pos2(dropdown_rect.max.x - 6.0, dropdown_rect.min.y + 34.0),
+                    );
                     let combo_resp = ui.allocate_rect(combo_rect, Sense::CLICK);
                     if combo_resp.hovered() {
                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
@@ -2914,19 +3260,34 @@ impl EntropyApp {
                         self.combo_window_open = true;
                     }
 
-                    let combo_fill = if combo_resp.hovered() {
-                        if ui.visuals().dark_mode {
-                            Color32::from_gray(46)
+                    let key_override_rect = egui::Rect::from_min_max(
+                        dropdown_rect.min + Vec2::new(6.0, 38.0),
+                        dropdown_rect.max - Vec2::new(6.0, 4.0),
+                    );
+                    let key_override_resp = ui.allocate_rect(key_override_rect, Sense::CLICK);
+                    if key_override_resp.hovered() {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                    }
+                    if key_override_resp.clicked() {
+                        self.main_menu_tab = MainMenuTab::Keyboard;
+                        self.key_override_window_open = true;
+                    }
+
+                    let item_fill = |hovered: bool, dark_mode: bool| {
+                        if hovered {
+                            if dark_mode {
+                                Color32::from_gray(46)
+                            } else {
+                                Color32::from_gray(238)
+                            }
                         } else {
-                            Color32::from_gray(238)
+                            Color32::TRANSPARENT
                         }
-                    } else {
-                        Color32::TRANSPARENT
                     };
                     ui.painter().rect(
                         combo_rect,
                         6.0,
-                        combo_fill,
+                        item_fill(combo_resp.hovered(), ui.visuals().dark_mode),
                         egui::Stroke::NONE,
                         egui::StrokeKind::Inside,
                     );
@@ -2937,8 +3298,22 @@ impl EntropyApp {
                         FontId::proportional(14.0),
                         ui.visuals().widgets.inactive.fg_stroke.color,
                     );
+                    ui.painter().rect(
+                        key_override_rect,
+                        6.0,
+                        item_fill(key_override_resp.hovered(), ui.visuals().dark_mode),
+                        egui::Stroke::NONE,
+                        egui::StrokeKind::Inside,
+                    );
+                    ui.painter().text(
+                        key_override_rect.center(),
+                        egui::Align2::CENTER_CENTER,
+                        "Key Overrides",
+                        FontId::proportional(14.0),
+                        ui.visuals().widgets.inactive.fg_stroke.color,
+                    );
 
-                    ui.ctx().data_mut(|d| d.insert_temp(dropdown_id, advanced_tab_hovered || combo_resp.hovered() || pointer_over_bridge));
+                    ui.ctx().data_mut(|d| d.insert_temp(dropdown_id, advanced_tab_hovered || combo_resp.hovered() || key_override_resp.hovered() || pointer_over_bridge));
                 } else {
                     ui.ctx().data_mut(|d| d.insert_temp(dropdown_id, false));
                 }

@@ -9,6 +9,7 @@ const MSG_LEN: usize = 32;
 // VIA commands
 const CMD_VIA_GET_PROTOCOL_VERSION: u8 = 0x01;
 const CMD_VIA_GET_KEYBOARD_VALUE: u8 = 0x02;
+const CMD_VIA_SET_KEYBOARD_VALUE: u8 = 0x03;
 const CMD_VIA_GET_KEYCODE: u8 = 0x04;
 const CMD_VIA_SET_KEYCODE: u8 = 0x05;
 const CMD_VIA_GET_LAYER_COUNT: u8 = 0x11;
@@ -29,10 +30,17 @@ const CMD_VIAL_GET_UNLOCK_STATUS: u8 = 0x05;
 const CMD_VIAL_UNLOCK_START: u8 = 0x06;
 const CMD_VIAL_UNLOCK_POLL: u8 = 0x07;
 const CMD_VIAL_LOCK: u8 = 0x08;
+const CMD_VIAL_QMK_SETTINGS_QUERY: u8 = 0x09;
+const CMD_VIAL_QMK_SETTINGS_GET: u8 = 0x0A;
+const CMD_VIAL_QMK_SETTINGS_SET: u8 = 0x0B;
 const CMD_VIAL_DYNAMIC_ENTRY_OP: u8 = 0x0D;
 const DYNAMIC_VIAL_GET_NUM_ENTRIES: u8 = 0x00;
 const DYNAMIC_VIAL_TAP_DANCE_GET: u8 = 0x01;
 const DYNAMIC_VIAL_TAP_DANCE_SET: u8 = 0x02;
+const DYNAMIC_VIAL_COMBO_GET: u8 = 0x03;
+const DYNAMIC_VIAL_COMBO_SET: u8 = 0x04;
+const DYNAMIC_VIAL_KEY_OVERRIDE_GET: u8 = 0x05;
+const DYNAMIC_VIAL_KEY_OVERRIDE_SET: u8 = 0x06;
 
 const BUFFER_FETCH_CHUNK: usize = 28;
 
@@ -304,6 +312,125 @@ impl HidDevice {
         buf
     }
 
+    /// Get number of combo entries available
+    pub fn get_combo_count(&self) -> Result<u8> {
+        let resp = self.usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_DYNAMIC_ENTRY_OP, DYNAMIC_VIAL_GET_NUM_ENTRIES])?;
+        Ok(resp[1])
+    }
+
+    /// Get combo entry: ([trigger_keys; 4], output_keycode)
+    pub fn get_combo(&self, idx: u8) -> Result<([u16; 4], u16)> {
+        let resp = self.usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_DYNAMIC_ENTRY_OP, DYNAMIC_VIAL_COMBO_GET, idx])?;
+        if resp[0] != 0 {
+            anyhow::bail!("combo get error: {}", resp[0]);
+        }
+        let mut keys = [0u16; 4];
+        for i in 0..4 {
+            let off = 1 + i * 2;
+            keys[i] = u16::from_le_bytes([resp[off], resp[off + 1]]);
+        }
+        let output = u16::from_le_bytes([resp[9], resp[10]]);
+        Ok((keys, output))
+    }
+
+    /// Set combo entry
+    pub fn set_combo(&self, idx: u8, keys: [u16; 4], output: u16) -> Result<()> {
+        let mut cmd = [0u8; 32];
+        cmd[0] = CMD_VIA_VIAL_PREFIX;
+        cmd[1] = CMD_VIAL_DYNAMIC_ENTRY_OP;
+        cmd[2] = DYNAMIC_VIAL_COMBO_SET;
+        cmd[3] = idx;
+        for i in 0..4 {
+            let [lo, hi] = keys[i].to_le_bytes();
+            let off = 4 + i * 2;
+            cmd[off] = lo;
+            cmd[off + 1] = hi;
+        }
+        let [out_lo, out_hi] = output.to_le_bytes();
+        cmd[12] = out_lo;
+        cmd[13] = out_hi;
+        let resp = self.usb_send(&cmd)?;
+        if resp[0] != 0 {
+            anyhow::bail!("combo set error: {}", resp[0]);
+        }
+        Ok(())
+    }
+
+    /// Get number of key override entries available
+    pub fn get_key_override_count(&self) -> Result<u8> {
+        let resp = self.usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_DYNAMIC_ENTRY_OP, DYNAMIC_VIAL_GET_NUM_ENTRIES])?;
+        Ok(resp[2])
+    }
+
+    /// Get key override entry:
+    /// (trigger, replacement, layers, trigger_mods, negative_mod_mask, suppressed_mods, options)
+    pub fn get_key_override(&self, idx: u8) -> Result<(u16, u16, u16, u8, u8, u8, u8)> {
+        let resp = self.usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_DYNAMIC_ENTRY_OP, DYNAMIC_VIAL_KEY_OVERRIDE_GET, idx])?;
+        if resp[0] != 0 {
+            anyhow::bail!("key override get error: {}", resp[0]);
+        }
+        let trigger = u16::from_le_bytes([resp[1], resp[2]]);
+        let replacement = u16::from_le_bytes([resp[3], resp[4]]);
+        let layers = u16::from_le_bytes([resp[5], resp[6]]);
+        Ok((trigger, replacement, layers, resp[7], resp[8], resp[9], resp[10]))
+    }
+
+    /// Set key override entry
+    pub fn set_key_override(
+        &self,
+        idx: u8,
+        trigger: u16,
+        replacement: u16,
+        layers: u16,
+        trigger_mods: u8,
+        negative_mod_mask: u8,
+        suppressed_mods: u8,
+        options: u8,
+    ) -> Result<()> {
+        let mut cmd = [0u8; 32];
+        cmd[0] = CMD_VIA_VIAL_PREFIX;
+        cmd[1] = CMD_VIAL_DYNAMIC_ENTRY_OP;
+        cmd[2] = DYNAMIC_VIAL_KEY_OVERRIDE_SET;
+        cmd[3] = idx;
+        cmd[4..6].copy_from_slice(&trigger.to_le_bytes());
+        cmd[6..8].copy_from_slice(&replacement.to_le_bytes());
+        cmd[8..10].copy_from_slice(&layers.to_le_bytes());
+        cmd[10] = trigger_mods;
+        cmd[11] = negative_mod_mask;
+        cmd[12] = suppressed_mods;
+        cmd[13] = options;
+        let resp = self.usb_send(&cmd)?;
+        if resp[0] != 0 {
+            anyhow::bail!("key override set error: {}", resp[0]);
+        }
+        Ok(())
+    }
+
+    pub fn get_qmk_setting_u16(&self, qsid: u16) -> Result<u16> {
+        let mut cmd = [0u8; 32];
+        cmd[0] = CMD_VIA_VIAL_PREFIX;
+        cmd[1] = CMD_VIAL_QMK_SETTINGS_GET;
+        cmd[2..4].copy_from_slice(&qsid.to_le_bytes());
+        let resp = self.usb_send(&cmd)?;
+        if resp[0] < 2 {
+            anyhow::bail!("qmk setting get error or unsupported qsid: {qsid}");
+        }
+        Ok(u16::from_le_bytes([resp[1], resp[2]]))
+    }
+
+    pub fn set_qmk_setting_u16(&self, qsid: u16, value: u16) -> Result<()> {
+        let mut cmd = [0u8; 32];
+        cmd[0] = CMD_VIA_VIAL_PREFIX;
+        cmd[1] = CMD_VIAL_QMK_SETTINGS_SET;
+        cmd[2..4].copy_from_slice(&qsid.to_le_bytes());
+        cmd[4..6].copy_from_slice(&value.to_le_bytes());
+        let resp = self.usb_send(&cmd)?;
+        if resp[0] != 0 {
+            anyhow::bail!("qmk setting set error or unsupported qsid: {qsid}");
+        }
+        Ok(())
+    }
+
     /// Get number of tap dance entries available
     pub fn get_tap_dance_count(&self) -> Result<u8> {
         let resp = self.usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_DYNAMIC_ENTRY_OP, DYNAMIC_VIAL_GET_NUM_ENTRIES])?;
@@ -346,17 +473,23 @@ impl HidDevice {
 
     pub fn get_switch_matrix(&self, rows: usize, cols: usize) -> Result<Vec<bool>> {
         let resp = self.usb_send(&[CMD_VIA_GET_KEYBOARD_VALUE, VIA_SWITCH_MATRIX_STATE])?;
-        // Response bytes start at index 2 (after cmd + value_id echo)
+        // Matrix data is packed row-by-row, with each row padded to whole bytes.
+        // QMK matrix bits are little-endian inside each row byte: bit 0 = col 0.
         let data = &resp[2..];
         let total = rows * cols;
+        let bytes_per_row = cols.div_ceil(8);
         let mut pressed = vec![false; total];
-        for i in 0..total {
-            let byte_idx = i / 8;
-            let bit_idx = 7 - (i % 8);
-            if byte_idx < data.len() {
-                pressed[i] = (data[byte_idx] >> bit_idx) & 1 == 1;
+
+        for row in 0..rows {
+            for col in 0..cols {
+                let byte_idx = row * bytes_per_row + col / 8;
+                let bit_idx = col % 8;
+                if byte_idx < data.len() {
+                    pressed[row * cols + col] = ((data[byte_idx] >> bit_idx) & 1) != 0;
+                }
             }
         }
+
         Ok(pressed)
     }
 }
