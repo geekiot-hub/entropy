@@ -471,6 +471,11 @@ impl KeycodePicker {
                 .min_size(Vec2::new(KEY_PICKER_POPUP_WIDTH, KEY_PICKER_POPUP_HEIGHT))
                 .default_size([KEY_PICKER_POPUP_WIDTH, KEY_PICKER_POPUP_HEIGHT])
                 .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .frame(
+                    egui::Frame::window(ctx.style().as_ref())
+                        .fill(if ctx.style().visuals.dark_mode { Color32::from_gray(28) } else { Color32::from_rgb(245, 242, 248) })
+                        .stroke(egui::Stroke::NONE)
+                )
                 .show(ctx, |ui| {
                     apply_picker_button_visuals(ui);
                     ui.label(RichText::new("Press a key on your keyboard, or click below")
@@ -627,6 +632,11 @@ impl KeycodePicker {
             .max_size(picker_size)
             .fixed_size(picker_size)
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .frame(
+                egui::Frame::window(ctx.style().as_ref())
+                    .fill(if ctx.style().visuals.dark_mode { Color32::from_gray(28) } else { Color32::from_rgb(245, 242, 248) })
+                    .stroke(egui::Stroke::NONE)
+            )
             .show(ctx, |ui| {
                 apply_picker_button_visuals(ui);
                 ui.label(RichText::new("Press a key on your keyboard, or pick below")
