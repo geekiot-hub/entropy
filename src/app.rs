@@ -2565,7 +2565,7 @@ impl EntropyApp {
                 egui::Frame::window(ctx.style().as_ref())
                     .fill(app_window_fill(dark))
                     .stroke(egui::Stroke::NONE)
-                    .inner_margin(egui::Margin::same(8))
+                    .inner_margin(egui::Margin::same(10))
             )
             .show(ctx, |ui| {
                 if self.key_override_entries.is_empty() {
@@ -2617,9 +2617,10 @@ impl EntropyApp {
                     let idx = self.selected_key_override;
                     let current = self.key_override_entries[idx].clone();
                     let mut edited = current.clone();
-                    let content_width = 372.0_f32;
-                    let field_width = 190.0_f32;
+                    let content_width = 360.0_f32;
+                    let field_width = 180.0_f32;
                     let name_field_width = 118.0_f32;
+                    let action_button_size = Vec2::new(104.0, 32.0);
                     let combo_outline_stroke = if ui.visuals().dark_mode {
                         Stroke::new(1.0, Color32::from_gray(110))
                     } else {
@@ -2786,6 +2787,7 @@ impl EntropyApp {
                     ui.add_space(0.0);
                     ui.horizontal_centered(|ui| {
                         let clear_btn = egui::Button::new("Clear")
+                            .min_size(action_button_size)
                             .frame(true)
                             .stroke(combo_outline_stroke);
                         let clear_resp = ui.add(clear_btn);
@@ -2803,6 +2805,7 @@ impl EntropyApp {
                         }
 
                         let delete_btn = egui::Button::new("Delete")
+                            .min_size(action_button_size)
                             .frame(true)
                             .stroke(combo_outline_stroke);
                         let delete_enabled = self.key_override_visible_count > 1;
@@ -2830,6 +2833,7 @@ impl EntropyApp {
                         }
 
                         let undo_btn = egui::Button::new("Undo")
+                            .min_size(action_button_size)
                             .frame(true)
                             .stroke(combo_outline_stroke);
                         let undo_enabled = !self.key_override_undo_stack.is_empty();
@@ -3015,6 +3019,7 @@ impl EntropyApp {
                 let content_width = 340.0_f32;
                 let compact_field_width = ((content_width - 110.0) * 0.5).round();
                 let name_field_width = ((content_width * 0.66) * 0.5).round();
+                let action_button_size = Vec2::new(104.0, 32.0);
 
                 ui.vertical_centered(|ui| {
                     ui.allocate_ui_with_layout(
@@ -3147,6 +3152,7 @@ impl EntropyApp {
                             ui.add_space(12.0);
                             ui.horizontal_centered(|ui| {
                                 let clear_btn = egui::Button::new("Clear combo")
+                                    .min_size(action_button_size)
                                     .frame(true)
                                     .stroke(combo_outline_stroke);
                                 let clear_resp = ui.add(clear_btn);
@@ -3164,6 +3170,7 @@ impl EntropyApp {
                                 }
 
                                 let delete_btn = egui::Button::new("Delete combo")
+                                    .min_size(action_button_size)
                                     .frame(true)
                                     .stroke(combo_outline_stroke);
                                 let delete_resp = ui.add_enabled(combo_idx > 0 && self.combo_visible_count > 1, delete_btn);
@@ -3190,6 +3197,7 @@ impl EntropyApp {
                                 }
 
                                 let undo_btn = egui::Button::new("Undo")
+                                    .min_size(action_button_size)
                                     .frame(true)
                                     .stroke(combo_outline_stroke);
                                 let undo_resp = ui.add_enabled(!self.combo_undo_stack.is_empty(), undo_btn);
