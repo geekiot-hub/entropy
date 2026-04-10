@@ -2533,7 +2533,7 @@ impl EntropyApp {
         egui::Window::new("Key Overrides")
             .open(&mut open)
             .resizable(false)
-            .fixed_size(Vec2::new(448.0, 344.0))
+            .fixed_size(Vec2::new(448.0, 468.0))
             .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
             .show(ctx, |ui| {
                 let frame = egui::Frame::window(ui.style())
@@ -2601,8 +2601,8 @@ impl EntropyApp {
 
                     ui.vertical_centered(|ui| {
                         egui::ScrollArea::vertical()
-                            .max_height(170.0)
-                            .auto_shrink([false, false])
+                            .max_height(344.0)
+                            .auto_shrink([false, true])
                             .show(ui, |ui| {
                                 ui.allocate_ui_with_layout(
                                     Vec2::new(content_width, 0.0),
