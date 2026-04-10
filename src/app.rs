@@ -1523,6 +1523,7 @@ impl EntropyApp {
                         KeyOverridePickField::Trigger => entry.trigger = kc_value,
                         KeyOverridePickField::Replacement => entry.replacement = kc_value,
                     }
+                    Self::normalize_key_override_entry(entry);
                 }
                 self.write_key_override(idx);
                 if self.key_override_reopen_after_pick {
@@ -2401,8 +2402,29 @@ impl EntropyApp {
         }
     }
 
+    fn key_override_entry_exists(entry: &KeyOverrideEntry) -> bool {
+        entry.trigger != 0
+            || entry.replacement != 0
+            || entry.layers != 0
+            || entry.trigger_mods != 0
+            || entry.negative_mod_mask != 0
+            || entry.suppressed_mods != 0
+            || entry.options.activation_trigger_down
+            || entry.options.activation_required_mod_down
+            || entry.options.activation_negative_mod_up
+            || entry.options.one_mod
+            || entry.options.no_reregister_trigger
+            || entry.options.no_unregister_on_other_key_down
+    }
+
+    fn normalize_key_override_entry(entry: &mut KeyOverrideEntry) {
+        entry.options.enabled = Self::key_override_entry_exists(entry);
+    }
+
     fn write_key_override(&mut self, idx: usize) {
-        let Some(entry) = self.key_override_entries.get(idx).cloned() else { return; };
+        let Some(entry) = self.key_override_entries.get_mut(idx) else { return; };
+        Self::normalize_key_override_entry(entry);
+        let entry = entry.clone();
         let Some(hid) = &self.hid_device else { return; };
         if let Err(e) = hid.set_key_override(
             idx as u8,
@@ -2630,6 +2652,18 @@ impl EntropyApp {
                                 trigger_resp.on_hover_text(trigger_tip);
 
                                 ui.add_space(12.0);
+                                ui.label(RichText::new("Suppressed mods").size(11.0).color(app_muted_text(dark)));
+                                Self::draw_key_override_mod_mask(ui, &mut edited.suppressed_mods, "ko_suppressed_mods");
+
+                                ui.add_space(12.0);
+                                ui.label(RichText::new("Trigger mods").size(11.0).color(app_muted_text(dark)));
+                                Self::draw_key_override_mod_mask(ui, &mut edited.trigger_mods, "ko_trigger_mods");
+
+                                ui.add_space(12.0);
+                                ui.label(RichText::new("Negative mods").size(11.0).color(app_muted_text(dark)));
+                                Self::draw_key_override_mod_mask(ui, &mut edited.negative_mod_mask, "ko_negative_mods");
+
+                                ui.add_space(12.0);
                                 ui.label(RichText::new("Replacement").size(13.0).strong());
                                 ui.add_space(6.0);
                                 let replacement_resp = ui.add(
@@ -2646,20 +2680,6 @@ impl EntropyApp {
                                 Self::draw_key_override_layers(ui, &mut edited.layers);
 
                                 ui.add_space(12.0);
-                                ui.label(RichText::new("Trigger mods").size(11.0).color(app_muted_text(dark)));
-                                Self::draw_key_override_mod_mask(ui, &mut edited.trigger_mods, "ko_trigger_mods");
-
-                                ui.add_space(12.0);
-                                ui.label(RichText::new("Negative mods").size(11.0).color(app_muted_text(dark)));
-                                Self::draw_key_override_mod_mask(ui, &mut edited.negative_mod_mask, "ko_negative_mods");
-
-                                ui.add_space(12.0);
-                                ui.label(RichText::new("Suppressed mods").size(11.0).color(app_muted_text(dark)));
-                                Self::draw_key_override_mod_mask(ui, &mut edited.suppressed_mods, "ko_suppressed_mods");
-
-                                ui.add_space(12.0);
-                                ui.checkbox(&mut edited.options.enabled, "Enable");
-                                ui.add_space(8.0);
                                 ui.checkbox(&mut edited.options.activation_trigger_down, "Activate when the trigger key is pressed down");
                                 ui.checkbox(&mut edited.options.activation_required_mod_down, "Activate when a necessary modifier is pressed down");
                                 ui.checkbox(&mut edited.options.activation_negative_mod_up, "Activate when a negative modifier is released");
@@ -2736,6 +2756,7 @@ impl EntropyApp {
                         }
                     });
 
+                    Self::normalize_key_override_entry(&mut edited);
                     if edited != current {
                         self.push_key_override_undo();
                         self.key_override_entries[idx] = edited;
