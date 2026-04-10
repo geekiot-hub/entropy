@@ -2451,10 +2451,14 @@ impl EntropyApp {
 
     fn draw_key_override_layers(ui: &mut egui::Ui, layers: &mut u16) -> bool {
         let mut changed = false;
-        egui::Grid::new(ui.id().with("ko_layers_grid")).num_columns(8).spacing([10.0, 6.0]).show(ui, |ui| {
-            for row in 0..2 {
-                for col in 0..8 {
-                    let idx = row * 8 + col;
+        egui::Grid::new(ui.id().with("ko_layers_grid")).num_columns(6).spacing([10.0, 6.0]).show(ui, |ui| {
+            for row in 0..3 {
+                for col in 0..6 {
+                    let idx = row * 6 + col;
+                    if idx >= 16 {
+                        ui.label("");
+                        continue;
+                    }
                     let mut checked = (*layers & (1 << idx)) != 0;
                     if ui.checkbox(&mut checked, idx.to_string()).changed() {
                         if checked {
@@ -2528,9 +2532,9 @@ impl EntropyApp {
         let mut open = self.key_override_window_open;
         egui::Window::new("Key Overrides")
             .open(&mut open)
-            .resizable(true)
-            .default_width(480.0)
-            .min_width(400.0)
+            .resizable(false)
+            .fixed_size(Vec2::new(480.0, 620.0))
+            .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
             .show(ctx, |ui| {
                 let frame = egui::Frame::window(ui.style())
                     .fill(app_window_fill(dark))
@@ -2668,7 +2672,7 @@ impl EntropyApp {
                                         });
 
                                         ui.add_space(8.0);
-                                        egui::CollapsingHeader::new(
+                                        let suppressed_resp = egui::CollapsingHeader::new(
                                             RichText::new("Suppressed mods").size(11.0).color(app_muted_text(dark))
                                         )
                                         .default_open(false)
@@ -2676,9 +2680,12 @@ impl EntropyApp {
                                         .show(ui, |ui| {
                                             Self::draw_key_override_mod_mask(ui, &mut edited.suppressed_mods, "ko_suppressed_mods");
                                         });
+                                        if suppressed_resp.header_response.hovered() {
+                                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                        }
 
                                         ui.add_space(6.0);
-                                        egui::CollapsingHeader::new(
+                                        let trigger_mods_resp = egui::CollapsingHeader::new(
                                             RichText::new("Trigger mods").size(11.0).color(app_muted_text(dark))
                                         )
                                         .default_open(false)
@@ -2686,9 +2693,12 @@ impl EntropyApp {
                                         .show(ui, |ui| {
                                             Self::draw_key_override_mod_mask(ui, &mut edited.trigger_mods, "ko_trigger_mods");
                                         });
+                                        if trigger_mods_resp.header_response.hovered() {
+                                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                        }
 
                                         ui.add_space(6.0);
-                                        egui::CollapsingHeader::new(
+                                        let negative_mods_resp = egui::CollapsingHeader::new(
                                             RichText::new("Negative mods").size(11.0).color(app_muted_text(dark))
                                         )
                                         .default_open(false)
@@ -2696,6 +2706,9 @@ impl EntropyApp {
                                         .show(ui, |ui| {
                                             Self::draw_key_override_mod_mask(ui, &mut edited.negative_mod_mask, "ko_negative_mods");
                                         });
+                                        if negative_mods_resp.header_response.hovered() {
+                                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                        }
 
                                         ui.add_space(8.0);
                                         ui.label(RichText::new("Replacement").size(13.0).strong());
@@ -2712,7 +2725,7 @@ impl EntropyApp {
                                         });
 
                                         ui.add_space(8.0);
-                                        egui::CollapsingHeader::new(
+                                        let layers_resp = egui::CollapsingHeader::new(
                                             RichText::new("Enable on layers").size(11.0).color(app_muted_text(dark))
                                         )
                                         .default_open(false)
@@ -2720,6 +2733,9 @@ impl EntropyApp {
                                         .show(ui, |ui| {
                                             Self::draw_key_override_layers(ui, &mut edited.layers);
                                         });
+                                        if layers_resp.header_response.hovered() {
+                                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                        }
 
                                         ui.add_space(8.0);
                                         ui.label(RichText::new("How this override behaves").size(11.0).color(app_muted_text(dark)));
