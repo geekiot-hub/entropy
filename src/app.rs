@@ -2159,7 +2159,7 @@ impl eframe::App for EntropyApp {
         if any_floating_window_open {
             let screen_rect = ctx.screen_rect();
             egui::Area::new("window_backdrop".into())
-                .order(egui::Order::Foreground)
+                .order(egui::Order::Middle)
                 .fixed_pos(screen_rect.min)
                 .show(ctx, |ui| {
                     ui.set_min_size(screen_rect.size());
