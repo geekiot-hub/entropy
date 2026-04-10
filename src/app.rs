@@ -494,6 +494,7 @@ pub struct EntropyApp {
     key_override_entries: Vec<KeyOverrideEntry>,
     key_override_names: Vec<String>,
     key_override_window_open: bool,
+    key_override_visible_count: usize,
     selected_key_override: usize,
     key_override_pick_target: Option<KeyOverridePickField>,
     key_override_reopen_after_pick: bool,
@@ -570,6 +571,7 @@ impl EntropyApp {
             key_override_entries: Vec::new(),
             key_override_names: vec![],
             key_override_window_open: false,
+            key_override_visible_count: 1,
             selected_key_override: 0,
             key_override_pick_target: None,
             key_override_reopen_after_pick: false,
@@ -639,6 +641,7 @@ impl EntropyApp {
         self.key_override_entries.clear();
         self.key_override_names.clear();
         self.key_override_window_open = false;
+        self.key_override_visible_count = 1;
         self.selected_key_override = 0;
         self.key_override_pick_target = None;
         self.key_override_reopen_after_pick = false;
@@ -961,7 +964,24 @@ impl EntropyApp {
                 self.key_override_entries = r.key_override_entries.clone();
                 self.key_override_names = load_key_override_names(&self.current_device_name);
                 self.key_override_names.resize(self.key_override_entries.len(), String::new());
-                self.selected_key_override = 0;
+                let highest_used_key_override = self.key_override_entries
+                    .iter()
+                    .enumerate()
+                    .filter(|(i, entry)| {
+                        entry.trigger != 0
+                            || entry.replacement != 0
+                            || entry.layers != 0
+                            || entry.trigger_mods != 0
+                            || entry.negative_mod_mask != 0
+                            || entry.suppressed_mods != 0
+                            || entry.options != KeyOverrideOptionsState::default()
+                            || self.key_override_names.get(*i).map(|s| !s.trim().is_empty()).unwrap_or(false)
+                    })
+                    .map(|(i, _)| i + 1)
+                    .max()
+                    .unwrap_or(1);
+                self.key_override_visible_count = highest_used_key_override.min(self.key_override_entries.len().max(1));
+                self.selected_key_override = self.selected_key_override.min(self.key_override_visible_count.saturating_sub(1));
                 self.combo_names = load_combo_names(&self.current_device_name);
                 self.combo_names.resize(self.combo_entries.len(), String::new());
                 self.combo_term = r.combo_term.or(Some(50));
@@ -2488,9 +2508,13 @@ impl EntropyApp {
                     }
                     self.key_override_names
                         .resize(self.key_override_entries.len(), String::new());
+                    self.key_override_visible_count = self.key_override_visible_count
+                        .max(1)
+                        .min(self.key_override_entries.len().max(1));
+                    self.selected_key_override = self.selected_key_override.min(self.key_override_visible_count.saturating_sub(1));
 
                     ui.horizontal_wrapped(|ui| {
-                        for idx in 0..self.key_override_entries.len() {
+                        for idx in 0..self.key_override_visible_count {
                             let active = idx == self.selected_key_override;
                             let label = key_override_display_name(&self.key_override_names, idx);
                             let resp = ui.add(
@@ -2501,6 +2525,20 @@ impl EntropyApp {
                             ).on_hover_cursor(egui::CursorIcon::PointingHand);
                             if resp.clicked() {
                                 self.selected_key_override = idx;
+                            }
+                        }
+
+                        if self.key_override_visible_count < self.key_override_entries.len() {
+                            let add_resp = ui.add(
+                                egui::Button::new(RichText::new("+").size(14.0))
+                                    .min_size(Vec2::new(28.0, 28.0))
+                                    .fill(app_surface_fill(dark))
+                                    .stroke(egui::Stroke::new(1.0, app_border_color(dark))),
+                            ).on_hover_cursor(egui::CursorIcon::PointingHand);
+                            add_resp.clone().on_hover_text("Add Key Override");
+                            if add_resp.clicked() {
+                                self.key_override_visible_count += 1;
+                                self.selected_key_override = self.key_override_visible_count.saturating_sub(1);
                             }
                         }
                     });
