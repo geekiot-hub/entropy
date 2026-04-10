@@ -495,6 +495,7 @@ pub struct EntropyApp {
     key_override_names: Vec<String>,
     key_override_window_open: bool,
     key_override_visible_count: usize,
+    key_override_undo_stack: Vec<(Vec<KeyOverrideEntry>, Vec<String>, usize, usize)>,
     selected_key_override: usize,
     key_override_pick_target: Option<KeyOverridePickField>,
     key_override_reopen_after_pick: bool,
@@ -572,6 +573,7 @@ impl EntropyApp {
             key_override_names: vec![],
             key_override_window_open: false,
             key_override_visible_count: 1,
+            key_override_undo_stack: Vec::new(),
             selected_key_override: 0,
             key_override_pick_target: None,
             key_override_reopen_after_pick: false,
@@ -642,6 +644,7 @@ impl EntropyApp {
         self.key_override_names.clear();
         self.key_override_window_open = false;
         self.key_override_visible_count = 1;
+        self.key_override_undo_stack.clear();
         self.selected_key_override = 0;
         self.key_override_pick_target = None;
         self.key_override_reopen_after_pick = false;
@@ -964,24 +967,9 @@ impl EntropyApp {
                 self.key_override_entries = r.key_override_entries.clone();
                 self.key_override_names = load_key_override_names(&self.current_device_name);
                 self.key_override_names.resize(self.key_override_entries.len(), String::new());
-                let highest_used_key_override = self.key_override_entries
-                    .iter()
-                    .enumerate()
-                    .filter(|(i, entry)| {
-                        entry.trigger != 0
-                            || entry.replacement != 0
-                            || entry.layers != 0
-                            || entry.trigger_mods != 0
-                            || entry.negative_mod_mask != 0
-                            || entry.suppressed_mods != 0
-                            || entry.options != KeyOverrideOptionsState::default()
-                            || self.key_override_names.get(*i).map(|s| !s.trim().is_empty()).unwrap_or(false)
-                    })
-                    .map(|(i, _)| i + 1)
-                    .max()
-                    .unwrap_or(1);
-                self.key_override_visible_count = highest_used_key_override.min(self.key_override_entries.len().max(1));
-                self.selected_key_override = self.selected_key_override.min(self.key_override_visible_count.saturating_sub(1));
+                self.key_override_visible_count = 1;
+                self.key_override_undo_stack.clear();
+                self.selected_key_override = 0;
                 self.combo_names = load_combo_names(&self.current_device_name);
                 self.combo_names.resize(self.combo_entries.len(), String::new());
                 self.combo_term = r.combo_term.or(Some(50));
@@ -1529,6 +1517,7 @@ impl EntropyApp {
                 }
             } else if let Some(field) = self.key_override_pick_target.take() {
                 let idx = self.selected_key_override.min(self.key_override_entries.len().saturating_sub(1));
+                self.push_key_override_undo();
                 if let Some(entry) = self.key_override_entries.get_mut(idx) {
                     match field {
                         KeyOverridePickField::Trigger => entry.trigger = kc_value,
@@ -2394,6 +2383,24 @@ impl EntropyApp {
         self.combo_capture_keys.clear();
     }
 
+    fn push_key_override_undo(&mut self) {
+        self.key_override_undo_stack.push((
+            self.key_override_entries.clone(),
+            self.key_override_names.clone(),
+            self.selected_key_override,
+            self.key_override_visible_count,
+        ));
+        if self.key_override_undo_stack.len() > 64 {
+            self.key_override_undo_stack.remove(0);
+        }
+    }
+
+    fn write_all_key_overrides(&mut self) {
+        for idx in 0..self.key_override_entries.len() {
+            self.write_key_override(idx);
+        }
+    }
+
     fn write_key_override(&mut self, idx: usize) {
         let Some(entry) = self.key_override_entries.get(idx).cloned() else { return; };
         let Some(hid) = &self.hid_device else { return; };
@@ -2663,7 +2670,74 @@ impl EntropyApp {
                         );
                     });
 
+                    ui.add_space(12.0);
+                    ui.horizontal_centered(|ui| {
+                        let clear_btn = egui::Button::new("Clear")
+                            .frame(true)
+                            .stroke(egui::Stroke::new(1.0, app_border_color(dark)));
+                        let clear_resp = ui.add(clear_btn);
+                        if clear_resp.hovered() {
+                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                        }
+                        if clear_resp.clicked() {
+                            self.push_key_override_undo();
+                            self.key_override_entries[idx] = KeyOverrideEntry::default();
+                            if let Some(name) = self.key_override_names.get_mut(idx) {
+                                name.clear();
+                            }
+                            save_key_override_names(&self.key_override_names, &self.current_device_name);
+                            self.write_key_override(idx);
+                        }
+
+                        let delete_btn = egui::Button::new("Delete")
+                            .frame(true)
+                            .stroke(egui::Stroke::new(1.0, app_border_color(dark)));
+                        let delete_enabled = self.key_override_visible_count > 1;
+                        let delete_resp = ui.add_enabled(delete_enabled, delete_btn);
+                        if delete_resp.hovered() && delete_enabled {
+                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                        }
+                        if delete_resp.clicked() {
+                            self.push_key_override_undo();
+                            for move_idx in idx..self.key_override_visible_count.saturating_sub(1) {
+                                self.key_override_entries[move_idx] = self.key_override_entries[move_idx + 1].clone();
+                                self.key_override_names[move_idx] = self.key_override_names.get(move_idx + 1).cloned().unwrap_or_default();
+                            }
+                            let last_idx = self.key_override_visible_count.saturating_sub(1);
+                            if last_idx < self.key_override_entries.len() {
+                                self.key_override_entries[last_idx] = KeyOverrideEntry::default();
+                            }
+                            if last_idx < self.key_override_names.len() {
+                                self.key_override_names[last_idx].clear();
+                            }
+                            self.key_override_visible_count = self.key_override_visible_count.saturating_sub(1).max(1);
+                            self.selected_key_override = idx.min(self.key_override_visible_count.saturating_sub(1));
+                            save_key_override_names(&self.key_override_names, &self.current_device_name);
+                            self.write_all_key_overrides();
+                        }
+
+                        let undo_btn = egui::Button::new("Undo")
+                            .frame(true)
+                            .stroke(egui::Stroke::new(1.0, app_border_color(dark)));
+                        let undo_enabled = !self.key_override_undo_stack.is_empty();
+                        let undo_resp = ui.add_enabled(undo_enabled, undo_btn);
+                        if undo_resp.hovered() && undo_enabled {
+                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                        }
+                        if undo_resp.clicked() {
+                            if let Some((entries, names, selected, visible_count)) = self.key_override_undo_stack.pop() {
+                                self.key_override_entries = entries;
+                                self.key_override_names = names;
+                                self.key_override_visible_count = visible_count.clamp(1, self.key_override_entries.len().max(1));
+                                self.selected_key_override = selected.min(self.key_override_visible_count.saturating_sub(1));
+                                save_key_override_names(&self.key_override_names, &self.current_device_name);
+                                self.write_all_key_overrides();
+                            }
+                        }
+                    });
+
                     if edited != current {
+                        self.push_key_override_undo();
                         self.key_override_entries[idx] = edited;
                         self.write_key_override(idx);
                     }
