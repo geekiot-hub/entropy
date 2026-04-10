@@ -2668,16 +2668,34 @@ impl EntropyApp {
                                         });
 
                                         ui.add_space(8.0);
-                                        ui.label(RichText::new("Suppressed mods").size(11.0).color(app_muted_text(dark)));
-                                        Self::draw_key_override_mod_mask(ui, &mut edited.suppressed_mods, "ko_suppressed_mods");
+                                        egui::CollapsingHeader::new(
+                                            RichText::new("Suppressed mods").size(11.0).color(app_muted_text(dark))
+                                        )
+                                        .default_open(false)
+                                        .id_salt(format!("ko_suppressed_mods_{}", idx))
+                                        .show(ui, |ui| {
+                                            Self::draw_key_override_mod_mask(ui, &mut edited.suppressed_mods, "ko_suppressed_mods");
+                                        });
 
-                                        ui.add_space(8.0);
-                                        ui.label(RichText::new("Trigger mods").size(11.0).color(app_muted_text(dark)));
-                                        Self::draw_key_override_mod_mask(ui, &mut edited.trigger_mods, "ko_trigger_mods");
+                                        ui.add_space(6.0);
+                                        egui::CollapsingHeader::new(
+                                            RichText::new("Trigger mods").size(11.0).color(app_muted_text(dark))
+                                        )
+                                        .default_open(false)
+                                        .id_salt(format!("ko_trigger_mods_{}", idx))
+                                        .show(ui, |ui| {
+                                            Self::draw_key_override_mod_mask(ui, &mut edited.trigger_mods, "ko_trigger_mods");
+                                        });
 
-                                        ui.add_space(8.0);
-                                        ui.label(RichText::new("Negative mods").size(11.0).color(app_muted_text(dark)));
-                                        Self::draw_key_override_mod_mask(ui, &mut edited.negative_mod_mask, "ko_negative_mods");
+                                        ui.add_space(6.0);
+                                        egui::CollapsingHeader::new(
+                                            RichText::new("Negative mods").size(11.0).color(app_muted_text(dark))
+                                        )
+                                        .default_open(false)
+                                        .id_salt(format!("ko_negative_mods_{}", idx))
+                                        .show(ui, |ui| {
+                                            Self::draw_key_override_mod_mask(ui, &mut edited.negative_mod_mask, "ko_negative_mods");
+                                        });
 
                                         ui.add_space(8.0);
                                         ui.label(RichText::new("Replacement").size(13.0).strong());
@@ -2694,8 +2712,14 @@ impl EntropyApp {
                                         });
 
                                         ui.add_space(8.0);
-                                        ui.label(RichText::new("Enable on layers").size(11.0).color(app_muted_text(dark)));
-                                        Self::draw_key_override_layers(ui, &mut edited.layers);
+                                        egui::CollapsingHeader::new(
+                                            RichText::new("Enable on layers").size(11.0).color(app_muted_text(dark))
+                                        )
+                                        .default_open(false)
+                                        .id_salt(format!("ko_layers_{}", idx))
+                                        .show(ui, |ui| {
+                                            Self::draw_key_override_layers(ui, &mut edited.layers);
+                                        });
 
                                         ui.add_space(8.0);
                                         ui.label(RichText::new("How this override behaves").size(11.0).color(app_muted_text(dark)));
