@@ -2525,22 +2525,49 @@ Enter".into(), 0x7C1E, "Shift when held, Enter when tapped".into()),
         ui.add_space(10.0);
         ui.label(RichText::new("OS shortcuts").size(11.0).color(Color32::from_gray(150)));
         ui.add_space(4.0);
-        let os_shortcuts: &[(&str, u16, &str)] = &[
-            ("Next Word\nWin/Linux", 0x0100 | 0x004F, "Ctrl + Right Arrow"),
-            ("Prev Word\nWin/Linux", 0x0100 | 0x0050, "Ctrl + Left Arrow"),
-            ("Next App\nWin/Linux",  0x0400 | 0x002B, "Alt + Tab"),
-            ("Prev App\nWin/Linux",  0x0600 | 0x002B, "Shift + Alt + Tab"),
-            ("Next Word\nmacOS",     0x0400 | 0x004F, "Option + Right Arrow"),
-            ("Prev Word\nmacOS",     0x0400 | 0x0050, "Option + Left Arrow"),
-            ("Next App\nmacOS",      0x0800 | 0x002B, "Command + Tab"),
-            ("Prev App\nmacOS",      0x0A00 | 0x002B, "Shift + Command + Tab"),
+        let os_shortcuts: &[(&str, &str, u16, &str)] = &[
+            ("Win/Linux", "Next Word", 0x0100 | 0x004F, "Ctrl + Right Arrow"),
+            ("Win/Linux", "Prev Word", 0x0100 | 0x0050, "Ctrl + Left Arrow"),
+            ("Win/Linux", "Next App",  0x0400 | 0x002B, "Alt + Tab"),
+            ("Win/Linux", "Prev App",  0x0600 | 0x002B, "Shift + Alt + Tab"),
+            ("macOS",     "Next Word", 0x0400 | 0x004F, "Option + Right Arrow"),
+            ("macOS",     "Prev Word", 0x0400 | 0x0050, "Option + Left Arrow"),
+            ("macOS",     "Next App",  0x0800 | 0x002B, "Command + Tab"),
+            ("macOS",     "Prev App",  0x0A00 | 0x002B, "Shift + Command + Tab"),
         ];
         ui.horizontal_wrapped(|ui| {
-            for (label, value, tip) in os_shortcuts {
-                let resp = ui.add_sized(
-                    Vec2::new(112.0, 44.0),
-                    egui::Button::new(RichText::new(*label).size(10.5))
+            let os_text_color = if ui.visuals().dark_mode {
+                Color32::from_gray(105)
+            } else {
+                Color32::from_gray(145)
+            };
+            for (os, text, value, tip) in os_shortcuts {
+                let resp = ui.add_sized(Vec2::new(112.0, 44.0), egui::Button::new(""));
+                let visuals = ui.style().interact(&resp);
+                let painter = ui.painter();
+                let os_galley = painter.layout_no_wrap(
+                    (*os).to_owned(),
+                    egui::FontId::proportional(9.5),
+                    os_text_color,
                 );
+                let text_galley = painter.layout_no_wrap(
+                    (*text).to_owned(),
+                    egui::FontId::proportional(10.5),
+                    visuals.fg_stroke.color,
+                );
+                let line_spacing = 1.0;
+                let os_height = os_galley.size().y;
+                let total_height = os_height + line_spacing + text_galley.size().y;
+                let os_pos = egui::pos2(
+                    resp.rect.center().x - os_galley.size().x / 2.0,
+                    resp.rect.center().y - total_height / 2.0,
+                );
+                painter.galley(os_pos, os_galley, os_text_color);
+                let text_pos = egui::pos2(
+                    resp.rect.center().x - text_galley.size().x / 2.0,
+                    os_pos.y + os_height + line_spacing,
+                );
+                painter.galley(text_pos, text_galley, visuals.fg_stroke.color);
                 if resp.clicked() { self.result = Some(*value); self.open = false; }
                 resp.on_hover_text(*tip);
             }
