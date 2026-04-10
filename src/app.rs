@@ -2533,7 +2533,7 @@ impl EntropyApp {
         egui::Window::new("Key Overrides")
             .open(&mut open)
             .resizable(false)
-            .fixed_size(Vec2::new(448.0, 520.0))
+            .fixed_size(Vec2::new(448.0, 468.0))
             .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
             .show(ctx, |ui| {
                 let frame = egui::Frame::window(ui.style())
@@ -2593,10 +2593,15 @@ impl EntropyApp {
                     let content_width = 372.0_f32;
                     let field_width = 190.0_f32;
                     let name_field_width = 118.0_f32;
+                    let combo_outline_stroke = if ui.visuals().dark_mode {
+                        Stroke::new(1.0, Color32::from_gray(110))
+                    } else {
+                        Stroke::new(1.0, Color32::from_gray(175))
+                    };
 
                     ui.vertical_centered(|ui| {
                         egui::ScrollArea::vertical()
-                            .max_height(344.0)
+                            .max_height(286.0)
                             .auto_shrink([false, false])
                             .show(ui, |ui| {
                                 ui.allocate_ui_with_layout(
@@ -2751,11 +2756,11 @@ impl EntropyApp {
                             });
                     });
 
-                    ui.add_space(8.0);
+                    ui.add_space(6.0);
                     ui.horizontal_centered(|ui| {
                         let clear_btn = egui::Button::new("Clear")
                             .frame(true)
-                            .stroke(egui::Stroke::new(1.0, app_border_color(dark)));
+                            .stroke(combo_outline_stroke);
                         let clear_resp = ui.add(clear_btn);
                         if clear_resp.hovered() {
                             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
@@ -2772,7 +2777,7 @@ impl EntropyApp {
 
                         let delete_btn = egui::Button::new("Delete")
                             .frame(true)
-                            .stroke(egui::Stroke::new(1.0, app_border_color(dark)));
+                            .stroke(combo_outline_stroke);
                         let delete_enabled = self.key_override_visible_count > 1;
                         let delete_resp = ui.add_enabled(delete_enabled, delete_btn);
                         if delete_resp.hovered() && delete_enabled {
@@ -2799,7 +2804,7 @@ impl EntropyApp {
 
                         let undo_btn = egui::Button::new("Undo")
                             .frame(true)
-                            .stroke(egui::Stroke::new(1.0, app_border_color(dark)));
+                            .stroke(combo_outline_stroke);
                         let undo_enabled = !self.key_override_undo_stack.is_empty();
                         let undo_resp = ui.add_enabled(undo_enabled, undo_btn);
                         if undo_resp.hovered() && undo_enabled {
