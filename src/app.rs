@@ -2519,8 +2519,8 @@ impl EntropyApp {
         egui::Window::new("Key Overrides")
             .open(&mut open)
             .resizable(true)
-            .default_width(520.0)
-            .min_width(420.0)
+            .default_width(480.0)
+            .min_width(400.0)
             .show(ctx, |ui| {
                 let frame = egui::Frame::window(ui.style())
                     .fill(app_window_fill(dark))
@@ -2572,122 +2572,129 @@ impl EntropyApp {
                         }
                     });
 
-                    ui.add_space(12.0);
+                    ui.add_space(8.0);
                     let idx = self.selected_key_override;
                     let current = self.key_override_entries[idx].clone();
                     let mut edited = current.clone();
-                    let content_width = 360.0_f32;
-                    let field_width = ((content_width - 110.0) * 0.5).round();
-                    let name_field_width = ((content_width * 0.66) * 0.5).round();
+                    let content_width = 340.0_f32;
+                    let field_width = 170.0_f32;
+                    let name_field_width = 112.0_f32;
 
                     ui.vertical_centered(|ui| {
-                        ui.allocate_ui_with_layout(
-                            Vec2::new(content_width, 0.0),
-                            egui::Layout::top_down(egui::Align::Min),
-                            |ui| {
-                                if let Some(name) = self.key_override_names.get_mut(idx) {
-                                    let resp = ui.add(
-                                        egui::TextEdit::singleline(name)
-                                            .desired_width(name_field_width)
-                                            .hint_text("Name")
-                                            .char_limit(9),
-                                    );
-                                    if resp.changed() {
-                                        save_key_override_names(&self.key_override_names, &self.current_device_name);
-                                    }
-                                    resp.clone().on_hover_text("Stored locally in Entropy.");
-                                    if resp.hovered() {
-                                        ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
-                                    }
-                                }
+                        egui::ScrollArea::vertical()
+                            .max_height(420.0)
+                            .auto_shrink([false, false])
+                            .show(ui, |ui| {
+                                ui.allocate_ui_with_layout(
+                                    Vec2::new(content_width, 0.0),
+                                    egui::Layout::top_down(egui::Align::Min),
+                                    |ui| {
+                                        if let Some(name) = self.key_override_names.get_mut(idx) {
+                                            let resp = ui.add(
+                                                egui::TextEdit::singleline(name)
+                                                    .desired_width(name_field_width)
+                                                    .hint_text("Name")
+                                                    .char_limit(9),
+                                            );
+                                            if resp.changed() {
+                                                save_key_override_names(&self.key_override_names, &self.current_device_name);
+                                            }
+                                            resp.clone().on_hover_text("Stored locally in Entropy.");
+                                            if resp.hovered() {
+                                                ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
+                                            }
+                                        }
 
-                                let custom = self.layout.as_ref().map(|l| l.custom_keycodes.as_slice()).unwrap_or(&[]);
-                                let trigger_label = if edited.trigger == 0 {
-                                    "Pick trigger".to_string()
-                                } else {
-                                    keycode_label_with_macro_names(
-                                        edited.trigger,
-                                        custom,
-                                        &self.layer_names,
-                                        &self.keycode_picker.macro_names,
-                                        &self.keycode_picker.tap_dance_names,
-                                    ).replace('\n', " ")
-                                };
-                                let replacement_label = if edited.replacement == 0 {
-                                    "Pick replacement".to_string()
-                                } else {
-                                    keycode_label_with_macro_names(
-                                        edited.replacement,
-                                        custom,
-                                        &self.layer_names,
-                                        &self.keycode_picker.macro_names,
-                                        &self.keycode_picker.tap_dance_names,
-                                    ).replace('\n', " ")
-                                };
-                                let trigger_tip = keycode_tooltip_with_macro_names(
-                                    edited.trigger,
-                                    custom,
-                                    &self.layer_names,
-                                    &self.keycode_picker.macro_names,
-                                    &self.keycode_picker.tap_dance_names,
+                                        let custom = self.layout.as_ref().map(|l| l.custom_keycodes.as_slice()).unwrap_or(&[]);
+                                        let trigger_label = if edited.trigger == 0 {
+                                            "Pick trigger".to_string()
+                                        } else {
+                                            keycode_label_with_macro_names(
+                                                edited.trigger,
+                                                custom,
+                                                &self.layer_names,
+                                                &self.keycode_picker.macro_names,
+                                                &self.keycode_picker.tap_dance_names,
+                                            ).replace('\n', " ")
+                                        };
+                                        let replacement_label = if edited.replacement == 0 {
+                                            "Pick replacement".to_string()
+                                        } else {
+                                            keycode_label_with_macro_names(
+                                                edited.replacement,
+                                                custom,
+                                                &self.layer_names,
+                                                &self.keycode_picker.macro_names,
+                                                &self.keycode_picker.tap_dance_names,
+                                            ).replace('\n', " ")
+                                        };
+                                        let trigger_tip = keycode_tooltip_with_macro_names(
+                                            edited.trigger,
+                                            custom,
+                                            &self.layer_names,
+                                            &self.keycode_picker.macro_names,
+                                            &self.keycode_picker.tap_dance_names,
+                                        );
+                                        let replacement_tip = keycode_tooltip_with_macro_names(
+                                            edited.replacement,
+                                            custom,
+                                            &self.layer_names,
+                                            &self.keycode_picker.macro_names,
+                                            &self.keycode_picker.tap_dance_names,
+                                        );
+
+                                        ui.add_space(8.0);
+                                        ui.label(RichText::new("Trigger").size(12.0).strong());
+                                        ui.add_space(4.0);
+                                        let trigger_resp = ui.add(
+                                            egui::Button::new(RichText::new(trigger_label).size(10.5))
+                                                .min_size(Vec2::new(field_width, 34.0)),
+                                        ).on_hover_cursor(egui::CursorIcon::PointingHand);
+                                        if trigger_resp.clicked() {
+                                            self.open_key_override_picker(KeyOverridePickField::Trigger);
+                                        }
+                                        trigger_resp.on_hover_text(trigger_tip);
+
+                                        ui.add_space(8.0);
+                                        ui.label(RichText::new("Suppressed mods").size(11.0).color(app_muted_text(dark)));
+                                        Self::draw_key_override_mod_mask(ui, &mut edited.suppressed_mods, "ko_suppressed_mods");
+
+                                        ui.add_space(8.0);
+                                        ui.label(RichText::new("Trigger mods").size(11.0).color(app_muted_text(dark)));
+                                        Self::draw_key_override_mod_mask(ui, &mut edited.trigger_mods, "ko_trigger_mods");
+
+                                        ui.add_space(8.0);
+                                        ui.label(RichText::new("Negative mods").size(11.0).color(app_muted_text(dark)));
+                                        Self::draw_key_override_mod_mask(ui, &mut edited.negative_mod_mask, "ko_negative_mods");
+
+                                        ui.add_space(8.0);
+                                        ui.label(RichText::new("Replacement").size(12.0).strong());
+                                        ui.add_space(4.0);
+                                        let replacement_resp = ui.add(
+                                            egui::Button::new(RichText::new(replacement_label).size(10.5))
+                                                .min_size(Vec2::new(field_width, 34.0)),
+                                        ).on_hover_cursor(egui::CursorIcon::PointingHand);
+                                        if replacement_resp.clicked() {
+                                            self.open_key_override_picker(KeyOverridePickField::Replacement);
+                                        }
+                                        replacement_resp.on_hover_text(replacement_tip);
+
+                                        ui.add_space(8.0);
+                                        ui.label(RichText::new("Enable on layers").size(11.0).color(app_muted_text(dark)));
+                                        Self::draw_key_override_layers(ui, &mut edited.layers);
+
+                                        ui.add_space(8.0);
+                                        ui.label(RichText::new("Options").size(11.0).color(app_muted_text(dark)));
+                                        ui.add_space(2.0);
+                                        ui.checkbox(&mut edited.options.activation_trigger_down, "On trigger key down");
+                                        ui.checkbox(&mut edited.options.activation_required_mod_down, "On required mod down");
+                                        ui.checkbox(&mut edited.options.activation_negative_mod_up, "On negative mod up");
+                                        ui.checkbox(&mut edited.options.one_mod, "One modifier is enough");
+                                        ui.checkbox(&mut edited.options.no_reregister_trigger, "No re-register trigger");
+                                        ui.checkbox(&mut edited.options.no_unregister_on_other_key_down, "Don't cancel on other key down");
+                                    },
                                 );
-                                let replacement_tip = keycode_tooltip_with_macro_names(
-                                    edited.replacement,
-                                    custom,
-                                    &self.layer_names,
-                                    &self.keycode_picker.macro_names,
-                                    &self.keycode_picker.tap_dance_names,
-                                );
-
-                                ui.add_space(12.0);
-                                ui.label(RichText::new("Trigger").size(13.0).strong());
-                                ui.add_space(6.0);
-                                let trigger_resp = ui.add(
-                                    egui::Button::new(RichText::new(trigger_label).size(10.5))
-                                        .min_size(Vec2::new(field_width, 34.0)),
-                                ).on_hover_cursor(egui::CursorIcon::PointingHand);
-                                if trigger_resp.clicked() {
-                                    self.open_key_override_picker(KeyOverridePickField::Trigger);
-                                }
-                                trigger_resp.on_hover_text(trigger_tip);
-
-                                ui.add_space(12.0);
-                                ui.label(RichText::new("Suppressed mods").size(11.0).color(app_muted_text(dark)));
-                                Self::draw_key_override_mod_mask(ui, &mut edited.suppressed_mods, "ko_suppressed_mods");
-
-                                ui.add_space(12.0);
-                                ui.label(RichText::new("Trigger mods").size(11.0).color(app_muted_text(dark)));
-                                Self::draw_key_override_mod_mask(ui, &mut edited.trigger_mods, "ko_trigger_mods");
-
-                                ui.add_space(12.0);
-                                ui.label(RichText::new("Negative mods").size(11.0).color(app_muted_text(dark)));
-                                Self::draw_key_override_mod_mask(ui, &mut edited.negative_mod_mask, "ko_negative_mods");
-
-                                ui.add_space(12.0);
-                                ui.label(RichText::new("Replacement").size(13.0).strong());
-                                ui.add_space(6.0);
-                                let replacement_resp = ui.add(
-                                    egui::Button::new(RichText::new(replacement_label).size(10.5))
-                                        .min_size(Vec2::new(field_width, 34.0)),
-                                ).on_hover_cursor(egui::CursorIcon::PointingHand);
-                                if replacement_resp.clicked() {
-                                    self.open_key_override_picker(KeyOverridePickField::Replacement);
-                                }
-                                replacement_resp.on_hover_text(replacement_tip);
-
-                                ui.add_space(12.0);
-                                ui.label(RichText::new("Enable on layers").size(11.0).color(app_muted_text(dark)));
-                                Self::draw_key_override_layers(ui, &mut edited.layers);
-
-                                ui.add_space(12.0);
-                                ui.checkbox(&mut edited.options.activation_trigger_down, "Activate when the trigger key is pressed down");
-                                ui.checkbox(&mut edited.options.activation_required_mod_down, "Activate when a necessary modifier is pressed down");
-                                ui.checkbox(&mut edited.options.activation_negative_mod_up, "Activate when a negative modifier is released");
-                                ui.checkbox(&mut edited.options.one_mod, "Activate on one modifier");
-                                ui.checkbox(&mut edited.options.no_reregister_trigger, "Don't register the trigger key again after the override is deactivated");
-                                ui.checkbox(&mut edited.options.no_unregister_on_other_key_down, "Don't deactivate when another key is pressed down");
-                            },
-                        );
+                            });
                     });
 
                     ui.add_space(12.0);
