@@ -354,13 +354,15 @@ pub fn find_keycode(value: u16) -> Option<&'static Keycode> {
     KEYCODES.iter().find(|k| k.value == value)
 }
 
+use crate::keyboard::CustomKeycode;
+
 /// Returns a human-readable label for a keycode.
 /// Uses vial protocol v6 keycode ranges.
-pub fn keycode_label_with_custom(value: u16, custom: &[(String, String)]) -> String {
+pub fn keycode_label_with_custom(value: u16, custom: &[CustomKeycode]) -> String {
     keycode_label_with_names(value, custom, &[])
 }
 
-pub fn keycode_label_with_names(value: u16, custom: &[(String, String)], layer_names: &[String]) -> String {
+pub fn keycode_label_with_names(value: u16, custom: &[CustomKeycode], layer_names: &[String]) -> String {
     // Returns "OpName(n)\nLayerName" or "OpName(n)" if layer has no custom name
     let layer_label = |op: &str, n: u16| -> String {
         match layer_names.get(n as usize) {
@@ -397,17 +399,17 @@ pub fn keycode_label_with_names(value: u16, custom: &[(String, String)], layer_n
         // Try USER range first (0x7E40+)
         if value >= USER_BASE {
             let idx = (value - USER_BASE) as usize;
-            if let Some((_, label)) = custom.get(idx) {
-                if !label.is_empty() {
-                    return label.clone();
+            if let Some(custom_keycode) = custom.get(idx) {
+                if !custom_keycode.label.is_empty() {
+                    return custom_keycode.label.clone();
                 }
             }
         }
         // Try KB range (0x7E00+)
         let idx = (value - KB_BASE) as usize;
-        if let Some((_, label)) = custom.get(idx) {
-            if !label.is_empty() {
-                return label.clone();
+        if let Some(custom_keycode) = custom.get(idx) {
+            if !custom_keycode.label.is_empty() {
+                return custom_keycode.label.clone();
             }
         }
         return format!("USER{}", value - KB_BASE);
@@ -564,7 +566,7 @@ pub fn keycode_label(value: u16) -> String {
 }
 
 /// Returns a human-readable tooltip for a keycode.
-pub fn keycode_tooltip(value: u16, custom: &[(String, String)], layer_names: &[String]) -> String {
+pub fn keycode_tooltip(value: u16, custom: &[CustomKeycode], layer_names: &[String]) -> String {
     let layer_display = |n: u16| -> String {
         match layer_names.get(n as usize) {
             Some(s) if !s.is_empty() && s != &n.to_string() => format!("\"{}\" ({})", s, n),
@@ -688,13 +690,13 @@ pub fn keycode_tooltip(value: u16, custom: &[(String, String)], layer_names: &[S
     if value >= KB_BASE {
         if value >= USER_BASE {
             let idx = (value - USER_BASE) as usize;
-            if let Some((name, label)) = custom.get(idx) {
-                return format!("Custom key: {} ({})", label, name);
+            if let Some(custom_keycode) = custom.get(idx) {
+                return custom_keycode.title.clone();
             }
         }
         let idx = (value - KB_BASE) as usize;
-        if let Some((name, label)) = custom.get(idx) {
-            return format!("Custom key: {} ({})", label, name);
+        if let Some(custom_keycode) = custom.get(idx) {
+            return custom_keycode.title.clone();
         }
         return format!("Custom key (0x{:04X})", value);
     }

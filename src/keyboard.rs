@@ -24,6 +24,13 @@ pub struct PhysicalKey {
 
 
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CustomKeycode {
+    pub name: String,
+    pub label: String,
+    pub title: String,
+}
+
 /// Full keyboard layout with multiple layers.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeyboardLayout {
@@ -32,8 +39,8 @@ pub struct KeyboardLayout {
     pub cols: usize,
     pub keys: Vec<PhysicalKey>,
     pub layers: Vec<Vec<u16>>, // layers[layer][key_idx] = keycode (Vial)
-    /// Custom keycodes from vial JSON: (name, short_label)
-    pub custom_keycodes: Vec<(String, String)>,
+    /// Custom keycodes from vial JSON: symbolic name, short button label, readable tooltip title.
+    pub custom_keycodes: Vec<CustomKeycode>,
     /// Whether the keyboard definition exposes a lighting section for RGB/backlight controls
     #[serde(default)]
     pub supports_rgb: bool,
@@ -228,13 +235,11 @@ impl KeyboardLayout {
         let custom_keycodes = if let Some(customs) = json.get("customKeycodes").and_then(|v| v.as_array()) {
             customs.iter().map(|c| {
                 let name = c.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                // shortName may contain \n — take last line for display
-                // shortName format: "First\nSecond" — show as "First/Second" or just name
+                let title = c.get("title").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
                 let short_raw = c.get("shortName").and_then(|v| v.as_str()).unwrap_or("");
                 let label = if short_raw.is_empty() {
                     name.clone()
                 } else {
-                    // Keep \n so draw_key_label renders two lines (top small, bottom main)
                     let parts: Vec<&str> = short_raw.lines().filter(|l| !l.is_empty()).collect();
                     match parts.len() {
                         0 => name.clone(),
@@ -242,7 +247,12 @@ impl KeyboardLayout {
                         _ => format!("{}\n{}", parts[0], parts[1..].join(" ")),
                     }
                 };
-                (name, label)
+                let title = if title.is_empty() {
+                    name.clone()
+                } else {
+                    title
+                };
+                CustomKeycode { name, label, title }
             }).collect()
         } else {
             vec![]

@@ -198,7 +198,7 @@ fn tap_dance_custom_name(tap_dance_names: &[String], idx: usize) -> Option<Strin
 
 fn keycode_label_with_macro_names(
     value: u16,
-    custom: &[(String, String)],
+    custom: &[crate::keyboard::CustomKeycode],
     layer_names: &[String],
     macro_names: &[String],
     tap_dance_names: &[String],
@@ -222,7 +222,7 @@ fn keycode_label_with_macro_names(
 
 fn keycode_tooltip_with_macro_names(
     value: u16,
-    custom: &[(String, String)],
+    custom: &[crate::keyboard::CustomKeycode],
     layer_names: &[String],
     macro_names: &[String],
     tap_dance_names: &[String],
@@ -924,7 +924,7 @@ impl EntropyApp {
                 if self.firmware == FirmwareProtocol::Vial {
                     const USER_BASE: u16 = 0x7E40;
                     self.keycode_picker.custom_keycodes = r.layout.custom_keycodes.iter().enumerate()
-                        .map(|(i, (name, label))| (name.clone(), label.clone(), USER_BASE + i as u16))
+                        .map(|(i, custom)| (custom.name.clone(), custom.label.clone(), custom.title.clone(), USER_BASE + i as u16))
                         .collect();
                 } else {
                     self.keycode_picker.zmk_behaviors = r.layout.zmk_behaviors.clone();

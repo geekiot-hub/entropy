@@ -28,7 +28,7 @@ pub struct KeycodePicker {
     pub selected_tab: KeycodeTab,
     pub search_query: String,
     pub result: Option<u16>,
-    pub custom_keycodes: Vec<(String, String, u16)>,
+    pub custom_keycodes: Vec<(String, String, String, u16)>,
     pub supports_rgb: bool,
     pub layer_names: Vec<String>,
     pub layer_count: usize,
@@ -1078,8 +1078,12 @@ impl KeycodePicker {
     }
 
     fn show_vial_generic(&mut self, ui: &mut egui::Ui) {
-        let custom_pairs: Vec<(String, String)> = self.custom_keycodes.iter()
-            .map(|(n, l, _)| (n.clone(), l.clone()))
+        let custom_pairs: Vec<crate::keyboard::CustomKeycode> = self.custom_keycodes.iter()
+            .map(|(name, label, title, _)| crate::keyboard::CustomKeycode {
+                name: name.clone(),
+                label: label.clone(),
+                title: title.clone(),
+            })
             .collect();
         ui.horizontal_wrapped(|ui| {
             for kc in KEYCODES.iter() {
@@ -1097,9 +1101,9 @@ impl KeycodePicker {
 
     fn show_vial_custom(&mut self, ui: &mut egui::Ui) {
         ui.horizontal_wrapped(|ui| {
-            for (name, label, value) in &self.custom_keycodes {
+            for (name, label, title, value) in &self.custom_keycodes {
                 if label.is_empty() { continue; }
-                let tip = format!("Custom: {} ({})", label, name);
+                let tip = if title.trim().is_empty() { name.as_str() } else { title.as_str() };
                 let resp = ui.add(
                     egui::Button::new(RichText::new(label).size(11.0))
                         .min_size(Vec2::new(52.0, 38.0)),
