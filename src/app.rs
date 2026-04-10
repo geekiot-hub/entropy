@@ -2487,13 +2487,23 @@ impl EntropyApp {
 
     fn draw_key_override_mod_mask(ui: &mut egui::Ui, mask: &mut u8, id: &str) -> bool {
         let mut changed = false;
-        let labels = ["LCtrl", "LShift", "LAlt", "LGui", "RCtrl", "RShift", "RAlt", "RGui"];
-        egui::Grid::new(ui.id().with(id)).num_columns(4).spacing([10.0, 6.0]).show(ui, |ui| {
-            for row in 0..2 {
-                for col in 0..4 {
-                    let idx = row * 4 + col;
+        let gui = crate::keycode::gui_mod_name();
+        let labels = vec![
+            "Left Ctrl".to_string(),
+            "Left Shift".to_string(),
+            "Left Alt".to_string(),
+            format!("Left {}", gui),
+            "Right Ctrl".to_string(),
+            "Right Shift".to_string(),
+            "Right Alt".to_string(),
+            format!("Right {}", gui),
+        ];
+        egui::Grid::new(ui.id().with(id)).num_columns(2).spacing([18.0, 4.0]).show(ui, |ui| {
+            for row in 0..4 {
+                for col in 0..2 {
+                    let idx = row * 2 + col;
                     let mut checked = (*mask & (1 << idx)) != 0;
-                    if ui.checkbox(&mut checked, labels[idx]).changed() {
+                    if ui.checkbox(&mut checked, labels[idx].as_str()).changed() {
                         if checked {
                             *mask |= 1 << idx;
                         } else {
@@ -2644,16 +2654,18 @@ impl EntropyApp {
                                         );
 
                                         ui.add_space(8.0);
-                                        ui.label(RichText::new("Trigger").size(12.0).strong());
+                                        ui.label(RichText::new("Trigger").size(13.0).strong());
                                         ui.add_space(4.0);
-                                        let trigger_resp = ui.add(
-                                            egui::Button::new(RichText::new(trigger_label).size(10.5))
-                                                .min_size(Vec2::new(field_width, 34.0)),
-                                        ).on_hover_cursor(egui::CursorIcon::PointingHand);
-                                        if trigger_resp.clicked() {
-                                            self.open_key_override_picker(KeyOverridePickField::Trigger);
-                                        }
-                                        trigger_resp.on_hover_text(trigger_tip);
+                                        ui.horizontal_centered(|ui| {
+                                            let trigger_resp = ui.add(
+                                                egui::Button::new(RichText::new(trigger_label).size(13.0))
+                                                    .min_size(Vec2::new(field_width, 34.0)),
+                                            ).on_hover_cursor(egui::CursorIcon::PointingHand);
+                                            if trigger_resp.clicked() {
+                                                self.open_key_override_picker(KeyOverridePickField::Trigger);
+                                            }
+                                            trigger_resp.on_hover_text(trigger_tip);
+                                        });
 
                                         ui.add_space(8.0);
                                         ui.label(RichText::new("Suppressed mods").size(11.0).color(app_muted_text(dark)));
@@ -2668,30 +2680,32 @@ impl EntropyApp {
                                         Self::draw_key_override_mod_mask(ui, &mut edited.negative_mod_mask, "ko_negative_mods");
 
                                         ui.add_space(8.0);
-                                        ui.label(RichText::new("Replacement").size(12.0).strong());
+                                        ui.label(RichText::new("Replacement").size(13.0).strong());
                                         ui.add_space(4.0);
-                                        let replacement_resp = ui.add(
-                                            egui::Button::new(RichText::new(replacement_label).size(10.5))
-                                                .min_size(Vec2::new(field_width, 34.0)),
-                                        ).on_hover_cursor(egui::CursorIcon::PointingHand);
-                                        if replacement_resp.clicked() {
-                                            self.open_key_override_picker(KeyOverridePickField::Replacement);
-                                        }
-                                        replacement_resp.on_hover_text(replacement_tip);
+                                        ui.horizontal_centered(|ui| {
+                                            let replacement_resp = ui.add(
+                                                egui::Button::new(RichText::new(replacement_label).size(13.0))
+                                                    .min_size(Vec2::new(field_width, 34.0)),
+                                            ).on_hover_cursor(egui::CursorIcon::PointingHand);
+                                            if replacement_resp.clicked() {
+                                                self.open_key_override_picker(KeyOverridePickField::Replacement);
+                                            }
+                                            replacement_resp.on_hover_text(replacement_tip);
+                                        });
 
                                         ui.add_space(8.0);
                                         ui.label(RichText::new("Enable on layers").size(11.0).color(app_muted_text(dark)));
                                         Self::draw_key_override_layers(ui, &mut edited.layers);
 
                                         ui.add_space(8.0);
-                                        ui.label(RichText::new("Options").size(11.0).color(app_muted_text(dark)));
+                                        ui.label(RichText::new("How this override behaves").size(11.0).color(app_muted_text(dark)));
                                         ui.add_space(2.0);
-                                        ui.checkbox(&mut edited.options.activation_trigger_down, "On trigger key down");
-                                        ui.checkbox(&mut edited.options.activation_required_mod_down, "On required mod down");
-                                        ui.checkbox(&mut edited.options.activation_negative_mod_up, "On negative mod up");
-                                        ui.checkbox(&mut edited.options.one_mod, "One modifier is enough");
-                                        ui.checkbox(&mut edited.options.no_reregister_trigger, "No re-register trigger");
-                                        ui.checkbox(&mut edited.options.no_unregister_on_other_key_down, "Don't cancel on other key down");
+                                        ui.checkbox(&mut edited.options.activation_trigger_down, "Activate as soon as the trigger key is pressed");
+                                        ui.checkbox(&mut edited.options.activation_required_mod_down, "Activate as soon as a required modifier is pressed");
+                                        ui.checkbox(&mut edited.options.activation_negative_mod_up, "Activate when a blocked modifier is released");
+                                        ui.checkbox(&mut edited.options.one_mod, "Any one trigger modifier is enough");
+                                        ui.checkbox(&mut edited.options.no_reregister_trigger, "Do not send the original trigger key after the override ends");
+                                        ui.checkbox(&mut edited.options.no_unregister_on_other_key_down, "Keep the override active even if another key is pressed");
                                     },
                                 );
                             });
