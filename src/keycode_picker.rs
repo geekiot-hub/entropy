@@ -5,6 +5,14 @@ use crate::keycode::{gui_label, gui_mod_name, gui_sym, key_label_font_sizes, key
 use crate::zmk::{BehaviorInfo, ZmkBinding};
 use egui::{Color32, Key, RichText, Vec2};
 
+fn picker_window_fill(dark: bool) -> Color32 {
+    if dark {
+        Color32::from_rgb(37, 37, 38)
+    } else {
+        Color32::from_rgb(255, 255, 255)
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct TapDanceEntry {
     pub on_tap: u16,
@@ -473,7 +481,7 @@ impl KeycodePicker {
                 .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
                 .frame(
                     egui::Frame::window(ctx.style().as_ref())
-                        .fill(if ctx.style().visuals.dark_mode { Color32::from_gray(28) } else { Color32::from_rgb(245, 242, 248) })
+                        .fill(picker_window_fill(ctx.style().visuals.dark_mode))
                         .stroke(egui::Stroke::NONE)
                 )
                 .show(ctx, |ui| {
@@ -634,7 +642,7 @@ impl KeycodePicker {
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
             .frame(
                 egui::Frame::window(ctx.style().as_ref())
-                    .fill(if ctx.style().visuals.dark_mode { Color32::from_gray(28) } else { Color32::from_rgb(245, 242, 248) })
+                    .fill(picker_window_fill(ctx.style().visuals.dark_mode))
                     .stroke(egui::Stroke::NONE)
             )
             .show(ctx, |ui| {

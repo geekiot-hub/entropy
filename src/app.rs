@@ -2158,17 +2158,12 @@ impl eframe::App for EntropyApp {
             || self.keycode_picker.open;
         if any_floating_window_open {
             let screen_rect = ctx.screen_rect();
-            egui::Area::new("window_backdrop".into())
-                .order(egui::Order::Middle)
-                .fixed_pos(screen_rect.min)
-                .show(ctx, |ui| {
-                    ui.set_min_size(screen_rect.size());
-                    ui.painter().rect_filled(
-                        egui::Rect::from_min_size(egui::Pos2::ZERO, screen_rect.size()),
-                        0.0,
-                        Color32::from_black_alpha(if ctx.style().visuals.dark_mode { 96 } else { 48 }),
-                    );
-                });
+            let backdrop_layer = egui::LayerId::new(egui::Order::Middle, egui::Id::new("window_backdrop"));
+            ctx.layer_painter(backdrop_layer).rect_filled(
+                screen_rect,
+                0.0,
+                Color32::from_black_alpha(if ctx.style().visuals.dark_mode { 96 } else { 48 }),
+            );
         }
 
         if self.combo_window_open {
