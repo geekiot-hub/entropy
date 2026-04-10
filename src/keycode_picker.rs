@@ -1140,6 +1140,28 @@ impl KeycodePicker {
                 self.vial_layer_pending = Some(0x4000);
             }
             lt_resp.on_hover_text("Hold = activate layer, tap = keycode (set key via right-click afterwards)");
+
+            if let Some((_, _, value)) = self.custom_keycodes.iter().find(|(name, _, _)| name == "LAYER_PREV") {
+                let resp = ui.add(egui::Button::new(RichText::new("Layer Previous").size(10.5))
+                    .min_size(Vec2::new(118.0, 34.0)))
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
+                if resp.clicked() {
+                    self.result = Some(*value);
+                    self.open = false;
+                }
+                resp.on_hover_text("Switch to the previous layer in the firmware layer cycle");
+            }
+
+            if let Some((_, _, value)) = self.custom_keycodes.iter().find(|(name, _, _)| name == "LAYER_NEXT") {
+                let resp = ui.add(egui::Button::new(RichText::new("Layer Next").size(10.5))
+                    .min_size(Vec2::new(118.0, 34.0)))
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
+                if resp.clicked() {
+                    self.result = Some(*value);
+                    self.open = false;
+                }
+                resp.on_hover_text("Switch to the next layer in the firmware layer cycle");
+            }
         });
     }
 
