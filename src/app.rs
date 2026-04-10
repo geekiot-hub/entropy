@@ -1190,6 +1190,10 @@ impl EntropyApp {
         #[cfg(not(target_arch = "wasm32"))]
         self.poll_matrix_tester(ctx, layout);
 
+        if let Some(id) = ctx.memory(|m| m.focused()) {
+            ctx.memory_mut(|m| m.surrender_focus(id));
+        }
+
         let dark = ui.visuals().dark_mode;
         let content_rect = egui::Rect::from_min_max(
             egui::pos2(ui.min_rect().left() + 20.0, content_top),
@@ -1248,7 +1252,7 @@ impl EntropyApp {
             egui::pos2(content_rect.right() - 88.0, top_line_y - 15.0),
             Vec2::new(84.0, 30.0),
         );
-        if ui.put(reset_rect, egui::Button::new("Reset")).clicked() {
+        if ui.put(reset_rect, egui::Button::new("Reset").sense(egui::Sense::CLICK)).clicked() {
             self.reset_matrix_tester_state();
         }
 
@@ -2663,7 +2667,7 @@ impl EntropyApp {
                     });
                     egui::Rect::from_center_size(slot_rect.center(), Vec2::new(text_w + 20.0, tab_size.y))
                 };
-                let resp = ui.allocate_rect(text_rect, Sense::click());
+                let resp = ui.allocate_rect(text_rect, Sense::CLICK);
                 if matches!(tab, MainMenuTab::Keyboard) {
                     device_tab_rect = Some(text_rect);
                     device_tab_hovered = resp.hovered();
@@ -2901,7 +2905,7 @@ impl EntropyApp {
                     );
 
                     let combo_rect = dropdown_rect.shrink2(Vec2::new(6.0, 4.0));
-                    let combo_resp = ui.allocate_rect(combo_rect, Sense::click());
+                    let combo_resp = ui.allocate_rect(combo_rect, Sense::CLICK);
                     if combo_resp.hovered() {
                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                     }
@@ -2974,7 +2978,7 @@ impl EntropyApp {
                     );
 
                     let matrix_rect = dropdown_rect.shrink2(Vec2::new(6.0, 4.0));
-                    let matrix_resp = ui.allocate_rect(matrix_rect, Sense::click());
+                    let matrix_resp = ui.allocate_rect(matrix_rect, Sense::CLICK);
                     if matrix_resp.hovered() {
                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                     }
