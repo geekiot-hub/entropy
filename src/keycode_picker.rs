@@ -2503,23 +2503,15 @@ Enter".into(), 0x7C1E, "Shift when held, Enter when tapped".into()),
         ui.add_space(10.0);
         ui.label(RichText::new("Numpad").size(11.0).color(Color32::from_gray(150)));
         ui.add_space(4.0);
-        if let Some(kc) = crate::keycode::KEYCODES.iter().find(|kc| kc.name == "KC_NUMLOCK") {
-            let muted = if ui.visuals().dark_mode {
+        ui.horizontal_wrapped(|ui| {
+            let num_text_color = if ui.visuals().dark_mode {
                 Color32::from_gray(105)
             } else {
                 Color32::from_gray(145)
             };
-            let resp = ui.add(
-                egui::Button::new(RichText::new("Num").size(11.0).color(muted))
-                    .min_size(Vec2::new(56.0, 34.0))
-            );
-            if resp.clicked() { self.result = Some(kc.value); self.open = false; }
-            resp.on_hover_text(crate::keycode::keycode_tooltip(kc.value, &[], &self.layer_names));
-            ui.add_space(6.0);
-        }
-        ui.horizontal_wrapped(|ui| {
-            for kc in crate::keycode::KEYCODES.iter().filter(|kc| matches!(kc.category, crate::keycode::KeycodeCategory::Numpad) && kc.name != "KC_NUMLOCK") {
+            for kc in crate::keycode::KEYCODES.iter().filter(|kc| matches!(kc.category, crate::keycode::KeycodeCategory::Numpad)) {
                 let display = match kc.name {
+                    "KC_NUMLOCK" => "Lock",
                     "KC_PSLASH" => "÷",
                     "KC_PAST" => "×",
                     "KC_PMNS" => "−",
@@ -2541,12 +2533,31 @@ Enter".into(), 0x7C1E, "Shift when held, Enter when tapped".into()),
                     _ => kc.label,
                 };
                 let font_size = if display.len() > 2 { 10.5 } else { 13.0 };
-                let resp = ui.add(
-                    egui::Button::new(RichText::new(display).size(font_size))
-                        .min_size(Vec2::new(56.0, 42.0))
+                let mut resp = ui.add_sized(Vec2::new(56.0, 42.0), egui::Button::new(""));
+                let rect = resp.rect;
+                let painter = ui.painter();
+                let main_color = if resp.hovered() {
+                    ui.visuals().widgets.hovered.fg_stroke.color
+                } else {
+                    ui.visuals().widgets.inactive.fg_stroke.color
+                };
+                painter.text(
+                    egui::pos2(rect.center().x, rect.top() + 10.0),
+                    egui::Align2::CENTER_CENTER,
+                    "Num",
+                    egui::FontId::proportional(9.5),
+                    num_text_color,
+                );
+                painter.text(
+                    egui::pos2(rect.center().x, rect.bottom() - 10.0),
+                    egui::Align2::CENTER_CENTER,
+                    display,
+                    egui::FontId::proportional(font_size),
+                    main_color,
                 );
                 if resp.clicked() { self.result = Some(kc.value); self.open = false; }
-                resp.on_hover_text(crate::keycode::keycode_tooltip(kc.value, &[], &self.layer_names));
+                resp = resp.on_hover_text(crate::keycode::keycode_tooltip(kc.value, &[], &self.layer_names));
+                let _ = resp;
             }
         });
     }
