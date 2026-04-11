@@ -743,11 +743,17 @@ impl KeycodePicker {
             });
             let mut still_open = true;
             let resp_win = egui::Window::new("Pick layer")
+                .order(egui::Order::Foreground)
                 .open(&mut still_open)
                 .collapsible(false)
                 .resizable(false)
                 .min_size(Vec2::new(300.0, 100.0))
                 .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .frame(
+                    egui::Frame::window(ctx.style().as_ref())
+                        .fill(picker_window_fill(ctx.style().visuals.dark_mode))
+                        .stroke(egui::Stroke::NONE)
+                )
                 .show(ctx, |ui| {
                     apply_picker_button_visuals(ui);
                     ui.label(RichText::new("Choose which layer. Esc to cancel.")
@@ -785,9 +791,7 @@ impl KeycodePicker {
                         }
                     });
                 });
-            let clicked_outside = ctx.input(|i| i.pointer.button_clicked(egui::PointerButton::Primary))
-                && resp_win.as_ref().map(|r| !r.response.hovered()).unwrap_or(false);
-            if !still_open || clicked_outside {
+            if !still_open {
                 self.vial_layer_pending = None;
                 self.open = false;
             }
@@ -826,12 +830,18 @@ impl KeycodePicker {
             let title = if is_mt { "Pick tap key (hold = modifier)" } else { "Pick key for modifier combo" };
             let mut still_open = true;
             let resp_win = egui::Window::new(title)
+                .order(egui::Order::Foreground)
                 .open(&mut still_open)
                 .collapsible(false)
                 .resizable(false)
                 .min_size(Vec2::new(KEY_PICKER_POPUP_WIDTH, KEY_PICKER_POPUP_HEIGHT))
                 .default_size([KEY_PICKER_POPUP_WIDTH, KEY_PICKER_POPUP_HEIGHT])
                 .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .frame(
+                    egui::Frame::window(ctx.style().as_ref())
+                        .fill(picker_window_fill(ctx.style().visuals.dark_mode))
+                        .stroke(egui::Stroke::NONE)
+                )
                 .show(ctx, |ui| {
                     apply_picker_button_visuals(ui);
                     ui.label(RichText::new("Press a key on your keyboard, or click below. Esc to cancel.")
@@ -853,10 +863,7 @@ impl KeycodePicker {
                             }
                         });
                 });
-            // Only check clicked_outside with primary button (not secondary which opened this)
-            let clicked_outside = ctx.input(|i| i.pointer.button_clicked(egui::PointerButton::Primary))
-                && resp_win.as_ref().map(|r| !r.response.hovered()).unwrap_or(false);
-            if !still_open || clicked_outside {
+            if !still_open {
                 self.vial_quantum_pending_mod = None;
                 self.vial_quantum_pending_mt = None;
                 self.open = false;

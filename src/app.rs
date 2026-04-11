@@ -2786,7 +2786,7 @@ impl EntropyApp {
 
                     ui.add_space(0.0);
                     ui.horizontal_centered(|ui| {
-                        let clear_btn = egui::Button::new("Clear")
+                        let clear_btn = egui::Button::new(RichText::new("Clear").size(13.0))
                             .min_size(action_button_size)
                             .frame(true)
                             .stroke(combo_outline_stroke);
@@ -2804,7 +2804,7 @@ impl EntropyApp {
                             self.write_key_override(idx);
                         }
 
-                        let delete_btn = egui::Button::new("Delete")
+                        let delete_btn = egui::Button::new(RichText::new("Delete").size(13.0))
                             .min_size(action_button_size)
                             .frame(true)
                             .stroke(combo_outline_stroke);
@@ -2832,7 +2832,7 @@ impl EntropyApp {
                             self.write_all_key_overrides();
                         }
 
-                        let undo_btn = egui::Button::new("Undo")
+                        let undo_btn = egui::Button::new(RichText::new("Undo").size(13.0))
                             .min_size(action_button_size)
                             .frame(true)
                             .stroke(combo_outline_stroke);
@@ -3149,75 +3149,6 @@ impl EntropyApp {
                                 self.keycode_picker.open = true;
                             }
 
-                            ui.add_space(12.0);
-                            ui.horizontal_centered(|ui| {
-                                let clear_btn = egui::Button::new("Clear combo")
-                                    .min_size(action_button_size)
-                                    .frame(true)
-                                    .stroke(combo_outline_stroke);
-                                let clear_resp = ui.add(clear_btn);
-                                if clear_resp.hovered() {
-                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                }
-                                if clear_resp.clicked() {
-                                    self.push_combo_undo();
-                                    self.combo_entries[combo_idx] = ComboEntry::default();
-                                    if let Some(name) = self.combo_names.get_mut(combo_idx) {
-                                        name.clear();
-                                    }
-                                    self.combo_dirty = true;
-                                    self.combo_names_dirty = true;
-                                }
-
-                                let delete_btn = egui::Button::new("Delete combo")
-                                    .min_size(action_button_size)
-                                    .frame(true)
-                                    .stroke(combo_outline_stroke);
-                                let delete_resp = ui.add_enabled(combo_idx > 0 && self.combo_visible_count > 1, delete_btn);
-                                if delete_resp.hovered() && combo_idx > 0 && self.combo_visible_count > 1 {
-                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                }
-                                if delete_resp.clicked() {
-                                    self.push_combo_undo();
-                                    for idx in combo_idx..self.combo_visible_count.saturating_sub(1) {
-                                        self.combo_entries[idx] = self.combo_entries[idx + 1].clone();
-                                        self.combo_names[idx] = self.combo_names.get(idx + 1).cloned().unwrap_or_default();
-                                    }
-                                    let last_idx = self.combo_visible_count.saturating_sub(1);
-                                    if last_idx < self.combo_entries.len() {
-                                        self.combo_entries[last_idx] = ComboEntry::default();
-                                    }
-                                    if last_idx < self.combo_names.len() {
-                                        self.combo_names[last_idx].clear();
-                                    }
-                                    self.combo_visible_count = self.combo_visible_count.saturating_sub(1).max(1);
-                                    self.selected_combo = combo_idx.min(self.combo_visible_count.saturating_sub(1));
-                                    self.combo_dirty = true;
-                                    self.combo_names_dirty = true;
-                                }
-
-                                let undo_btn = egui::Button::new("Undo")
-                                    .min_size(action_button_size)
-                                    .frame(true)
-                                    .stroke(combo_outline_stroke);
-                                let undo_resp = ui.add_enabled(!self.combo_undo_stack.is_empty(), undo_btn);
-                                if undo_resp.hovered() && !self.combo_undo_stack.is_empty() {
-                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                }
-                                if undo_resp.clicked() {
-                                    if let Some((entries, names, term, selected, visible_count)) = self.combo_undo_stack.pop() {
-                                        self.combo_entries = entries;
-                                        self.combo_names = names;
-                                        self.combo_term = term;
-                                        self.combo_visible_count = visible_count.clamp(1, self.combo_entries.len().max(1));
-                                        self.selected_combo = selected.min(self.combo_visible_count.saturating_sub(1));
-                                        self.combo_dirty = true;
-                                        self.combo_names_dirty = true;
-                                        self.combo_term_dirty = true;
-                                    }
-                                }
-                            });
-
                             if let Some(current_combo_term) = self.combo_term {
                                 ui.add_space(14.0);
                                 ui.separator();
@@ -3245,6 +3176,76 @@ impl EntropyApp {
                                     }
                                 });
                             }
+                            ui.add_space(12.0);
+                            ui.horizontal_centered(|ui| {
+                                let clear_btn = egui::Button::new(RichText::new("Clear combo").size(13.0))
+                                    .min_size(action_button_size)
+                                    .frame(true)
+                                    .stroke(combo_outline_stroke);
+                                let clear_resp = ui.add(clear_btn);
+                                if clear_resp.hovered() {
+                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                }
+                                if clear_resp.clicked() {
+                                    self.push_combo_undo();
+                                    self.combo_entries[combo_idx] = ComboEntry::default();
+                                    if let Some(name) = self.combo_names.get_mut(combo_idx) {
+                                        name.clear();
+                                    }
+                                    self.combo_dirty = true;
+                                    self.combo_names_dirty = true;
+                                }
+
+                                let delete_btn = egui::Button::new(RichText::new("Delete combo").size(13.0))
+                                    .min_size(action_button_size)
+                                    .frame(true)
+                                    .stroke(combo_outline_stroke);
+                                let delete_resp = ui.add_enabled(combo_idx > 0 && self.combo_visible_count > 1, delete_btn);
+                                if delete_resp.hovered() && combo_idx > 0 && self.combo_visible_count > 1 {
+                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                }
+                                if delete_resp.clicked() {
+                                    self.push_combo_undo();
+                                    for idx in combo_idx..self.combo_visible_count.saturating_sub(1) {
+                                        self.combo_entries[idx] = self.combo_entries[idx + 1].clone();
+                                        self.combo_names[idx] = self.combo_names.get(idx + 1).cloned().unwrap_or_default();
+                                    }
+                                    let last_idx = self.combo_visible_count.saturating_sub(1);
+                                    if last_idx < self.combo_entries.len() {
+                                        self.combo_entries[last_idx] = ComboEntry::default();
+                                    }
+                                    if last_idx < self.combo_names.len() {
+                                        self.combo_names[last_idx].clear();
+                                    }
+                                    self.combo_visible_count = self.combo_visible_count.saturating_sub(1).max(1);
+                                    self.selected_combo = combo_idx.min(self.combo_visible_count.saturating_sub(1));
+                                    self.combo_dirty = true;
+                                    self.combo_names_dirty = true;
+                                }
+
+                                let undo_btn = egui::Button::new(RichText::new("Undo").size(13.0))
+                                    .min_size(action_button_size)
+                                    .frame(true)
+                                    .stroke(combo_outline_stroke);
+                                let undo_resp = ui.add_enabled(!self.combo_undo_stack.is_empty(), undo_btn);
+                                if undo_resp.hovered() && !self.combo_undo_stack.is_empty() {
+                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                }
+                                if undo_resp.clicked() {
+                                    if let Some((entries, names, term, selected, visible_count)) = self.combo_undo_stack.pop() {
+                                        self.combo_entries = entries;
+                                        self.combo_names = names;
+                                        self.combo_term = term;
+                                        self.combo_visible_count = visible_count.clamp(1, self.combo_entries.len().max(1));
+                                        self.selected_combo = selected.min(self.combo_visible_count.saturating_sub(1));
+                                        self.combo_dirty = true;
+                                        self.combo_names_dirty = true;
+                                        self.combo_term_dirty = true;
+                                    }
+                                }
+                            });
+
+
                         },
                     );
                 });
