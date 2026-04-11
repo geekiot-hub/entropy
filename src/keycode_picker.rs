@@ -5,14 +5,6 @@ use crate::keycode::{gui_label, gui_mod_name, gui_sym, key_label_font_sizes, key
 use crate::zmk::{BehaviorInfo, ZmkBinding};
 use egui::{Color32, Key, RichText, Vec2};
 
-fn picker_window_fill(dark: bool) -> Color32 {
-    if dark {
-        Color32::from_rgb(37, 37, 38)
-    } else {
-        Color32::from_rgb(255, 255, 255)
-    }
-}
-
 #[derive(Clone, Debug, Default)]
 pub struct TapDanceEntry {
     pub on_tap: u16,
@@ -481,9 +473,7 @@ impl KeycodePicker {
                 .default_size([KEY_PICKER_POPUP_WIDTH, KEY_PICKER_POPUP_HEIGHT])
                 .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
                 .frame(
-                    egui::Frame::window(ctx.style().as_ref())
-                        .fill(picker_window_fill(ctx.style().visuals.dark_mode))
-                        .stroke(egui::Stroke::NONE)
+                    crate::ui_style::modal_window_frame(ctx.style().as_ref(), ctx.style().visuals.dark_mode)
                 )
                 .show(ctx, |ui| {
                     apply_picker_button_visuals(ui);
@@ -643,9 +633,7 @@ impl KeycodePicker {
             .fixed_size(picker_size)
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
             .frame(
-                egui::Frame::window(ctx.style().as_ref())
-                    .fill(picker_window_fill(ctx.style().visuals.dark_mode))
-                    .stroke(egui::Stroke::NONE)
+                crate::ui_style::modal_window_frame(ctx.style().as_ref(), ctx.style().visuals.dark_mode)
             )
             .show(ctx, |ui| {
                 apply_picker_button_visuals(ui);
@@ -750,9 +738,7 @@ impl KeycodePicker {
                 .min_size(Vec2::new(300.0, 100.0))
                 .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
                 .frame(
-                    egui::Frame::window(ctx.style().as_ref())
-                        .fill(picker_window_fill(ctx.style().visuals.dark_mode))
-                        .stroke(egui::Stroke::NONE)
+                    crate::ui_style::modal_window_frame(ctx.style().as_ref(), ctx.style().visuals.dark_mode)
                 )
                 .show(ctx, |ui| {
                     apply_picker_button_visuals(ui);
@@ -838,9 +824,7 @@ impl KeycodePicker {
                 .default_size([KEY_PICKER_POPUP_WIDTH, KEY_PICKER_POPUP_HEIGHT])
                 .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
                 .frame(
-                    egui::Frame::window(ctx.style().as_ref())
-                        .fill(picker_window_fill(ctx.style().visuals.dark_mode))
-                        .stroke(egui::Stroke::NONE)
+                    crate::ui_style::modal_window_frame(ctx.style().as_ref(), ctx.style().visuals.dark_mode)
                 )
                 .show(ctx, |ui| {
                     apply_picker_button_visuals(ui);

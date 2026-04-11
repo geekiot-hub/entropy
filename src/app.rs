@@ -159,79 +159,35 @@ fn key_override_display_name(key_override_names: &[String], idx: usize) -> Strin
     }
 }
 
-fn app_accent() -> Color32 {
-    Color32::from_rgb(91, 104, 223)
-}
-
-fn app_panel_fill(dark: bool) -> Color32 {
-    if dark {
-        Color32::from_rgb(30, 30, 30)
-    } else {
-        Color32::from_rgb(245, 245, 245)
-    }
-}
-
-fn app_window_fill(dark: bool) -> Color32 {
-    if dark {
-        Color32::from_rgb(37, 37, 38)
-    } else {
-        Color32::from_rgb(255, 255, 255)
-    }
-}
-
-fn app_surface_fill(dark: bool) -> Color32 {
-    if dark {
-        Color32::from_rgb(45, 45, 48)
-    } else {
-        Color32::from_rgb(255, 255, 255)
-    }
-}
-
-fn app_hover_fill(dark: bool) -> Color32 {
-    if dark {
-        Color32::from_rgb(60, 60, 65)
-    } else {
-        Color32::from_rgb(232, 232, 240)
-    }
-}
-
-fn app_border_color(dark: bool) -> Color32 {
-    if dark {
-        Color32::from_rgb(72, 72, 78)
-    } else {
-        Color32::from_rgb(220, 220, 228)
-    }
-}
-
-fn app_muted_text(dark: bool) -> Color32 {
-    if dark {
-        Color32::from_gray(150)
-    } else {
-        Color32::from_gray(120)
-    }
+fn macro_custom_name(macro_names: &[String], idx: usize) -> Option<String> {
+    macro_names.get(idx)
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
 }
 
 fn macro_display_name(macro_names: &[String], idx: usize) -> String {
-    match macro_names.get(idx) {
-        Some(name) if !name.trim().is_empty() => name.clone(),
-        _ => format!("M{}", idx),
-    }
-}
-
-fn macro_custom_name(macro_names: &[String], idx: usize) -> Option<String> {
-    macro_names.get(idx).map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
-}
-
-fn tap_dance_display_name(tap_dance_names: &[String], idx: usize) -> String {
-    match tap_dance_names.get(idx) {
-        Some(name) if !name.trim().is_empty() => name.clone(),
-        _ => format!("TD{}", idx),
-    }
+    macro_custom_name(macro_names, idx).unwrap_or_else(|| format!("M{}", idx))
 }
 
 fn tap_dance_custom_name(tap_dance_names: &[String], idx: usize) -> Option<String> {
-    tap_dance_names.get(idx).map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
+    tap_dance_names.get(idx)
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
 }
+
+fn tap_dance_display_name(tap_dance_names: &[String], idx: usize) -> String {
+    tap_dance_custom_name(tap_dance_names, idx).unwrap_or_else(|| format!("TD{}", idx))
+}
+
+fn app_accent() -> Color32 { crate::ui_style::accent() }
+fn app_panel_fill(dark: bool) -> Color32 { crate::ui_style::panel_fill(dark) }
+fn app_window_fill(dark: bool) -> Color32 { crate::ui_style::window_fill(dark) }
+fn app_surface_fill(dark: bool) -> Color32 { crate::ui_style::surface_fill(dark) }
+fn app_hover_fill(dark: bool) -> Color32 { crate::ui_style::hover_fill(dark) }
+fn app_border_color(dark: bool) -> Color32 { crate::ui_style::border_color(dark) }
+fn app_muted_text(dark: bool) -> Color32 { crate::ui_style::muted_text(dark) }
 
 fn keycode_label_with_macro_names(
     value: u16,
@@ -2167,7 +2123,7 @@ impl eframe::App for EntropyApp {
                     ui.painter().rect_filled(
                         rect,
                         0.0,
-                        Color32::from_black_alpha(if ctx.style().visuals.dark_mode { 96 } else { 48 }),
+                        Color32::from_black_alpha(crate::ui_style::modal_backdrop_alpha(ctx.style().visuals.dark_mode)),
                     );
                     if response.clicked() {
                         self.combo_window_open = false;
@@ -2562,10 +2518,7 @@ impl EntropyApp {
             .fixed_size(Vec2::new(448.0, 468.0))
             .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
             .frame(
-                egui::Frame::window(ctx.style().as_ref())
-                    .fill(app_window_fill(dark))
-                    .stroke(egui::Stroke::NONE)
-                    .inner_margin(egui::Margin::same(10))
+                crate::ui_style::modal_window_frame(ctx.style().as_ref(), dark)
             )
             .show(ctx, |ui| {
                 if self.key_override_entries.is_empty() {
@@ -2620,12 +2573,8 @@ impl EntropyApp {
                     let content_width = 360.0_f32;
                     let field_width = 180.0_f32;
                     let name_field_width = 118.0_f32;
-                    let action_button_size = Vec2::new(104.0, 32.0);
-                    let combo_outline_stroke = if ui.visuals().dark_mode {
-                        Stroke::new(1.0, Color32::from_gray(110))
-                    } else {
-                        Stroke::new(1.0, Color32::from_gray(175))
-                    };
+                    let action_button_size = crate::ui_style::modal_action_button_size();
+                    let combo_outline_stroke = crate::ui_style::modal_outline_stroke(ui.visuals().dark_mode);
 
                     ui.vertical_centered(|ui| {
                         egui::ScrollArea::vertical()
@@ -3019,7 +2968,7 @@ impl EntropyApp {
                 let content_width = 340.0_f32;
                 let compact_field_width = ((content_width - 110.0) * 0.5).round();
                 let name_field_width = ((content_width * 0.66) * 0.5).round();
-                let action_button_size = Vec2::new(104.0, 32.0);
+                let action_button_size = crate::ui_style::modal_action_button_size();
 
                 ui.vertical_centered(|ui| {
                     ui.allocate_ui_with_layout(
