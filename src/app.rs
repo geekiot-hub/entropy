@@ -1448,7 +1448,7 @@ impl EntropyApp {
             };
             painter.rect(
                 rect,
-                10.0,
+                6.0,
                 fill,
                 Stroke::new(1.0, stroke),
                 egui::StrokeKind::Inside,
