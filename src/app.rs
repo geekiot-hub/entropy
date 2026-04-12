@@ -1361,7 +1361,7 @@ impl EntropyApp {
         }
 
         let painter = ui.painter();
-        let idle_fill = if dark { Color32::from_rgb(34, 34, 38) } else { Color32::from_rgb(252, 252, 254) };
+        let idle_fill = crate::ui_style::hardware_key_idle_fill(dark);
         let tested_fill = if dark { Color32::from_rgb(42, 68, 52) } else { Color32::from_rgb(232, 245, 236) };
 
         let board_top = top_line_y + 48.0;
@@ -1444,7 +1444,7 @@ impl EntropyApp {
             } else if was_pressed {
                 Color32::from_rgb(104, 152, 120)
             } else {
-                app_border_color(dark)
+                crate::ui_style::hardware_key_border(dark)
             };
             painter.rect(
                 rect,
@@ -4127,9 +4127,9 @@ impl EntropyApp {
             let bg = if is_selected {
                 Color32::from_rgb(91, 104, 223)
             } else if is_hovered {
-                if dark { Color32::from_rgb(60, 60, 65) } else { Color32::from_rgb(232, 232, 240) }
+                crate::ui_style::hardware_key_hover_fill(dark)
             } else {
-                if dark { Color32::from_rgb(48, 48, 52) } else { Color32::from_rgb(255, 255, 255) }
+                crate::ui_style::hardware_key_idle_fill(dark)
             };
 
             let draw_rect = if key.rotation != 0.0 {
@@ -4156,7 +4156,7 @@ impl EntropyApp {
                     .find(|b| b.id == binding.behavior_id as u32)
                     .map(|b| b.display_name == "Transparent")
                     .unwrap_or(false);
-                let border = if dark { Color32::from_rgb(55, 55, 60) } else { Color32::from_rgb(210, 210, 218) };
+                let border = crate::ui_style::hardware_key_border(dark);
                 painter.rect(draw_rect, 6.0, bg, Stroke::new(1.0, border), egui::StrokeKind::Inside);
                 if is_trans && layer > 0 {
                     if is_hovering {
@@ -4186,7 +4186,7 @@ impl EntropyApp {
                 let kc = layout.get_keycode(layer, *ki);
 
                 if kc == 0x0001 {
-                    painter.rect(draw_rect, 6.0, bg, Stroke::new(1.0, if dark { Color32::from_rgb(55, 55, 60) } else { Color32::from_rgb(210, 210, 218) }), egui::StrokeKind::Inside);
+                    painter.rect(draw_rect, 6.0, bg, Stroke::new(1.0, crate::ui_style::hardware_key_border(dark)), egui::StrokeKind::Inside);
                     if !is_hovering {
                         let fallback_kc = (0..layer).rev()
                             .map(|l| layout.get_keycode(l, *ki))
@@ -4206,7 +4206,7 @@ impl EntropyApp {
                     painter.rect(draw_rect, 6.0, no_bg, Stroke::new(1.0, no_border), egui::StrokeKind::Inside);
                     painter.text(draw_rect.center(), egui::Align2::CENTER_CENTER, "\u{2715}", FontId::proportional(10.0), no_text);
                 } else {
-                    let border = if dark { Color32::from_rgb(55, 55, 60) } else { Color32::from_rgb(210, 210, 218) };
+                    let border = crate::ui_style::hardware_key_border(dark);
                     painter.rect(draw_rect, 6.0, bg, Stroke::new(1.0, border), egui::StrokeKind::Inside);
                     let label = keycode_label_with_macro_names(kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names, &self.keycode_picker.tap_dance_names);
                     draw_key_label(&painter, draw_rect, &label, dark);
