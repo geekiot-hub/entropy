@@ -52,30 +52,6 @@ pub fn muted_text(dark: bool) -> Color32 {
     }
 }
 
-pub fn hardware_key_idle_fill(dark: bool) -> Color32 {
-    if dark {
-        Color32::from_rgb(58, 58, 64)
-    } else {
-        Color32::from_rgb(255, 255, 255)
-    }
-}
-
-pub fn hardware_key_hover_fill(dark: bool) -> Color32 {
-    if dark {
-        Color32::from_rgb(72, 72, 80)
-    } else {
-        Color32::from_rgb(238, 238, 244)
-    }
-}
-
-pub fn hardware_key_border(dark: bool) -> Color32 {
-    if dark {
-        Color32::from_rgb(86, 86, 94)
-    } else {
-        Color32::from_rgb(208, 208, 216)
-    }
-}
-
 pub fn modal_outline_stroke(dark: bool) -> Stroke {
     if dark {
         Stroke::new(1.0, Color32::from_gray(110))
