@@ -1412,7 +1412,7 @@ impl EntropyApp {
         let span_y = max_y - min_y;
         let margin = 40.0_f32;
         let scale_x = (board_rect.width() - margin) / (span_x * base_unit).max(1.0);
-        let scale_y = (board_rect.height() - margin) / (span_y * base_unit).max(1.0);
+        let scale_y = (content_rect.height() - margin) / (span_y * base_unit).max(1.0);
         let scale = scale_x.min(scale_y).min(1.0);
         let unit = base_unit * scale;
         let layout_w = span_x * unit;
