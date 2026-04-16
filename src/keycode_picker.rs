@@ -2302,17 +2302,24 @@ impl KeycodePicker {
     fn show_vial_special(&mut self, ui: &mut egui::Ui) {
         let special_keys: Vec<(String, u16, String)> = vec![
             ("✕
-None".into(),      0x0000, "KC_NO — disables this key completely, it sends nothing when pressed".into()),
+None".into(),       0x0000, "KC_NO — disables this key completely, it sends nothing when pressed".into()),
             ("▽
-TRNS".into(),      0x0001, "KC_TRNS — transparent key, inherits the key from the layer below".into()),
+TRNS".into(),       0x0001, "KC_TRNS — transparent key, inherits the key from the layer below".into()),
             ("Esc
-~".into(),       0x7C16, format!("Grave/Escape — sends Esc normally, ` when Shift or {} is held", gui_mod_name())),
+~".into(),        0x7C16, format!("Grave/Escape — sends Esc normally, ` when Shift or {} is held", gui_mod_name())),
             ("⚡
-Boot".into(),     0x7C00, "QK_BOOT — put keyboard into flash mode".into()),
+Boot".into(),      0x7C00, "QK_BOOT — put keyboard into flash mode".into()),
             ("🐛
-Debug".into(),    0x7C02, "DB_TOGG — toggle debug mode".into()),
+Debug".into(),     0x7C02, "DB_TOGG — toggle debug mode".into()),
             ("🔒
-Lock".into(),     0x7800, "QK_LOCK — hold to lock remaining keys until pressed again".into()),
+Lock".into(),      0x7800, "QK_LOCK — hold to lock remaining keys until pressed again".into()),
+            ("Auto
+Shift".into(),  0x7C15, "Toggles the state of the Auto Shift feature".into()),
+            ("Combo
+Toggle".into(),0x7C52, "Toggles Combo feature on and off".into()),
+            ("Caps
+Word".into(),   0x7C73, "Capitalizes until end of current word".into()),
+            ("Repeat".into(),       0x7C79, "Repeats the last pressed key".into()),
         ];
         let extra_fn_keys: &[(&str, u16)] = &[
             ("F13", 0x0068), ("F14", 0x0069), ("F15", 0x006A), ("F16", 0x006B),
