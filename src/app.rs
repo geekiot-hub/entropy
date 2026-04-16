@@ -4867,8 +4867,8 @@ impl EntropyApp {
         };
 
         let draw_encoder_arrow = |painter: &egui::Painter, center: egui::Pos2, encoder_radius: f32, top: bool, color: Color32| {
-            let (start_deg, end_deg) = if top { (236.0_f32, 304.0_f32) } else { (124.0_f32, 56.0_f32) };
-            let r = encoder_radius * 1.18;
+            let (start_deg, end_deg) = if top { (240.0_f32, 300.0_f32) } else { (120.0_f32, 60.0_f32) };
+            let r = encoder_radius * 1.22;
             let mut points = Vec::new();
             for step in 0..=12 {
                 let t = step as f32 / 12.0;
@@ -4876,7 +4876,7 @@ impl EntropyApp {
                 let rad = deg.to_radians();
                 points.push(egui::pos2(center.x + rad.cos() * r, center.y + rad.sin() * r));
             }
-            painter.add(egui::Shape::line(points.clone(), Stroke::new(1.2, color)));
+            painter.add(egui::Shape::line(points.clone(), Stroke::new(1.35, color)));
             if points.len() >= 2 {
                 let end = points[points.len() - 1];
                 let prev = points[points.len() - 2];
@@ -4885,8 +4885,8 @@ impl EntropyApp {
                 painter.add(egui::Shape::convex_polygon(
                     vec![
                         end,
-                        egui::pos2(end.x - dir.x * 3.2 + left.x * 1.7, end.y - dir.y * 3.2 + left.y * 1.7),
-                        egui::pos2(end.x - dir.x * 3.2 - left.x * 1.7, end.y - dir.y * 3.2 - left.y * 1.7),
+                        egui::pos2(end.x - dir.x * 3.6 + left.x * 1.9, end.y - dir.y * 3.6 + left.y * 1.9),
+                        egui::pos2(end.x - dir.x * 3.6 - left.x * 1.9, end.y - dir.y * 3.6 - left.y * 1.9),
                     ],
                     color,
                     Stroke::NONE,
