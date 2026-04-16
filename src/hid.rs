@@ -412,7 +412,7 @@ impl HidDevice {
         cmd[1] = CMD_VIAL_QMK_SETTINGS_GET;
         cmd[2..4].copy_from_slice(&qsid.to_le_bytes());
         let resp = self.usb_send(&cmd)?;
-        if resp[0] < 1 {
+        if resp[0] != 0 {
             anyhow::bail!("qmk setting get error or unsupported qsid: {qsid}");
         }
         Ok(resp[1])
@@ -437,7 +437,7 @@ impl HidDevice {
         cmd[1] = CMD_VIAL_QMK_SETTINGS_GET;
         cmd[2..4].copy_from_slice(&qsid.to_le_bytes());
         let resp = self.usb_send(&cmd)?;
-        if resp[0] < 2 {
+        if resp[0] != 0 {
             anyhow::bail!("qmk setting get error or unsupported qsid: {qsid}");
         }
         Ok(u16::from_le_bytes([resp[1], resp[2]]))
