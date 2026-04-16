@@ -4310,7 +4310,7 @@ impl EntropyApp {
                 // Hint text below layer name
                 let hint_color = if self.dark_mode { Color32::from_gray(100) } else { Color32::from_gray(160) };
                 let hint_font = FontId::proportional(11.0);
-                let secondary_hint_font = FontId::proportional(10.5);
+                let secondary_hint_font = hint_font.clone();
                 let hint_y = bar_y + layer_bar_h + 18.0;
                 let any_hovered = self.prev_hovered_key.is_some();
                 if let Some(hl) = self.hover_layer {
