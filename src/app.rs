@@ -470,6 +470,7 @@ pub struct EntropyApp {
     selected_device: Option<usize>,
     selected_layer: usize,
     selected_key: Option<(usize, usize)>,
+    selected_encoder: Option<(usize, usize)>,
     layout: Option<KeyboardLayout>,
     layer_count: usize,
     keycode_picker: KeycodePicker,
@@ -581,6 +582,7 @@ impl EntropyApp {
             selected_device: None,
             selected_layer: 0,
             selected_key: None,
+            selected_encoder: None,
             layout: None,
             layer_count: 4,
             keycode_picker: KeycodePicker::default(),
@@ -661,6 +663,7 @@ impl EntropyApp {
         self.status_msg = format!("Connecting to {}…", dev.name);
         self.layout = None;
         self.selected_key = None;
+        self.selected_encoder = None;
         self.selected_layer = 0;
         self.hid_device = None;
         self.zmk_conn = None;
@@ -1652,6 +1655,17 @@ impl EntropyApp {
                     self.key_override_window_open = true;
                     self.key_override_reopen_after_pick = false;
                 }
+            } else if let Some((layer, encoder_visual_idx)) = self.selected_encoder {
+                #[cfg(not(target_arch = "wasm32"))]
+                self.assign_encoder_keycode(layer, encoder_visual_idx, kc_value);
+                #[cfg(target_arch = "wasm32")]
+                if let Some(layout) = &mut self.layout {
+                    if let Some(layer_codes) = layout.encoder_layers.get_mut(layer) {
+                        if let Some(slot) = layer_codes.get_mut(encoder_visual_idx) {
+                            *slot = kc_value;
+                        }
+                    }
+                }
             } else if let Some((layer, ki)) = self.selected_key {
                 #[cfg(not(target_arch = "wasm32"))]
                 self.assign_keycode(layer, ki, kc_value);
@@ -1661,6 +1675,7 @@ impl EntropyApp {
                 }
             }
             self.selected_key = None;
+            self.selected_encoder = None;
         }
 
         #[cfg(not(target_arch = "wasm32"))]
@@ -1669,6 +1684,44 @@ impl EntropyApp {
                 self.assign_zmk_binding(layer, ki, binding);
             }
             self.selected_key = None;
+            self.selected_encoder = None;
+        }
+    }
+
+    fn assign_encoder_keycode(&mut self, layer: usize, encoder_visual_idx: usize, kc_value: u16) {
+        let encoder = match self.layout.as_ref().and_then(|l| l.encoders.get(encoder_visual_idx)) {
+            Some(e) => e.clone(),
+            None => return,
+        };
+
+        if let Some(layout) = &mut self.layout {
+            if let Some(layer_codes) = layout.encoder_layers.get_mut(layer) {
+                if let Some(slot) = layer_codes.get_mut(encoder_visual_idx) {
+                    *slot = kc_value;
+                }
+            }
+        }
+
+        let result = if let Some(conn) = &self.hid_device {
+            conn.set_encoder(layer as u8, encoder.encoder_idx, encoder.direction, kc_value)
+        } else if let Some(dev) = self.selected_device
+            .and_then(|i| self.device_manager.devices().get(i))
+        {
+            match crate::hid::HidDevice::open(&dev.path) {
+                Ok(conn) => conn.set_encoder(layer as u8, encoder.encoder_idx, encoder.direction, kc_value),
+                Err(e) => Err(anyhow::anyhow!("{e}")),
+            }
+        } else {
+            return;
+        };
+
+        match result {
+            Ok(()) => {
+                self.status_msg = format!("Assigned encoder {} direction {} on layer {}", encoder.encoder_idx, encoder.direction, layer + 1);
+            }
+            Err(e) => {
+                self.status_msg = format!("Set encoder failed: {e}");
+            }
         }
     }
 
@@ -1977,11 +2030,12 @@ impl eframe::App for EntropyApp {
 
         // Deselect key when picker is closed without choosing
         if !self.keycode_picker.open
-            && self.selected_key.is_some()
+            && (self.selected_key.is_some() || self.selected_encoder.is_some())
             && self.keycode_picker.result.is_none()
             && self.keycode_picker.zmk_result.is_none()
         {
             self.selected_key = None;
+            self.selected_encoder = None;
         }
 
         if !self.keycode_picker.open || self.keycode_picker.selected_tab != KeycodeTab::Macro {
@@ -4740,23 +4794,23 @@ impl EntropyApp {
 
         }
 
-        let mut encoder_groups: Vec<(u8, egui::Rect, Option<u16>, Option<u16>)> = Vec::new();
+        let mut encoder_groups: Vec<(u8, egui::Rect, Option<(usize, u16)>, Option<(usize, u16)>)> = Vec::new();
         for (ei, rect) in &encoder_rects {
             let encoder = &layout.encoders[*ei];
             let kc = layout.get_encoder_keycode(layer, *ei);
             if let Some((_, group_rect, ccw, cw)) = encoder_groups.iter_mut().find(|(idx, _, _, _)| *idx == encoder.encoder_idx) {
                 *group_rect = group_rect.union(*rect);
                 if encoder.direction == 0 {
-                    *ccw = Some(kc);
+                    *ccw = Some((*ei, kc));
                 } else {
-                    *cw = Some(kc);
+                    *cw = Some((*ei, kc));
                 }
             } else {
                 encoder_groups.push((
                     encoder.encoder_idx,
                     *rect,
-                    if encoder.direction == 0 { Some(kc) } else { None },
-                    if encoder.direction == 0 { None } else { Some(kc) },
+                    if encoder.direction == 0 { Some((*ei, kc)) } else { None },
+                    if encoder.direction == 0 { None } else { Some((*ei, kc)) },
                 ));
             }
         }
@@ -4776,6 +4830,31 @@ impl EntropyApp {
         };
 
         for (_encoder_idx, rect, ccw, cw) in &encoder_groups {
+            let top_rect = egui::Rect::from_min_max(rect.min, egui::pos2(rect.max.x, rect.center().y));
+            let bottom_rect = egui::Rect::from_min_max(egui::pos2(rect.min.x, rect.center().y), rect.max);
+            let top_resp = ui.allocate_rect(top_rect, Sense::click());
+            let bottom_resp = ui.allocate_rect(bottom_rect, Sense::click());
+            if top_resp.hovered() || bottom_resp.hovered() {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+            }
+            if top_resp.clicked() {
+                if let Some((visual_idx, _)) = cw {
+                    self.selected_key = None;
+                    self.selected_encoder = Some((layer, *visual_idx));
+                    self.keycode_picker.open = true;
+                    self.keycode_picker.result = None;
+                }
+            }
+            if bottom_resp.clicked() {
+                if let Some((visual_idx, _)) = ccw {
+                    self.selected_key = None;
+                    self.selected_encoder = Some((layer, *visual_idx));
+                    self.keycode_picker.open = true;
+                    self.keycode_picker.result = None;
+                }
+            }
+
+            let painter = ui.painter();
             let border = if dark { Color32::from_rgb(55, 55, 60) } else { Color32::from_rgb(210, 210, 218) };
             let fill = if dark { Color32::from_rgb(36, 36, 42) } else { Color32::from_rgb(244, 244, 248) };
             let center = rect.center();
@@ -4790,8 +4869,8 @@ impl EntropyApp {
                 Stroke::new(1.0, border),
             );
 
-            let top_label = encoder_label(cw.unwrap_or(0x0000));
-            let bottom_label = encoder_label(ccw.unwrap_or(0x0000));
+            let top_label = encoder_label(cw.map(|(_, kc)| kc).unwrap_or(0x0000));
+            let bottom_label = encoder_label(ccw.map(|(_, kc)| kc).unwrap_or(0x0000));
             let top_font = egui::FontId::proportional(if top_label.chars().count() > 9 { 8.5 } else { 9.5 });
             let bottom_font = egui::FontId::proportional(if bottom_label.chars().count() > 9 { 8.5 } else { 9.5 });
             let text_color = if dark { Color32::from_rgb(218, 218, 228) } else { Color32::from_rgb(72, 72, 84) };

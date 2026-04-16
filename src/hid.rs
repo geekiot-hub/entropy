@@ -419,6 +419,12 @@ impl HidDevice {
         ))
     }
 
+    pub fn set_encoder(&self, layer: u8, idx: u8, direction: u8, keycode: u16) -> Result<()> {
+        let bytes = keycode.to_be_bytes();
+        let _ = self.usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_SET_ENCODER, layer, idx, direction, bytes[0], bytes[1]])?;
+        Ok(())
+    }
+
     pub fn get_qmk_setting_u8(&self, qsid: u16) -> Result<u8> {
         let mut cmd = [0u8; 32];
         cmd[0] = CMD_VIA_VIAL_PREFIX;
