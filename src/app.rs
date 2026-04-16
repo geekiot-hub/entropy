@@ -4347,8 +4347,12 @@ impl EntropyApp {
                         "Right-click or Esc to go back", hint_font, hint_color);
                 } else if any_hovered {
                     // Check if hovered key is a mod key
-                    let (hovered_is_mod, hovered_can_swap_side, hovered_is_macro, hovered_is_tap_dance) = if self.firmware == FirmwareProtocol::Vial {
-                        self.prev_hovered_key.and_then(|ki| {
+                    let (hovered_is_mod, hovered_can_swap_side, hovered_is_macro, hovered_is_tap_dance, hovered_is_mouse) = if self.firmware == FirmwareProtocol::Vial {
+                        let hint_key_idx = self.prev_hovered_key.or_else(|| {
+                            self.selected_key
+                                .and_then(|(selected_layer, selected_ki)| (selected_layer == self.selected_layer).then_some(selected_ki))
+                        });
+                        hint_key_idx.and_then(|ki| {
                             self.layout.as_ref().map(|l| {
                                 let kc = l.get_keycode(self.selected_layer, ki);
                                 let is_plain_mod = (0x00E0..=0x00E7).contains(&kc) || matches!(kc, 0x52A1 | 0x52A2 | 0x52A4 | 0x52A7 | 0x52A8 | 0x52AF | 0x52B1 | 0x52B2 | 0x52B4 | 0x52B8);
@@ -4356,10 +4360,11 @@ impl EntropyApp {
                                 let can_swap_side = toggle_handed_modifier(kc).is_some();
                                 let is_macro = kc >= 0x7700 && kc <= 0x77FF;
                                 let is_tap_dance = kc >= 0x5700 && kc <= 0x57FF;
-                                (is_mod, can_swap_side, is_macro, is_tap_dance)
+                                let is_mouse = is_mouse_keycode(kc);
+                                (is_mod, can_swap_side, is_macro, is_tap_dance, is_mouse)
                             })
-                        }).unwrap_or((false, false, false, false))
-                    } else { (false, false, false, false) };
+                        }).unwrap_or((false, false, false, false, false))
+                    } else { (false, false, false, false, false) };
                     if hovered_is_mod {
                         if hovered_can_swap_side {
                             ui.painter().text(egui::pos2(center_x, hint_y - 22.0), egui::Align2::CENTER_CENTER,
@@ -4384,6 +4389,11 @@ impl EntropyApp {
                             "Left click to change this key", hint_font.clone(), hint_color);
                         ui.painter().text(egui::pos2(center_x, hint_y + 4.0), egui::Align2::CENTER_CENTER,
                             "Right click to edit tap dance", secondary_hint_font, hint_color);
+                    } else if hovered_is_mouse {
+                        ui.painter().text(egui::pos2(center_x, hint_y - 14.0), egui::Align2::CENTER_CENTER,
+                            "Left click to change this key", hint_font.clone(), hint_color);
+                        ui.painter().text(egui::pos2(center_x, hint_y + 4.0), egui::Align2::CENTER_CENTER,
+                            "Right click to open Mouse Keys settings", secondary_hint_font, hint_color);
                     } else {
                         ui.painter().text(egui::pos2(center_x, hint_y), egui::Align2::CENTER_CENTER,
                             "Left click to change this key", hint_font, hint_color);
@@ -4569,16 +4579,13 @@ impl EntropyApp {
                 *response = response.clone().on_hover_text(tip);
             } else {
                 let kc = layout.get_keycode(self.selected_layer, *ki);
-                let mut tip = keycode_tooltip_with_macro_names(
+                let tip = keycode_tooltip_with_macro_names(
                     kc,
                     &layout.custom_keycodes,
                     &self.layer_names,
                     &self.keycode_picker.macro_names,
                     &self.keycode_picker.tap_dance_names,
                 );
-                if is_mouse_keycode(kc) {
-                    tip.push_str("\n\nRight-click to open Mouse Keys settings.");
-                }
                 *response = response.clone().on_hover_text(tip);
             }
         }
@@ -4697,26 +4704,6 @@ impl EntropyApp {
         }
 
         self.prev_hovered_key = hovered_key;
-
-        if !is_zmk {
-            let hint_key_idx = hovered_key.or_else(|| {
-                self.selected_key
-                    .and_then(|(selected_layer, selected_ki)| (selected_layer == layer).then_some(selected_ki))
-            });
-            if let Some(ki) = hint_key_idx {
-                let kc = layout.get_keycode(layer, ki);
-                if is_mouse_keycode(kc) {
-                    ui.add_space(10.0);
-                    ui.horizontal_centered(|ui| {
-                        ui.label(
-                            RichText::new("Tip: right-click this key to open Mouse Keys settings.")
-                                .size(11.5)
-                                .color(app_muted_text(dark)),
-                        );
-                    });
-                }
-            }
-        }
 
         if layout_h > avail.y {
             ui.allocate_space(Vec2::new(0.0, (layout_h - avail.y).max(0.0)));
