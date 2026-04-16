@@ -4234,13 +4234,13 @@ impl EntropyApp {
 fn draw_key_label_dimmed(painter: &egui::Painter, rect: egui::Rect, label: &str, dark: bool) {
     let dim = if dark { Color32::from_rgb(60, 60, 65) } else { Color32::from_rgb(200, 200, 208) };
     let dim_top = if dark { Color32::from_rgb(45, 45, 50) } else { Color32::from_rgb(215, 215, 220) };
-    let (top, bottom) = if let Some(pos) = label.find('/') {
-        (Some(&label[..pos]), &label[pos+1..])
-    } else if label.contains('\n') {
+    let (top, bottom) = if label.contains('\n') {
         let mut parts = label.splitn(2, '\n');
         let t = parts.next().unwrap_or("");
         let b = parts.next().unwrap_or(label);
         (Some(t), b)
+    } else if let Some(pos) = label.find('/') {
+        (Some(&label[..pos]), &label[pos+1..])
     } else {
         (None, label)
     };
@@ -4267,13 +4267,13 @@ fn with_alpha(color: Color32, alpha: f32) -> Color32 {
 }
 
 fn draw_key_label_alpha(painter: &egui::Painter, rect: egui::Rect, label: &str, dark: bool, alpha: f32) {
-    let (top, bottom) = if let Some(pos) = label.find('/') {
-        (Some(&label[..pos]), &label[pos+1..])
-    } else if label.contains('\n') {
+    let (top, bottom) = if label.contains('\n') {
         let mut parts = label.splitn(2, '\n');
         let t = parts.next().unwrap_or("");
         let b = parts.next().unwrap_or(label);
         (Some(t), b)
+    } else if let Some(pos) = label.find('/') {
+        (Some(&label[..pos]), &label[pos+1..])
     } else {
         (None, label)
     };
@@ -4293,13 +4293,13 @@ fn draw_key_label_alpha(painter: &egui::Painter, rect: egui::Rect, label: &str, 
 fn draw_key_label_dimmed_alpha(painter: &egui::Painter, rect: egui::Rect, label: &str, dark: bool, alpha: f32) {
     let dim = with_alpha(if dark { Color32::from_rgb(80, 80, 90) } else { Color32::from_rgb(180, 180, 195) }, alpha);
     let dim_top = with_alpha(if dark { Color32::from_rgb(60, 60, 70) } else { Color32::from_rgb(190, 190, 205) }, alpha);
-    let (top, bottom) = if let Some(pos) = label.find('/') {
-        (Some(&label[..pos]), &label[pos+1..])
-    } else if label.contains('\n') {
+    let (top, bottom) = if label.contains('\n') {
         let mut parts = label.splitn(2, '\n');
         let t = parts.next().unwrap_or("");
         let b = parts.next().unwrap_or(label);
         (Some(t), b)
+    } else if let Some(pos) = label.find('/') {
+        (Some(&label[..pos]), &label[pos+1..])
     } else {
         (None, label)
     };
@@ -4315,15 +4315,15 @@ fn draw_key_label_dimmed_alpha(painter: &egui::Painter, rect: egui::Rect, label:
 }
 
 fn draw_key_label(painter: &egui::Painter, rect: egui::Rect, label: &str, dark: bool) {
-    // Split on "/" or "\n" — show top part small+dim, bottom part normal
-    let (top, bottom) = if let Some(pos) = label.find('/') {
-        let t = &label[..pos];
-        let b = &label[pos+1..];
-        (Some(t), b)
-    } else if label.contains('\n') {
+    // Split on "\n" first, then on "/" — show top part small+dim, bottom part normal
+    let (top, bottom) = if label.contains('\n') {
         let mut parts = label.splitn(2, '\n');
         let t = parts.next().unwrap_or("");
         let b = parts.next().unwrap_or(label);
+        (Some(t), b)
+    } else if let Some(pos) = label.find('/') {
+        let t = &label[..pos];
+        let b = &label[pos+1..];
         (Some(t), b)
     } else {
         (None, label)
