@@ -394,17 +394,17 @@ pub const KEYCODES: &[Keycode] = &[
     Keycode { value: 0x7C73, name: "QK_CAPS_WORD_TOGGLE", label: "Caps\nWord",   category: KeycodeCategory::Special },
     Keycode { value: 0x7C79, name: "QK_REPEAT_KEY",       label: "Repeat",       category: KeycodeCategory::Special },
     // RGB Light
-    Keycode { value: 0x7A00, name: "RGB_TOG",  label: "RGB\nTog",  category: KeycodeCategory::Special },
-    Keycode { value: 0x7A01, name: "RGB_MOD",  label: "RGB\nMod",  category: KeycodeCategory::Special },
-    Keycode { value: 0x7A02, name: "RGB_RMOD", label: "RGB\nRMod", category: KeycodeCategory::Special },
-    Keycode { value: 0x7A03, name: "RGB_HUI",  label: "RGB\nH+",   category: KeycodeCategory::Special },
-    Keycode { value: 0x7A04, name: "RGB_HUD",  label: "RGB\nH-",   category: KeycodeCategory::Special },
-    Keycode { value: 0x7A05, name: "RGB_SAI",  label: "RGB\nS+",   category: KeycodeCategory::Special },
-    Keycode { value: 0x7A06, name: "RGB_SAD",  label: "RGB\nS-",   category: KeycodeCategory::Special },
-    Keycode { value: 0x7A07, name: "RGB_VAI",  label: "RGB\nV+",   category: KeycodeCategory::Special },
-    Keycode { value: 0x7A08, name: "RGB_VAD",  label: "RGB\nV-",   category: KeycodeCategory::Special },
-    Keycode { value: 0x7A09, name: "RGB_SPI",  label: "RGB\nSpd+", category: KeycodeCategory::Special },
-    Keycode { value: 0x7A0A, name: "RGB_SPD",  label: "RGB\nSpd-", category: KeycodeCategory::Special },
+    Keycode { value: 0x7820, name: "RGB_TOG",  label: "RGB\nTog",  category: KeycodeCategory::Special },
+    Keycode { value: 0x7821, name: "RGB_MOD",  label: "RGB\nMod",  category: KeycodeCategory::Special },
+    Keycode { value: 0x7822, name: "RGB_RMOD", label: "RGB\nRMod", category: KeycodeCategory::Special },
+    Keycode { value: 0x7825, name: "RGB_HUI",  label: "RGB\nH+",   category: KeycodeCategory::Special },
+    Keycode { value: 0x7826, name: "RGB_HUD",  label: "RGB\nH-",   category: KeycodeCategory::Special },
+    Keycode { value: 0x7827, name: "RGB_SAI",  label: "RGB\nS+",   category: KeycodeCategory::Special },
+    Keycode { value: 0x7828, name: "RGB_SAD",  label: "RGB\nS-",   category: KeycodeCategory::Special },
+    Keycode { value: 0x7829, name: "RGB_VAI",  label: "RGB\nV+",   category: KeycodeCategory::Special },
+    Keycode { value: 0x782A, name: "RGB_VAD",  label: "RGB\nV-",   category: KeycodeCategory::Special },
+    Keycode { value: 0x7823, name: "RGB_SPI",  label: "RGB\nSpd+", category: KeycodeCategory::Special },
+    Keycode { value: 0x7824, name: "RGB_SPD",  label: "RGB\nSpd-", category: KeycodeCategory::Special },
 ];
 
 pub fn find_keycode(value: u16) -> Option<&'static Keycode> {
