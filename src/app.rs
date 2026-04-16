@@ -4866,17 +4866,17 @@ impl EntropyApp {
             }
         };
 
-        let draw_encoder_arrow = |painter: &egui::Painter, center: egui::Pos2, radius: f32, top: bool, color: Color32| {
-            let (start_deg, end_deg) = if top { (200.0_f32, 340.0_f32) } else { (20.0_f32, 160.0_f32) };
-            let r = radius * 0.72;
+        let draw_encoder_arrow = |painter: &egui::Painter, center: egui::Pos2, encoder_radius: f32, top: bool, color: Color32| {
+            let (start_deg, end_deg) = if top { (208.0_f32, 332.0_f32) } else { (152.0_f32, 28.0_f32) };
+            let r = encoder_radius * 1.12;
             let mut points = Vec::new();
-            for step in 0..=18 {
-                let t = step as f32 / 18.0;
+            for step in 0..=20 {
+                let t = step as f32 / 20.0;
                 let deg = start_deg + (end_deg - start_deg) * t;
                 let rad = deg.to_radians();
                 points.push(egui::pos2(center.x + rad.cos() * r, center.y + rad.sin() * r));
             }
-            painter.add(egui::Shape::line(points.clone(), Stroke::new(1.6, color)));
+            painter.add(egui::Shape::line(points.clone(), Stroke::new(1.8, color)));
             if points.len() >= 2 {
                 let end = points[points.len() - 1];
                 let prev = points[points.len() - 2];
@@ -4885,8 +4885,8 @@ impl EntropyApp {
                 painter.add(egui::Shape::convex_polygon(
                     vec![
                         end,
-                        egui::pos2(end.x - dir.x * 6.0 + left.x * 3.0, end.y - dir.y * 6.0 + left.y * 3.0),
-                        egui::pos2(end.x - dir.x * 6.0 - left.x * 3.0, end.y - dir.y * 6.0 - left.y * 3.0),
+                        egui::pos2(end.x - dir.x * 5.0 + left.x * 2.8, end.y - dir.y * 5.0 + left.y * 2.8),
+                        egui::pos2(end.x - dir.x * 5.0 - left.x * 2.8, end.y - dir.y * 5.0 - left.y * 2.8),
                     ],
                     color,
                     Stroke::NONE,
@@ -4994,8 +4994,8 @@ impl EntropyApp {
 
             let arrow_color_top = if top_resp.hovered() || top_selected { top_text_color } else { app_muted_text(dark) };
             let arrow_color_bottom = if bottom_resp.hovered() || bottom_selected { bottom_text_color } else { app_muted_text(dark) };
-            draw_encoder_arrow(painter, egui::pos2(center.x, center.y - radius * 1.10), radius * 0.30, true, arrow_color_top);
-            draw_encoder_arrow(painter, egui::pos2(center.x, center.y + radius * 1.10), radius * 0.30, false, arrow_color_bottom);
+            draw_encoder_arrow(painter, center, radius, true, arrow_color_top);
+            draw_encoder_arrow(painter, center, radius, false, arrow_color_bottom);
         }
 
         self.prev_hovered_key = hovered_key;
