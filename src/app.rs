@@ -4569,9 +4569,16 @@ impl EntropyApp {
                 *response = response.clone().on_hover_text(tip);
             } else {
                 let kc = layout.get_keycode(self.selected_layer, *ki);
-                let is_mod_key = (kc >= 0x2000 && kc < 0x4000) || (kc >= 0x0100 && kc < 0x2000 && (kc & 0xFF) != 0);
-                let is_macro_key = kc >= 0x7700 && kc <= 0x77FF;
-                let tip = keycode_tooltip_with_macro_names(kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names, &self.keycode_picker.tap_dance_names);
+                let mut tip = keycode_tooltip_with_macro_names(
+                    kc,
+                    &layout.custom_keycodes,
+                    &self.layer_names,
+                    &self.keycode_picker.macro_names,
+                    &self.keycode_picker.tap_dance_names,
+                );
+                if is_mouse_keycode(kc) {
+                    tip.push_str("\n\nRight-click to open Mouse Keys settings.");
+                }
                 *response = response.clone().on_hover_text(tip);
             }
         }
