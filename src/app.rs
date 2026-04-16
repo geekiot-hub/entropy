@@ -2618,10 +2618,16 @@ impl EntropyApp {
 
                 if self.auto_shift_timeout.is_none() {
                     ui.vertical_centered(|ui| {
-                        ui.add_space(72.0);
+                        ui.add_space(64.0);
                         ui.label(
-                            RichText::new("Auto Shift is not available on this keyboard.")
+                            RichText::new("Auto Shift is not enabled in this firmware.")
                                 .size(13.0)
+                                .color(app_muted_text(dark)),
+                        );
+                        ui.add_space(6.0);
+                        ui.label(
+                            RichText::new("Enable AUTO_SHIFT_ENABLE in the keyboard rules.mk to use this window.")
+                                .size(11.5)
                                 .color(app_muted_text(dark)),
                         );
                     });
@@ -3732,17 +3738,21 @@ impl EntropyApp {
                         self.combo_window_open = true;
                     }
 
+                    let auto_shift_supported = self.auto_shift_timeout.is_some();
                     let auto_shift_rect = egui::Rect::from_min_max(
                         dropdown_rect.min + Vec2::new(6.0, 38.0),
                         egui::pos2(dropdown_rect.max.x - 6.0, dropdown_rect.min.y + 68.0),
                     );
-                    let auto_shift_resp = ui.allocate_rect(auto_shift_rect, Sense::CLICK);
-                    if auto_shift_resp.hovered() {
+                    let mut auto_shift_resp = ui.allocate_rect(auto_shift_rect, Sense::CLICK);
+                    if auto_shift_supported && auto_shift_resp.hovered() {
                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                     }
-                    if auto_shift_resp.clicked() {
+                    if auto_shift_supported && auto_shift_resp.clicked() {
                         self.main_menu_tab = MainMenuTab::Keyboard;
                         self.auto_shift_window_open = true;
+                    }
+                    if !auto_shift_supported {
+                        auto_shift_resp = auto_shift_resp.on_hover_text("Auto Shift is not enabled in this firmware.");
                     }
 
                     let key_override_rect = egui::Rect::from_min_max(
@@ -3786,7 +3796,7 @@ impl EntropyApp {
                     ui.painter().rect(
                         auto_shift_rect,
                         6.0,
-                        item_fill(auto_shift_resp.hovered(), ui.visuals().dark_mode),
+                        item_fill(auto_shift_supported && auto_shift_resp.hovered(), ui.visuals().dark_mode),
                         egui::Stroke::NONE,
                         egui::StrokeKind::Inside,
                     );
@@ -3795,7 +3805,11 @@ impl EntropyApp {
                         egui::Align2::CENTER_CENTER,
                         "Auto Shift",
                         FontId::proportional(14.0),
-                        ui.visuals().widgets.inactive.fg_stroke.color,
+                        if auto_shift_supported {
+                            ui.visuals().widgets.inactive.fg_stroke.color
+                        } else {
+                            app_muted_text(ui.visuals().dark_mode)
+                        },
                     );
                     ui.painter().rect(
                         key_override_rect,
