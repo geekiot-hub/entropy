@@ -406,6 +406,31 @@ impl HidDevice {
         Ok(())
     }
 
+    pub fn get_qmk_setting_u8(&self, qsid: u16) -> Result<u8> {
+        let mut cmd = [0u8; 32];
+        cmd[0] = CMD_VIA_VIAL_PREFIX;
+        cmd[1] = CMD_VIAL_QMK_SETTINGS_GET;
+        cmd[2..4].copy_from_slice(&qsid.to_le_bytes());
+        let resp = self.usb_send(&cmd)?;
+        if resp[0] < 1 {
+            anyhow::bail!("qmk setting get error or unsupported qsid: {qsid}");
+        }
+        Ok(resp[1])
+    }
+
+    pub fn set_qmk_setting_u8(&self, qsid: u16, value: u8) -> Result<()> {
+        let mut cmd = [0u8; 32];
+        cmd[0] = CMD_VIA_VIAL_PREFIX;
+        cmd[1] = CMD_VIAL_QMK_SETTINGS_SET;
+        cmd[2..4].copy_from_slice(&qsid.to_le_bytes());
+        cmd[4] = value;
+        let resp = self.usb_send(&cmd)?;
+        if resp[0] != 0 {
+            anyhow::bail!("qmk setting set error or unsupported qsid: {qsid}");
+        }
+        Ok(())
+    }
+
     pub fn get_qmk_setting_u16(&self, qsid: u16) -> Result<u16> {
         let mut cmd = [0u8; 32];
         cmd[0] = CMD_VIA_VIAL_PREFIX;

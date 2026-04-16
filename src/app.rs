@@ -258,6 +258,10 @@ struct ConnectResult {
     combo_entries: Vec<ComboEntry>,
     /// Global combo timeout/term from QMK settings, if supported
     combo_term: Option<u16>,
+    /// Auto Shift flags from QMK settings, if supported
+    auto_shift_options: AutoShiftOptionsState,
+    /// Auto Shift timeout from QMK settings, if supported
+    auto_shift_timeout: Option<u16>,
     /// Key Override entries
     key_override_entries: Vec<KeyOverrideEntry>,
 }
@@ -370,6 +374,41 @@ struct KeyOverrideEntry {
     options: KeyOverrideOptionsState,
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+struct AutoShiftOptionsState {
+    enabled: bool,
+    enable_for_modifiers: bool,
+    no_special: bool,
+    no_numeric: bool,
+    no_alpha: bool,
+    enable_keyrepeat: bool,
+    disable_keyrepeat_timeout: bool,
+}
+
+impl AutoShiftOptionsState {
+    fn from_bits(bits: u8) -> Self {
+        Self {
+            enabled: bits & (1 << 0) != 0,
+            enable_for_modifiers: bits & (1 << 1) != 0,
+            no_special: bits & (1 << 2) != 0,
+            no_numeric: bits & (1 << 3) != 0,
+            no_alpha: bits & (1 << 4) != 0,
+            enable_keyrepeat: bits & (1 << 5) != 0,
+            disable_keyrepeat_timeout: bits & (1 << 6) != 0,
+        }
+    }
+
+    fn bits(self) -> u8 {
+        (self.enabled as u8)
+            | ((self.enable_for_modifiers as u8) << 1)
+            | ((self.no_special as u8) << 2)
+            | ((self.no_numeric as u8) << 3)
+            | ((self.no_alpha as u8) << 4)
+            | ((self.enable_keyrepeat as u8) << 5)
+            | ((self.disable_keyrepeat_timeout as u8) << 6)
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum KeyOverridePickField {
     Trigger,
@@ -439,6 +478,8 @@ pub struct EntropyApp {
     combo_dirty: bool,
     combo_names_dirty: bool,
     combo_term: Option<u16>,
+    auto_shift_options: AutoShiftOptionsState,
+    auto_shift_timeout: Option<u16>,
     combo_term_dirty: bool,
     combo_window_open: bool,
     combo_reopen_after_pick: bool,
@@ -447,6 +488,7 @@ pub struct EntropyApp {
     combo_capture_keys: Vec<u16>,
     combo_undo_stack: Vec<(Vec<ComboEntry>, Vec<String>, Option<u16>, usize, usize)>,
     combo_pick_target: Option<(usize, ComboPickField)>,
+    auto_shift_window_open: bool,
     key_override_entries: Vec<KeyOverrideEntry>,
     key_override_names: Vec<String>,
     key_override_window_open: bool,
@@ -517,6 +559,8 @@ impl EntropyApp {
             combo_dirty: false,
             combo_names_dirty: false,
             combo_term: None,
+            auto_shift_options: AutoShiftOptionsState::default(),
+            auto_shift_timeout: None,
             combo_term_dirty: false,
             combo_window_open: false,
             combo_reopen_after_pick: false,
@@ -525,6 +569,7 @@ impl EntropyApp {
             combo_capture_keys: Vec::new(),
             combo_undo_stack: Vec::new(),
             combo_pick_target: None,
+            auto_shift_window_open: false,
             key_override_entries: Vec::new(),
             key_override_names: vec![],
             key_override_window_open: false,
@@ -596,6 +641,9 @@ impl EntropyApp {
         self.combo_dirty = false;
         self.combo_names_dirty = false;
         self.combo_term_dirty = false;
+        self.auto_shift_options = AutoShiftOptionsState::default();
+        self.auto_shift_timeout = None;
+        self.auto_shift_window_open = false;
         self.key_override_entries.clear();
         self.key_override_names.clear();
         self.key_override_window_open = false;
@@ -729,6 +777,20 @@ impl EntropyApp {
                                 None
                             }
                         };
+                        let auto_shift_options = match dev_conn.get_qmk_setting_u8(3) {
+                            Ok(value) => Some(AutoShiftOptionsState::from_bits(value)),
+                            Err(e) => {
+                                log::warn!("get_qmk_setting_u8(auto_shift_flags): {e}");
+                                None
+                            }
+                        };
+                        let auto_shift_timeout = match dev_conn.get_qmk_setting_u16(4) {
+                            Ok(value) => Some(value),
+                            Err(e) => {
+                                log::warn!("get_qmk_setting_u16(auto_shift_timeout): {e}");
+                                None
+                            }
+                        };
 
                         // Read tap dance entries
                         let tap_dance_entries = match dev_conn.get_tap_dance_count() {
@@ -781,6 +843,8 @@ impl EntropyApp {
                             tap_dance_entries,
                             combo_entries,
                             combo_term,
+                            auto_shift_options: auto_shift_options.unwrap_or_default(),
+                            auto_shift_timeout,
                             key_override_entries,
                             layout,
                             layer_count,
@@ -824,6 +888,8 @@ impl EntropyApp {
                                 tap_dance_entries: vec![],
                                 combo_entries: vec![],
                                 combo_term: None,
+                                auto_shift_options: AutoShiftOptionsState::default(),
+                                auto_shift_timeout: None,
                                 key_override_entries: vec![],
                                 layout,
                                 layer_count: 0,
@@ -870,10 +936,12 @@ impl EntropyApp {
                         Ok(ConnectResult {
                             device_name: dev.name.clone(),
                             macro_texts: vec![],
-                                tap_dance_entries: vec![],
-                                combo_entries: vec![],
-                                combo_term: None,
-                                key_override_entries: vec![],
+                            tap_dance_entries: vec![],
+                            combo_entries: vec![],
+                            combo_term: None,
+                            auto_shift_options: AutoShiftOptionsState::default(),
+                            auto_shift_timeout: None,
+                            key_override_entries: vec![],
                             layout,
                             layer_count,
                             zmk_conn: Some(conn),
@@ -929,6 +997,8 @@ impl EntropyApp {
                 self.combo_names = load_combo_names(&self.current_device_name);
                 self.combo_names.resize(self.combo_entries.len(), String::new());
                 self.combo_term = r.combo_term.or(Some(50));
+                self.auto_shift_options = r.auto_shift_options;
+                self.auto_shift_timeout = r.auto_shift_timeout;
                 let highest_used_combo = self
                     .combo_entries
                     .iter()
@@ -2110,6 +2180,7 @@ impl eframe::App for EntropyApp {
         }
 
         let any_floating_window_open = self.combo_window_open
+            || self.auto_shift_window_open
             || self.key_override_window_open
             || self.keycode_picker.open;
         if any_floating_window_open {
@@ -2127,6 +2198,7 @@ impl eframe::App for EntropyApp {
                     );
                     if response.clicked() {
                         self.combo_window_open = false;
+                        self.auto_shift_window_open = false;
                         self.key_override_window_open = false;
                         self.keycode_picker.open = false;
                     }
@@ -2135,6 +2207,9 @@ impl eframe::App for EntropyApp {
 
         if self.combo_window_open {
             self.show_combo_window(ctx);
+        }
+        if self.auto_shift_window_open {
+            self.show_auto_shift_window(ctx);
         }
         if self.key_override_window_open {
             self.show_key_override_window(ctx);
@@ -2429,6 +2504,23 @@ impl EntropyApp {
         self.keycode_picker.open = true;
     }
 
+    fn write_auto_shift_flags(&mut self) {
+        let Some(hid) = &self.hid_device else { return; };
+        if let Err(e) = hid.set_qmk_setting_u8(3, self.auto_shift_options.bits()) {
+            self.status_msg = format!("Failed to save Auto Shift flags: {}", e);
+            log::warn!("set_qmk_setting_u8(auto_shift_flags) failed: {e}");
+        }
+    }
+
+    fn write_auto_shift_timeout(&mut self) {
+        let Some(hid) = &self.hid_device else { return; };
+        let Some(timeout) = self.auto_shift_timeout else { return; };
+        if let Err(e) = hid.set_qmk_setting_u16(4, timeout) {
+            self.status_msg = format!("Failed to save Auto Shift timeout: {}", e);
+            log::warn!("set_qmk_setting_u16(auto_shift_timeout) failed: {e}");
+        }
+    }
+
     fn draw_key_override_layers(ui: &mut egui::Ui, layers: &mut u16) -> bool {
         let mut changed = false;
         egui::Grid::new(ui.id().with("ko_layers_grid")).num_columns(6).spacing([10.0, 6.0]).show(ui, |ui| {
@@ -2500,6 +2592,106 @@ impl EntropyApp {
             }
         });
         changed
+    }
+
+    fn show_auto_shift_window(&mut self, ctx: &egui::Context) {
+        let mut open = self.auto_shift_window_open;
+        let dark = ctx.style().visuals.dark_mode;
+        let style = ctx.style().as_ref().clone();
+        let frame = crate::ui_style::modal_window_frame(&style, dark);
+
+        egui::Window::new("Auto Shift")
+            .id(egui::Id::new("auto_shift_window"))
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(false)
+            .movable(true)
+            .default_pos(egui::pos2(
+                ctx.screen_rect().center().x - 220.0,
+                ctx.screen_rect().center().y - 140.0,
+            ))
+            .fixed_size(Vec2::new(440.0, 280.0))
+            .frame(frame)
+            .order(egui::Order::Foreground)
+            .show(ctx, |ui| {
+                ui.add_space(8.0);
+
+                if self.auto_shift_timeout.is_none() {
+                    ui.vertical_centered(|ui| {
+                        ui.add_space(72.0);
+                        ui.label(
+                            RichText::new("Auto Shift is not available on this keyboard.")
+                                .size(13.0)
+                                .color(app_muted_text(dark)),
+                        );
+                    });
+                    return;
+                }
+
+                let mut timeout_value = self.auto_shift_timeout.unwrap_or(175);
+                let mut timeout_text = timeout_value.to_string();
+                let content_width = 360.0_f32;
+
+                ui.vertical_centered(|ui| {
+                    ui.allocate_ui_with_layout(
+                        Vec2::new(content_width, 0.0),
+                        egui::Layout::top_down(egui::Align::Min),
+                        |ui| {
+                            egui::Grid::new(ui.id().with("auto_shift_grid"))
+                                .num_columns(2)
+                                .spacing([18.0, 10.0])
+                                .show(ui, |ui| {
+                                    let mut checkbox_row = |ui: &mut egui::Ui, label: &str, value: &mut bool| -> bool {
+                                        ui.label(RichText::new(label).size(12.5));
+                                        let resp = ui.checkbox(value, "");
+                                        if resp.hovered() {
+                                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                        }
+                                        ui.end_row();
+                                        resp.changed()
+                                    };
+
+                                    let mut options_changed = false;
+                                    options_changed |= checkbox_row(ui, "Enable", &mut self.auto_shift_options.enabled);
+                                    options_changed |= checkbox_row(ui, "Enable for modifiers", &mut self.auto_shift_options.enable_for_modifiers);
+
+                                    ui.label(RichText::new("Timeout").size(12.5));
+                                    ui.horizontal(|ui| {
+                                        let resp = ui.add(
+                                            egui::TextEdit::singleline(&mut timeout_text)
+                                                .desired_width(52.0)
+                                        );
+                                        if resp.hovered() {
+                                            ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
+                                        }
+                                        ui.label(RichText::new("ms").size(11.5).color(app_muted_text(dark)));
+                                        if resp.changed() {
+                                            let filtered: String = timeout_text.chars().filter(|c: &char| c.is_ascii_digit()).collect();
+                                            if let Ok(parsed) = filtered.parse::<u16>() {
+                                                timeout_value = parsed.max(1);
+                                                self.auto_shift_timeout = Some(timeout_value);
+                                                self.write_auto_shift_timeout();
+                                            }
+                                        }
+                                    });
+                                    ui.end_row();
+
+                                    options_changed |= checkbox_row(ui, "Do not Auto Shift special keys", &mut self.auto_shift_options.no_special);
+                                    options_changed |= checkbox_row(ui, "Do not Auto Shift numeric keys", &mut self.auto_shift_options.no_numeric);
+                                    options_changed |= checkbox_row(ui, "Do not Auto Shift alpha characters", &mut self.auto_shift_options.no_alpha);
+                                    options_changed |= checkbox_row(ui, "Enable keyrepeat", &mut self.auto_shift_options.enable_keyrepeat);
+                                    options_changed |= checkbox_row(ui, "Disable keyrepeat when timeout is exceeded", &mut self.auto_shift_options.disable_keyrepeat_timeout);
+
+                                    if options_changed {
+                                        self.write_auto_shift_flags();
+                                    }
+                                });
+                        },
+                    );
+                });
+            });
+
+        self.auto_shift_window_open = open;
     }
 
     fn show_key_override_window(&mut self, ctx: &egui::Context) {
@@ -3502,7 +3694,7 @@ impl EntropyApp {
                     .unwrap_or(false);
                 let dropdown_rect = egui::Rect::from_min_size(
                     egui::pos2(advanced_rect.center().x - 76.0, advanced_rect.bottom() + 6.0),
-                    Vec2::new(152.0, 72.0),
+                    Vec2::new(152.0, 106.0),
                 );
                 let hover_bridge_rect = advanced_rect.union(dropdown_rect).expand(3.0);
                 let pointer_over_bridge = ui
@@ -3540,8 +3732,21 @@ impl EntropyApp {
                         self.combo_window_open = true;
                     }
 
-                    let key_override_rect = egui::Rect::from_min_max(
+                    let auto_shift_rect = egui::Rect::from_min_max(
                         dropdown_rect.min + Vec2::new(6.0, 38.0),
+                        egui::pos2(dropdown_rect.max.x - 6.0, dropdown_rect.min.y + 68.0),
+                    );
+                    let auto_shift_resp = ui.allocate_rect(auto_shift_rect, Sense::CLICK);
+                    if auto_shift_resp.hovered() {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                    }
+                    if auto_shift_resp.clicked() {
+                        self.main_menu_tab = MainMenuTab::Keyboard;
+                        self.auto_shift_window_open = true;
+                    }
+
+                    let key_override_rect = egui::Rect::from_min_max(
+                        dropdown_rect.min + Vec2::new(6.0, 72.0),
                         dropdown_rect.max - Vec2::new(6.0, 4.0),
                     );
                     let key_override_resp = ui.allocate_rect(key_override_rect, Sense::CLICK);
@@ -3579,6 +3784,20 @@ impl EntropyApp {
                         ui.visuals().widgets.inactive.fg_stroke.color,
                     );
                     ui.painter().rect(
+                        auto_shift_rect,
+                        6.0,
+                        item_fill(auto_shift_resp.hovered(), ui.visuals().dark_mode),
+                        egui::Stroke::NONE,
+                        egui::StrokeKind::Inside,
+                    );
+                    ui.painter().text(
+                        auto_shift_rect.center(),
+                        egui::Align2::CENTER_CENTER,
+                        "Auto Shift",
+                        FontId::proportional(14.0),
+                        ui.visuals().widgets.inactive.fg_stroke.color,
+                    );
+                    ui.painter().rect(
                         key_override_rect,
                         6.0,
                         item_fill(key_override_resp.hovered(), ui.visuals().dark_mode),
@@ -3593,7 +3812,7 @@ impl EntropyApp {
                         ui.visuals().widgets.inactive.fg_stroke.color,
                     );
 
-                    ui.ctx().data_mut(|d| d.insert_temp(dropdown_id, advanced_tab_hovered || combo_resp.hovered() || key_override_resp.hovered() || pointer_over_bridge));
+                    ui.ctx().data_mut(|d| d.insert_temp(dropdown_id, advanced_tab_hovered || combo_resp.hovered() || auto_shift_resp.hovered() || key_override_resp.hovered() || pointer_over_bridge));
                 } else {
                     ui.ctx().data_mut(|d| d.insert_temp(dropdown_id, false));
                 }
