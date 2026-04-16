@@ -262,6 +262,8 @@ struct ConnectResult {
     auto_shift_options: AutoShiftOptionsState,
     /// Auto Shift timeout from QMK settings, if supported
     auto_shift_timeout: Option<u16>,
+    /// Mouse Keys settings from QMK settings, if supported (qsid 9..=17)
+    mouse_keys_settings: MouseKeysSettingsState,
     /// Key Override entries
     key_override_entries: Vec<KeyOverrideEntry>,
 }
@@ -409,6 +411,36 @@ impl AutoShiftOptionsState {
     }
 }
 
+/// Mirrors Vial GUI Mouse keys settings (qsid 9..=17). All values are u16.
+#[derive(Clone, Copy, Debug, Default)]
+struct MouseKeysSettingsState {
+    /// qsid 9: Delay between pressing a movement key and cursor movement
+    delay: u16,
+    /// qsid 10: Time between cursor movements in milliseconds
+    interval: u16,
+    /// qsid 11: Step size
+    max_speed: u16,
+    /// qsid 12: Maximum cursor speed at which acceleration stops
+    time_to_max: u16,
+    /// qsid 13: Time until maximum cursor speed is reached
+    move_delta: u16,
+    /// qsid 14: Delay between pressing a wheel key and wheel movement
+    wheel_delay: u16,
+    /// qsid 15: Time between wheel movements
+    wheel_interval: u16,
+    /// qsid 16: Maximum number of scroll steps per scroll action
+    wheel_max_speed: u16,
+    /// qsid 17: Time until maximum scroll speed is reached
+    wheel_time_to_max: u16,
+    /// Whether any of the qsids were readable (firmware support flag)
+    supported: bool,
+}
+
+/// Returns true if the given Vial keycode is a QMK mouse key (0x00F0..=0x00FC).
+fn is_mouse_keycode(kc: u16) -> bool {
+    (0x00F0..=0x00FC).contains(&kc)
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum KeyOverridePickField {
     Trigger,
@@ -480,6 +512,8 @@ pub struct EntropyApp {
     combo_term: Option<u16>,
     auto_shift_options: AutoShiftOptionsState,
     auto_shift_timeout: Option<u16>,
+    mouse_keys_settings: MouseKeysSettingsState,
+    mouse_keys_window_open: bool,
     combo_term_dirty: bool,
     combo_window_open: bool,
     combo_reopen_after_pick: bool,
@@ -561,6 +595,8 @@ impl EntropyApp {
             combo_term: None,
             auto_shift_options: AutoShiftOptionsState::default(),
             auto_shift_timeout: None,
+            mouse_keys_settings: MouseKeysSettingsState::default(),
+            mouse_keys_window_open: false,
             combo_term_dirty: false,
             combo_window_open: false,
             combo_reopen_after_pick: false,
@@ -644,6 +680,8 @@ impl EntropyApp {
         self.auto_shift_options = AutoShiftOptionsState::default();
         self.auto_shift_timeout = None;
         self.auto_shift_window_open = false;
+        self.mouse_keys_settings = MouseKeysSettingsState::default();
+        self.mouse_keys_window_open = false;
         self.key_override_entries.clear();
         self.key_override_names.clear();
         self.key_override_window_open = false;
@@ -792,6 +830,39 @@ impl EntropyApp {
                             }
                         };
 
+                        // Mouse keys settings (qsid 9..=17, all u16). If qsid 9 is unsupported,
+                        // we assume the whole group is unavailable.
+                        let mouse_keys_settings = {
+                            let mut mk = MouseKeysSettingsState::default();
+                            match dev_conn.get_qmk_setting_u16(9) {
+                                Ok(v) => {
+                                    mk.delay = v;
+                                    mk.supported = true;
+                                    let read = |qsid: u16| -> u16 {
+                                        match dev_conn.get_qmk_setting_u16(qsid) {
+                                            Ok(val) => val,
+                                            Err(e) => {
+                                                log::warn!("get_qmk_setting_u16(mouse_keys qsid {qsid}): {e}");
+                                                0
+                                            }
+                                        }
+                                    };
+                                    mk.interval = read(10);
+                                    mk.max_speed = read(11);
+                                    mk.time_to_max = read(12);
+                                    mk.move_delta = read(13);
+                                    mk.wheel_delay = read(14);
+                                    mk.wheel_interval = read(15);
+                                    mk.wheel_max_speed = read(16);
+                                    mk.wheel_time_to_max = read(17);
+                                }
+                                Err(e) => {
+                                    log::warn!("get_qmk_setting_u16(mouse_keys delay): {e}");
+                                }
+                            }
+                            mk
+                        };
+
                         // Read tap dance entries
                         let tap_dance_entries = match dev_conn.get_tap_dance_count() {
                             Ok(count) => {
@@ -845,6 +916,7 @@ impl EntropyApp {
                             combo_term,
                             auto_shift_options: auto_shift_options.unwrap_or_default(),
                             auto_shift_timeout,
+                            mouse_keys_settings,
                             key_override_entries,
                             layout,
                             layer_count,
@@ -890,6 +962,7 @@ impl EntropyApp {
                                 combo_term: None,
                                 auto_shift_options: AutoShiftOptionsState::default(),
                                 auto_shift_timeout: None,
+                                mouse_keys_settings: MouseKeysSettingsState::default(),
                                 key_override_entries: vec![],
                                 layout,
                                 layer_count: 0,
@@ -941,6 +1014,7 @@ impl EntropyApp {
                             combo_term: None,
                             auto_shift_options: AutoShiftOptionsState::default(),
                             auto_shift_timeout: None,
+                            mouse_keys_settings: MouseKeysSettingsState::default(),
                             key_override_entries: vec![],
                             layout,
                             layer_count,
@@ -999,6 +1073,7 @@ impl EntropyApp {
                 self.combo_term = r.combo_term.or(Some(50));
                 self.auto_shift_options = r.auto_shift_options;
                 self.auto_shift_timeout = r.auto_shift_timeout;
+                self.mouse_keys_settings = r.mouse_keys_settings;
                 let highest_used_combo = self
                     .combo_entries
                     .iter()
@@ -2181,6 +2256,7 @@ impl eframe::App for EntropyApp {
 
         let any_floating_window_open = self.combo_window_open
             || self.auto_shift_window_open
+            || self.mouse_keys_window_open
             || self.key_override_window_open
             || self.keycode_picker.open;
         if any_floating_window_open {
@@ -2199,6 +2275,7 @@ impl eframe::App for EntropyApp {
                     if response.clicked() {
                         self.combo_window_open = false;
                         self.auto_shift_window_open = false;
+                        self.mouse_keys_window_open = false;
                         self.key_override_window_open = false;
                         self.keycode_picker.open = false;
                     }
@@ -2210,6 +2287,9 @@ impl eframe::App for EntropyApp {
         }
         if self.auto_shift_window_open {
             self.show_auto_shift_window(ctx);
+        }
+        if self.mouse_keys_window_open {
+            self.show_mouse_keys_window(ctx);
         }
         if self.key_override_window_open {
             self.show_key_override_window(ctx);
@@ -2698,6 +2778,153 @@ impl EntropyApp {
             });
 
         self.auto_shift_window_open = open;
+    }
+
+    /// Write a single u16 mouse-keys QMK setting to device. qsid must be in 9..=17.
+    fn write_mouse_keys_setting(&mut self, qsid: u16, value: u16) {
+        let Some(hid) = &self.hid_device else { return; };
+        if let Err(e) = hid.set_qmk_setting_u16(qsid, value) {
+            self.status_msg = format!("Failed to save Mouse keys setting (qsid {qsid}): {}", e);
+            log::warn!("set_qmk_setting_u16(mouse_keys qsid {qsid}) failed: {e}");
+        }
+    }
+
+    fn show_mouse_keys_window(&mut self, ctx: &egui::Context) {
+        if !self.keycode_picker.open && ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            self.mouse_keys_window_open = false;
+            return;
+        }
+
+        let mut open = self.mouse_keys_window_open;
+        let dark = ctx.style().visuals.dark_mode;
+        let style = ctx.style().as_ref().clone();
+        let frame = crate::ui_style::modal_window_frame(&style, dark);
+
+        egui::Window::new("Mouse keys")
+            .id(egui::Id::new("mouse_keys_window"))
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(false)
+            .movable(true)
+            .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
+            .fixed_size(Vec2::new(520.0, 360.0))
+            .frame(frame)
+            .order(egui::Order::Foreground)
+            .show(ctx, |ui| {
+                ui.add_space(8.0);
+
+                if !self.mouse_keys_settings.supported {
+                    ui.vertical_centered(|ui| {
+                        ui.add_space(80.0);
+                        ui.label(
+                            RichText::new("Mouse keys settings are not available on this firmware.")
+                                .size(13.0)
+                                .color(app_muted_text(dark)),
+                        );
+                        ui.add_space(6.0);
+                        ui.label(
+                            RichText::new("Enable MOUSEKEY_ENABLE and QMK_SETTINGS in the keyboard rules.mk to use this window.")
+                                .size(11.5)
+                                .color(app_muted_text(dark)),
+                        );
+                    });
+                    return;
+                }
+
+                let content_width = 480.0_f32;
+                // (qsid, label, max, &mut value)
+                // Limits match Vial GUI qmk_settings.json.
+                let rows: [(u16, &str, u32); 9] = [
+                    (9,  "Delay between pressing a movement key and cursor movement", 10000),
+                    (10, "Time between cursor movements in milliseconds",             10000),
+                    (11, "Step size",                                                  1000),
+                    (12, "Maximum cursor speed at which acceleration stops",           1000),
+                    (13, "Time until maximum cursor speed is reached",                 1000),
+                    (14, "Delay between pressing a wheel key and wheel movement",     10000),
+                    (15, "Time between wheel movements",                              10000),
+                    (16, "Maximum number of scroll steps per scroll action",           1000),
+                    (17, "Time until maximum scroll speed is reached",                 1000),
+                ];
+
+                ui.vertical_centered(|ui| {
+                    ui.allocate_ui_with_layout(
+                        Vec2::new(content_width, 0.0),
+                        egui::Layout::top_down(egui::Align::Min),
+                        |ui| {
+                            egui::Grid::new(ui.id().with("mouse_keys_grid"))
+                                .num_columns(2)
+                                .spacing([18.0, 10.0])
+                                .show(ui, |ui| {
+                                    for (qsid, label, max) in rows.iter().copied() {
+                                        let (current, write_back): (u16, Box<dyn FnOnce(&mut MouseKeysSettingsState, u16)>) = match qsid {
+                                            9  => (self.mouse_keys_settings.delay,
+                                                   Box::new(|s: &mut MouseKeysSettingsState, v| s.delay = v)),
+                                            10 => (self.mouse_keys_settings.interval,
+                                                   Box::new(|s: &mut MouseKeysSettingsState, v| s.interval = v)),
+                                            11 => (self.mouse_keys_settings.max_speed,
+                                                   Box::new(|s: &mut MouseKeysSettingsState, v| s.max_speed = v)),
+                                            12 => (self.mouse_keys_settings.time_to_max,
+                                                   Box::new(|s: &mut MouseKeysSettingsState, v| s.time_to_max = v)),
+                                            13 => (self.mouse_keys_settings.move_delta,
+                                                   Box::new(|s: &mut MouseKeysSettingsState, v| s.move_delta = v)),
+                                            14 => (self.mouse_keys_settings.wheel_delay,
+                                                   Box::new(|s: &mut MouseKeysSettingsState, v| s.wheel_delay = v)),
+                                            15 => (self.mouse_keys_settings.wheel_interval,
+                                                   Box::new(|s: &mut MouseKeysSettingsState, v| s.wheel_interval = v)),
+                                            16 => (self.mouse_keys_settings.wheel_max_speed,
+                                                   Box::new(|s: &mut MouseKeysSettingsState, v| s.wheel_max_speed = v)),
+                                            17 => (self.mouse_keys_settings.wheel_time_to_max,
+                                                   Box::new(|s: &mut MouseKeysSettingsState, v| s.wheel_time_to_max = v)),
+                                            _ => continue,
+                                        };
+
+                                        ui.label(RichText::new(label).size(12.5));
+
+                                        let edit_id = egui::Id::new(("mouse_keys_edit", qsid));
+                                        let mut text = ui.ctx().data_mut(|d| {
+                                            d.get_temp::<String>(edit_id).unwrap_or_else(|| current.to_string())
+                                        });
+                                        // If external value changed and user is not editing, resync text.
+                                        if text.parse::<u16>().ok() != Some(current) && !ui.memory(|m| m.has_focus(edit_id)) {
+                                            text = current.to_string();
+                                        }
+
+                                        let resp = ui.add(
+                                            egui::TextEdit::singleline(&mut text)
+                                                .id(edit_id)
+                                                .desired_width(72.0),
+                                        );
+                                        if resp.hovered() {
+                                            ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
+                                        }
+                                        ui.end_row();
+
+                                        if resp.changed() {
+                                            let filtered: String = text.chars().filter(|c: &char| c.is_ascii_digit()).collect();
+                                            let parsed = filtered.parse::<u32>().unwrap_or(0).min(max);
+                                            let new_value = parsed as u16;
+                                            if new_value != current {
+                                                write_back(&mut self.mouse_keys_settings, new_value);
+                                                self.write_mouse_keys_setting(qsid, new_value);
+                                            }
+                                            text = filtered;
+                                        }
+                                        ui.ctx().data_mut(|d| d.insert_temp(edit_id, text));
+                                    }
+                                });
+
+                            ui.add_space(10.0);
+                            ui.label(
+                                RichText::new("Changes are written to the keyboard immediately.")
+                                    .size(11.0)
+                                    .color(app_muted_text(dark)),
+                            );
+                        },
+                    );
+                });
+            });
+
+        self.mouse_keys_window_open = open;
     }
 
     fn show_key_override_window(&mut self, ctx: &egui::Context) {
@@ -4264,6 +4491,11 @@ impl EntropyApp {
                     self.keycode_picker.firmware = self.firmware;
                     self.keycode_picker.selected_tab = crate::keycode_picker::KeycodeTab::TapDance;
                     self.keycode_picker.tap_dance_editor_open = Some(td_n);
+                    self.secondary_click_handled = true;
+                }
+                // Mouse keys (0x00F0..=0x00FC) — RClick opens Mouse keys settings
+                if is_mouse_keycode(kc) {
+                    self.mouse_keys_window_open = true;
                     self.secondary_click_handled = true;
                 }
                 // MT: 0x2000..0x3FFF, Mod+Key: 0x0100..0x1FFF with kc != 0
