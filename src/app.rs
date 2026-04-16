@@ -834,23 +834,23 @@ impl EntropyApp {
                         // we assume the whole group is unavailable.
                         let mouse_keys_settings = {
                             let mut mk = MouseKeysSettingsState::default();
-                            match dev_conn.get_qmk_setting_u16(9) {
+                            match dev_conn.get_qmk_setting_u8(9) {
                                 Ok(v) => {
-                                    mk.delay = v;
+                                    mk.delay = v as u16;
                                     mk.supported = true;
                                     let read = |qsid: u16| -> u16 {
-                                        match dev_conn.get_qmk_setting_u16(qsid) {
-                                            Ok(val) => val,
+                                        match dev_conn.get_qmk_setting_u8(qsid) {
+                                            Ok(val) => val as u16,
                                             Err(e) => {
-                                                log::warn!("get_qmk_setting_u16(mouse_keys qsid {qsid}): {e}");
+                                                log::warn!("get_qmk_setting_u8(mouse_keys qsid {qsid}): {e}");
                                                 0
                                             }
                                         }
                                     };
                                     mk.interval = read(10);
-                                    mk.max_speed = read(11);
-                                    mk.time_to_max = read(12);
-                                    mk.move_delta = read(13);
+                                    mk.move_delta = read(11);
+                                    mk.max_speed = read(12);
+                                    mk.time_to_max = read(13);
                                     mk.wheel_delay = read(14);
                                     mk.wheel_interval = read(15);
                                     mk.wheel_max_speed = read(16);
@@ -2780,12 +2780,13 @@ impl EntropyApp {
         self.auto_shift_window_open = open;
     }
 
-    /// Write a single u16 mouse-keys QMK setting to device. qsid must be in 9..=17.
+    /// Write a single mouse-keys QMK setting to device. In Vial qmk_settings these are width=1.
     fn write_mouse_keys_setting(&mut self, qsid: u16, value: u16) {
         let Some(hid) = &self.hid_device else { return; };
-        if let Err(e) = hid.set_qmk_setting_u16(qsid, value) {
+        let value = value.min(u8::MAX as u16) as u8;
+        if let Err(e) = hid.set_qmk_setting_u8(qsid, value) {
             self.status_msg = format!("Failed to save Mouse keys setting (qsid {qsid}): {}", e);
-            log::warn!("set_qmk_setting_u16(mouse_keys qsid {qsid}) failed: {e}");
+            log::warn!("set_qmk_setting_u8(mouse_keys qsid {qsid}) failed: {e}");
         }
     }
 
@@ -2861,12 +2862,12 @@ impl EntropyApp {
                                                    Box::new(|s: &mut MouseKeysSettingsState, v| s.delay = v)),
                                             10 => (self.mouse_keys_settings.interval,
                                                    Box::new(|s: &mut MouseKeysSettingsState, v| s.interval = v)),
-                                            11 => (self.mouse_keys_settings.max_speed,
-                                                   Box::new(|s: &mut MouseKeysSettingsState, v| s.max_speed = v)),
-                                            12 => (self.mouse_keys_settings.time_to_max,
-                                                   Box::new(|s: &mut MouseKeysSettingsState, v| s.time_to_max = v)),
-                                            13 => (self.mouse_keys_settings.move_delta,
+                                            11 => (self.mouse_keys_settings.move_delta,
                                                    Box::new(|s: &mut MouseKeysSettingsState, v| s.move_delta = v)),
+                                            12 => (self.mouse_keys_settings.max_speed,
+                                                   Box::new(|s: &mut MouseKeysSettingsState, v| s.max_speed = v)),
+                                            13 => (self.mouse_keys_settings.time_to_max,
+                                                   Box::new(|s: &mut MouseKeysSettingsState, v| s.time_to_max = v)),
                                             14 => (self.mouse_keys_settings.wheel_delay,
                                                    Box::new(|s: &mut MouseKeysSettingsState, v| s.wheel_delay = v)),
                                             15 => (self.mouse_keys_settings.wheel_interval,
