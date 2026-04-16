@@ -436,9 +436,9 @@ struct MouseKeysSettingsState {
     supported: bool,
 }
 
-/// Returns true if the given Vial keycode is a QMK mouse key (0x00F0..=0x00FC).
+/// Returns true if the given Vial keycode is a QMK mouse key (0x00CD..=0x00DF).
 fn is_mouse_keycode(kc: u16) -> bool {
-    (0x00F0..=0x00FC).contains(&kc)
+    (0x00CD..=0x00DF).contains(&kc)
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
