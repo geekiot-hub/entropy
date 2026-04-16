@@ -4867,16 +4867,16 @@ impl EntropyApp {
         };
 
         let draw_encoder_arrow = |painter: &egui::Painter, center: egui::Pos2, encoder_radius: f32, top: bool, color: Color32| {
-            let (start_deg, end_deg) = if top { (222.0_f32, 318.0_f32) } else { (138.0_f32, 42.0_f32) };
-            let r = encoder_radius * 1.08;
+            let (start_deg, end_deg) = if top { (236.0_f32, 304.0_f32) } else { (124.0_f32, 56.0_f32) };
+            let r = encoder_radius * 1.18;
             let mut points = Vec::new();
-            for step in 0..=16 {
-                let t = step as f32 / 16.0;
+            for step in 0..=12 {
+                let t = step as f32 / 12.0;
                 let deg = start_deg + (end_deg - start_deg) * t;
                 let rad = deg.to_radians();
                 points.push(egui::pos2(center.x + rad.cos() * r, center.y + rad.sin() * r));
             }
-            painter.add(egui::Shape::line(points.clone(), Stroke::new(1.4, color)));
+            painter.add(egui::Shape::line(points.clone(), Stroke::new(1.2, color)));
             if points.len() >= 2 {
                 let end = points[points.len() - 1];
                 let prev = points[points.len() - 2];
@@ -4885,8 +4885,8 @@ impl EntropyApp {
                 painter.add(egui::Shape::convex_polygon(
                     vec![
                         end,
-                        egui::pos2(end.x - dir.x * 3.8 + left.x * 2.0, end.y - dir.y * 3.8 + left.y * 2.0),
-                        egui::pos2(end.x - dir.x * 3.8 - left.x * 2.0, end.y - dir.y * 3.8 - left.y * 2.0),
+                        egui::pos2(end.x - dir.x * 3.2 + left.x * 1.7, end.y - dir.y * 3.2 + left.y * 1.7),
+                        egui::pos2(end.x - dir.x * 3.2 - left.x * 1.7, end.y - dir.y * 3.2 - left.y * 1.7),
                     ],
                     color,
                     Stroke::NONE,
@@ -4992,20 +4992,8 @@ impl EntropyApp {
                 bottom_text_color,
             );
 
-            let arrow_color_top = if top_resp.hovered() || top_selected {
-                app_muted_text(dark)
-            } else if dark {
-                Color32::from_gray(95)
-            } else {
-                Color32::from_gray(155)
-            };
-            let arrow_color_bottom = if bottom_resp.hovered() || bottom_selected {
-                app_muted_text(dark)
-            } else if dark {
-                Color32::from_gray(95)
-            } else {
-                Color32::from_gray(155)
-            };
+            let arrow_color_top = outline.color;
+            let arrow_color_bottom = outline.color;
             draw_encoder_arrow(painter, center, radius, true, arrow_color_top);
             draw_encoder_arrow(painter, center, radius, false, arrow_color_bottom);
         }
