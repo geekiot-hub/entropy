@@ -109,6 +109,41 @@ pub const KEYCODES: &[Keycode] = &[
     // ── Special ──────────────────────────────────────────────────────────────
     Keycode { value: 0x0000, name: "KC_NO",     label: "✕",   category: KeycodeCategory::Special },
     Keycode { value: 0x0001, name: "KC_TRNS",   label: "▽",   category: KeycodeCategory::Special },
+    Keycode { value: 0x7000, name: "QK_MAGIC_SWAP_CONTROL_CAPS_LOCK",      label: "Caps/Ctrl\nSwap",    category: KeycodeCategory::Special },
+    Keycode { value: 0x7001, name: "QK_MAGIC_UNSWAP_CONTROL_CAPS_LOCK",    label: "Caps/Ctrl\nRestore", category: KeycodeCategory::Special },
+    Keycode { value: 0x7002, name: "QK_MAGIC_TOGGLE_CONTROL_CAPS_LOCK",    label: "Caps/Ctrl\nToggle",  category: KeycodeCategory::Special },
+    Keycode { value: 0x7003, name: "QK_MAGIC_CAPS_LOCK_AS_CONTROL_OFF",    label: "Caps Lock\nas Caps", category: KeycodeCategory::Special },
+    Keycode { value: 0x7004, name: "QK_MAGIC_CAPS_LOCK_AS_CONTROL_ON",     label: "Caps Lock\nas Ctrl", category: KeycodeCategory::Special },
+    Keycode { value: 0x7005, name: "QK_MAGIC_SWAP_LALT_LGUI",              label: "LAlt/LGui\nSwap",    category: KeycodeCategory::Special },
+    Keycode { value: 0x7006, name: "QK_MAGIC_UNSWAP_LALT_LGUI",            label: "LAlt/LGui\nRestore", category: KeycodeCategory::Special },
+    Keycode { value: 0x7007, name: "QK_MAGIC_SWAP_RALT_RGUI",              label: "RAlt/RGui\nSwap",    category: KeycodeCategory::Special },
+    Keycode { value: 0x7008, name: "QK_MAGIC_UNSWAP_RALT_RGUI",            label: "RAlt/RGui\nRestore", category: KeycodeCategory::Special },
+    Keycode { value: 0x7009, name: "QK_MAGIC_GUI_ON",                      label: "GUI Keys\nOn",       category: KeycodeCategory::Special },
+    Keycode { value: 0x700A, name: "QK_MAGIC_GUI_OFF",                     label: "GUI Keys\nOff",      category: KeycodeCategory::Special },
+    Keycode { value: 0x700B, name: "QK_MAGIC_TOGGLE_GUI",                  label: "GUI Keys\nToggle",   category: KeycodeCategory::Special },
+    Keycode { value: 0x700C, name: "QK_MAGIC_SWAP_GRAVE_ESC",              label: "` / Esc\nSwap",      category: KeycodeCategory::Special },
+    Keycode { value: 0x700D, name: "QK_MAGIC_UNSWAP_GRAVE_ESC",            label: "` / Esc\nRestore",   category: KeycodeCategory::Special },
+    Keycode { value: 0x700E, name: "QK_MAGIC_SWAP_BACKSLASH_BACKSPACE",    label: "\\ / Bksp\nSwap",    category: KeycodeCategory::Special },
+    Keycode { value: 0x700F, name: "QK_MAGIC_UNSWAP_BACKSLASH_BACKSPACE",  label: "\\ / Bksp\nRestore", category: KeycodeCategory::Special },
+    Keycode { value: 0x7010, name: "QK_MAGIC_TOGGLE_BACKSLASH_BACKSPACE",  label: "\\ / Bksp\nToggle",  category: KeycodeCategory::Special },
+    Keycode { value: 0x7011, name: "QK_MAGIC_NKRO_ON",                     label: "NKRO\nOn",           category: KeycodeCategory::Special },
+    Keycode { value: 0x7012, name: "QK_MAGIC_NKRO_OFF",                    label: "NKRO\nOff",          category: KeycodeCategory::Special },
+    Keycode { value: 0x7013, name: "QK_MAGIC_TOGGLE_NKRO",                 label: "NKRO\nToggle",       category: KeycodeCategory::Special },
+    Keycode { value: 0x7014, name: "QK_MAGIC_SWAP_ALT_GUI",                label: "Alt/Gui\nSwap",      category: KeycodeCategory::Special },
+    Keycode { value: 0x7015, name: "QK_MAGIC_UNSWAP_ALT_GUI",              label: "Alt/Gui\nRestore",   category: KeycodeCategory::Special },
+    Keycode { value: 0x7016, name: "QK_MAGIC_TOGGLE_ALT_GUI",              label: "Alt/Gui\nToggle",    category: KeycodeCategory::Special },
+    Keycode { value: 0x7017, name: "QK_MAGIC_SWAP_LCTL_LGUI",              label: "LCtrl/LGui\nSwap",   category: KeycodeCategory::Special },
+    Keycode { value: 0x7018, name: "QK_MAGIC_UNSWAP_LCTL_LGUI",            label: "LCtrl/LGui\nRestore",category: KeycodeCategory::Special },
+    Keycode { value: 0x7019, name: "QK_MAGIC_SWAP_RCTL_RGUI",              label: "RCtrl/RGui\nSwap",   category: KeycodeCategory::Special },
+    Keycode { value: 0x701A, name: "QK_MAGIC_UNSWAP_RCTL_RGUI",            label: "RCtrl/RGui\nRestore",category: KeycodeCategory::Special },
+    Keycode { value: 0x701B, name: "QK_MAGIC_SWAP_CTL_GUI",                label: "Ctrl/Gui\nSwap",     category: KeycodeCategory::Special },
+    Keycode { value: 0x701C, name: "QK_MAGIC_UNSWAP_CTL_GUI",              label: "Ctrl/Gui\nRestore",  category: KeycodeCategory::Special },
+    Keycode { value: 0x701D, name: "QK_MAGIC_TOGGLE_CTL_GUI",              label: "Ctrl/Gui\nToggle",   category: KeycodeCategory::Special },
+    Keycode { value: 0x701E, name: "QK_MAGIC_EE_HANDS_LEFT",               label: "EE Hands\nLeft",     category: KeycodeCategory::Special },
+    Keycode { value: 0x701F, name: "QK_MAGIC_EE_HANDS_RIGHT",              label: "EE Hands\nRight",    category: KeycodeCategory::Special },
+    Keycode { value: 0x7020, name: "QK_MAGIC_SWAP_ESCAPE_CAPS_LOCK",       label: "Caps/Esc\nSwap",     category: KeycodeCategory::Special },
+    Keycode { value: 0x7021, name: "QK_MAGIC_UNSWAP_ESCAPE_CAPS_LOCK",     label: "Caps/Esc\nRestore",  category: KeycodeCategory::Special },
+    Keycode { value: 0x7022, name: "QK_MAGIC_TOGGLE_ESCAPE_CAPS_LOCK",     label: "Caps/Esc\nToggle",   category: KeycodeCategory::Special },
 
     // ── Letters ──────────────────────────────────────────────────────────────
     Keycode { value: 0x0004, name: "KC_A", label: "A", category: KeycodeCategory::Basic },
@@ -354,6 +389,47 @@ pub fn find_keycode(value: u16) -> Option<&'static Keycode> {
     KEYCODES.iter().find(|k| k.value == value)
 }
 
+fn magic_keycode_tooltip(value: u16) -> Option<&'static str> {
+    match value {
+        0x7000 => Some("Swap Caps Lock and Left Control"),
+        0x7001 => Some("Unswap Caps Lock and Left Control"),
+        0x7002 => Some("Toggle Caps Lock and Left Control swap"),
+        0x7003 => Some("Stop treating Caps Lock as Control"),
+        0x7004 => Some("Treat Caps Lock as Control"),
+        0x7005 => Some("Swap Left Alt and GUI"),
+        0x7006 => Some("Unswap Left Alt and GUI"),
+        0x7007 => Some("Swap Right Alt and GUI"),
+        0x7008 => Some("Unswap Right Alt and GUI"),
+        0x7009 => Some("Enable the GUI keys"),
+        0x700A => Some("Disable the GUI keys"),
+        0x700B => Some("Toggles the status of the GUI keys"),
+        0x700C => Some("Swap ` and Escape"),
+        0x700D => Some("Unswap ` and Escape"),
+        0x700E => Some("Swap \\ and Backspace"),
+        0x700F => Some("Unswap \\ and Backspace"),
+        0x7010 => Some("Toggle \\ and Backspace swap state"),
+        0x7011 => Some("Enable N-key rollover"),
+        0x7012 => Some("Disable N-key rollover"),
+        0x7013 => Some("Toggle N-key rollover"),
+        0x7014 => Some("Swap Alt and GUI on both sides"),
+        0x7015 => Some("Unswap Alt and GUI on both sides"),
+        0x7016 => Some("Toggle Alt and GUI swap on both sides"),
+        0x7017 => Some("Swap Left Control and GUI"),
+        0x7018 => Some("Unswap Left Control and GUI"),
+        0x7019 => Some("Swap Right Control and GUI"),
+        0x701A => Some("Unswap Right Control and GUI"),
+        0x701B => Some("Swap Control and GUI on both sides"),
+        0x701C => Some("Unswap Control and GUI on both sides"),
+        0x701D => Some("Toggle Control and GUI swap on both sides"),
+        0x701E => Some("Set the master half of a split keyboard as the left hand (for EE_HANDS)"),
+        0x701F => Some("Set the master half of a split keyboard as the right hand (for EE_HANDS)"),
+        0x7020 => Some("Swap Caps Lock and Escape"),
+        0x7021 => Some("Unswap Caps Lock and Escape"),
+        0x7022 => Some("Toggle Caps Lock and Escape swap"),
+        _ => None,
+    }
+}
+
 use crate::keyboard::CustomKeycode;
 
 /// Returns a human-readable label for a keycode.
@@ -595,6 +671,9 @@ pub fn keycode_tooltip(value: u16, custom: &[CustomKeycode], layer_names: &[Stri
     }
     if value == 0x0001 {
         return "Transparent — uses the key assigned on the layer below".to_string();
+    }
+    if let Some(tip) = magic_keycode_tooltip(value) {
+        return tip.to_string();
     }
 
     // ── One-shot mod: 0x52A0/0x52B0 range ───────────────────────────────────

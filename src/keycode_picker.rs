@@ -2632,6 +2632,63 @@ Enter".into(), 0x7C1E, "Shift when held, Enter when tapped".into()),
                 let _ = resp;
             }
         });
+
+        ui.add_space(10.0);
+        ui.label(RichText::new("Magic").size(11.0).color(Color32::from_gray(150)));
+        ui.add_space(4.0);
+        let magic_keys: &[u16] = &[
+            0x7000, 0x7001, 0x7002, 0x7004, 0x7003,
+            0x7020, 0x7021, 0x7022,
+            0x7017, 0x7018, 0x7019, 0x701A, 0x701B, 0x701C, 0x701D,
+            0x7005, 0x7006, 0x7007, 0x7008, 0x7014, 0x7015, 0x7016,
+            0x700A, 0x7009, 0x700B,
+            0x700C, 0x700D,
+            0x700E, 0x700F, 0x7010,
+            0x7011, 0x7012, 0x7013,
+            0x701E, 0x701F,
+        ];
+        ui.horizontal_wrapped(|ui| {
+            let magic_top_color = if ui.visuals().dark_mode {
+                Color32::from_gray(105)
+            } else {
+                Color32::from_gray(145)
+            };
+            for value in magic_keys {
+                let label = crate::keycode::keycode_label(*value);
+                let mut parts = label.splitn(2, '\n');
+                let top = parts.next().unwrap_or("");
+                let bottom = parts.next().unwrap_or("");
+                let mut resp = ui.add_sized(Vec2::new(76.0, 44.0), egui::Button::new(""));
+                let rect = resp.rect;
+                let painter = ui.painter();
+                let main_color = if resp.hovered() {
+                    ui.visuals().widgets.hovered.fg_stroke.color
+                } else {
+                    ui.visuals().widgets.inactive.fg_stroke.color
+                };
+                let top_font = if top.chars().count() > 10 { 8.6 } else { 9.2 };
+                let bottom_font = if bottom.chars().count() > 8 { 9.4 } else { 10.2 };
+                if !top.is_empty() {
+                    painter.text(
+                        egui::pos2(rect.center().x, rect.center().y - 6.5),
+                        egui::Align2::CENTER_CENTER,
+                        top,
+                        egui::FontId::proportional(top_font),
+                        magic_top_color,
+                    );
+                }
+                painter.text(
+                    egui::pos2(rect.center().x, rect.center().y + 6.5),
+                    egui::Align2::CENTER_CENTER,
+                    if bottom.is_empty() { top } else { bottom },
+                    egui::FontId::proportional(bottom_font),
+                    main_color,
+                );
+                if resp.clicked() { self.result = Some(*value); self.open = false; }
+                resp = resp.on_hover_text(crate::keycode::keycode_tooltip(*value, &[], &self.layer_names));
+                let _ = resp;
+            }
+        });
     }
 
 fn show_zmk(&mut self, ctx: &egui::Context) {
