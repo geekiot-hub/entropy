@@ -441,6 +441,21 @@ fn is_mouse_keycode(kc: u16) -> bool {
     (0x00CD..=0x00DF).contains(&kc)
 }
 
+#[derive(Clone, Debug)]
+enum UndoAction {
+    Key {
+        layer: usize,
+        key_idx: usize,
+        old_kc: u16,
+        old_binding: crate::zmk::ZmkBinding,
+    },
+    Encoder {
+        layer: usize,
+        encoder_visual_idx: usize,
+        old_kc: u16,
+    },
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum KeyOverridePickField {
     Trigger,
@@ -487,8 +502,8 @@ pub struct EntropyApp {
     firmware: FirmwareProtocol,
     zmk_base_layer_count: usize,
     zmk_no_extra_layers: bool,
-    /// Undo stack: each entry is (layer, key_idx, old_vial_kc, old_zmk_binding)
-    undo_stack: Vec<(usize, usize, u16, ZmkBinding)>,
+    /// Undo stack for key and encoder assignments
+    undo_stack: Vec<UndoAction>,
     /// Frame counter for periodic device scan
     scan_frame: u32,
     /// Layer to preview on hover (None = show selected_layer)
@@ -1693,6 +1708,12 @@ impl EntropyApp {
             Some(e) => e.clone(),
             None => return,
         };
+        let old_kc = self.layout.as_ref().map(|l| l.get_encoder_keycode(layer, encoder_visual_idx)).unwrap_or(0);
+        self.undo_stack.push(UndoAction::Encoder {
+            layer,
+            encoder_visual_idx,
+            old_kc,
+        });
 
         if let Some(layout) = &mut self.layout {
             if let Some(layer_codes) = layout.encoder_layers.get_mut(layer) {
@@ -1728,7 +1749,12 @@ impl EntropyApp {
     fn assign_keycode(&mut self, layer: usize, ki: usize, kc_value: u16) {
         // Save old value for undo
         let old_kc = self.layout.as_ref().map(|l| l.get_keycode(layer, ki)).unwrap_or(0);
-        self.undo_stack.push((layer, ki, old_kc, ZmkBinding::none()));
+        self.undo_stack.push(UndoAction::Key {
+            layer,
+            key_idx: ki,
+            old_kc,
+            old_binding: ZmkBinding::none(),
+        });
         // Update in-memory layout
         if let Some(layout) = &mut self.layout {
             layout.set_keycode(layer, ki, kc_value);
@@ -1781,7 +1807,12 @@ impl EntropyApp {
 
         // Save old binding for undo
         let old_binding = self.layout.as_ref().map(|l| l.get_zmk_binding(layer, ki)).unwrap_or_else(ZmkBinding::none);
-        self.undo_stack.push((layer, ki, 0, old_binding));
+        self.undo_stack.push(UndoAction::Key {
+            layer,
+            key_idx: ki,
+            old_kc: 0,
+            old_binding,
+        });
 
         if let Some(layout) = &mut self.layout {
             layout.set_zmk_binding(layer, ki, binding.clone());
@@ -1811,15 +1842,21 @@ impl EntropyApp {
     #[cfg(not(target_arch = "wasm32"))]
     #[cfg(not(target_arch = "wasm32"))]
     fn undo(&mut self) {
-        let Some((layer, ki, old_kc, old_binding)) = self.undo_stack.pop() else { return };
-        if self.firmware == FirmwareProtocol::Zmk {
-            self.assign_zmk_binding(layer, ki, old_binding);
-            // Remove the undo entry that assign_zmk_binding just pushed
-            self.undo_stack.pop();
-        } else {
-            self.assign_keycode(layer, ki, old_kc);
-            // Remove the undo entry that assign_keycode just pushed
-            self.undo_stack.pop();
+        let Some(action) = self.undo_stack.pop() else { return };
+        match action {
+            UndoAction::Key { layer, key_idx, old_kc, old_binding } => {
+                if self.firmware == FirmwareProtocol::Zmk {
+                    self.assign_zmk_binding(layer, key_idx, old_binding);
+                    self.undo_stack.pop();
+                } else {
+                    self.assign_keycode(layer, key_idx, old_kc);
+                    self.undo_stack.pop();
+                }
+            }
+            UndoAction::Encoder { layer, encoder_visual_idx, old_kc } => {
+                self.assign_encoder_keycode(layer, encoder_visual_idx, old_kc);
+                self.undo_stack.pop();
+            }
         }
     }
 
@@ -4829,6 +4866,34 @@ impl EntropyApp {
             }
         };
 
+        let draw_encoder_arrow = |painter: &egui::Painter, center: egui::Pos2, radius: f32, top: bool, color: Color32| {
+            let (start_deg, end_deg) = if top { (200.0_f32, 340.0_f32) } else { (20.0_f32, 160.0_f32) };
+            let r = radius * 0.72;
+            let mut points = Vec::new();
+            for step in 0..=18 {
+                let t = step as f32 / 18.0;
+                let deg = start_deg + (end_deg - start_deg) * t;
+                let rad = deg.to_radians();
+                points.push(egui::pos2(center.x + rad.cos() * r, center.y + rad.sin() * r));
+            }
+            painter.add(egui::Shape::line(points.clone(), Stroke::new(1.6, color)));
+            if points.len() >= 2 {
+                let end = points[points.len() - 1];
+                let prev = points[points.len() - 2];
+                let dir = egui::vec2(end.x - prev.x, end.y - prev.y).normalized();
+                let left = egui::vec2(-dir.y, dir.x);
+                painter.add(egui::Shape::convex_polygon(
+                    vec![
+                        end,
+                        egui::pos2(end.x - dir.x * 6.0 + left.x * 3.0, end.y - dir.y * 6.0 + left.y * 3.0),
+                        egui::pos2(end.x - dir.x * 6.0 - left.x * 3.0, end.y - dir.y * 6.0 - left.y * 3.0),
+                    ],
+                    color,
+                    Stroke::NONE,
+                ));
+            }
+        };
+
         for (_encoder_idx, rect, ccw, cw) in &encoder_groups {
             let top_rect = egui::Rect::from_min_max(rect.min, egui::pos2(rect.max.x, rect.center().y));
             let bottom_rect = egui::Rect::from_min_max(egui::pos2(rect.min.x, rect.center().y), rect.max);
@@ -4854,40 +4919,83 @@ impl EntropyApp {
                 }
             }
 
+            let top_selected = cw.map(|(visual_idx, _)| Some((layer, visual_idx)) == self.selected_encoder).unwrap_or(false);
+            let bottom_selected = ccw.map(|(visual_idx, _)| Some((layer, visual_idx)) == self.selected_encoder).unwrap_or(false);
+            let visuals = &ui.visuals().widgets;
+            let top_fill = if top_selected {
+                visuals.active.bg_fill
+            } else if top_resp.hovered() {
+                visuals.hovered.bg_fill
+            } else {
+                visuals.inactive.bg_fill
+            };
+            let bottom_fill = if bottom_selected {
+                visuals.active.bg_fill
+            } else if bottom_resp.hovered() {
+                visuals.hovered.bg_fill
+            } else {
+                visuals.inactive.bg_fill
+            };
+            let outline = if top_selected || bottom_selected {
+                visuals.active.bg_stroke
+            } else if top_resp.hovered() || bottom_resp.hovered() {
+                visuals.hovered.bg_stroke
+            } else {
+                visuals.inactive.bg_stroke
+            };
+
             let painter = ui.painter();
-            let border = if dark { Color32::from_rgb(55, 55, 60) } else { Color32::from_rgb(210, 210, 218) };
-            let fill = if dark { Color32::from_rgb(36, 36, 42) } else { Color32::from_rgb(244, 244, 248) };
             let center = rect.center();
             let radius = rect.width().min(rect.height()) * 0.5;
-            painter.circle_filled(center, radius, fill);
-            painter.circle_stroke(center, radius, Stroke::new(1.0, border));
+            painter.circle_filled(center, radius, visuals.inactive.bg_fill);
+            painter.with_clip_rect(top_rect).circle_filled(center, radius, top_fill);
+            painter.with_clip_rect(bottom_rect).circle_filled(center, radius, bottom_fill);
+            painter.circle_stroke(center, radius, outline);
             painter.line_segment(
                 [
                     egui::pos2(center.x - radius * 0.82, center.y),
                     egui::pos2(center.x + radius * 0.82, center.y),
                 ],
-                Stroke::new(1.0, border),
+                Stroke::new(1.0, outline.color),
             );
 
             let top_label = encoder_label(cw.map(|(_, kc)| kc).unwrap_or(0x0000));
             let bottom_label = encoder_label(ccw.map(|(_, kc)| kc).unwrap_or(0x0000));
             let top_font = egui::FontId::proportional(if top_label.chars().count() > 9 { 8.5 } else { 9.5 });
             let bottom_font = egui::FontId::proportional(if bottom_label.chars().count() > 9 { 8.5 } else { 9.5 });
-            let text_color = if dark { Color32::from_rgb(218, 218, 228) } else { Color32::from_rgb(72, 72, 84) };
+            let top_text_color = if top_selected {
+                visuals.active.fg_stroke.color
+            } else if top_resp.hovered() {
+                visuals.hovered.fg_stroke.color
+            } else {
+                visuals.inactive.fg_stroke.color
+            };
+            let bottom_text_color = if bottom_selected {
+                visuals.active.fg_stroke.color
+            } else if bottom_resp.hovered() {
+                visuals.hovered.fg_stroke.color
+            } else {
+                visuals.inactive.fg_stroke.color
+            };
             painter.text(
-                egui::pos2(center.x, center.y - radius * 0.38),
+                egui::pos2(center.x, center.y - radius * 0.30),
                 egui::Align2::CENTER_CENTER,
                 top_label,
                 top_font,
-                text_color,
+                top_text_color,
             );
             painter.text(
-                egui::pos2(center.x, center.y + radius * 0.38),
+                egui::pos2(center.x, center.y + radius * 0.30),
                 egui::Align2::CENTER_CENTER,
                 bottom_label,
                 bottom_font,
-                text_color,
+                bottom_text_color,
             );
+
+            let arrow_color_top = if top_resp.hovered() || top_selected { top_text_color } else { app_muted_text(dark) };
+            let arrow_color_bottom = if bottom_resp.hovered() || bottom_selected { bottom_text_color } else { app_muted_text(dark) };
+            draw_encoder_arrow(painter, egui::pos2(center.x, center.y - radius * 0.02), radius * 0.48, true, arrow_color_top);
+            draw_encoder_arrow(painter, egui::pos2(center.x, center.y + radius * 0.02), radius * 0.48, false, arrow_color_bottom);
         }
 
         self.prev_hovered_key = hovered_key;
