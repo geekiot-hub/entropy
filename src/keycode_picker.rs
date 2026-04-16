@@ -2313,16 +2313,6 @@ Boot".into(),     0x7C00, "QK_BOOT — put keyboard into flash mode".into()),
 Debug".into(),    0x7C02, "DB_TOGG — toggle debug mode".into()),
             ("🔒
 Lock".into(),     0x7800, "QK_LOCK — hold to lock remaining keys until pressed again".into()),
-            ("Shift
-(".into(),     0x7C1A, "Left Shift when held, ( when tapped".into()),
-            ("Shift
-)".into(),     0x7C1B, "Right Shift when held, ) when tapped".into()),
-            ("Ctrl
-(".into(),      0x7C18, "Left Ctrl when held, ( when tapped".into()),
-            ("Ctrl
-)".into(),      0x7C19, "Right Ctrl when held, ) when tapped".into()),
-            ("Shift
-Enter".into(), 0x7C1E, "Shift when held, Enter when tapped".into()),
         ];
         let extra_fn_keys: &[(&str, u16)] = &[
             ("F13", 0x0068), ("F14", 0x0069), ("F15", 0x006A), ("F16", 0x006B),
@@ -2686,6 +2676,55 @@ Enter".into(), 0x7C1E, "Shift when held, Enter when tapped".into()),
                 );
                 if resp.clicked() { self.result = Some(*value); self.open = false; }
                 resp = resp.on_hover_text(crate::keycode::keycode_tooltip(*value, &[], &self.layer_names));
+                let _ = resp;
+            }
+        });
+
+        ui.add_space(10.0);
+        ui.label(RichText::new("Space Cadet").size(11.0).color(Color32::from_gray(150)));
+        ui.add_space(4.0);
+        let space_cadet_keys: &[(&str, &str, u16, &str)] = &[
+            ("LCtrl", "(",     0x7C18, "Left Control when held, ( when tapped"),
+            ("RCtrl", ")",     0x7C19, "Right Control when held, ) when tapped"),
+            ("LShift", "(",    0x7C1A, "Left Shift when held, ( when tapped"),
+            ("RShift", ")",    0x7C1B, "Right Shift when held, ) when tapped"),
+            ("LAlt", "(",      0x7C1C, "Left Alt when held, ( when tapped"),
+            ("RAlt", ")",      0x7C1D, "Right Alt when held, ) when tapped"),
+            ("RShift", "Enter",0x7C1E, "Right Shift when held, Enter when tapped"),
+        ];
+        ui.horizontal_wrapped(|ui| {
+            let cadet_top_color = if ui.visuals().dark_mode {
+                Color32::from_gray(105)
+            } else {
+                Color32::from_gray(145)
+            };
+            for (top, bottom, value, tip) in space_cadet_keys {
+                let mut resp = ui.add_sized(Vec2::new(72.0, 44.0), egui::Button::new(""));
+                let rect = resp.rect;
+                let painter = ui.painter();
+                let main_color = if resp.hovered() {
+                    ui.visuals().widgets.hovered.fg_stroke.color
+                } else {
+                    ui.visuals().widgets.inactive.fg_stroke.color
+                };
+                let top_font = if top.chars().count() > 6 { 8.7 } else { 9.3 };
+                let bottom_font = if bottom.chars().count() > 5 { 9.4 } else { 10.6 };
+                painter.text(
+                    egui::pos2(rect.center().x, rect.center().y - 6.5),
+                    egui::Align2::CENTER_CENTER,
+                    *top,
+                    egui::FontId::proportional(top_font),
+                    cadet_top_color,
+                );
+                painter.text(
+                    egui::pos2(rect.center().x, rect.center().y + 6.5),
+                    egui::Align2::CENTER_CENTER,
+                    *bottom,
+                    egui::FontId::proportional(bottom_font),
+                    main_color,
+                );
+                if resp.clicked() { self.result = Some(*value); self.open = false; }
+                resp = resp.on_hover_text(*tip);
                 let _ = resp;
             }
         });
