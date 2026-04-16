@@ -4740,31 +4740,75 @@ impl EntropyApp {
 
         }
 
+        let mut encoder_groups: Vec<(u8, egui::Rect, Option<u16>, Option<u16>)> = Vec::new();
         for (ei, rect) in &encoder_rects {
             let encoder = &layout.encoders[*ei];
             let kc = layout.get_encoder_keycode(layer, *ei);
-            let border = if dark { Color32::from_rgb(55, 55, 60) } else { Color32::from_rgb(210, 210, 218) };
-            painter.rect(*rect, 12.0, if dark { Color32::from_rgb(36, 36, 42) } else { Color32::from_rgb(244, 244, 248) }, Stroke::new(1.0, border), egui::StrokeKind::Inside);
-            let label = if kc == 0 {
-                "✕".to_string()
+            if let Some((_, group_rect, ccw, cw)) = encoder_groups.iter_mut().find(|(idx, _, _, _)| *idx == encoder.encoder_idx) {
+                *group_rect = group_rect.union(*rect);
+                if encoder.direction == 0 {
+                    *ccw = Some(kc);
+                } else {
+                    *cw = Some(kc);
+                }
             } else {
-                keycode_label_with_macro_names(kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names, &self.keycode_picker.tap_dance_names)
-            };
-            draw_key_label(&painter, *rect, &label, dark);
+                encoder_groups.push((
+                    encoder.encoder_idx,
+                    *rect,
+                    if encoder.direction == 0 { Some(kc) } else { None },
+                    if encoder.direction == 0 { None } else { Some(kc) },
+                ));
+            }
+        }
 
+        let encoder_label = |kc: u16| -> String {
+            match kc {
+                0x0000 => "✕".to_string(),
+                0x0001 => "▽".to_string(),
+                _ => keycode_label_with_macro_names(
+                    kc,
+                    &layout.custom_keycodes,
+                    &self.layer_names,
+                    &self.keycode_picker.macro_names,
+                    &self.keycode_picker.tap_dance_names,
+                ).replace('\n', " "),
+            }
+        };
+
+        for (_encoder_idx, rect, ccw, cw) in &encoder_groups {
+            let border = if dark { Color32::from_rgb(55, 55, 60) } else { Color32::from_rgb(210, 210, 218) };
+            let fill = if dark { Color32::from_rgb(36, 36, 42) } else { Color32::from_rgb(244, 244, 248) };
             let center = rect.center();
-            let radius = rect.width().min(rect.height()) * 0.18;
-            let dir = if encoder.direction == 0 { -1.0 } else { 1.0 };
-            let arrow_color = if dark { Color32::from_rgb(150, 150, 165) } else { Color32::from_rgb(125, 125, 140) };
-            painter.add(egui::Shape::convex_polygon(
-                vec![
-                    egui::pos2(center.x + dir * radius * 1.0, center.y - radius * 0.55),
-                    egui::pos2(center.x + dir * radius * 0.15, center.y + radius * 0.25),
-                    egui::pos2(center.x + dir * radius * 1.35, center.y + radius * 0.25),
+            let radius = rect.width().min(rect.height()) * 0.5;
+            painter.circle_filled(center, radius, fill);
+            painter.circle_stroke(center, radius, Stroke::new(1.0, border));
+            painter.line_segment(
+                [
+                    egui::pos2(center.x - radius * 0.82, center.y),
+                    egui::pos2(center.x + radius * 0.82, center.y),
                 ],
-                arrow_color,
-                Stroke::NONE,
-            ));
+                Stroke::new(1.0, border),
+            );
+
+            let top_label = encoder_label(cw.unwrap_or(0x0000));
+            let bottom_label = encoder_label(ccw.unwrap_or(0x0000));
+            let top_font = egui::FontId::proportional(if top_label.chars().count() > 9 { 8.5 } else { 9.5 });
+            let bottom_font = egui::FontId::proportional(if bottom_label.chars().count() > 9 { 8.5 } else { 9.5 });
+            let text_color = if dark { Color32::from_rgb(218, 218, 228) } else { Color32::from_rgb(72, 72, 84) };
+            painter.text(
+                egui::pos2(center.x, center.y - radius * 0.38),
+                egui::Align2::CENTER_CENTER,
+                top_label,
+                top_font,
+                text_color,
+            );
+            painter.text(
+                egui::pos2(center.x, center.y + radius * 0.38),
+                egui::Align2::CENTER_CENTER,
+                bottom_label,
+                bottom_font,
+                text_color,
+            );
         }
 
         self.prev_hovered_key = hovered_key;
