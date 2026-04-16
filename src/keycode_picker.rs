@@ -2728,6 +2728,59 @@ Lock".into(),     0x7800, "QK_LOCK — hold to lock remaining keys until pressed
                 let _ = resp;
             }
         });
+
+        ui.add_space(10.0);
+        ui.label(RichText::new("International").size(11.0).color(Color32::from_gray(150)));
+        ui.add_space(4.0);
+        let international_keys: &[(&str, &str, u16, &str)] = &[
+            ("JIS", "\\ _",   0x0087, "JIS \\ and _"),
+            ("JIS", "Kana",   0x0088, "JIS Katakana/Hiragana"),
+            ("JIS", "¥ |",    0x0089, "JIS ¥ and |"),
+            ("JIS", "Henkan", 0x008A, "JIS Henkan"),
+            ("JIS", "Muhenk", 0x008B, "JIS Muhenkan"),
+            ("JIS", "Num ,",  0x008C, "JIS Numpad ,"),
+            ("Hangul", "Eng",   0x0090, "Hangul/English"),
+            ("Hangul", "Hanja", 0x0091, "Hanja"),
+            ("JIS", "Katak",  0x0092, "JIS Katakana"),
+            ("JIS", "Hirag",  0x0093, "JIS Hiragana"),
+            ("JIS", "ZenHan", 0x0094, "JIS Zenkaku/Hankaku"),
+        ];
+        ui.horizontal_wrapped(|ui| {
+            let intl_top_color = if ui.visuals().dark_mode {
+                Color32::from_gray(105)
+            } else {
+                Color32::from_gray(145)
+            };
+            for (top, bottom, value, tip) in international_keys {
+                let mut resp = ui.add_sized(Vec2::new(72.0, 44.0), egui::Button::new(""));
+                let rect = resp.rect;
+                let painter = ui.painter();
+                let main_color = if resp.hovered() {
+                    ui.visuals().widgets.hovered.fg_stroke.color
+                } else {
+                    ui.visuals().widgets.inactive.fg_stroke.color
+                };
+                let top_font = if top.chars().count() > 6 { 8.5 } else { 9.2 };
+                let bottom_font = if bottom.chars().count() > 6 { 9.0 } else { 10.2 };
+                painter.text(
+                    egui::pos2(rect.center().x, rect.center().y - 6.5),
+                    egui::Align2::CENTER_CENTER,
+                    *top,
+                    egui::FontId::proportional(top_font),
+                    intl_top_color,
+                );
+                painter.text(
+                    egui::pos2(rect.center().x, rect.center().y + 6.5),
+                    egui::Align2::CENTER_CENTER,
+                    *bottom,
+                    egui::FontId::proportional(bottom_font),
+                    main_color,
+                );
+                if resp.clicked() { self.result = Some(*value); self.open = false; }
+                resp = resp.on_hover_text(*tip);
+                let _ = resp;
+            }
+        });
     }
 
 fn show_zmk(&mut self, ctx: &egui::Context) {
