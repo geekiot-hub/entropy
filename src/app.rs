@@ -3131,8 +3131,13 @@ impl EntropyApp {
                                     .min_size(action_button_size)
                                     .frame(true)
                                     .stroke(combo_outline_stroke);
-                                let clear_resp = ui.add(clear_btn);
-                                if clear_resp.hovered() {
+                                let clear_enabled = combo_idx < self.combo_entries.len() && (
+                                    self.combo_entries[combo_idx].keys.iter().any(|&k| k != 0)
+                                        || self.combo_entries[combo_idx].output != 0
+                                        || self.combo_names.get(combo_idx).map(|s| !s.trim().is_empty()).unwrap_or(false)
+                                );
+                                let clear_resp = ui.add_enabled(clear_enabled, clear_btn);
+                                if clear_resp.hovered() && clear_enabled {
                                     ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                 }
                                 if clear_resp.clicked() {
