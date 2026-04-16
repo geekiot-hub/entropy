@@ -4876,7 +4876,7 @@ impl EntropyApp {
                 let rad = deg.to_radians();
                 points.push(egui::pos2(center.x + rad.cos() * r, center.y + rad.sin() * r));
             }
-            painter.add(egui::Shape::line(points.clone(), Stroke::new(1.35, color)));
+            painter.add(egui::Shape::line(points.clone(), Stroke::new(1.7, color)));
             if points.len() >= 2 {
                 let end = points[points.len() - 1];
                 let prev = points[points.len() - 2];
@@ -4885,8 +4885,8 @@ impl EntropyApp {
                 painter.add(egui::Shape::convex_polygon(
                     vec![
                         end,
-                        egui::pos2(end.x - dir.x * 3.6 + left.x * 1.9, end.y - dir.y * 3.6 + left.y * 1.9),
-                        egui::pos2(end.x - dir.x * 3.6 - left.x * 1.9, end.y - dir.y * 3.6 - left.y * 1.9),
+                        egui::pos2(end.x - dir.x * 3.6 + left.x * 2.4, end.y - dir.y * 3.6 + left.y * 2.4),
+                        egui::pos2(end.x - dir.x * 3.6 - left.x * 2.4, end.y - dir.y * 3.6 - left.y * 2.4),
                     ],
                     color,
                     Stroke::NONE,
