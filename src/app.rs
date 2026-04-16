@@ -769,6 +769,25 @@ impl EntropyApp {
                             }
                         }
 
+                        if !layout.encoders.is_empty() {
+                            layout.encoder_layers = vec![vec![0u16; layout.encoders.len()]; layer_count];
+                            let encoder_count = layout.encoder_count();
+                            for layer in 0..layer_count {
+                                let mut per_encoder = vec![(0u16, 0u16); encoder_count];
+                                for encoder_idx in 0..encoder_count {
+                                    match dev_conn.get_encoder(layer as u8, encoder_idx as u8) {
+                                        Ok((ccw, cw)) => per_encoder[encoder_idx] = (ccw, cw),
+                                        Err(e) => log::warn!("get_encoder(layer={}, idx={}): {}", layer, encoder_idx, e),
+                                    }
+                                }
+                                for (visual_idx, encoder) in layout.encoders.iter().enumerate() {
+                                    if let Some((ccw, cw)) = per_encoder.get(encoder.encoder_idx as usize) {
+                                        layout.encoder_layers[layer][visual_idx] = if encoder.direction == 0 { *ccw } else { *cw };
+                                    }
+                                }
+                            }
+                        }
+
                         // Read macros
                         let macro_texts = match dev_conn.get_macro_count() {
                             Ok(count) => {
@@ -945,7 +964,9 @@ impl EntropyApp {
                                 rows: 0,
                                 cols: 0,
                                 keys: vec![],
+                                encoders: vec![],
                                 layers: vec![],
+                                encoder_layers: vec![],
                                 custom_keycodes: vec![],
                                 supports_rgb: false,
                                 firmware: FirmwareProtocol::Zmk,
@@ -3656,6 +3677,12 @@ impl EntropyApp {
             max_x = max_x.max(key.x + key.w);
             max_y = max_y.max(key.y + key.h);
         }
+        for encoder in &layout.encoders {
+            min_x = min_x.min(encoder.x);
+            min_y = min_y.min(encoder.y);
+            max_x = max_x.max(encoder.x + encoder.w);
+            max_y = max_y.max(encoder.y + encoder.h);
+        }
         if min_x == f32::MAX { min_x = 0.0; min_y = 0.0; max_x = 1.0; max_y = 1.0; }
 
         let span_x = max_x - min_x;
@@ -4419,6 +4446,16 @@ impl EntropyApp {
             let response = ui.allocate_rect(rect, Sense::click());
             rects.push((ki, rect, response));
         }
+        let encoder_rects: Vec<(usize, egui::Rect)> = layout.encoders.iter().enumerate().map(|(ei, encoder)| {
+            let rect = egui::Rect::from_min_size(
+                egui::pos2(
+                    offset_x + encoder.x * unit + padding,
+                    offset_y + encoder.y * unit + padding,
+                ),
+                Vec2::new(encoder.w * unit - padding * 2.0, encoder.h * unit - padding * 2.0),
+            );
+            (ei, rect)
+        }).collect();
 
         let is_zmk = self.firmware == FirmwareProtocol::Zmk;
 
@@ -4701,6 +4738,33 @@ impl EntropyApp {
             }
 
 
+        }
+
+        for (ei, rect) in &encoder_rects {
+            let encoder = &layout.encoders[*ei];
+            let kc = layout.get_encoder_keycode(layer, *ei);
+            let border = if dark { Color32::from_rgb(55, 55, 60) } else { Color32::from_rgb(210, 210, 218) };
+            painter.rect(*rect, 12.0, if dark { Color32::from_rgb(36, 36, 42) } else { Color32::from_rgb(244, 244, 248) }, Stroke::new(1.0, border), egui::StrokeKind::Inside);
+            let label = if kc == 0 {
+                "✕".to_string()
+            } else {
+                keycode_label_with_macro_names(kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names, &self.keycode_picker.tap_dance_names)
+            };
+            draw_key_label(&painter, *rect, &label, dark);
+
+            let center = rect.center();
+            let radius = rect.width().min(rect.height()) * 0.18;
+            let dir = if encoder.direction == 0 { -1.0 } else { 1.0 };
+            let arrow_color = if dark { Color32::from_rgb(150, 150, 165) } else { Color32::from_rgb(125, 125, 140) };
+            painter.add(egui::Shape::convex_polygon(
+                vec![
+                    egui::pos2(center.x + dir * radius * 1.0, center.y - radius * 0.55),
+                    egui::pos2(center.x + dir * radius * 0.15, center.y + radius * 0.25),
+                    egui::pos2(center.x + dir * radius * 1.35, center.y + radius * 0.25),
+                ],
+                arrow_color,
+                Stroke::NONE,
+            ));
         }
 
         self.prev_hovered_key = hovered_key;

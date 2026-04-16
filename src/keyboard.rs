@@ -22,7 +22,23 @@ pub struct PhysicalKey {
     pub rotation_y: f32,
 }
 
-
+/// A visual encoder slot on the keyboard layout.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PhysicalEncoder {
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
+    pub label: String,
+    pub encoder_idx: u8,
+    pub direction: u8,
+    /// Rotation angle in degrees (for drawing key shape)
+    pub rotation: f32,
+    /// Rotation anchor X (in KLE units)
+    pub rotation_x: f32,
+    /// Rotation anchor Y (in KLE units)
+    pub rotation_y: f32,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CustomKeycode {
@@ -38,7 +54,9 @@ pub struct KeyboardLayout {
     pub rows: usize,
     pub cols: usize,
     pub keys: Vec<PhysicalKey>,
+    pub encoders: Vec<PhysicalEncoder>,
     pub layers: Vec<Vec<u16>>, // layers[layer][key_idx] = keycode (Vial)
+    pub encoder_layers: Vec<Vec<u16>>, // encoder_layers[layer][encoder_visual_idx] = keycode (Vial)
     /// Custom keycodes from vial JSON: symbolic name, short button label, readable tooltip title.
     pub custom_keycodes: Vec<CustomKeycode>,
     /// Whether the keyboard definition exposes a lighting section for RGB/backlight controls
@@ -75,9 +93,18 @@ fn parse_matrix_from_label(label: &str) -> Option<(u8, u8)> {
     Some((row, col))
 }
 
-/// Returns true if this KLE key is an encoder (label position 9 == "e")
-fn is_encoder_key(label: &str) -> bool {
-    label.lines().nth(9).map(|s| s.trim() == "e").unwrap_or(false)
+/// Parse encoder metadata from a Vial KLE label.
+/// Vial marks encoders with label position 4 == "e" and label 0 == "idx,dir".
+fn parse_encoder_from_label(label: &str) -> Option<(u8, u8)> {
+    let lines: Vec<&str> = label.lines().collect();
+    let is_encoder = lines.get(4).map(|s| s.trim() == "e").unwrap_or(false)
+        || lines.get(9).map(|s| s.trim() == "e").unwrap_or(false);
+    if !is_encoder {
+        return None;
+    }
+    let first_line = lines.first()?.trim();
+    let (idx, dir) = first_line.split_once(',')?;
+    Some((idx.trim().parse().ok()?, dir.trim().parse().ok()?))
 }
 
 impl KeyboardLayout {
@@ -86,6 +113,22 @@ impl KeyboardLayout {
             .get(layer)
             .and_then(|l| l.get(key_idx))
             .copied()
+            .unwrap_or(0)
+    }
+
+    pub fn get_encoder_keycode(&self, layer: usize, encoder_visual_idx: usize) -> u16 {
+        self.encoder_layers
+            .get(layer)
+            .and_then(|l| l.get(encoder_visual_idx))
+            .copied()
+            .unwrap_or(0)
+    }
+
+    pub fn encoder_count(&self) -> usize {
+        self.encoders
+            .iter()
+            .map(|e| e.encoder_idx as usize + 1)
+            .max()
             .unwrap_or(0)
     }
 
@@ -149,6 +192,7 @@ impl KeyboardLayout {
             .and_then(|v| v.as_array());
 
         let mut keys = Vec::new();
+        let mut encoders = Vec::new();
 
         // KLE global state
         let mut cur_x: f32 = 0.0;
@@ -201,7 +245,19 @@ impl KeyboardLayout {
                         next_h = h as f32;
                     }
                 } else if let Some(label) = item.as_str() {
-                    if is_encoder_key(label) {
+                    if let Some((encoder_idx, direction)) = parse_encoder_from_label(label) {
+                        encoders.push(PhysicalEncoder {
+                            x: cur_x,
+                            y: cur_y,
+                            w: next_w,
+                            h: next_h,
+                            label: label.to_string(),
+                            encoder_idx,
+                            direction,
+                            rotation: rotation_angle,
+                            rotation_x,
+                            rotation_y,
+                        });
                         cur_x += next_w;
                         next_w = 1.0;
                         next_h = 1.0;
@@ -265,7 +321,9 @@ impl KeyboardLayout {
             rows,
             cols,
             keys,
+            encoders,
             layers: vec![vec![0u16; num_keys]; 4],
+            encoder_layers: vec![],
             custom_keycodes,
             supports_rgb,
             firmware: FirmwareProtocol::Vial,

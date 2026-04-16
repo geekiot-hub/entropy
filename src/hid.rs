@@ -26,6 +26,8 @@ const VIA_SWITCH_MATRIX_STATE: u8 = 0x03;
 const CMD_VIAL_GET_KEYBOARD_ID: u8 = 0x00;
 const CMD_VIAL_GET_SIZE: u8 = 0x01;
 const CMD_VIAL_GET_DEFINITION: u8 = 0x02;
+const CMD_VIAL_GET_ENCODER: u8 = 0x03;
+const CMD_VIAL_SET_ENCODER: u8 = 0x04;
 const CMD_VIAL_GET_UNLOCK_STATUS: u8 = 0x05;
 const CMD_VIAL_UNLOCK_START: u8 = 0x06;
 const CMD_VIAL_UNLOCK_POLL: u8 = 0x07;
@@ -404,6 +406,17 @@ impl HidDevice {
             anyhow::bail!("key override set error: {}", resp[0]);
         }
         Ok(())
+    }
+
+    pub fn get_encoder(&self, layer: u8, idx: u8) -> Result<(u16, u16)> {
+        let resp = self.usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_GET_ENCODER, layer, idx])?;
+        if resp.len() < 4 {
+            anyhow::bail!("encoder get response too short for layer {layer}, idx {idx}");
+        }
+        Ok((
+            u16::from_be_bytes([resp[0], resp[1]]),
+            u16::from_be_bytes([resp[2], resp[3]]),
+        ))
     }
 
     pub fn get_qmk_setting_u8(&self, qsid: u16) -> Result<u8> {
