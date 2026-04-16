@@ -4698,6 +4698,26 @@ impl EntropyApp {
 
         self.prev_hovered_key = hovered_key;
 
+        if !is_zmk {
+            let hint_key_idx = hovered_key.or_else(|| {
+                self.selected_key
+                    .and_then(|(selected_layer, selected_ki)| (selected_layer == layer).then_some(selected_ki))
+            });
+            if let Some(ki) = hint_key_idx {
+                let kc = layout.get_keycode(layer, ki);
+                if is_mouse_keycode(kc) {
+                    ui.add_space(10.0);
+                    ui.horizontal_centered(|ui| {
+                        ui.label(
+                            RichText::new("Tip: right-click this key to open Mouse Keys settings.")
+                                .size(11.5)
+                                .color(app_muted_text(dark)),
+                        );
+                    });
+                }
+            }
+        }
+
         if layout_h > avail.y {
             ui.allocate_space(Vec2::new(0.0, (layout_h - avail.y).max(0.0)));
         }
