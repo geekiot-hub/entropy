@@ -2520,14 +2520,14 @@ Enter".into(), 0x7C1E, "Shift when held, Enter when tapped".into()),
         ui.label(RichText::new("OS shortcuts").size(11.0).color(Color32::from_gray(150)));
         ui.add_space(4.0);
         let os_shortcuts: &[(&str, &str, u16, &str)] = &[
-            ("Win/Linux", "Next Word", 0x0100 | 0x004F, "Ctrl + Right Arrow"),
             ("Win/Linux", "Prev Word", 0x0100 | 0x0050, "Ctrl + Left Arrow"),
-            ("Win/Linux", "Next App",  0x0400 | 0x002B, "Alt + Tab"),
+            ("Win/Linux", "Next Word", 0x0100 | 0x004F, "Ctrl + Right Arrow"),
             ("Win/Linux", "Prev App",  0x0600 | 0x002B, "Shift + Alt + Tab"),
-            ("macOS",     "Next Word", 0x0400 | 0x004F, "Option + Right Arrow"),
+            ("Win/Linux", "Next App",  0x0400 | 0x002B, "Alt + Tab"),
             ("macOS",     "Prev Word", 0x0400 | 0x0050, "Option + Left Arrow"),
-            ("macOS",     "Next App",  0x0800 | 0x002B, "Command + Tab"),
+            ("macOS",     "Next Word", 0x0400 | 0x004F, "Option + Right Arrow"),
             ("macOS",     "Prev App",  0x0A00 | 0x002B, "Shift + Command + Tab"),
+            ("macOS",     "Next App",  0x0800 | 0x002B, "Command + Tab"),
         ];
         ui.horizontal_wrapped(|ui| {
             let os_text_color = if ui.visuals().dark_mode {
