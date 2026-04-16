@@ -2739,8 +2739,10 @@ impl EntropyApp {
                             .min_size(action_button_size)
                             .frame(true)
                             .stroke(combo_outline_stroke);
-                        let clear_resp = ui.add(clear_btn);
-                        if clear_resp.hovered() {
+                        let clear_enabled = Self::key_override_entry_exists(&self.key_override_entries[idx])
+                            || self.key_override_names.get(idx).map(|s| !s.trim().is_empty()).unwrap_or(false);
+                        let clear_resp = ui.add_enabled(clear_enabled, clear_btn);
+                        if clear_resp.hovered() && clear_enabled {
                             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                         }
                         if clear_resp.clicked() {
