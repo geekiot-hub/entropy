@@ -4994,8 +4994,8 @@ impl EntropyApp {
 
             let arrow_color_top = if top_resp.hovered() || top_selected { top_text_color } else { app_muted_text(dark) };
             let arrow_color_bottom = if bottom_resp.hovered() || bottom_selected { bottom_text_color } else { app_muted_text(dark) };
-            draw_encoder_arrow(painter, egui::pos2(center.x, center.y - radius * 0.02), radius * 0.48, true, arrow_color_top);
-            draw_encoder_arrow(painter, egui::pos2(center.x, center.y + radius * 0.02), radius * 0.48, false, arrow_color_bottom);
+            draw_encoder_arrow(painter, egui::pos2(center.x, center.y - radius * 1.10), radius * 0.30, true, arrow_color_top);
+            draw_encoder_arrow(painter, egui::pos2(center.x, center.y + radius * 1.10), radius * 0.30, false, arrow_color_bottom);
         }
 
         self.prev_hovered_key = hovered_key;
