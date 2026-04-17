@@ -4524,9 +4524,7 @@ impl EntropyApp {
         }
 
         // Pass 1: allocate
-        let mut rects: Vec<(usize, egui::Rect, egui::Response)> =
-            Vec::with_capacity(layout.keys.len());
-        for (ki, key) in layout.keys.iter().enumerate() {
+        let key_rects: Vec<(usize, egui::Rect)> = layout.keys.iter().enumerate().map(|(ki, key)| {
             let rect = egui::Rect::from_min_size(
                 egui::pos2(
                     offset_x + key.x * unit + padding,
@@ -4534,9 +4532,8 @@ impl EntropyApp {
                 ),
                 Vec2::new(key.w * unit - padding * 2.0, key.h * unit - padding * 2.0),
             );
-            let response = ui.allocate_rect(rect, Sense::click());
-            rects.push((ki, rect, response));
-        }
+            (ki, rect)
+        }).collect();
         let encoder_rects: Vec<(usize, egui::Rect)> = layout.encoders.iter().enumerate().map(|(ei, encoder)| {
             let rect = egui::Rect::from_min_size(
                 egui::pos2(
@@ -4547,6 +4544,66 @@ impl EntropyApp {
             );
             (ei, rect)
         }).collect();
+        let mut encoder_groups: Vec<(u8, egui::Rect, Option<(usize, u16)>, Option<(usize, u16)>)> = Vec::new();
+        for (ei, rect) in &encoder_rects {
+            let encoder = &layout.encoders[*ei];
+            let kc = layout.get_encoder_keycode(self.selected_layer, *ei);
+            if let Some((_, group_rect, ccw, cw)) = encoder_groups.iter_mut().find(|(idx, _, _, _)| *idx == encoder.encoder_idx) {
+                *group_rect = group_rect.union(*rect);
+                if encoder.direction == 0 {
+                    *ccw = Some((*ei, kc));
+                } else {
+                    *cw = Some((*ei, kc));
+                }
+            } else {
+                encoder_groups.push((
+                    encoder.encoder_idx,
+                    *rect,
+                    if encoder.direction == 0 { Some((*ei, kc)) } else { None },
+                    if encoder.direction == 0 { None } else { Some((*ei, kc)) },
+                ));
+            }
+        }
+        let mut encoder_press_rects: Vec<(usize, egui::Rect)> = Vec::new();
+        for (_, group_rect, _, _) in &encoder_groups {
+            let center = group_rect.center();
+            let radius = group_rect.width().min(group_rect.height()) * 0.5;
+            let mut best_key: Option<(usize, f32)> = None;
+            for (ki, key_rect) in &key_rects {
+                if encoder_press_rects.iter().any(|(assigned_ki, _)| assigned_ki == ki) {
+                    continue;
+                }
+                let dist = key_rect.center().distance(center);
+                if dist > radius * 0.38 {
+                    continue;
+                }
+                match best_key {
+                    Some((_, best_dist)) if dist >= best_dist => {}
+                    _ => best_key = Some((*ki, dist)),
+                }
+            }
+            if let Some((ki, _)) = best_key {
+                let press_rect = egui::Rect::from_center_size(
+                    center,
+                    Vec2::new(
+                        (radius * 1.08).min(group_rect.width() * 0.56),
+                        (radius * 0.66).min(group_rect.height() * 0.32),
+                    ),
+                );
+                encoder_press_rects.push((ki, press_rect));
+            }
+        }
+        let mut rects: Vec<(usize, egui::Rect, egui::Response)> =
+            Vec::with_capacity(layout.keys.len());
+        for (ki, rect) in &key_rects {
+            let response_rect = encoder_press_rects
+                .iter()
+                .find(|(press_ki, _)| press_ki == ki)
+                .map(|(_, press_rect)| *press_rect)
+                .unwrap_or(*rect);
+            let response = ui.allocate_rect(response_rect, Sense::click());
+            rects.push((*ki, response_rect, response));
+        }
 
         let is_zmk = self.firmware == FirmwareProtocol::Zmk;
 
@@ -4747,7 +4804,13 @@ impl EntropyApp {
                 if dark { Color32::from_rgb(48, 48, 52) } else { Color32::from_rgb(255, 255, 255) }
             };
 
-            let draw_rect = if key.rotation != 0.0 {
+            let press_rect_override = encoder_press_rects
+                .iter()
+                .find(|(press_ki, _)| *press_ki == *ki)
+                .map(|(_, press_rect)| *press_rect);
+            let draw_rect = if let Some(press_rect) = press_rect_override {
+                press_rect
+            } else if key.rotation != 0.0 {
                 let angle_rad = key.rotation.to_radians();
                 let ax = offset_x + key.rotation_x * unit;
                 let ay = offset_y + key.rotation_y * unit;
@@ -4829,27 +4892,6 @@ impl EntropyApp {
             }
 
 
-        }
-
-        let mut encoder_groups: Vec<(u8, egui::Rect, Option<(usize, u16)>, Option<(usize, u16)>)> = Vec::new();
-        for (ei, rect) in &encoder_rects {
-            let encoder = &layout.encoders[*ei];
-            let kc = layout.get_encoder_keycode(layer, *ei);
-            if let Some((_, group_rect, ccw, cw)) = encoder_groups.iter_mut().find(|(idx, _, _, _)| *idx == encoder.encoder_idx) {
-                *group_rect = group_rect.union(*rect);
-                if encoder.direction == 0 {
-                    *ccw = Some((*ei, kc));
-                } else {
-                    *cw = Some((*ei, kc));
-                }
-            } else {
-                encoder_groups.push((
-                    encoder.encoder_idx,
-                    *rect,
-                    if encoder.direction == 0 { Some((*ei, kc)) } else { None },
-                    if encoder.direction == 0 { None } else { Some((*ei, kc)) },
-                ));
-            }
         }
 
         let encoder_label = |kc: u16| -> String {
