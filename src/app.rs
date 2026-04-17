@@ -4827,6 +4827,10 @@ impl EntropyApp {
 
             let is_hovering = hover_alpha > 0.05;
 
+            if press_rect_override.is_some() {
+                continue;
+            }
+
             if is_zmk {
                 // ZMK binding display
                 let binding = layout.get_zmk_binding(layer, *ki);
@@ -5038,6 +5042,81 @@ impl EntropyApp {
             let arrow_color_bottom = outline.color;
             draw_encoder_arrow(painter, center, radius, true, arrow_color_top);
             draw_encoder_arrow(painter, center, radius, false, arrow_color_bottom);
+
+            if let Some((press_ki, press_rect)) = encoder_press_rects
+                .iter()
+                .find(|(_, press_rect)| press_rect.center().distance(center) < 1.0)
+            {
+                let is_hovering = hover_alpha > 0.05;
+                let is_selected = self.selected_key == Some((layer, *press_ki));
+                let is_hovered = hovered_key == Some(*press_ki);
+                let bg = if is_selected {
+                    Color32::from_rgb(91, 104, 223)
+                } else if is_hovered {
+                    if dark { Color32::from_rgb(60, 60, 65) } else { Color32::from_rgb(232, 232, 240) }
+                } else {
+                    if dark { Color32::from_rgb(255, 255, 255) } else { Color32::from_rgb(255, 255, 255) }
+                };
+
+                if is_zmk {
+                    let binding = layout.get_zmk_binding(layer, *press_ki);
+                    let is_trans = layout.zmk_behaviors.iter()
+                        .find(|b| b.id == binding.behavior_id as u32)
+                        .map(|b| b.display_name == "Transparent")
+                        .unwrap_or(false);
+                    let border = if dark { Color32::from_rgb(55, 55, 60) } else { Color32::from_rgb(210, 210, 218) };
+                    painter.rect(*press_rect, 6.0, bg, Stroke::new(1.0, border), egui::StrokeKind::Inside);
+                    if is_trans && layer > 0 {
+                        if !is_hovering {
+                            let fallback = (0..layer).rev()
+                                .map(|l| layout.get_zmk_binding(l, *press_ki))
+                                .find(|b| {
+                                    !layout.zmk_behaviors.iter()
+                                        .find(|beh| beh.id == b.behavior_id as u32)
+                                        .map(|beh| beh.display_name == "Transparent")
+                                        .unwrap_or(false)
+                                });
+                            let label = if let Some(fb) = fallback {
+                                zmk_binding_label(&fb, &layout.zmk_behaviors, &self.layer_names)
+                            } else {
+                                "▽".to_string()
+                            };
+                            draw_key_label_dimmed(&painter, *press_rect, &label, dark);
+                        }
+                    } else {
+                        let label = zmk_binding_label(&binding, &layout.zmk_behaviors, &self.layer_names);
+                        draw_key_label(&painter, *press_rect, &label, dark);
+                    }
+                } else {
+                    let kc = layout.get_keycode(layer, *press_ki);
+                    if kc == 0x0001 {
+                        painter.rect(*press_rect, 6.0, bg, Stroke::new(1.0, if dark { Color32::from_rgb(55, 55, 60) } else { Color32::from_rgb(210, 210, 218) }), egui::StrokeKind::Inside);
+                        if !is_hovering {
+                            let fallback_kc = (0..layer).rev()
+                                .map(|l| layout.get_keycode(l, *press_ki))
+                                .find(|&k| k != 0x0001)
+                                .unwrap_or(0x0000);
+                            let label = if fallback_kc == 0x0000 || fallback_kc == 0x0001 {
+                                "▽".to_string()
+                            } else {
+                                keycode_label_with_macro_names(fallback_kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names, &self.keycode_picker.tap_dance_names)
+                            };
+                            draw_key_label_dimmed(&painter, *press_rect, &label, dark);
+                        }
+                    } else if kc == 0x0000 {
+                        let no_bg = if dark { Color32::from_rgb(20, 20, 22) } else { Color32::from_rgb(238, 238, 242) };
+                        let no_border = if dark { Color32::from_rgb(40, 40, 44) } else { Color32::from_rgb(210, 210, 218) };
+                        let no_text = if dark { Color32::from_rgb(55, 55, 65) } else { Color32::from_rgb(180, 180, 195) };
+                        painter.rect(*press_rect, 6.0, no_bg, Stroke::new(1.0, no_border), egui::StrokeKind::Inside);
+                        painter.text(press_rect.center(), egui::Align2::CENTER_CENTER, "✕", FontId::proportional(10.0), no_text);
+                    } else {
+                        let border = if dark { Color32::from_rgb(55, 55, 60) } else { Color32::from_rgb(210, 210, 218) };
+                        painter.rect(*press_rect, 6.0, bg, Stroke::new(1.0, border), egui::StrokeKind::Inside);
+                        let label = keycode_label_with_macro_names(kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names, &self.keycode_picker.tap_dance_names);
+                        draw_key_label(&painter, *press_rect, &label, dark);
+                    }
+                }
+            }
         }
 
         self.prev_hovered_key = hovered_key;
