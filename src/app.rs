@@ -4586,8 +4586,8 @@ impl EntropyApp {
                 let press_rect = egui::Rect::from_center_size(
                     center,
                     Vec2::new(
-                        (radius * 1.08).min(group_rect.width() * 0.56),
-                        (radius * 0.66).min(group_rect.height() * 0.32),
+                        (radius * 0.88).min(group_rect.width() * 0.44),
+                        (radius * 0.48).min(group_rect.height() * 0.22),
                     ),
                 );
                 encoder_press_rects.push((ki, press_rect));
@@ -5005,10 +5005,23 @@ impl EntropyApp {
                 Stroke::new(1.0, outline.color),
             );
 
+            let has_press_button = encoder_press_rects
+                .iter()
+                .any(|(_, press_rect)| press_rect.center().distance(center) < 1.0);
             let top_label = encoder_label(cw.map(|(_, kc)| kc).unwrap_or(0x0000));
             let bottom_label = encoder_label(ccw.map(|(_, kc)| kc).unwrap_or(0x0000));
-            let top_font = egui::FontId::proportional(if top_label.chars().count() > 9 { 8.5 } else { 9.5 });
-            let bottom_font = egui::FontId::proportional(if bottom_label.chars().count() > 9 { 8.5 } else { 9.5 });
+            let top_font = if has_press_button {
+                egui::FontId::proportional(if top_label.chars().count() > 9 { 6.6 } else { 7.4 })
+            } else {
+                egui::FontId::proportional(if top_label.chars().count() > 9 { 8.5 } else { 9.5 })
+            };
+            let bottom_font = if has_press_button {
+                egui::FontId::proportional(if bottom_label.chars().count() > 9 { 6.6 } else { 7.4 })
+            } else {
+                egui::FontId::proportional(if bottom_label.chars().count() > 9 { 8.5 } else { 9.5 })
+            };
+            let top_label_y = center.y - radius * if has_press_button { 0.52 } else { 0.30 };
+            let bottom_label_y = center.y + radius * if has_press_button { 0.52 } else { 0.30 };
             let top_text_color = if top_selected {
                 visuals.active.fg_stroke.color
             } else if top_resp.hovered() {
@@ -5024,14 +5037,14 @@ impl EntropyApp {
                 visuals.inactive.fg_stroke.color
             };
             painter.text(
-                egui::pos2(center.x, center.y - radius * 0.30),
+                egui::pos2(center.x, top_label_y),
                 egui::Align2::CENTER_CENTER,
                 top_label,
                 top_font,
                 top_text_color,
             );
             painter.text(
-                egui::pos2(center.x, center.y + radius * 0.30),
+                egui::pos2(center.x, bottom_label_y),
                 egui::Align2::CENTER_CENTER,
                 bottom_label,
                 bottom_font,
@@ -5055,67 +5068,69 @@ impl EntropyApp {
                 } else if is_hovered {
                     if dark { Color32::from_rgb(60, 60, 65) } else { Color32::from_rgb(232, 232, 240) }
                 } else {
-                    if dark { Color32::from_rgb(255, 255, 255) } else { Color32::from_rgb(255, 255, 255) }
+                    visuals.inactive.bg_fill
                 };
+                let border = if is_selected {
+                    visuals.active.bg_stroke.color
+                } else if is_hovered {
+                    visuals.hovered.bg_stroke.color
+                } else {
+                    outline.color
+                };
+                let text_color = if is_selected {
+                    visuals.active.fg_stroke.color
+                } else if is_hovered {
+                    visuals.hovered.fg_stroke.color
+                } else {
+                    visuals.inactive.fg_stroke.color
+                };
+                painter.rect(*press_rect, 5.0, bg, Stroke::new(1.0, border), egui::StrokeKind::Inside);
 
-                if is_zmk {
+                let press_label = if is_zmk {
                     let binding = layout.get_zmk_binding(layer, *press_ki);
                     let is_trans = layout.zmk_behaviors.iter()
                         .find(|b| b.id == binding.behavior_id as u32)
                         .map(|b| b.display_name == "Transparent")
                         .unwrap_or(false);
-                    let border = if dark { Color32::from_rgb(55, 55, 60) } else { Color32::from_rgb(210, 210, 218) };
-                    painter.rect(*press_rect, 6.0, bg, Stroke::new(1.0, border), egui::StrokeKind::Inside);
-                    if is_trans && layer > 0 {
-                        if !is_hovering {
-                            let fallback = (0..layer).rev()
-                                .map(|l| layout.get_zmk_binding(l, *press_ki))
-                                .find(|b| {
-                                    !layout.zmk_behaviors.iter()
-                                        .find(|beh| beh.id == b.behavior_id as u32)
-                                        .map(|beh| beh.display_name == "Transparent")
-                                        .unwrap_or(false)
-                                });
-                            let label = if let Some(fb) = fallback {
-                                zmk_binding_label(&fb, &layout.zmk_behaviors, &self.layer_names)
-                            } else {
-                                "▽".to_string()
-                            };
-                            draw_key_label_dimmed(&painter, *press_rect, &label, dark);
+                    if is_trans && layer > 0 && !is_hovering {
+                        let fallback = (0..layer).rev()
+                            .map(|l| layout.get_zmk_binding(l, *press_ki))
+                            .find(|b| {
+                                !layout.zmk_behaviors.iter()
+                                    .find(|beh| beh.id == b.behavior_id as u32)
+                                    .map(|beh| beh.display_name == "Transparent")
+                                    .unwrap_or(false)
+                            });
+                        if let Some(fb) = fallback {
+                            zmk_binding_label(&fb, &layout.zmk_behaviors, &self.layer_names)
+                        } else {
+                            "▽".to_string()
                         }
                     } else {
-                        let label = zmk_binding_label(&binding, &layout.zmk_behaviors, &self.layer_names);
-                        draw_key_label(&painter, *press_rect, &label, dark);
+                        zmk_binding_label(&binding, &layout.zmk_behaviors, &self.layer_names)
                     }
                 } else {
                     let kc = layout.get_keycode(layer, *press_ki);
-                    if kc == 0x0001 {
-                        painter.rect(*press_rect, 6.0, bg, Stroke::new(1.0, if dark { Color32::from_rgb(55, 55, 60) } else { Color32::from_rgb(210, 210, 218) }), egui::StrokeKind::Inside);
-                        if !is_hovering {
-                            let fallback_kc = (0..layer).rev()
-                                .map(|l| layout.get_keycode(l, *press_ki))
-                                .find(|&k| k != 0x0001)
-                                .unwrap_or(0x0000);
-                            let label = if fallback_kc == 0x0000 || fallback_kc == 0x0001 {
-                                "▽".to_string()
-                            } else {
-                                keycode_label_with_macro_names(fallback_kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names, &self.keycode_picker.tap_dance_names)
-                            };
-                            draw_key_label_dimmed(&painter, *press_rect, &label, dark);
+                    if kc == 0x0001 && !is_hovering {
+                        let fallback_kc = (0..layer).rev()
+                            .map(|l| layout.get_keycode(l, *press_ki))
+                            .find(|&k| k != 0x0001)
+                            .unwrap_or(0x0000);
+                        if fallback_kc == 0x0000 || fallback_kc == 0x0001 {
+                            "▽".to_string()
+                        } else {
+                            keycode_label_with_macro_names(fallback_kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names, &self.keycode_picker.tap_dance_names)
                         }
+                    } else if kc == 0x0001 {
+                        "▽".to_string()
                     } else if kc == 0x0000 {
-                        let no_bg = if dark { Color32::from_rgb(20, 20, 22) } else { Color32::from_rgb(238, 238, 242) };
-                        let no_border = if dark { Color32::from_rgb(40, 40, 44) } else { Color32::from_rgb(210, 210, 218) };
-                        let no_text = if dark { Color32::from_rgb(55, 55, 65) } else { Color32::from_rgb(180, 180, 195) };
-                        painter.rect(*press_rect, 6.0, no_bg, Stroke::new(1.0, no_border), egui::StrokeKind::Inside);
-                        painter.text(press_rect.center(), egui::Align2::CENTER_CENTER, "✕", FontId::proportional(10.0), no_text);
+                        "✕".to_string()
                     } else {
-                        let border = if dark { Color32::from_rgb(55, 55, 60) } else { Color32::from_rgb(210, 210, 218) };
-                        painter.rect(*press_rect, 6.0, bg, Stroke::new(1.0, border), egui::StrokeKind::Inside);
-                        let label = keycode_label_with_macro_names(kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names, &self.keycode_picker.tap_dance_names);
-                        draw_key_label(&painter, *press_rect, &label, dark);
+                        keycode_label_with_macro_names(kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names, &self.keycode_picker.tap_dance_names)
                     }
-                }
+                }.replace('\n', " ");
+                let press_font = FontId::proportional(if press_label.chars().count() > 8 { 7.2 } else { 8.2 });
+                painter.text(press_rect.center(), egui::Align2::CENTER_CENTER, press_label, press_font, text_color);
             }
         }
 
