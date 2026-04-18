@@ -4312,11 +4312,12 @@ impl EntropyApp {
             let selected = self.selected_layer;
             // raw_name — чистое имя без префикса, хранится в layer_names
             let raw_name = self.layer_names.get(selected).cloned().unwrap_or_else(|| selected.to_string());
+            let visible_raw_name: String = raw_name.chars().take(9).collect();
             // display_name — с префиксом для отображения
             let display_name = if !raw_name.is_empty() && raw_name != selected.to_string() {
-                format!("{}. {}", selected, raw_name)
+                format!("{}. {}", selected, visible_raw_name)
             } else {
-                raw_name.clone()
+                visible_raw_name.clone()
             };
             let name = display_name;
             let center_x = ui.max_rect().center().x;
@@ -4370,16 +4371,16 @@ impl EntropyApp {
             let text_color = if self.dark_mode { Color32::from_gray(245) } else { Color32::from_gray(60) };
 
             if self.editing_layer == Some(selected) {
-                // Limit input to 7 chars
-                if self.editing_layer_text.chars().count() > 7 {
-                    let s: String = self.editing_layer_text.chars().take(7).collect();
+                // Limit input to 15 chars
+                if self.editing_layer_text.chars().count() > 15 {
+                    let s: String = self.editing_layer_text.chars().take(15).collect();
                     self.editing_layer_text = s;
                 }
                 let resp = ui.put(name_rect,
                     egui::TextEdit::singleline(&mut self.editing_layer_text)
                         .font(label_font.clone())
                         .horizontal_align(egui::Align::Center)
-                        .char_limit(7)
+                        .char_limit(15)
                         .frame(false)
                 );
                 // Request focus only on the first frame so lost_focus() works correctly.
