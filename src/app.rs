@@ -3724,15 +3724,15 @@ impl EntropyApp {
             .resizable(false)
             .movable(true)
             .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
-            .fixed_size(Vec2::new(460.0, 250.0))
+            .fixed_size(Vec2::new(500.0, 220.0))
             .frame(frame)
             .order(egui::Order::Foreground)
             .show(ctx, |ui| {
-                ui.add_space(8.0);
+                ui.add_space(6.0);
 
                 if !self.rgb_settings.supported {
                     ui.vertical_centered(|ui| {
-                        ui.add_space(64.0);
+                        ui.add_space(52.0);
                         ui.label(
                             RichText::new("RGB settings are not available on this firmware.")
                                 .size(13.0)
@@ -3743,86 +3743,128 @@ impl EntropyApp {
                 }
 
                 let options = rgb_effect_options(&self.rgb_settings);
+                let mut enabled = self.rgb_settings.is_enabled();
+                let mut selected_effect = self.rgb_settings.effect;
+                let brightness_max = self.rgb_settings.max_brightness.max(1);
+                let current_percent = ((self.rgb_settings.brightness as f32 / brightness_max as f32)
+                    * 100.0)
+                    .round()
+                    .clamp(0.0, 100.0);
+                let mut brightness_percent = current_percent;
                 let selected_effect_name = options
                     .iter()
                     .find(|(id, _)| *id == self.rgb_settings.effect)
                     .map(|(_, name)| *name)
                     .unwrap_or("Unknown");
-                let mut enabled = self.rgb_settings.is_enabled();
-                let mut selected_effect = self.rgb_settings.effect;
-                let mut brightness = self.rgb_settings.brightness;
-                let brightness_max = self.rgb_settings.max_brightness.max(1);
-                let timeout_note = "Auto-off timeout is not exposed by this firmware yet.";
 
                 ui.vertical_centered(|ui| {
+                    ui.set_width(500.0);
+                    ui.add_space(4.0);
+
                     ui.allocate_ui_with_layout(
-                        Vec2::new(360.0, 0.0),
-                        egui::Layout::top_down(egui::Align::Min),
+                        Vec2::new(380.0, 0.0),
+                        egui::Layout::top_down(egui::Align::Center),
                         |ui| {
-                            egui::Grid::new(ui.id().with("rgb_grid"))
-                                .num_columns(2)
-                                .spacing([18.0, 12.0])
-                                .show(ui, |ui| {
-                                    ui.label(RichText::new("Enable").size(12.5));
-                                    let enable_resp = ui.checkbox(&mut enabled, "");
-                                    if enable_resp.hovered() {
-                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                    }
-                                    if enable_resp.changed() {
-                                        let next_effect = if enabled {
-                                            self.rgb_settings.effect_or_default()
-                                        } else {
-                                            if self.rgb_settings.effect != 0 {
-                                                self.rgb_settings.last_enabled_effect =
-                                                    self.rgb_settings.effect;
-                                            }
-                                            0
-                                        };
-                                        self.set_rgb_effect(next_effect);
-                                        selected_effect = self.rgb_settings.effect;
-                                    }
-                                    ui.end_row();
+                            let label_width = 96.0_f32;
+                            let control_width = 252.0_f32;
 
-                                    ui.label(RichText::new("Effect").size(12.5));
-                                    egui::ComboBox::from_id_salt("rgb_effect_combo")
-                                        .selected_text(selected_effect_name)
-                                        .width(210.0)
-                                        .show_ui(ui, |ui| {
-                                            for (id, label) in &options {
-                                                if ui
-                                                    .selectable_value(
-                                                        &mut selected_effect,
-                                                        *id,
-                                                        *label,
-                                                    )
-                                                    .changed()
-                                                {
-                                                    self.set_rgb_effect(selected_effect);
-                                                }
-                                            }
-                                        });
-                                    ui.end_row();
-
-                                    ui.label(RichText::new("Brightness").size(12.5));
-                                    if ui
-                                        .add(
-                                            egui::Slider::new(&mut brightness, 0..=brightness_max)
-                                                .show_value(true),
-                                        )
-                                        .changed()
-                                    {
-                                        self.set_rgb_brightness(brightness);
-                                    }
-                                    ui.end_row();
-                                });
+                            ui.horizontal(|ui| {
+                                ui.set_width(label_width + control_width);
+                                ui.add_sized(
+                                    [label_width, 24.0],
+                                    egui::Label::new(RichText::new("Enable").size(12.5)),
+                                );
+                                let enable_resp = ui.checkbox(&mut enabled, "");
+                                if enable_resp.hovered() {
+                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                }
+                                if enable_resp.changed() {
+                                    let next_effect = if enabled {
+                                        self.rgb_settings.effect_or_default()
+                                    } else {
+                                        if self.rgb_settings.effect != 0 {
+                                            self.rgb_settings.last_enabled_effect =
+                                                self.rgb_settings.effect;
+                                        }
+                                        0
+                                    };
+                                    self.set_rgb_effect(next_effect);
+                                    selected_effect = self.rgb_settings.effect;
+                                }
+                            });
 
                             ui.add_space(10.0);
-                            ui.label(
-                                RichText::new(timeout_note)
-                                    .size(11.5)
-                                    .color(app_muted_text(dark)),
-                            );
-                            ui.add_space(14.0);
+
+                            ui.horizontal(|ui| {
+                                ui.set_width(label_width + control_width);
+                                ui.add_sized(
+                                    [label_width, 24.0],
+                                    egui::Label::new(RichText::new("Effect").size(12.5)),
+                                );
+                                egui::ComboBox::from_id_salt("rgb_effect_combo")
+                                    .selected_text(selected_effect_name)
+                                    .width(control_width)
+                                    .show_ui(ui, |ui| {
+                                        for (id, label) in &options {
+                                            if ui
+                                                .selectable_value(
+                                                    &mut selected_effect,
+                                                    *id,
+                                                    *label,
+                                                )
+                                                .changed()
+                                            {
+                                                self.set_rgb_effect(selected_effect);
+                                            }
+                                        }
+                                    });
+                            });
+
+                            ui.add_space(10.0);
+
+                            ui.horizontal(|ui| {
+                                ui.set_width(label_width + control_width);
+                                ui.add_sized(
+                                    [label_width, 24.0],
+                                    egui::Label::new(RichText::new("Brightness").size(12.5)),
+                                );
+                                ui.scope(|ui| {
+                                    ui.spacing_mut().slider_width = 184.0;
+                                    let slider = egui::Slider::new(
+                                        &mut brightness_percent,
+                                        0.0..=100.0,
+                                    )
+                                    .step_by(1.0)
+                                    .show_value(false)
+                                    .trailing_fill(true);
+                                    let resp = ui.add_sized([192.0, 24.0], slider);
+                                    if resp.changed() {
+                                        let raw_value =
+                                            ((brightness_percent / 100.0) * brightness_max as f32)
+                                                .round()
+                                                .clamp(0.0, brightness_max as f32)
+                                                as u8;
+                                        self.set_rgb_brightness(raw_value);
+                                    }
+                                });
+                                ui.add_space(8.0);
+                                ui.add_sized(
+                                    [52.0, 28.0],
+                                    egui::Label::new(
+                                        RichText::new(format!("{}%", brightness_percent as u8))
+                                            .size(12.0)
+                                            .color(if dark {
+                                                Color32::from_gray(230)
+                                            } else {
+                                                Color32::from_gray(55)
+                                            }),
+                                    )
+                                    .sense(egui::Sense::hover()),
+                                );
+                            });
+
+                            ui.add_space(22.0);
+
                             ui.horizontal_centered(|ui| {
                                 let btn = egui::Button::new(RichText::new("Save").size(13.0))
                                     .min_size(crate::ui_style::modal_action_button_size());
