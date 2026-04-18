@@ -5392,11 +5392,14 @@ impl EntropyApp {
                                             [dropdown_rect.width() - 12.0, 30.0],
                                             egui::Button::new("Matrix Tester").frame(false),
                                         );
-                                        let rgb_resp = ui.add_enabled(
-                                            rgb_available,
-                                            egui::Button::new("RGB").frame(false).min_size(
-                                                Vec2::new(dropdown_rect.width() - 12.0, 30.0),
-                                            ),
+                                        let rgb_color = if rgb_available {
+                                            ui.visuals().widgets.inactive.fg_stroke.color
+                                        } else {
+                                            app_muted_text(dark)
+                                        };
+                                        let rgb_resp = ui.add_sized(
+                                            [dropdown_rect.width() - 12.0, 30.0],
+                                            egui::Button::new(RichText::new("RGB").color(rgb_color)).frame(false),
                                         );
                                         let encoders_resp = ui.add_sized(
                                             [dropdown_rect.width() - 12.0, 30.0],
@@ -5417,7 +5420,7 @@ impl EntropyApp {
                                             self.matrix_tester_unlock_prompted = false;
                                             self.main_menu_tab = MainMenuTab::Settings;
                                         }
-                                        if rgb_resp.clicked() {
+                                        if rgb_resp.clicked() && rgb_available {
                                             self.rgb_window_open = true;
                                         }
                                         if !rgb_available {
