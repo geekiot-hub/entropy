@@ -5019,6 +5019,7 @@ impl EntropyApp {
                 .unwrap_or(false);
             let middle_hovered = middle_resp.as_ref().map(|r| r.hovered()).unwrap_or(false);
             let visuals = &ui.visuals().widgets;
+            let fill_radius = radius + 1.5;
             let top_fill = if top_selected {
                 visuals.active.bg_fill
             } else if top_resp.hovered() {
@@ -5049,12 +5050,12 @@ impl EntropyApp {
             };
 
             let painter = ui.painter();
-            painter.circle_filled(center, radius, visuals.inactive.bg_fill);
-            painter.with_clip_rect(top_rect).circle_filled(center, radius, top_fill);
+            painter.circle_filled(center, fill_radius, visuals.inactive.bg_fill);
+            painter.with_clip_rect(top_rect).circle_filled(center, fill_radius, top_fill);
             if let Some(middle_rect) = middle_rect {
-                painter.with_clip_rect(middle_rect).circle_filled(center, radius, middle_fill);
+                painter.with_clip_rect(middle_rect).circle_filled(center, fill_radius, middle_fill);
             }
-            painter.with_clip_rect(bottom_rect).circle_filled(center, radius, bottom_fill);
+            painter.with_clip_rect(bottom_rect).circle_filled(center, fill_radius, bottom_fill);
             painter.circle_stroke(center, radius, outline);
 
             let has_press_button = encoder_press_rects
