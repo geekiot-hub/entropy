@@ -5017,12 +5017,7 @@ impl EntropyApp {
             if top_resp.hovered() {
                 if let Some((_, kc)) = cw {
                     hovered_encoder_keycode = Some(*kc);
-                    let mut tip = keycode_tooltip_with_macro_names(*kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names, &self.keycode_picker.tap_dance_names);
-                    if *kc >= 0x5200 && *kc < 0x5300 || (*kc & 0xF000 == 0x4000) {
-                        tip.push_str("\n\nRight click to go to that layer\nCtrl+right-click to change layer target");
-                    } else {
-                        tip.push_str("\n\nLeft click to change this key");
-                    }
+                    let tip = keycode_tooltip_with_macro_names(*kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names, &self.keycode_picker.tap_dance_names);
                     let _ = top_resp.clone().on_hover_text(tip);
                 }
             }
@@ -5044,12 +5039,7 @@ impl EntropyApp {
                     hovered_key = Some(press_ki);
                     let kc = layout.get_keycode(self.selected_layer, press_ki);
                     hovered_encoder_keycode = Some(kc);
-                    let mut tip = keycode_tooltip_with_macro_names(kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names, &self.keycode_picker.tap_dance_names);
-                    if kc >= 0x5200 && kc < 0x5300 || (kc & 0xF000 == 0x4000) {
-                        tip.push_str("\n\nRight click to go to that layer\nCtrl+right-click to change layer target");
-                    } else {
-                        tip.push_str("\n\nLeft click to change this key");
-                    }
+                    let tip = keycode_tooltip_with_macro_names(kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names, &self.keycode_picker.tap_dance_names);
                     let _ = middle_resp.clone().on_hover_text(tip);
                 }
                 if middle_resp.secondary_clicked() {
@@ -5064,12 +5054,7 @@ impl EntropyApp {
             if bottom_resp.hovered() {
                 if let Some((_, kc)) = ccw {
                     hovered_encoder_keycode = Some(*kc);
-                    let mut tip = keycode_tooltip_with_macro_names(*kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names, &self.keycode_picker.tap_dance_names);
-                    if *kc >= 0x5200 && *kc < 0x5300 || (*kc & 0xF000 == 0x4000) {
-                        tip.push_str("\n\nRight click to go to that layer\nCtrl+right-click to change layer target");
-                    } else {
-                        tip.push_str("\n\nLeft click to change this key");
-                    }
+                    let tip = keycode_tooltip_with_macro_names(*kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names, &self.keycode_picker.tap_dance_names);
                     let _ = bottom_resp.clone().on_hover_text(tip);
                 }
             }
