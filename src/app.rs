@@ -4384,15 +4384,7 @@ impl EntropyApp {
                     let s: String = self.editing_layer_text.chars().take(12).collect();
                     self.editing_layer_text = s;
                 }
-                let editing_name_len = self.editing_layer_text.chars().count();
-                let editing_label_size = if editing_name_len > 10 {
-                    26.0
-                } else if editing_name_len > 7 {
-                    31.0
-                } else {
-                    39.0
-                };
-                let editing_font = egui::FontId { size: editing_label_size, family: egui::FontFamily::Proportional };
+                let editing_font = egui::FontId { size: 39.0, family: egui::FontFamily::Proportional };
                 let resp = ui.put(name_rect,
                     egui::TextEdit::singleline(&mut self.editing_layer_text)
                         .font(editing_font)
