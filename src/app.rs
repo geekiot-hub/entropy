@@ -664,6 +664,14 @@ fn rgb_effect_options(state: &RgbSettingsState) -> Vec<(u16, &'static str)> {
     }
 }
 
+fn rgb_effect_supports_color(kind: RgbSupportKind, effect: u16) -> bool {
+    match kind {
+        RgbSupportKind::QmkRgblight => matches!(effect, 1..=5 | 15..=36),
+        RgbSupportKind::VialRgb => effect != 0,
+        RgbSupportKind::None => false,
+    }
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 fn load_rgb_settings(
     dev_conn: &crate::hid::HidDevice,
@@ -3699,6 +3707,33 @@ impl EntropyApp {
         }
     }
 
+    fn set_rgb_color(&mut self, hue: u8, saturation: u8) {
+        let Some(hid) = &self.hid_device else {
+            return;
+        };
+        let result = match self.rgb_settings.kind {
+            RgbSupportKind::QmkRgblight => hid.set_qmk_rgblight_color(hue, saturation),
+            RgbSupportKind::VialRgb => hid.set_vialrgb_mode(
+                self.rgb_settings.effect,
+                self.rgb_settings.speed,
+                hue,
+                saturation,
+                self.rgb_settings.brightness,
+            ),
+            RgbSupportKind::None => return,
+        };
+        match result {
+            Ok(()) => {
+                self.rgb_settings.hue = hue;
+                self.rgb_settings.saturation = saturation;
+            }
+            Err(e) => {
+                self.status_msg = format!("Failed to update RGB color: {}", e);
+                log::warn!("set_rgb_color failed: {e}");
+            }
+        }
+    }
+
     fn save_rgb_settings(&mut self) {
         let Some(hid) = &self.hid_device else {
             return;
@@ -3756,6 +3791,12 @@ impl EntropyApp {
                     .find(|(id, _)| *id == self.rgb_settings.effect)
                     .map(|(_, name)| *name)
                     .unwrap_or("Unknown");
+                let mut color_hsva = egui::ecolor::Hsva {
+                    h: self.rgb_settings.hue as f32 / 255.0,
+                    s: self.rgb_settings.saturation as f32 / 255.0,
+                    v: 1.0,
+                    a: 1.0,
+                };
 
                 ui.vertical_centered(|ui| {
                     ui.set_width(500.0);
@@ -3819,6 +3860,38 @@ impl EntropyApp {
                                         }
                                     });
                             });
+
+                            if rgb_effect_supports_color(self.rgb_settings.kind, selected_effect) {
+                                ui.add_space(10.0);
+
+                                ui.horizontal(|ui| {
+                                    ui.set_width(label_width + control_width);
+                                    ui.add_sized(
+                                        [label_width, 24.0],
+                                        egui::Label::new(RichText::new("Color").size(12.5)),
+                                    );
+                                    let resp = egui::color_picker::color_edit_button_hsva(
+                                        ui,
+                                        &mut color_hsva,
+                                        egui::color_picker::Alpha::Opaque,
+                                    );
+                                    if resp.changed() {
+                                        let hue = (color_hsva.h.rem_euclid(1.0) * 255.0)
+                                            .round()
+                                            .clamp(0.0, 255.0) as u8;
+                                        let saturation = (color_hsva.s.clamp(0.0, 1.0) * 255.0)
+                                            .round()
+                                            .clamp(0.0, 255.0) as u8;
+                                        self.set_rgb_color(hue, saturation);
+                                    }
+                                    ui.add_space(10.0);
+                                    ui.label(
+                                        RichText::new("Click to choose")
+                                            .size(11.5)
+                                            .color(app_muted_text(dark)),
+                                    );
+                                });
+                            }
 
                             ui.add_space(10.0);
 
