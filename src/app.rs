@@ -5088,20 +5088,30 @@ impl EntropyApp {
 
             if let Some((press_ki, _)) = press_slot {
                 let middle_rect = middle_rect.unwrap();
-                let divider_half_width = radius * 0.72;
                 let top_divider_y = middle_rect.top();
                 let bottom_divider_y = middle_rect.bottom();
+                let divider_inset = 0.5;
+                let top_divider_half_width = ((((radius * radius)
+                    - (top_divider_y - center.y) * (top_divider_y - center.y))
+                    .max(0.0)
+                    .sqrt()) - divider_inset)
+                    .max(0.0);
+                let bottom_divider_half_width = ((((radius * radius)
+                    - (bottom_divider_y - center.y) * (bottom_divider_y - center.y))
+                    .max(0.0)
+                    .sqrt()) - divider_inset)
+                    .max(0.0);
                 painter.line_segment(
                     [
-                        egui::pos2(center.x - divider_half_width, top_divider_y),
-                        egui::pos2(center.x + divider_half_width, top_divider_y),
+                        egui::pos2(center.x - top_divider_half_width, top_divider_y),
+                        egui::pos2(center.x + top_divider_half_width, top_divider_y),
                     ],
                     Stroke::new(1.0, outline.color),
                 );
                 painter.line_segment(
                     [
-                        egui::pos2(center.x - divider_half_width, bottom_divider_y),
-                        egui::pos2(center.x + divider_half_width, bottom_divider_y),
+                        egui::pos2(center.x - bottom_divider_half_width, bottom_divider_y),
+                        egui::pos2(center.x + bottom_divider_half_width, bottom_divider_y),
                     ],
                     Stroke::new(1.0, outline.color),
                 );
