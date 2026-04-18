@@ -6,7 +6,13 @@ use crate::zmk::{zmk_binding_label, zmk_binding_tooltip, ZmkBinding};
 fn device_id_slug(device_name: &str) -> String {
     device_name
         .chars()
-        .map(|c| if c.is_alphanumeric() { c.to_ascii_lowercase() } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() {
+                c.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
         .collect()
 }
 
@@ -47,7 +53,8 @@ fn encoder_visibility_path(device_name: &str) -> std::path::PathBuf {
         .unwrap_or_else(|| std::path::PathBuf::from("."))
         .join("entropy");
     std::fs::create_dir_all(&dir).ok();
-    let slug = device_name.chars()
+    let slug = device_name
+        .chars()
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
         .collect::<String>();
     dir.join(format!("encoder_visibility_{}.json", slug))
@@ -204,7 +211,8 @@ fn key_override_display_name(key_override_names: &[String], idx: usize) -> Strin
 }
 
 fn macro_custom_name(macro_names: &[String], idx: usize) -> Option<String> {
-    macro_names.get(idx)
+    macro_names
+        .get(idx)
         .map(|s| s.trim())
         .filter(|s| !s.is_empty())
         .map(|s| s.to_string())
@@ -215,7 +223,8 @@ fn macro_display_name(macro_names: &[String], idx: usize) -> String {
 }
 
 fn tap_dance_custom_name(tap_dance_names: &[String], idx: usize) -> Option<String> {
-    tap_dance_names.get(idx)
+    tap_dance_names
+        .get(idx)
         .map(|s| s.trim())
         .filter(|s| !s.is_empty())
         .map(|s| s.to_string())
@@ -225,13 +234,27 @@ fn tap_dance_display_name(tap_dance_names: &[String], idx: usize) -> String {
     tap_dance_custom_name(tap_dance_names, idx).unwrap_or_else(|| format!("TD{}", idx))
 }
 
-fn app_accent() -> Color32 { crate::ui_style::accent() }
-fn app_panel_fill(dark: bool) -> Color32 { crate::ui_style::panel_fill(dark) }
-fn app_window_fill(dark: bool) -> Color32 { crate::ui_style::window_fill(dark) }
-fn app_surface_fill(dark: bool) -> Color32 { crate::ui_style::surface_fill(dark) }
-fn app_hover_fill(dark: bool) -> Color32 { crate::ui_style::hover_fill(dark) }
-fn app_border_color(dark: bool) -> Color32 { crate::ui_style::border_color(dark) }
-fn app_muted_text(dark: bool) -> Color32 { crate::ui_style::muted_text(dark) }
+fn app_accent() -> Color32 {
+    crate::ui_style::accent()
+}
+fn app_panel_fill(dark: bool) -> Color32 {
+    crate::ui_style::panel_fill(dark)
+}
+fn app_window_fill(dark: bool) -> Color32 {
+    crate::ui_style::window_fill(dark)
+}
+fn app_surface_fill(dark: bool) -> Color32 {
+    crate::ui_style::surface_fill(dark)
+}
+fn app_hover_fill(dark: bool) -> Color32 {
+    crate::ui_style::hover_fill(dark)
+}
+fn app_border_color(dark: bool) -> Color32 {
+    crate::ui_style::border_color(dark)
+}
+fn app_muted_text(dark: bool) -> Color32 {
+    crate::ui_style::muted_text(dark)
+}
 
 fn keycode_label_with_macro_names(
     value: u16,
@@ -308,6 +331,8 @@ struct ConnectResult {
     auto_shift_timeout: Option<u16>,
     /// Mouse Keys settings from QMK settings, if supported (qsid 9..=17)
     mouse_keys_settings: MouseKeysSettingsState,
+    /// Runtime RGB settings, if supported by the current Vial/QMK lighting backend
+    rgb_settings: RgbSettingsState,
     /// Key Override entries
     key_override_entries: Vec<KeyOverrideEntry>,
 }
@@ -480,6 +505,252 @@ struct MouseKeysSettingsState {
     supported: bool,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum RgbSupportKind {
+    #[default]
+    None,
+    QmkRgblight,
+    VialRgb,
+}
+
+#[derive(Clone, Debug, Default)]
+struct RgbSettingsState {
+    supported: bool,
+    kind: RgbSupportKind,
+    effect: u16,
+    brightness: u8,
+    speed: u8,
+    hue: u8,
+    saturation: u8,
+    max_brightness: u8,
+    supported_effects: Vec<u16>,
+    last_enabled_effect: u16,
+}
+
+impl RgbSettingsState {
+    fn is_enabled(&self) -> bool {
+        self.supported && self.effect != 0
+    }
+
+    fn fallback_effect(&self) -> u16 {
+        match self.kind {
+            RgbSupportKind::QmkRgblight => 1,
+            RgbSupportKind::VialRgb => 2,
+            RgbSupportKind::None => 0,
+        }
+    }
+
+    fn effect_or_default(&self) -> u16 {
+        let candidate = if self.last_enabled_effect != 0 {
+            self.last_enabled_effect
+        } else {
+            self.fallback_effect()
+        };
+        match self.kind {
+            RgbSupportKind::VialRgb => {
+                if self.supported_effects.is_empty() || self.supported_effects.contains(&candidate)
+                {
+                    candidate
+                } else {
+                    self.supported_effects.first().copied().unwrap_or(candidate)
+                }
+            }
+            _ => candidate,
+        }
+    }
+}
+
+const QMK_RGBLIGHT_EFFECTS: &[(u16, &str)] = &[
+    (0, "All Off"),
+    (1, "Solid Color"),
+    (2, "Breathing 1"),
+    (3, "Breathing 2"),
+    (4, "Breathing 3"),
+    (5, "Breathing 4"),
+    (6, "Rainbow Mood 1"),
+    (7, "Rainbow Mood 2"),
+    (8, "Rainbow Mood 3"),
+    (9, "Rainbow Swirl 1"),
+    (10, "Rainbow Swirl 2"),
+    (11, "Rainbow Swirl 3"),
+    (12, "Rainbow Swirl 4"),
+    (13, "Rainbow Swirl 5"),
+    (14, "Rainbow Swirl 6"),
+    (15, "Snake 1"),
+    (16, "Snake 2"),
+    (17, "Snake 3"),
+    (18, "Snake 4"),
+    (19, "Snake 5"),
+    (20, "Snake 6"),
+    (21, "Knight 1"),
+    (22, "Knight 2"),
+    (23, "Knight 3"),
+    (24, "Christmas"),
+    (25, "Gradient 1"),
+    (26, "Gradient 2"),
+    (27, "Gradient 3"),
+    (28, "Gradient 4"),
+    (29, "Gradient 5"),
+    (30, "Gradient 6"),
+    (31, "Gradient 7"),
+    (32, "Gradient 8"),
+    (33, "Gradient 9"),
+    (34, "Gradient 10"),
+    (35, "RGB Test"),
+    (36, "Alternating"),
+];
+
+const VIALRGB_EFFECTS: &[(u16, &str)] = &[
+    (0, "Disable"),
+    (1, "Direct Control"),
+    (2, "Solid Color"),
+    (3, "Alphas Mods"),
+    (4, "Gradient Up Down"),
+    (5, "Gradient Left Right"),
+    (6, "Breathing"),
+    (7, "Band Sat"),
+    (8, "Band Val"),
+    (9, "Band Pinwheel Sat"),
+    (10, "Band Pinwheel Val"),
+    (11, "Band Spiral Sat"),
+    (12, "Band Spiral Val"),
+    (13, "Cycle All"),
+    (14, "Cycle Left Right"),
+    (15, "Cycle Up Down"),
+    (16, "Rainbow Moving Chevron"),
+    (17, "Cycle Out In"),
+    (18, "Cycle Out In Dual"),
+    (19, "Cycle Pinwheel"),
+    (20, "Cycle Spiral"),
+    (21, "Dual Beacon"),
+    (22, "Rainbow Beacon"),
+    (23, "Rainbow Pinwheels"),
+    (24, "Raindrops"),
+    (25, "Jellybean Raindrops"),
+    (26, "Hue Breathing"),
+    (27, "Hue Pendulum"),
+    (28, "Hue Wave"),
+    (29, "Typing Heatmap"),
+    (30, "Digital Rain"),
+    (31, "Solid Reactive Simple"),
+    (32, "Solid Reactive"),
+    (33, "Solid Reactive Wide"),
+    (34, "Solid Reactive Multiwide"),
+    (35, "Solid Reactive Cross"),
+    (36, "Solid Reactive Multicross"),
+    (37, "Solid Reactive Nexus"),
+    (38, "Solid Reactive Multinexus"),
+    (39, "Splash"),
+    (40, "Multisplash"),
+    (41, "Solid Splash"),
+    (42, "Solid Multisplash"),
+    (43, "Pixel Rain"),
+    (44, "Pixel Fractal"),
+];
+
+fn rgb_effect_options(state: &RgbSettingsState) -> Vec<(u16, &'static str)> {
+    match state.kind {
+        RgbSupportKind::QmkRgblight => QMK_RGBLIGHT_EFFECTS.to_vec(),
+        RgbSupportKind::VialRgb => VIALRGB_EFFECTS
+            .iter()
+            .copied()
+            .filter(|(id, _)| {
+                *id == 0
+                    || state.supported_effects.is_empty()
+                    || state.supported_effects.contains(id)
+            })
+            .collect(),
+        RgbSupportKind::None => vec![],
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn load_rgb_settings(
+    dev_conn: &crate::hid::HidDevice,
+    layout: &KeyboardLayout,
+) -> RgbSettingsState {
+    let mut candidates = Vec::new();
+    match layout.lighting_mode.as_deref() {
+        Some("vialrgb") => {
+            candidates.extend([RgbSupportKind::VialRgb, RgbSupportKind::QmkRgblight])
+        }
+        Some("qmk_rgblight") | Some("qmk_backlight_rgblight") => {
+            candidates.extend([RgbSupportKind::QmkRgblight, RgbSupportKind::VialRgb]);
+        }
+        _ if layout.supports_rgb => {
+            candidates.extend([RgbSupportKind::VialRgb, RgbSupportKind::QmkRgblight])
+        }
+        _ => return RgbSettingsState::default(),
+    }
+
+    for kind in candidates {
+        match kind {
+            RgbSupportKind::VialRgb => {
+                let Ok((version, max_brightness)) = dev_conn.get_vialrgb_info() else {
+                    continue;
+                };
+                if version != 1 {
+                    continue;
+                }
+                let Ok((effect, speed, hue, saturation, brightness)) = dev_conn.get_vialrgb_mode()
+                else {
+                    continue;
+                };
+                let mut supported_effects =
+                    dev_conn.get_vialrgb_supported_effects().unwrap_or_default();
+                if !supported_effects.contains(&0) {
+                    supported_effects.insert(0, 0);
+                }
+                let mut state = RgbSettingsState {
+                    supported: true,
+                    kind,
+                    effect,
+                    brightness,
+                    speed,
+                    hue,
+                    saturation,
+                    max_brightness,
+                    supported_effects,
+                    last_enabled_effect: effect,
+                };
+                if state.last_enabled_effect == 0 {
+                    state.last_enabled_effect = state.fallback_effect();
+                }
+                return state;
+            }
+            RgbSupportKind::QmkRgblight => {
+                let Ok(brightness) = dev_conn.get_qmk_rgblight_brightness() else {
+                    continue;
+                };
+                let Ok(effect) = dev_conn.get_qmk_rgblight_effect() else {
+                    continue;
+                };
+                let speed = dev_conn.get_qmk_rgblight_effect_speed().unwrap_or(0);
+                let (hue, saturation) = dev_conn.get_qmk_rgblight_color().unwrap_or((0, 0));
+                let mut state = RgbSettingsState {
+                    supported: true,
+                    kind,
+                    effect: effect as u16,
+                    brightness,
+                    speed,
+                    hue,
+                    saturation,
+                    max_brightness: u8::MAX,
+                    supported_effects: vec![],
+                    last_enabled_effect: effect as u16,
+                };
+                if state.last_enabled_effect == 0 {
+                    state.last_enabled_effect = state.fallback_effect();
+                }
+                return state;
+            }
+            RgbSupportKind::None => {}
+        }
+    }
+
+    RgbSettingsState::default()
+}
+
 /// Returns true if the given Vial keycode is a QMK mouse key (0x00CD..=0x00DF).
 fn is_mouse_keycode(kc: u16) -> bool {
     (0x00CD..=0x00DF).contains(&kc)
@@ -576,6 +847,8 @@ pub struct EntropyApp {
     auto_shift_timeout: Option<u16>,
     mouse_keys_settings: MouseKeysSettingsState,
     mouse_keys_window_open: bool,
+    rgb_settings: RgbSettingsState,
+    rgb_window_open: bool,
     encoder_visibility: Vec<bool>,
     encoder_visibility_window_open: bool,
     combo_term_dirty: bool,
@@ -664,6 +937,8 @@ impl EntropyApp {
             auto_shift_timeout: None,
             mouse_keys_settings: MouseKeysSettingsState::default(),
             mouse_keys_window_open: false,
+            rgb_settings: RgbSettingsState::default(),
+            rgb_window_open: false,
             encoder_visibility: vec![],
             encoder_visibility_window_open: false,
             combo_term_dirty: false,
@@ -752,6 +1027,8 @@ impl EntropyApp {
         self.auto_shift_window_open = false;
         self.mouse_keys_settings = MouseKeysSettingsState::default();
         self.mouse_keys_window_open = false;
+        self.rgb_settings = RgbSettingsState::default();
+        self.rgb_window_open = false;
         self.encoder_visibility.clear();
         self.encoder_visibility_window_open = false;
         self.key_override_entries.clear();
@@ -774,8 +1051,8 @@ impl EntropyApp {
                         use crate::hid::HidDevice;
 
                         log::info!("Opening HID device: {}", dev.path);
-                        let dev_conn = HidDevice::open(&dev.path)
-                            .map_err(|e| format!("Open failed: {e}"))?;
+                        let dev_conn =
+                            HidDevice::open(&dev.path).map_err(|e| format!("Open failed: {e}"))?;
 
                         log::info!("Getting protocol version…");
                         match dev_conn.get_protocol_version() {
@@ -784,13 +1061,18 @@ impl EntropyApp {
                         }
 
                         log::info!("Getting layer count…");
-                        let layer_count = dev_conn.get_layer_count()
+                        let layer_count = dev_conn
+                            .get_layer_count()
                             .map(|c| c as usize)
-                            .unwrap_or_else(|e| { log::warn!("get_layer_count failed: {e}, defaulting to 4"); 4 });
+                            .unwrap_or_else(|e| {
+                                log::warn!("get_layer_count failed: {e}, defaulting to 4");
+                                4
+                            });
                         log::info!("Layer count: {layer_count}");
 
                         log::info!("Getting layout JSON…");
-                        let json = dev_conn.get_layout_json()
+                        let json = dev_conn
+                            .get_layout_json()
                             .map_err(|e| format!("Layout read failed: {e}"))?;
 
                         let mut layout = KeyboardLayout::from_vial_json(&json)
@@ -799,9 +1081,13 @@ impl EntropyApp {
                         // Override coords from embedded layout
                         log::info!("Vial: looking up embedded layout for '{}'", dev.name);
                         if let Some((emb, ref_keys)) = crate::layouts::lookup_layout(&dev.name) {
-                            log::info!("Vial: found embedded layout '{}' with {} keys", emb.name, ref_keys.len());
+                            log::info!(
+                                "Vial: found embedded layout '{}' with {} keys",
+                                emb.name,
+                                ref_keys.len()
+                            );
                             use std::collections::HashMap;
-                            let ref_map: HashMap<(u8,u8), &crate::keyboard::PhysicalKey> =
+                            let ref_map: HashMap<(u8, u8), &crate::keyboard::PhysicalKey> =
                                 ref_keys.iter().map(|k| ((k.row, k.col), k)).collect();
                             let mut patched = 0usize;
                             for key in &mut layout.keys {
@@ -842,19 +1128,28 @@ impl EntropyApp {
                         }
 
                         if !layout.encoders.is_empty() {
-                            layout.encoder_layers = vec![vec![0u16; layout.encoders.len()]; layer_count];
+                            layout.encoder_layers =
+                                vec![vec![0u16; layout.encoders.len()]; layer_count];
                             let encoder_count = layout.encoder_count();
                             for layer in 0..layer_count {
                                 let mut per_encoder = vec![(0u16, 0u16); encoder_count];
                                 for encoder_idx in 0..encoder_count {
                                     match dev_conn.get_encoder(layer as u8, encoder_idx as u8) {
                                         Ok((ccw, cw)) => per_encoder[encoder_idx] = (ccw, cw),
-                                        Err(e) => log::warn!("get_encoder(layer={}, idx={}): {}", layer, encoder_idx, e),
+                                        Err(e) => log::warn!(
+                                            "get_encoder(layer={}, idx={}): {}",
+                                            layer,
+                                            encoder_idx,
+                                            e
+                                        ),
                                     }
                                 }
                                 for (visual_idx, encoder) in layout.encoders.iter().enumerate() {
-                                    if let Some((ccw, cw)) = per_encoder.get(encoder.encoder_idx as usize) {
-                                        layout.encoder_layers[layer][visual_idx] = if encoder.direction == 0 { *ccw } else { *cw };
+                                    if let Some((ccw, cw)) =
+                                        per_encoder.get(encoder.encoder_idx as usize)
+                                    {
+                                        layout.encoder_layers[layer][visual_idx] =
+                                            if encoder.direction == 0 { *ccw } else { *cw };
                                     }
                                 }
                             }
@@ -883,14 +1178,25 @@ impl EntropyApp {
                                     Ok(size) => {
                                         log::info!("Macro buffer size: {size}");
                                         match dev_conn.get_macro_buffer(size) {
-                                            Ok(buf) => crate::hid::HidDevice::parse_macros(&buf, count),
-                                            Err(e) => { log::warn!("get_macro_buffer: {e}"); vec![String::new(); count as usize] }
+                                            Ok(buf) => {
+                                                crate::hid::HidDevice::parse_macros(&buf, count)
+                                            }
+                                            Err(e) => {
+                                                log::warn!("get_macro_buffer: {e}");
+                                                vec![String::new(); count as usize]
+                                            }
                                         }
                                     }
-                                    Err(e) => { log::warn!("get_macro_buffer_size: {e}"); vec![String::new(); count as usize] }
+                                    Err(e) => {
+                                        log::warn!("get_macro_buffer_size: {e}");
+                                        vec![String::new(); count as usize]
+                                    }
                                 }
                             }
-                            Err(e) => { log::warn!("get_macro_count: {e}"); vec![String::new(); 16] }
+                            Err(e) => {
+                                log::warn!("get_macro_count: {e}");
+                                vec![String::new(); 16]
+                            }
                         };
 
                         let combo_entries = match dev_conn.get_combo_count() {
@@ -899,7 +1205,9 @@ impl EntropyApp {
                                 let mut entries = Vec::new();
                                 for i in 0..count {
                                     match dev_conn.get_combo(i) {
-                                        Ok((keys, output)) => entries.push(ComboEntry { keys, output }),
+                                        Ok((keys, output)) => {
+                                            entries.push(ComboEntry { keys, output })
+                                        }
                                         Err(e) => {
                                             log::warn!("get_combo({i}): {e}");
                                             entries.push(Default::default());
@@ -935,6 +1243,8 @@ impl EntropyApp {
                                 None
                             }
                         };
+
+                        let rgb_settings = load_rgb_settings(&dev_conn, &layout);
 
                         // Mouse keys settings (qsid 9..=17, all u16). If qsid 9 is unsupported,
                         // we assume the whole group is unavailable.
@@ -978,16 +1288,25 @@ impl EntropyApp {
                                     match dev_conn.get_tap_dance(i) {
                                         Ok((tap, hold, dtap, taphold, term)) => {
                                             entries.push(crate::keycode_picker::TapDanceEntry {
-                                                on_tap: tap, on_hold: hold, on_double_tap: dtap,
-                                                on_tap_hold: taphold, tapping_term: term,
+                                                on_tap: tap,
+                                                on_hold: hold,
+                                                on_double_tap: dtap,
+                                                on_tap_hold: taphold,
+                                                tapping_term: term,
                                             });
                                         }
-                                        Err(e) => { log::warn!("get_tap_dance({i}): {e}"); entries.push(Default::default()); }
+                                        Err(e) => {
+                                            log::warn!("get_tap_dance({i}): {e}");
+                                            entries.push(Default::default());
+                                        }
                                     }
                                 }
                                 entries
                             }
-                            Err(e) => { log::warn!("get_tap_dance_count: {e}"); vec![] }
+                            Err(e) => {
+                                log::warn!("get_tap_dance_count: {e}");
+                                vec![]
+                            }
                         };
                         let key_override_entries = match dev_conn.get_key_override_count() {
                             Ok(count) => {
@@ -995,7 +1314,15 @@ impl EntropyApp {
                                 let mut entries = Vec::new();
                                 for i in 0..count {
                                     match dev_conn.get_key_override(i) {
-                                        Ok((trigger, replacement, layers, trigger_mods, negative_mod_mask, suppressed_mods, options)) => {
+                                        Ok((
+                                            trigger,
+                                            replacement,
+                                            layers,
+                                            trigger_mods,
+                                            negative_mod_mask,
+                                            suppressed_mods,
+                                            options,
+                                        )) => {
                                             entries.push(KeyOverrideEntry {
                                                 trigger,
                                                 replacement,
@@ -1003,15 +1330,23 @@ impl EntropyApp {
                                                 trigger_mods,
                                                 negative_mod_mask,
                                                 suppressed_mods,
-                                                options: KeyOverrideOptionsState::from_bits(options),
+                                                options: KeyOverrideOptionsState::from_bits(
+                                                    options,
+                                                ),
                                             });
                                         }
-                                        Err(e) => { log::warn!("get_key_override({i}): {e}"); entries.push(Default::default()); }
+                                        Err(e) => {
+                                            log::warn!("get_key_override({i}): {e}");
+                                            entries.push(Default::default());
+                                        }
                                     }
                                 }
                                 entries
                             }
-                            Err(e) => { log::warn!("get_key_override_count: {e}"); vec![] }
+                            Err(e) => {
+                                log::warn!("get_key_override_count: {e}");
+                                vec![]
+                            }
                         };
 
                         Ok(ConnectResult {
@@ -1023,6 +1358,7 @@ impl EntropyApp {
                             auto_shift_options: auto_shift_options.unwrap_or_default(),
                             auto_shift_timeout,
                             mouse_keys_settings,
+                            rgb_settings,
                             key_override_entries,
                             layout,
                             layer_count,
@@ -1039,7 +1375,8 @@ impl EntropyApp {
                             .map_err(|e| format!("ZMK open failed: {e}"))?;
 
                         // Check lock state (don't wait — just get it)
-                        let lock_state = conn.get_lock_state()
+                        let lock_state = conn
+                            .get_lock_state()
                             .unwrap_or(crate::zmk_proto::core::LockState::Unlocked as i32);
 
                         // If locked, return early with the lock state so UI can show unlock modal
@@ -1057,6 +1394,7 @@ impl EntropyApp {
                                 layer_names: vec![],
                                 custom_keycodes: vec![],
                                 supports_rgb: false,
+                                lighting_mode: None,
                                 firmware: FirmwareProtocol::Zmk,
                                 zmk_bindings: vec![],
                                 zmk_behaviors: vec![],
@@ -1072,6 +1410,7 @@ impl EntropyApp {
                                 auto_shift_options: AutoShiftOptionsState::default(),
                                 auto_shift_timeout: None,
                                 mouse_keys_settings: MouseKeysSettingsState::default(),
+                                rgb_settings: RgbSettingsState::default(),
                                 key_override_entries: vec![],
                                 layout,
                                 layer_count: 0,
@@ -1085,11 +1424,13 @@ impl EntropyApp {
                             .map_err(|e| format!("ZMK behaviors failed: {e}"))?;
 
                         log::info!("Fetching ZMK keymap…");
-                        let keymap = conn.get_keymap()
+                        let keymap = conn
+                            .get_keymap()
                             .map_err(|e| format!("ZMK keymap failed: {e}"))?;
 
                         log::info!("Fetching ZMK physical layouts…");
-                        let phys = conn.get_physical_layouts()
+                        let phys = conn
+                            .get_physical_layouts()
                             .map_err(|e| format!("ZMK layouts failed: {e}"))?;
 
                         let layer_count = keymap.layers.len();
@@ -1102,18 +1443,23 @@ impl EntropyApp {
 
                         // Extract bindings
                         layout.zmk_layer_ids = keymap.layers.iter().map(|l| l.id).collect();
-                        layout.zmk_layer_names = keymap.layers.iter().map(|l| l.name.clone()).collect();
+                        layout.zmk_layer_names =
+                            keymap.layers.iter().map(|l| l.name.clone()).collect();
 
                         let num_keys = layout.keys.len();
-                        layout.zmk_bindings = keymap.layers.iter().map(|layer| {
-                            let mut bindings = vec![crate::zmk::ZmkBinding::none(); num_keys];
-                            for (i, b) in layer.bindings.iter().enumerate() {
-                                if i < num_keys {
-                                    bindings[i] = crate::zmk::ZmkBinding::from_proto(b);
+                        layout.zmk_bindings = keymap
+                            .layers
+                            .iter()
+                            .map(|layer| {
+                                let mut bindings = vec![crate::zmk::ZmkBinding::none(); num_keys];
+                                for (i, b) in layer.bindings.iter().enumerate() {
+                                    if i < num_keys {
+                                        bindings[i] = crate::zmk::ZmkBinding::from_proto(b);
+                                    }
                                 }
-                            }
-                            bindings
-                        }).collect();
+                                bindings
+                            })
+                            .collect();
 
                         Ok(ConnectResult {
                             device_name: dev.name.clone(),
@@ -1124,6 +1470,7 @@ impl EntropyApp {
                             auto_shift_options: AutoShiftOptionsState::default(),
                             auto_shift_timeout: None,
                             mouse_keys_settings: MouseKeysSettingsState::default(),
+                            rgb_settings: RgbSettingsState::default(),
                             key_override_entries: vec![],
                             layout,
                             layer_count,
@@ -1173,16 +1520,19 @@ impl EntropyApp {
                 self.combo_entries = r.combo_entries.clone();
                 self.key_override_entries = r.key_override_entries.clone();
                 self.key_override_names = load_key_override_names(&self.current_device_name);
-                self.key_override_names.resize(self.key_override_entries.len(), String::new());
+                self.key_override_names
+                    .resize(self.key_override_entries.len(), String::new());
                 self.key_override_visible_count = 1;
                 self.key_override_undo_stack.clear();
                 self.selected_key_override = 0;
                 self.combo_names = load_combo_names(&self.current_device_name);
-                self.combo_names.resize(self.combo_entries.len(), String::new());
+                self.combo_names
+                    .resize(self.combo_entries.len(), String::new());
                 self.combo_term = r.combo_term.or(Some(50));
                 self.auto_shift_options = r.auto_shift_options;
                 self.auto_shift_timeout = r.auto_shift_timeout;
                 self.mouse_keys_settings = r.mouse_keys_settings;
+                self.rgb_settings = r.rgb_settings;
                 let highest_used_combo = self
                     .combo_entries
                     .iter()
@@ -1190,57 +1540,86 @@ impl EntropyApp {
                     .filter(|(i, combo)| {
                         combo.output != 0
                             || combo.keys.iter().any(|&k| k != 0)
-                            || self.combo_names.get(*i).map(|n| !n.trim().is_empty()).unwrap_or(false)
+                            || self
+                                .combo_names
+                                .get(*i)
+                                .map(|n| !n.trim().is_empty())
+                                .unwrap_or(false)
                     })
                     .map(|(i, _)| i + 1)
                     .max()
                     .unwrap_or(1);
                 self.combo_visible_count = highest_used_combo.min(self.combo_entries.len().max(1));
-                self.selected_combo = self.selected_combo.min(self.combo_visible_count.saturating_sub(1));
+                self.selected_combo = self
+                    .selected_combo
+                    .min(self.combo_visible_count.saturating_sub(1));
                 if !r.macro_texts.is_empty() {
                     self.keycode_picker.macro_count = r.macro_texts.len();
                     self.keycode_picker.macro_texts = r.macro_texts.clone();
                     self.keycode_picker.macro_names = vec![String::new(); r.macro_texts.len()];
                     // Parse macro texts into actions
                     // Parse macro texts → actions (Vial protocol v2: prefix 0x01 before actions)
-                    self.keycode_picker.macro_actions = r.macro_texts.iter().map(|text| {
-                        let bytes = text.as_bytes();
-                        let mut actions = Vec::new();
-                        let mut i = 0;
-                        while i < bytes.len() {
-                            if bytes[i] == 1 && i + 1 < bytes.len() {
-                                // SS_QMK_PREFIX
-                                match bytes[i + 1] {
-                                    1 if i + 2 < bytes.len() => { // SS_TAP
-                                        actions.push(crate::keycode_picker::MacroAction::Tap(bytes[i+2]));
-                                        i += 3;
+                    self.keycode_picker.macro_actions = r
+                        .macro_texts
+                        .iter()
+                        .map(|text| {
+                            let bytes = text.as_bytes();
+                            let mut actions = Vec::new();
+                            let mut i = 0;
+                            while i < bytes.len() {
+                                if bytes[i] == 1 && i + 1 < bytes.len() {
+                                    // SS_QMK_PREFIX
+                                    match bytes[i + 1] {
+                                        1 if i + 2 < bytes.len() => {
+                                            // SS_TAP
+                                            actions.push(crate::keycode_picker::MacroAction::Tap(
+                                                bytes[i + 2],
+                                            ));
+                                            i += 3;
+                                        }
+                                        2 if i + 2 < bytes.len() => {
+                                            // SS_DOWN
+                                            actions.push(crate::keycode_picker::MacroAction::Down(
+                                                bytes[i + 2],
+                                            ));
+                                            i += 3;
+                                        }
+                                        3 if i + 2 < bytes.len() => {
+                                            // SS_UP
+                                            actions.push(crate::keycode_picker::MacroAction::Up(
+                                                bytes[i + 2],
+                                            ));
+                                            i += 3;
+                                        }
+                                        4 if i + 3 < bytes.len() => {
+                                            // SS_DELAY
+                                            let ms = (bytes[i + 2] as u16 - 1)
+                                                + (bytes[i + 3] as u16 - 1) * 255;
+                                            actions.push(
+                                                crate::keycode_picker::MacroAction::Delay(ms),
+                                            );
+                                            i += 4;
+                                        }
+                                        _ => {
+                                            i += 2;
+                                        } // skip unknown
                                     }
-                                    2 if i + 2 < bytes.len() => { // SS_DOWN
-                                        actions.push(crate::keycode_picker::MacroAction::Down(bytes[i+2]));
-                                        i += 3;
+                                } else {
+                                    // Text character
+                                    let start = i;
+                                    while i < bytes.len() && bytes[i] != 1 {
+                                        i += 1;
                                     }
-                                    3 if i + 2 < bytes.len() => { // SS_UP
-                                        actions.push(crate::keycode_picker::MacroAction::Up(bytes[i+2]));
-                                        i += 3;
+                                    if let Ok(s) = std::str::from_utf8(&bytes[start..i]) {
+                                        actions.push(crate::keycode_picker::MacroAction::Text(
+                                            s.to_string(),
+                                        ));
                                     }
-                                    4 if i + 3 < bytes.len() => { // SS_DELAY
-                                        let ms = (bytes[i+2] as u16 - 1) + (bytes[i+3] as u16 - 1) * 255;
-                                        actions.push(crate::keycode_picker::MacroAction::Delay(ms));
-                                        i += 4;
-                                    }
-                                    _ => { i += 2; } // skip unknown
-                                }
-                            } else {
-                                // Text character
-                                let start = i;
-                                while i < bytes.len() && bytes[i] != 1 { i += 1; }
-                                if let Ok(s) = std::str::from_utf8(&bytes[start..i]) {
-                                    actions.push(crate::keycode_picker::MacroAction::Text(s.to_string()));
                                 }
                             }
-                        }
-                        actions
-                    }).collect();
+                            actions
+                        })
+                        .collect();
                 }
 
                 // If ZMK keyboard is locked, show the unlock modal
@@ -1292,8 +1671,19 @@ impl EntropyApp {
                 self.keycode_picker.tap_dance_names = load_tap_dance_names(&device_name);
                 if self.firmware == FirmwareProtocol::Vial {
                     const USER_BASE: u16 = 0x7E40;
-                    self.keycode_picker.custom_keycodes = r.layout.custom_keycodes.iter().enumerate()
-                        .map(|(i, custom)| (custom.name.clone(), custom.label.clone(), custom.title.clone(), USER_BASE + i as u16))
+                    self.keycode_picker.custom_keycodes = r
+                        .layout
+                        .custom_keycodes
+                        .iter()
+                        .enumerate()
+                        .map(|(i, custom)| {
+                            (
+                                custom.name.clone(),
+                                custom.label.clone(),
+                                custom.title.clone(),
+                                USER_BASE + i as u16,
+                            )
+                        })
                         .collect();
                 } else {
                     self.keycode_picker.zmk_behaviors = r.layout.zmk_behaviors.clone();
@@ -1306,15 +1696,25 @@ impl EntropyApp {
 
                 // Open persistent HID connection for Vial real-time writes
                 if self.firmware == FirmwareProtocol::Vial {
-                    if let Some(dev) = self.selected_device.and_then(|i| self.device_manager.devices().get(i)) {
+                    if let Some(dev) = self
+                        .selected_device
+                        .and_then(|i| self.device_manager.devices().get(i))
+                    {
                         match crate::hid::HidDevice::open(&dev.path) {
-                            Ok(v) => { self.hid_device = Some(v); }
+                            Ok(v) => {
+                                self.hid_device = Some(v);
+                            }
                             Err(e) => log::warn!("Could not open persistent HID: {e}"),
                         }
                     }
                 }
 
-                log::info!("Connected: {} ({} layers, {:?})", r.device_name, r.layer_count, self.firmware);
+                log::info!(
+                    "Connected: {} ({} layers, {:?})",
+                    r.device_name,
+                    r.layer_count,
+                    self.firmware
+                );
             }
             Err(e) => {
                 self.status_msg = e;
@@ -1383,7 +1783,10 @@ impl EntropyApp {
                     ctx.request_repaint();
                 }
             }
-            ZmkOpResult::AddLayerOk { layer_idx, layer_name } => {
+            ZmkOpResult::AddLayerOk {
+                layer_idx,
+                layer_name,
+            } => {
                 log::info!("Added layer at index {layer_idx}: {layer_name}");
                 self.status_msg = "Added layer".into();
                 self.zmk_has_unsaved = false;
@@ -1397,7 +1800,9 @@ impl EntropyApp {
                 log::error!("Add layer failed: {e}");
                 if e.contains(": 2") || e.contains("NoSpace") {
                     self.zmk_no_extra_layers = true;
-                    self.status_msg = "Firmware doesn't support extra layers (CONFIG_ZMK_KEYMAP_LAYERS_EXTRA)".to_string();
+                    self.status_msg =
+                        "Firmware doesn't support extra layers (CONFIG_ZMK_KEYMAP_LAYERS_EXTRA)"
+                            .to_string();
                 } else {
                     self.status_msg = format!("Add layer failed: {e}");
                 }
@@ -1450,7 +1855,9 @@ impl EntropyApp {
     #[cfg(not(target_arch = "wasm32"))]
     fn refresh_layer_picker_content_flags(&mut self) {
         if let Some(layout) = &self.layout {
-            self.keycode_picker.layer_has_content = layout.layers.iter()
+            self.keycode_picker.layer_has_content = layout
+                .layers
+                .iter()
                 .map(|keys| keys.iter().any(|&kc| kc != 0x0000 && kc != 0x0001))
                 .collect();
         }
@@ -1468,7 +1875,9 @@ impl EntropyApp {
         self.firmware == FirmwareProtocol::Vial
             && self.layout.is_some()
             && !self.vial_unlock_polling
-            && self.hid_device.as_ref()
+            && self
+                .hid_device
+                .as_ref()
                 .and_then(|hid| hid.get_unlock_status().ok())
                 .map(|(unlocked, _)| unlocked)
                 .map(|unlocked| !unlocked)
@@ -1482,7 +1891,10 @@ impl EntropyApp {
 
     #[cfg(not(target_arch = "wasm32"))]
     fn reopen_vial_hid(&mut self) {
-        if let Some(dev) = self.selected_device.and_then(|i| self.device_manager.devices().get(i)) {
+        if let Some(dev) = self
+            .selected_device
+            .and_then(|i| self.device_manager.devices().get(i))
+        {
             match crate::hid::HidDevice::open(&dev.path) {
                 Ok(hid) => {
                     self.hid_device = Some(hid);
@@ -1531,7 +1943,8 @@ impl EntropyApp {
         };
 
         let now = std::time::Instant::now();
-        if now.duration_since(self.matrix_tester_last_poll) >= std::time::Duration::from_millis(50) {
+        if now.duration_since(self.matrix_tester_last_poll) >= std::time::Duration::from_millis(50)
+        {
             self.matrix_tester_last_poll = now;
             match hid.get_switch_matrix(layout.rows, layout.cols) {
                 Ok(pressed) => {
@@ -1555,7 +1968,13 @@ impl EntropyApp {
         ctx.request_repaint_after(std::time::Duration::from_millis(50));
     }
 
-    fn draw_settings_screen(&mut self, ui: &mut egui::Ui, layout: &KeyboardLayout, ctx: &egui::Context, content_top: f32) {
+    fn draw_settings_screen(
+        &mut self,
+        ui: &mut egui::Ui,
+        layout: &KeyboardLayout,
+        ctx: &egui::Context,
+        content_top: f32,
+    ) {
         #[cfg(not(target_arch = "wasm32"))]
         self.poll_matrix_tester(ctx, layout);
 
@@ -1582,7 +2001,12 @@ impl EntropyApp {
             }
         };
 
-        if supported && hid_ready && self.is_vial_locked() && !self.unlock_open && !self.matrix_tester_unlock_prompted {
+        if supported
+            && hid_ready
+            && self.is_vial_locked()
+            && !self.unlock_open
+            && !self.matrix_tester_unlock_prompted
+        {
             self.unlock_open = true;
             self.matrix_tester_unlock_prompted = true;
             self.status_msg = "Keyboard is locked, unlock it to use Matrix Tester".into();
@@ -1594,7 +2018,10 @@ impl EntropyApp {
             .iter()
             .filter(|key| {
                 let idx = key.row as usize * layout.cols + key.col as usize;
-                self.matrix_tester_ever_pressed.get(idx).copied().unwrap_or(false)
+                self.matrix_tester_ever_pressed
+                    .get(idx)
+                    .copied()
+                    .unwrap_or(false)
             })
             .count();
 
@@ -1621,13 +2048,27 @@ impl EntropyApp {
             egui::pos2(content_rect.right() - 88.0, top_line_y - 15.0),
             Vec2::new(84.0, 30.0),
         );
-        if ui.put(reset_rect, egui::Button::new("Reset").sense(egui::Sense::CLICK)).clicked() {
+        if ui
+            .put(
+                reset_rect,
+                egui::Button::new("Reset").sense(egui::Sense::CLICK),
+            )
+            .clicked()
+        {
             self.reset_matrix_tester_state();
         }
 
         let painter = ui.painter();
-        let idle_fill = if dark { Color32::from_rgb(34, 34, 38) } else { Color32::from_rgb(252, 252, 254) };
-        let tested_fill = if dark { Color32::from_rgb(42, 68, 52) } else { Color32::from_rgb(232, 245, 236) };
+        let idle_fill = if dark {
+            Color32::from_rgb(34, 34, 38)
+        } else {
+            Color32::from_rgb(252, 252, 254)
+        };
+        let tested_fill = if dark {
+            Color32::from_rgb(42, 68, 52)
+        } else {
+            Color32::from_rgb(232, 245, 236)
+        };
 
         let board_top = top_line_y + 48.0;
         let board_rect = egui::Rect::from_min_max(
@@ -1687,8 +2128,16 @@ impl EntropyApp {
 
         for key in &layout.keys {
             let matrix_idx = key.row as usize * layout.cols + key.col as usize;
-            let is_pressed = self.matrix_tester_pressed.get(matrix_idx).copied().unwrap_or(false);
-            let was_pressed = self.matrix_tester_ever_pressed.get(matrix_idx).copied().unwrap_or(false);
+            let is_pressed = self
+                .matrix_tester_pressed
+                .get(matrix_idx)
+                .copied()
+                .unwrap_or(false);
+            let was_pressed = self
+                .matrix_tester_ever_pressed
+                .get(matrix_idx)
+                .copied()
+                .unwrap_or(false);
             let rect = egui::Rect::from_min_size(
                 egui::pos2(
                     offset_x + key.x * unit + padding,
@@ -1737,7 +2186,9 @@ impl EntropyApp {
                     self.combo_reopen_after_pick = false;
                 }
             } else if let Some(field) = self.key_override_pick_target.take() {
-                let idx = self.selected_key_override.min(self.key_override_entries.len().saturating_sub(1));
+                let idx = self
+                    .selected_key_override
+                    .min(self.key_override_entries.len().saturating_sub(1));
                 self.push_key_override_undo();
                 if let Some(entry) = self.key_override_entries.get_mut(idx) {
                     match field {
@@ -1785,11 +2236,19 @@ impl EntropyApp {
     }
 
     fn assign_encoder_keycode(&mut self, layer: usize, encoder_visual_idx: usize, kc_value: u16) {
-        let encoder = match self.layout.as_ref().and_then(|l| l.encoders.get(encoder_visual_idx)) {
+        let encoder = match self
+            .layout
+            .as_ref()
+            .and_then(|l| l.encoders.get(encoder_visual_idx))
+        {
             Some(e) => e.clone(),
             None => return,
         };
-        let old_kc = self.layout.as_ref().map(|l| l.get_encoder_keycode(layer, encoder_visual_idx)).unwrap_or(0);
+        let old_kc = self
+            .layout
+            .as_ref()
+            .map(|l| l.get_encoder_keycode(layer, encoder_visual_idx))
+            .unwrap_or(0);
         self.undo_stack.push(UndoAction::Encoder {
             layer,
             encoder_visual_idx,
@@ -1805,12 +2264,23 @@ impl EntropyApp {
         }
 
         let result = if let Some(conn) = &self.hid_device {
-            conn.set_encoder(layer as u8, encoder.encoder_idx, encoder.direction, kc_value)
-        } else if let Some(dev) = self.selected_device
+            conn.set_encoder(
+                layer as u8,
+                encoder.encoder_idx,
+                encoder.direction,
+                kc_value,
+            )
+        } else if let Some(dev) = self
+            .selected_device
             .and_then(|i| self.device_manager.devices().get(i))
         {
             match crate::hid::HidDevice::open(&dev.path) {
-                Ok(conn) => conn.set_encoder(layer as u8, encoder.encoder_idx, encoder.direction, kc_value),
+                Ok(conn) => conn.set_encoder(
+                    layer as u8,
+                    encoder.encoder_idx,
+                    encoder.direction,
+                    kc_value,
+                ),
                 Err(e) => Err(anyhow::anyhow!("{e}")),
             }
         } else {
@@ -1819,7 +2289,12 @@ impl EntropyApp {
 
         match result {
             Ok(()) => {
-                self.status_msg = format!("Assigned encoder {} direction {} on layer {}", encoder.encoder_idx, encoder.direction, layer + 1);
+                self.status_msg = format!(
+                    "Assigned encoder {} direction {} on layer {}",
+                    encoder.encoder_idx,
+                    encoder.direction,
+                    layer + 1
+                );
             }
             Err(e) => {
                 self.status_msg = format!("Set encoder failed: {e}");
@@ -1827,7 +2302,12 @@ impl EntropyApp {
         }
     }
 
-    fn open_picker_for_target(&mut self, key_target: Option<usize>, encoder_target: Option<usize>, is_zmk: bool) {
+    fn open_picker_for_target(
+        &mut self,
+        key_target: Option<usize>,
+        encoder_target: Option<usize>,
+        is_zmk: bool,
+    ) {
         self.selected_key = key_target.map(|ki| (self.selected_layer, ki));
         self.selected_encoder = encoder_target.map(|ei| (self.selected_layer, ei));
         self.keycode_picker.open = true;
@@ -1841,13 +2321,23 @@ impl EntropyApp {
         self.keycode_picker.tap_dance_editor_open = None;
         self.keycode_picker.selected_tab = crate::keycode_picker::KeycodeTab::Basic;
         if is_zmk {
-            self.keycode_picker.zmk_behaviors = self.layout.as_ref()
-                .map(|l| l.zmk_behaviors.clone()).unwrap_or_default();
+            self.keycode_picker.zmk_behaviors = self
+                .layout
+                .as_ref()
+                .map(|l| l.zmk_behaviors.clone())
+                .unwrap_or_default();
             self.keycode_picker.zmk_layer_count = self.layer_count;
         }
     }
 
-    fn handle_secondary_target(&mut self, ctrl_held: bool, is_zmk: bool, kc: u16, key_target: Option<usize>, encoder_target: Option<usize>) {
+    fn handle_secondary_target(
+        &mut self,
+        ctrl_held: bool,
+        is_zmk: bool,
+        kc: u16,
+        key_target: Option<usize>,
+        encoder_target: Option<usize>,
+    ) {
         if is_zmk {
             return;
         }
@@ -1941,7 +2431,11 @@ impl EntropyApp {
 
     fn assign_keycode(&mut self, layer: usize, ki: usize, kc_value: u16) {
         // Save old value for undo
-        let old_kc = self.layout.as_ref().map(|l| l.get_keycode(layer, ki)).unwrap_or(0);
+        let old_kc = self
+            .layout
+            .as_ref()
+            .map(|l| l.get_keycode(layer, ki))
+            .unwrap_or(0);
         self.undo_stack.push(UndoAction::Key {
             layer,
             key_idx: ki,
@@ -1962,7 +2456,8 @@ impl EntropyApp {
         // Use persistent connection if available, otherwise open fresh
         let result = if let Some(conn) = &self.hid_device {
             conn.set_keycode(layer as u8, key.row, key.col, kc_value)
-        } else if let Some(dev) = self.selected_device
+        } else if let Some(dev) = self
+            .selected_device
             .and_then(|i| self.device_manager.devices().get(i))
         {
             match crate::hid::HidDevice::open(&dev.path) {
@@ -1994,12 +2489,18 @@ impl EntropyApp {
     /// ZMK: assign binding and write to device.
     #[cfg(not(target_arch = "wasm32"))]
     fn assign_zmk_binding(&mut self, layer: usize, ki: usize, binding: ZmkBinding) {
-        let layer_id = self.layout.as_ref()
+        let layer_id = self
+            .layout
+            .as_ref()
             .and_then(|l| l.zmk_layer_ids.get(layer).copied())
             .unwrap_or(layer as u32);
 
         // Save old binding for undo
-        let old_binding = self.layout.as_ref().map(|l| l.get_zmk_binding(layer, ki)).unwrap_or_else(ZmkBinding::none);
+        let old_binding = self
+            .layout
+            .as_ref()
+            .map(|l| l.get_zmk_binding(layer, ki))
+            .unwrap_or_else(ZmkBinding::none);
         self.undo_stack.push(UndoAction::Key {
             layer,
             key_idx: ki,
@@ -2035,9 +2536,16 @@ impl EntropyApp {
     #[cfg(not(target_arch = "wasm32"))]
     #[cfg(not(target_arch = "wasm32"))]
     fn undo(&mut self) {
-        let Some(action) = self.undo_stack.pop() else { return };
+        let Some(action) = self.undo_stack.pop() else {
+            return;
+        };
         match action {
-            UndoAction::Key { layer, key_idx, old_kc, old_binding } => {
+            UndoAction::Key {
+                layer,
+                key_idx,
+                old_kc,
+                old_binding,
+            } => {
                 if self.firmware == FirmwareProtocol::Zmk {
                     self.assign_zmk_binding(layer, key_idx, old_binding);
                     self.undo_stack.pop();
@@ -2046,7 +2554,11 @@ impl EntropyApp {
                     self.undo_stack.pop();
                 }
             }
-            UndoAction::Encoder { layer, encoder_visual_idx, old_kc } => {
+            UndoAction::Encoder {
+                layer,
+                encoder_visual_idx,
+                old_kc,
+            } => {
                 self.assign_encoder_keycode(layer, encoder_visual_idx, old_kc);
                 self.undo_stack.pop();
             }
@@ -2054,7 +2566,9 @@ impl EntropyApp {
     }
 
     fn zmk_save(&mut self) {
-        if self.zmk_op_rx.is_some() { return; } // operation in progress
+        if self.zmk_op_rx.is_some() {
+            return;
+        } // operation in progress
         let conn = match self.zmk_conn.take() {
             Some(c) => c,
             None => {
@@ -2086,7 +2600,9 @@ impl EntropyApp {
     /// ZMK: discard unsaved changes in background.
     #[cfg(not(target_arch = "wasm32"))]
     fn zmk_discard(&mut self) {
-        if self.zmk_op_rx.is_some() { return; }
+        if self.zmk_op_rx.is_some() {
+            return;
+        }
         // Discard = just reload from device
         self.zmk_has_unsaved = false;
         self.status_msg = "Discarded".into();
@@ -2098,7 +2614,9 @@ impl EntropyApp {
     /// ZMK: add layer in background.
     #[cfg(not(target_arch = "wasm32"))]
     fn zmk_add_layer(&mut self) {
-        if self.zmk_op_rx.is_some() { return; }
+        if self.zmk_op_rx.is_some() {
+            return;
+        }
         let conn = match self.zmk_conn.take() {
             Some(c) => c,
             None => {
@@ -2119,7 +2637,10 @@ impl EntropyApp {
             });
             match res {
                 Ok((idx, name)) => {
-                    let _ = tx.send(ZmkOpResult::AddLayerOk { layer_idx: idx, layer_name: name });
+                    let _ = tx.send(ZmkOpResult::AddLayerOk {
+                        layer_idx: idx,
+                        layer_name: name,
+                    });
                 }
                 Err(e) => {
                     let _ = tx.send(ZmkOpResult::AddLayerFail(e.to_string()));
@@ -2133,7 +2654,9 @@ impl EntropyApp {
     /// ZMK: remove last layer in background.
     #[cfg(not(target_arch = "wasm32"))]
     fn zmk_remove_layer(&mut self) {
-        if self.zmk_op_rx.is_some() { return; }
+        if self.zmk_op_rx.is_some() {
+            return;
+        }
         if self.layer_count <= 1 {
             self.status_msg = "Cannot remove last layer".into();
             return;
@@ -2254,8 +2777,6 @@ impl eframe::App for EntropyApp {
         #[cfg(not(target_arch = "wasm32"))]
         self.poll_zmk_ops(ctx);
 
-
-
         self.apply_picker_results();
 
         // Deselect key when picker is closed without choosing
@@ -2326,7 +2847,11 @@ impl eframe::App for EntropyApp {
 
                 #[cfg(not(target_arch = "wasm32"))]
                 if !self.undo_stack.is_empty() {
-                    if ui.button("↩ Undo").on_hover_text("Undo last change").clicked() {
+                    if ui
+                        .button("↩ Undo")
+                        .on_hover_text("Undo last change")
+                        .clicked()
+                    {
                         self.undo();
                     }
                 }
@@ -2334,26 +2859,38 @@ impl eframe::App for EntropyApp {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     #[cfg(not(target_arch = "wasm32"))]
                     {
-
-
                         // Vial: Unlock button (don't poll status during unlock process)
-                        if self.firmware == FirmwareProtocol::Vial && self.layout.is_some() && !self.vial_unlock_polling && !self.unlock_open {
-                            let is_unlocked = self.hid_device.as_ref()
+                        if self.firmware == FirmwareProtocol::Vial
+                            && self.layout.is_some()
+                            && !self.vial_unlock_polling
+                            && !self.unlock_open
+                        {
+                            let is_unlocked = self
+                                .hid_device
+                                .as_ref()
                                 .and_then(|hid| hid.get_unlock_status().ok())
                                 .map(|(unlocked, _keys)| unlocked)
                                 .unwrap_or(false);
                             if !is_unlocked {
-                                if ui.add(egui::Button::new(RichText::new("🔒 Unlock")
-                                    .color(Color32::from_rgb(220, 120, 60)))
-                                    .fill(Color32::TRANSPARENT))
+                                if ui
+                                    .add(
+                                        egui::Button::new(
+                                            RichText::new("🔒 Unlock")
+                                                .color(Color32::from_rgb(220, 120, 60)),
+                                        )
+                                        .fill(Color32::TRANSPARENT),
+                                    )
                                     .on_hover_text("Keyboard is locked — click to unlock")
                                     .clicked()
                                 {
                                     self.unlock_open = true;
                                 }
                             } else {
-                                if ui.add(egui::Button::new(RichText::new("🔓 Lock"))
-                                    .fill(Color32::TRANSPARENT))
+                                if ui
+                                    .add(
+                                        egui::Button::new(RichText::new("🔓 Lock"))
+                                            .fill(Color32::TRANSPARENT),
+                                    )
                                     .on_hover_text("Lock keyboard — prevents accidental changes")
                                     .clicked()
                                 {
@@ -2371,7 +2908,9 @@ impl eframe::App for EntropyApp {
                     if !self.status_msg.is_empty() {
                         let color = if self.status_msg.starts_with("✓") {
                             Color32::from_rgb(100, 200, 100)
-                        } else if self.status_msg.contains("error") || self.status_msg.contains("failed") {
+                        } else if self.status_msg.contains("error")
+                            || self.status_msg.contains("failed")
+                        {
                             Color32::from_rgb(220, 80, 80)
                         } else {
                             Color32::from_rgb(180, 180, 100)
@@ -2403,7 +2942,11 @@ impl eframe::App for EntropyApp {
                 ui.centered_and_justified(|ui| {
                     ui.horizontal(|ui| {
                         ui.spinner();
-                        ui.label(RichText::new("Loading keyboard…").size(16.0).color(Color32::GRAY));
+                        ui.label(
+                            RichText::new("Loading keyboard…")
+                                .size(16.0)
+                                .color(Color32::GRAY),
+                        );
                     });
                 });
                 return;
@@ -2420,7 +2963,11 @@ impl eframe::App for EntropyApp {
         // Bottom bar — theme toggle
         egui::TopBottomPanel::bottom("bottom_bar").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                let theme_label = if self.dark_mode { "☀ Light" } else { "🌙 Dark" };
+                let theme_label = if self.dark_mode {
+                    "☀ Light"
+                } else {
+                    "🌙 Dark"
+                };
                 if ui.small_button(theme_label).clicked() {
                     self.dark_mode = !self.dark_mode;
                 }
@@ -2486,20 +3033,38 @@ impl eframe::App for EntropyApp {
                 .show(ctx, |ui| {
                     let screen = ui.ctx().screen_rect();
                     // Dim background
-                    ui.painter().rect_filled(screen, 0.0, Color32::from_rgba_unmultiplied(0, 0, 0, 180));
+                    ui.painter().rect_filled(
+                        screen,
+                        0.0,
+                        Color32::from_rgba_unmultiplied(0, 0, 0, 180),
+                    );
 
                     let center_x = screen.center().x;
                     let top_y = screen.min.y + 40.0;
 
                     // Title
-                    ui.painter().text(egui::pos2(center_x, top_y), egui::Align2::CENTER_CENTER,
-                        "🔓 Unlock Keyboard", FontId::proportional(24.0), Color32::WHITE);
+                    ui.painter().text(
+                        egui::pos2(center_x, top_y),
+                        egui::Align2::CENTER_CENTER,
+                        "🔓 Unlock Keyboard",
+                        FontId::proportional(24.0),
+                        Color32::WHITE,
+                    );
 
-                    ui.painter().text(egui::pos2(center_x, top_y + 30.0), egui::Align2::CENTER_CENTER,
-                        "Press and hold the highlighted keys one by one", FontId::proportional(14.0), Color32::from_gray(180));
+                    ui.painter().text(
+                        egui::pos2(center_x, top_y + 30.0),
+                        egui::Align2::CENTER_CENTER,
+                        "Press and hold the highlighted keys one by one",
+                        FontId::proportional(14.0),
+                        Color32::from_gray(180),
+                    );
 
                     // Progress bar
-                    let progress = if total > 0 { 1.0 - (counter as f32 / total as f32) } else { 0.0 };
+                    let progress = if total > 0 {
+                        1.0 - (counter as f32 / total as f32)
+                    } else {
+                        0.0
+                    };
                     let bar_w = 300.0f32;
                     let bar_h = 12.0f32;
                     let bar_y = top_y + 55.0;
@@ -2507,27 +3072,46 @@ impl eframe::App for EntropyApp {
                         egui::pos2(center_x - bar_w / 2.0, bar_y),
                         egui::Vec2::new(bar_w, bar_h),
                     );
-                    ui.painter().rect(bar_rect, 4.0, Color32::from_gray(40), egui::Stroke::NONE, egui::StrokeKind::Inside);
+                    ui.painter().rect(
+                        bar_rect,
+                        4.0,
+                        Color32::from_gray(40),
+                        egui::Stroke::NONE,
+                        egui::StrokeKind::Inside,
+                    );
                     let fill_rect = egui::Rect::from_min_size(
                         bar_rect.min,
                         egui::Vec2::new(bar_w * progress, bar_h),
                     );
-                    ui.painter().rect(fill_rect, 4.0, Color32::from_rgb(91, 104, 223), egui::Stroke::NONE, egui::StrokeKind::Inside);
+                    ui.painter().rect(
+                        fill_rect,
+                        4.0,
+                        Color32::from_rgb(91, 104, 223),
+                        egui::Stroke::NONE,
+                        egui::StrokeKind::Inside,
+                    );
 
                     // Draw layout keys with highlighted unlock keys
                     if let Some(layout) = &self.layout {
                         let base_unit = 54.0f32 * 0.85;
                         let padding = 3.0f32;
-                        let mut min_x = f32::MAX; let mut min_y = f32::MAX;
-                        let mut max_x = f32::MIN; let mut max_y = f32::MIN;
+                        let mut min_x = f32::MAX;
+                        let mut min_y = f32::MAX;
+                        let mut max_x = f32::MIN;
+                        let mut max_y = f32::MIN;
                         for key in &layout.keys {
-                            min_x = min_x.min(key.x); min_y = min_y.min(key.y);
-                            max_x = max_x.max(key.x + key.w); max_y = max_y.max(key.y + key.h);
+                            min_x = min_x.min(key.x);
+                            min_y = min_y.min(key.y);
+                            max_x = max_x.max(key.x + key.w);
+                            max_y = max_y.max(key.y + key.h);
                         }
-                        let span_x = max_x - min_x; let span_y = max_y - min_y;
+                        let span_x = max_x - min_x;
+                        let span_y = max_y - min_y;
                         let avail_w = screen.width() - 80.0;
                         let avail_h = screen.height() - 160.0;
-                        let scale = (avail_w / (span_x * base_unit)).min(avail_h / (span_y * base_unit)).min(1.0);
+                        let scale = (avail_w / (span_x * base_unit))
+                            .min(avail_h / (span_y * base_unit))
+                            .min(1.0);
                         let unit = base_unit * scale;
                         let layout_w = span_x * unit;
                         let layout_h = span_y * unit;
@@ -2535,33 +3119,66 @@ impl eframe::App for EntropyApp {
                         let off_y = bar_y + 30.0 + (avail_h - layout_h) / 2.0 - min_y * unit;
 
                         for (ki, key) in layout.keys.iter().enumerate() {
-                            let is_unlock = unlock_keys.iter().any(|(r, c)| key.row == *r && key.col == *c);
+                            let is_unlock = unlock_keys
+                                .iter()
+                                .any(|(r, c)| key.row == *r && key.col == *c);
                             let rect = egui::Rect::from_min_size(
-                                egui::pos2(off_x + key.x * unit + padding, off_y + key.y * unit + padding),
-                                egui::Vec2::new(key.w * unit - padding * 2.0, key.h * unit - padding * 2.0),
+                                egui::pos2(
+                                    off_x + key.x * unit + padding,
+                                    off_y + key.y * unit + padding,
+                                ),
+                                egui::Vec2::new(
+                                    key.w * unit - padding * 2.0,
+                                    key.h * unit - padding * 2.0,
+                                ),
                             );
                             let bg = if is_unlock {
                                 Color32::from_rgb(91, 104, 223)
                             } else {
                                 Color32::from_rgba_unmultiplied(48, 48, 52, 120)
                             };
-                            let border = if is_unlock { Color32::from_rgb(120, 130, 255) } else { Color32::from_gray(60) };
-                            ui.painter().rect(rect, 5.0, bg, Stroke::new(1.0, border), egui::StrokeKind::Inside);
+                            let border = if is_unlock {
+                                Color32::from_rgb(120, 130, 255)
+                            } else {
+                                Color32::from_gray(60)
+                            };
+                            ui.painter().rect(
+                                rect,
+                                5.0,
+                                bg,
+                                Stroke::new(1.0, border),
+                                egui::StrokeKind::Inside,
+                            );
 
                             let kc = layout.get_keycode(0, ki);
-                            let label = keycode_label_with_macro_names(kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names, &self.keycode_picker.tap_dance_names);
-                            let text_color = if is_unlock { Color32::WHITE } else { Color32::from_gray(80) };
-                            ui.painter().text(rect.center(), egui::Align2::CENTER_CENTER, &label,
-                                FontId::proportional(9.0 * scale), text_color);
+                            let label = keycode_label_with_macro_names(
+                                kc,
+                                &layout.custom_keycodes,
+                                &self.layer_names,
+                                &self.keycode_picker.macro_names,
+                                &self.keycode_picker.tap_dance_names,
+                            );
+                            let text_color = if is_unlock {
+                                Color32::WHITE
+                            } else {
+                                Color32::from_gray(80)
+                            };
+                            ui.painter().text(
+                                rect.center(),
+                                egui::Align2::CENTER_CENTER,
+                                &label,
+                                FontId::proportional(9.0 * scale),
+                                text_color,
+                            );
                         }
                     }
-
                 });
         }
 
         let any_floating_window_open = self.combo_window_open
             || self.auto_shift_window_open
             || self.mouse_keys_window_open
+            || self.rgb_window_open
             || self.encoder_visibility_window_open
             || self.key_override_window_open
             || self.keycode_picker.open;
@@ -2572,16 +3189,20 @@ impl eframe::App for EntropyApp {
                 .fixed_pos(screen_rect.min)
                 .show(ctx, |ui| {
                     let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, screen_rect.size());
-                    let response = ui.interact(rect, ui.id().with("backdrop_click"), egui::Sense::click());
+                    let response =
+                        ui.interact(rect, ui.id().with("backdrop_click"), egui::Sense::click());
                     ui.painter().rect_filled(
                         rect,
                         0.0,
-                        Color32::from_black_alpha(crate::ui_style::modal_backdrop_alpha(ctx.style().visuals.dark_mode)),
+                        Color32::from_black_alpha(crate::ui_style::modal_backdrop_alpha(
+                            ctx.style().visuals.dark_mode,
+                        )),
                     );
                     if response.clicked() {
                         self.combo_window_open = false;
                         self.auto_shift_window_open = false;
                         self.mouse_keys_window_open = false;
+                        self.rgb_window_open = false;
                         self.encoder_visibility_window_open = false;
                         self.key_override_window_open = false;
                         self.keycode_picker.open = false;
@@ -2597,6 +3218,9 @@ impl eframe::App for EntropyApp {
         }
         if self.mouse_keys_window_open {
             self.show_mouse_keys_window(ctx);
+        }
+        if self.rgb_window_open {
+            self.show_rgb_window(ctx);
         }
         if self.encoder_visibility_window_open {
             self.show_encoder_visibility_window(ctx);
@@ -2641,7 +3265,10 @@ impl eframe::App for EntropyApp {
                 self.keycode_picker.macros_dirty = false;
                 if let Some(hid) = &self.hid_device {
                     if let Ok(size) = hid.get_macro_buffer_size() {
-                        let buf = crate::hid::HidDevice::encode_macros(&self.keycode_picker.macro_texts, size);
+                        let buf = crate::hid::HidDevice::encode_macros(
+                            &self.keycode_picker.macro_texts,
+                            size,
+                        );
                         match hid.set_macro_buffer(&buf) {
                             Ok(()) => self.status_msg = "Macros saved".into(),
                             Err(e) => self.status_msg = format!("Macro write error: {e}"),
@@ -2696,7 +3323,14 @@ impl eframe::App for EntropyApp {
             let mut td_save_ok = true;
             if let Some(hid) = &self.hid_device {
                 for (i, td) in self.keycode_picker.tap_dance_entries.iter().enumerate() {
-                    match hid.set_tap_dance(i as u8, td.on_tap, td.on_hold, td.on_double_tap, td.on_tap_hold, td.tapping_term) {
+                    match hid.set_tap_dance(
+                        i as u8,
+                        td.on_tap,
+                        td.on_hold,
+                        td.on_double_tap,
+                        td.on_tap_hold,
+                        td.tapping_term,
+                    ) {
                         Ok(()) => {}
                         Err(e) => {
                             self.status_msg = format!("Tap dance write error: {e}");
@@ -2707,7 +3341,10 @@ impl eframe::App for EntropyApp {
                 }
             }
             if td_save_ok {
-                save_tap_dance_names(&self.keycode_picker.tap_dance_names, &self.current_device_name);
+                save_tap_dance_names(
+                    &self.keycode_picker.tap_dance_names,
+                    &self.current_device_name,
+                );
                 self.keycode_picker.tap_dance_dirty = false;
                 if self.status_msg.is_empty() || self.status_msg.starts_with("✓") {
                     self.status_msg = "✓ Tap dance saved".into();
@@ -2716,7 +3353,10 @@ impl eframe::App for EntropyApp {
         }
 
         // Right-click anywhere = pop back one step (only if NOT hovering a layer key and not handled by key)
-        if !self.jump_back_stack.is_empty() && !self.keycode_picker.open && !self.secondary_click_handled {
+        if !self.jump_back_stack.is_empty()
+            && !self.keycode_picker.open
+            && !self.secondary_click_handled
+        {
             let esc_pressed = ctx.input(|i| i.key_pressed(egui::Key::Escape));
             let rclick = self.hover_layer.is_none() && ctx.input(|i| i.pointer.secondary_clicked());
             if rclick || esc_pressed {
@@ -2755,13 +3395,17 @@ impl EntropyApp {
                     let has_unlock_key = self.zmk_conn.is_none(); // after poll the conn is taken
                     if has_unlock_key {
                         ui.label(
-                            RichText::new("Press the unlock key on your keyboard to allow editing.")
-                                .size(14.0),
+                            RichText::new(
+                                "Press the unlock key on your keyboard to allow editing.",
+                            )
+                            .size(14.0),
                         );
                     } else {
                         ui.label(
-                            RichText::new("Hold the unlock combo on your keyboard to allow editing.")
-                                .size(14.0),
+                            RichText::new(
+                                "Hold the unlock combo on your keyboard to allow editing.",
+                            )
+                            .size(14.0),
                         );
                         ui.add_space(8.0);
                         ui.label(
@@ -2867,10 +3511,14 @@ impl EntropyApp {
     }
 
     fn write_key_override(&mut self, idx: usize) {
-        let Some(entry) = self.key_override_entries.get_mut(idx) else { return; };
+        let Some(entry) = self.key_override_entries.get_mut(idx) else {
+            return;
+        };
         Self::normalize_key_override_entry(entry);
         let entry = entry.clone();
-        let Some(hid) = &self.hid_device else { return; };
+        let Some(hid) = &self.hid_device else {
+            return;
+        };
         if let Err(e) = hid.set_key_override(
             idx as u8,
             entry.trigger,
@@ -2895,7 +3543,9 @@ impl EntropyApp {
     }
 
     fn write_auto_shift_flags(&mut self) {
-        let Some(hid) = &self.hid_device else { return; };
+        let Some(hid) = &self.hid_device else {
+            return;
+        };
         if let Err(e) = hid.set_qmk_setting_u8(3, self.auto_shift_options.bits()) {
             self.status_msg = format!("Failed to save Auto Shift flags: {}", e);
             log::warn!("set_qmk_setting_u8(auto_shift_flags) failed: {e}");
@@ -2903,8 +3553,12 @@ impl EntropyApp {
     }
 
     fn write_auto_shift_timeout(&mut self) {
-        let Some(hid) = &self.hid_device else { return; };
-        let Some(timeout) = self.auto_shift_timeout else { return; };
+        let Some(hid) = &self.hid_device else {
+            return;
+        };
+        let Some(timeout) = self.auto_shift_timeout else {
+            return;
+        };
         if let Err(e) = hid.set_qmk_setting_u16(4, timeout) {
             self.status_msg = format!("Failed to save Auto Shift timeout: {}", e);
             log::warn!("set_qmk_setting_u16(auto_shift_timeout) failed: {e}");
@@ -2913,27 +3567,30 @@ impl EntropyApp {
 
     fn draw_key_override_layers(ui: &mut egui::Ui, layers: &mut u16) -> bool {
         let mut changed = false;
-        egui::Grid::new(ui.id().with("ko_layers_grid")).num_columns(6).spacing([10.0, 6.0]).show(ui, |ui| {
-            for row in 0..3 {
-                for col in 0..6 {
-                    let idx = row * 6 + col;
-                    if idx >= 16 {
-                        ui.label("");
-                        continue;
-                    }
-                    let mut checked = (*layers & (1 << idx)) != 0;
-                    if ui.checkbox(&mut checked, idx.to_string()).changed() {
-                        if checked {
-                            *layers |= 1 << idx;
-                        } else {
-                            *layers &= !(1 << idx);
+        egui::Grid::new(ui.id().with("ko_layers_grid"))
+            .num_columns(6)
+            .spacing([10.0, 6.0])
+            .show(ui, |ui| {
+                for row in 0..3 {
+                    for col in 0..6 {
+                        let idx = row * 6 + col;
+                        if idx >= 16 {
+                            ui.label("");
+                            continue;
                         }
-                        changed = true;
+                        let mut checked = (*layers & (1 << idx)) != 0;
+                        if ui.checkbox(&mut checked, idx.to_string()).changed() {
+                            if checked {
+                                *layers |= 1 << idx;
+                            } else {
+                                *layers &= !(1 << idx);
+                            }
+                            changed = true;
+                        }
                     }
+                    ui.end_row();
                 }
-                ui.end_row();
-            }
-        });
+            });
         ui.horizontal(|ui| {
             if ui.button("Enable all").clicked() {
                 if *layers != u16::MAX {
@@ -2964,24 +3621,221 @@ impl EntropyApp {
             "Right Alt".to_string(),
             format!("Right {}", gui),
         ];
-        egui::Grid::new(ui.id().with(id)).num_columns(2).spacing([18.0, 4.0]).show(ui, |ui| {
-            for row in 0..4 {
-                for col in 0..2 {
-                    let idx = row * 2 + col;
-                    let mut checked = (*mask & (1 << idx)) != 0;
-                    if ui.checkbox(&mut checked, labels[idx].as_str()).changed() {
-                        if checked {
-                            *mask |= 1 << idx;
-                        } else {
-                            *mask &= !(1 << idx);
+        egui::Grid::new(ui.id().with(id))
+            .num_columns(2)
+            .spacing([18.0, 4.0])
+            .show(ui, |ui| {
+                for row in 0..4 {
+                    for col in 0..2 {
+                        let idx = row * 2 + col;
+                        let mut checked = (*mask & (1 << idx)) != 0;
+                        if ui.checkbox(&mut checked, labels[idx].as_str()).changed() {
+                            if checked {
+                                *mask |= 1 << idx;
+                            } else {
+                                *mask &= !(1 << idx);
+                            }
+                            changed = true;
                         }
-                        changed = true;
                     }
+                    ui.end_row();
                 }
-                ui.end_row();
-            }
-        });
+            });
         changed
+    }
+
+    fn set_rgb_effect(&mut self, effect: u16) {
+        let Some(hid) = &self.hid_device else {
+            return;
+        };
+        let result = match self.rgb_settings.kind {
+            RgbSupportKind::QmkRgblight => {
+                hid.set_qmk_rgblight_effect(effect.min(u8::MAX as u16) as u8)
+            }
+            RgbSupportKind::VialRgb => hid.set_vialrgb_mode(
+                effect,
+                self.rgb_settings.speed,
+                self.rgb_settings.hue,
+                self.rgb_settings.saturation,
+                self.rgb_settings.brightness,
+            ),
+            RgbSupportKind::None => return,
+        };
+        match result {
+            Ok(()) => {
+                self.rgb_settings.effect = effect;
+                if effect != 0 {
+                    self.rgb_settings.last_enabled_effect = effect;
+                }
+            }
+            Err(e) => {
+                self.status_msg = format!("Failed to update RGB effect: {}", e);
+                log::warn!("set_rgb_effect failed: {e}");
+            }
+        }
+    }
+
+    fn set_rgb_brightness(&mut self, brightness: u8) {
+        let Some(hid) = &self.hid_device else {
+            return;
+        };
+        let result = match self.rgb_settings.kind {
+            RgbSupportKind::QmkRgblight => hid.set_qmk_rgblight_brightness(brightness),
+            RgbSupportKind::VialRgb => hid.set_vialrgb_mode(
+                self.rgb_settings.effect,
+                self.rgb_settings.speed,
+                self.rgb_settings.hue,
+                self.rgb_settings.saturation,
+                brightness,
+            ),
+            RgbSupportKind::None => return,
+        };
+        match result {
+            Ok(()) => self.rgb_settings.brightness = brightness,
+            Err(e) => {
+                self.status_msg = format!("Failed to update RGB brightness: {}", e);
+                log::warn!("set_rgb_brightness failed: {e}");
+            }
+        }
+    }
+
+    fn save_rgb_settings(&mut self) {
+        let Some(hid) = &self.hid_device else {
+            return;
+        };
+        if let Err(e) = hid.save_rgb() {
+            self.status_msg = format!("Failed to save RGB settings: {}", e);
+            log::warn!("save_rgb failed: {e}");
+        } else {
+            self.status_msg = "RGB settings saved".to_string();
+        }
+    }
+
+    fn show_rgb_window(&mut self, ctx: &egui::Context) {
+        let mut open = self.rgb_window_open;
+        let dark = ctx.style().visuals.dark_mode;
+        let style = ctx.style().as_ref().clone();
+        let frame = crate::ui_style::modal_window_frame(&style, dark);
+
+        egui::Window::new("RGB")
+            .id(egui::Id::new("rgb_window"))
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(false)
+            .movable(true)
+            .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
+            .fixed_size(Vec2::new(460.0, 250.0))
+            .frame(frame)
+            .order(egui::Order::Foreground)
+            .show(ctx, |ui| {
+                ui.add_space(8.0);
+
+                if !self.rgb_settings.supported {
+                    ui.vertical_centered(|ui| {
+                        ui.add_space(64.0);
+                        ui.label(
+                            RichText::new("RGB settings are not available on this firmware.")
+                                .size(13.0)
+                                .color(app_muted_text(dark)),
+                        );
+                    });
+                    return;
+                }
+
+                let options = rgb_effect_options(&self.rgb_settings);
+                let selected_effect_name = options
+                    .iter()
+                    .find(|(id, _)| *id == self.rgb_settings.effect)
+                    .map(|(_, name)| *name)
+                    .unwrap_or("Unknown");
+                let mut enabled = self.rgb_settings.is_enabled();
+                let mut selected_effect = self.rgb_settings.effect;
+                let mut brightness = self.rgb_settings.brightness;
+                let brightness_max = self.rgb_settings.max_brightness.max(1);
+                let timeout_note = "Auto-off timeout is not exposed by this firmware yet.";
+
+                ui.vertical_centered(|ui| {
+                    ui.allocate_ui_with_layout(
+                        Vec2::new(360.0, 0.0),
+                        egui::Layout::top_down(egui::Align::Min),
+                        |ui| {
+                            egui::Grid::new(ui.id().with("rgb_grid"))
+                                .num_columns(2)
+                                .spacing([18.0, 12.0])
+                                .show(ui, |ui| {
+                                    ui.label(RichText::new("Enable").size(12.5));
+                                    let enable_resp = ui.checkbox(&mut enabled, "");
+                                    if enable_resp.hovered() {
+                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                    }
+                                    if enable_resp.changed() {
+                                        let next_effect = if enabled {
+                                            self.rgb_settings.effect_or_default()
+                                        } else {
+                                            if self.rgb_settings.effect != 0 {
+                                                self.rgb_settings.last_enabled_effect =
+                                                    self.rgb_settings.effect;
+                                            }
+                                            0
+                                        };
+                                        self.set_rgb_effect(next_effect);
+                                        selected_effect = self.rgb_settings.effect;
+                                    }
+                                    ui.end_row();
+
+                                    ui.label(RichText::new("Effect").size(12.5));
+                                    egui::ComboBox::from_id_salt("rgb_effect_combo")
+                                        .selected_text(selected_effect_name)
+                                        .width(210.0)
+                                        .show_ui(ui, |ui| {
+                                            for (id, label) in &options {
+                                                if ui
+                                                    .selectable_value(
+                                                        &mut selected_effect,
+                                                        *id,
+                                                        *label,
+                                                    )
+                                                    .changed()
+                                                {
+                                                    self.set_rgb_effect(selected_effect);
+                                                }
+                                            }
+                                        });
+                                    ui.end_row();
+
+                                    ui.label(RichText::new("Brightness").size(12.5));
+                                    if ui
+                                        .add(
+                                            egui::Slider::new(&mut brightness, 0..=brightness_max)
+                                                .show_value(true),
+                                        )
+                                        .changed()
+                                    {
+                                        self.set_rgb_brightness(brightness);
+                                    }
+                                    ui.end_row();
+                                });
+
+                            ui.add_space(10.0);
+                            ui.label(
+                                RichText::new(timeout_note)
+                                    .size(11.5)
+                                    .color(app_muted_text(dark)),
+                            );
+                            ui.add_space(14.0);
+                            ui.horizontal_centered(|ui| {
+                                let btn = egui::Button::new(RichText::new("Save").size(13.0))
+                                    .min_size(crate::ui_style::modal_action_button_size());
+                                if ui.add(btn).clicked() {
+                                    self.save_rgb_settings();
+                                }
+                            });
+                        },
+                    );
+                });
+            });
+
+        self.rgb_window_open = open;
     }
 
     fn show_encoder_visibility_window(&mut self, ctx: &egui::Context) {
@@ -2994,13 +3848,20 @@ impl EntropyApp {
             .order(egui::Order::Foreground)
             .default_width(280.0)
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-            .frame(crate::ui_style::modal_window_frame(&ctx.style(), ctx.style().visuals.dark_mode))
+            .frame(crate::ui_style::modal_window_frame(
+                &ctx.style(),
+                ctx.style().visuals.dark_mode,
+            ))
             .show(ctx, |ui| {
                 if self.encoder_visibility.is_empty() {
                     ui.label("No encoders found for this device.");
                     return;
                 }
-                ui.label(RichText::new("Choose which encoders are visible in the main layout").size(12.0).color(app_muted_text(ui.visuals().dark_mode)));
+                ui.label(
+                    RichText::new("Choose which encoders are visible in the main layout")
+                        .size(12.0)
+                        .color(app_muted_text(ui.visuals().dark_mode)),
+                );
                 ui.add_space(10.0);
                 let mut changed = false;
                 for (idx, visible) in self.encoder_visibility.iter_mut().enumerate() {
@@ -3124,7 +3985,9 @@ impl EntropyApp {
 
     /// Write a single mouse-keys QMK setting to device. In Vial qmk_settings these are width=1.
     fn write_mouse_keys_setting(&mut self, qsid: u16, value: u16) {
-        let Some(hid) = &self.hid_device else { return; };
+        let Some(hid) = &self.hid_device else {
+            return;
+        };
         let value = value.min(u8::MAX as u16) as u8;
         if let Err(e) = hid.set_qmk_setting_u8(qsid, value) {
             self.status_msg = format!("Failed to save Mouse keys setting (qsid {qsid}): {}", e);
@@ -3599,12 +4462,20 @@ impl EntropyApp {
                 self.apply_combo_capture();
             } else {
                 for event in ctx.input(|i| i.events.clone()) {
-                    if let egui::Event::Key { key, pressed: true, modifiers, .. } = event {
+                    if let egui::Event::Key {
+                        key,
+                        pressed: true,
+                        modifiers,
+                        ..
+                    } = event
+                    {
                         if matches!(key, egui::Key::Enter | egui::Key::Escape) {
                             continue;
                         }
                         if let Some(kc) = egui_key_to_qmk(key, modifiers) {
-                            if !self.combo_capture_keys.contains(&kc) && self.combo_capture_keys.len() < 4 {
+                            if !self.combo_capture_keys.contains(&kc)
+                                && self.combo_capture_keys.len() < 4
+                            {
                                 self.combo_capture_keys.push(kc);
                             }
                         }
@@ -3626,30 +4497,45 @@ impl EntropyApp {
                 egui::Frame::window(ctx.style().as_ref())
                     .fill(app_window_fill(ctx.style().visuals.dark_mode))
                     .stroke(egui::Stroke::NONE)
-                    .inner_margin(egui::Margin::same(10))
+                    .inner_margin(egui::Margin::same(10)),
             )
             .show(ctx, |ui| {
                 ui.style_mut().visuals.button_frame = true;
                 if ui.visuals().dark_mode {
                     ui.style_mut().visuals.widgets.inactive.bg_fill = Color32::from_rgb(48, 48, 58);
-                    ui.style_mut().visuals.widgets.inactive.weak_bg_fill = Color32::from_rgb(48, 48, 58);
-                    ui.style_mut().visuals.widgets.inactive.bg_stroke = Stroke::new(1.0, Color32::from_gray(110));
+                    ui.style_mut().visuals.widgets.inactive.weak_bg_fill =
+                        Color32::from_rgb(48, 48, 58);
+                    ui.style_mut().visuals.widgets.inactive.bg_stroke =
+                        Stroke::new(1.0, Color32::from_gray(110));
                     ui.style_mut().visuals.widgets.hovered.bg_fill = Color32::from_rgb(68, 68, 88);
-                    ui.style_mut().visuals.widgets.hovered.weak_bg_fill = Color32::from_rgb(68, 68, 88);
-                    ui.style_mut().visuals.widgets.hovered.bg_stroke = Stroke::new(1.0, Color32::from_rgb(130, 130, 160));
+                    ui.style_mut().visuals.widgets.hovered.weak_bg_fill =
+                        Color32::from_rgb(68, 68, 88);
+                    ui.style_mut().visuals.widgets.hovered.bg_stroke =
+                        Stroke::new(1.0, Color32::from_rgb(130, 130, 160));
                     ui.style_mut().visuals.widgets.active.bg_fill = Color32::from_rgb(78, 78, 102);
-                    ui.style_mut().visuals.widgets.active.weak_bg_fill = Color32::from_rgb(78, 78, 102);
-                    ui.style_mut().visuals.widgets.active.bg_stroke = Stroke::new(1.0, Color32::from_rgb(150, 150, 184));
+                    ui.style_mut().visuals.widgets.active.weak_bg_fill =
+                        Color32::from_rgb(78, 78, 102);
+                    ui.style_mut().visuals.widgets.active.bg_stroke =
+                        Stroke::new(1.0, Color32::from_rgb(150, 150, 184));
                 } else {
-                    ui.style_mut().visuals.widgets.inactive.bg_fill = Color32::from_rgb(255, 255, 255);
-                    ui.style_mut().visuals.widgets.inactive.weak_bg_fill = Color32::from_rgb(255, 255, 255);
-                    ui.style_mut().visuals.widgets.inactive.bg_stroke = Stroke::new(1.0, Color32::from_rgb(222, 222, 228));
-                    ui.style_mut().visuals.widgets.hovered.bg_fill = Color32::from_rgb(234, 232, 242);
-                    ui.style_mut().visuals.widgets.hovered.weak_bg_fill = Color32::from_rgb(234, 232, 242);
-                    ui.style_mut().visuals.widgets.hovered.bg_stroke = Stroke::new(1.0, Color32::from_rgb(210, 206, 223));
-                    ui.style_mut().visuals.widgets.active.bg_fill = Color32::from_rgb(228, 225, 238);
-                    ui.style_mut().visuals.widgets.active.weak_bg_fill = Color32::from_rgb(228, 225, 238);
-                    ui.style_mut().visuals.widgets.active.bg_stroke = Stroke::new(1.0, Color32::from_rgb(202, 198, 216));
+                    ui.style_mut().visuals.widgets.inactive.bg_fill =
+                        Color32::from_rgb(255, 255, 255);
+                    ui.style_mut().visuals.widgets.inactive.weak_bg_fill =
+                        Color32::from_rgb(255, 255, 255);
+                    ui.style_mut().visuals.widgets.inactive.bg_stroke =
+                        Stroke::new(1.0, Color32::from_rgb(222, 222, 228));
+                    ui.style_mut().visuals.widgets.hovered.bg_fill =
+                        Color32::from_rgb(234, 232, 242);
+                    ui.style_mut().visuals.widgets.hovered.weak_bg_fill =
+                        Color32::from_rgb(234, 232, 242);
+                    ui.style_mut().visuals.widgets.hovered.bg_stroke =
+                        Stroke::new(1.0, Color32::from_rgb(210, 206, 223));
+                    ui.style_mut().visuals.widgets.active.bg_fill =
+                        Color32::from_rgb(228, 225, 238);
+                    ui.style_mut().visuals.widgets.active.weak_bg_fill =
+                        Color32::from_rgb(228, 225, 238);
+                    ui.style_mut().visuals.widgets.active.bg_stroke =
+                        Stroke::new(1.0, Color32::from_rgb(202, 198, 216));
                 }
 
                 ui.vertical_centered(|ui| {
@@ -3661,17 +4547,26 @@ impl EntropyApp {
                 });
 
                 if self.firmware != FirmwareProtocol::Vial {
-                    ui.label(RichText::new("Dynamic combos are not supported for this firmware.").color(Color32::from_gray(140)));
+                    ui.label(
+                        RichText::new("Dynamic combos are not supported for this firmware.")
+                            .color(Color32::from_gray(140)),
+                    );
                     return;
                 }
 
                 if self.combo_entries.is_empty() {
-                    ui.label(RichText::new("This keyboard does not report any dynamic combo slots.").color(Color32::from_gray(140)));
+                    ui.label(
+                        RichText::new("This keyboard does not report any dynamic combo slots.")
+                            .color(Color32::from_gray(140)),
+                    );
                     return;
                 }
 
-                self.selected_combo = self.selected_combo.min(self.combo_entries.len().saturating_sub(1));
-                self.combo_names.resize(self.combo_entries.len(), String::new());
+                self.selected_combo = self
+                    .selected_combo
+                    .min(self.combo_entries.len().saturating_sub(1));
+                self.combo_names
+                    .resize(self.combo_entries.len(), String::new());
 
                 let combo_undo_snapshot = (
                     self.combo_entries.clone(),
@@ -3681,8 +4576,12 @@ impl EntropyApp {
                     self.combo_visible_count,
                 );
 
-                self.combo_visible_count = self.combo_visible_count.clamp(1, self.combo_entries.len().max(1));
-                self.selected_combo = self.selected_combo.min(self.combo_visible_count.saturating_sub(1));
+                self.combo_visible_count = self
+                    .combo_visible_count
+                    .clamp(1, self.combo_entries.len().max(1));
+                self.selected_combo = self
+                    .selected_combo
+                    .min(self.combo_visible_count.saturating_sub(1));
 
                 let combo_outline_stroke = if ui.visuals().dark_mode {
                     Stroke::new(1.0, Color32::from_gray(110))
@@ -3702,7 +4601,9 @@ impl EntropyApp {
                             _ => format!("C{}", idx),
                         };
                         let tab_text = if idx == self.selected_combo {
-                            RichText::new(tab_label).size(12.5).color(ui.visuals().widgets.inactive.fg_stroke.color)
+                            RichText::new(tab_label)
+                                .size(12.5)
+                                .color(ui.visuals().widgets.inactive.fg_stroke.color)
                         } else {
                             RichText::new(tab_label).size(12.5)
                         };
@@ -3722,13 +4623,19 @@ impl EntropyApp {
                     let add_combo_btn = egui::Button::new(RichText::new("+").size(16.0))
                         .frame(true)
                         .stroke(combo_outline_stroke);
-                    let resp = ui.add_enabled(self.combo_visible_count < self.combo_entries.len(), add_combo_btn);
+                    let resp = ui.add_enabled(
+                        self.combo_visible_count < self.combo_entries.len(),
+                        add_combo_btn,
+                    );
                     if resp.hovered() && self.combo_visible_count < self.combo_entries.len() {
                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                     }
                     if resp.clicked() {
-                        let next_idx = self.combo_visible_count.min(self.combo_entries.len().saturating_sub(1));
-                        self.combo_visible_count = (self.combo_visible_count + 1).min(self.combo_entries.len());
+                        let next_idx = self
+                            .combo_visible_count
+                            .min(self.combo_entries.len().saturating_sub(1));
+                        self.combo_visible_count =
+                            (self.combo_visible_count + 1).min(self.combo_entries.len());
                         self.selected_combo = next_idx;
                     }
                 });
@@ -3769,11 +4676,15 @@ impl EntropyApp {
                             } else {
                                 keycode_label_with_macro_names(
                                     self.combo_entries[combo_idx].output,
-                                    self.layout.as_ref().map(|l| l.custom_keycodes.as_slice()).unwrap_or(&[]),
+                                    self.layout
+                                        .as_ref()
+                                        .map(|l| l.custom_keycodes.as_slice())
+                                        .unwrap_or(&[]),
                                     &self.layer_names,
                                     &self.keycode_picker.macro_names,
                                     &self.keycode_picker.tap_dance_names,
-                                ).replace('\n', " ")
+                                )
+                                .replace('\n', " ")
                             };
 
                             ui.add_space(12.0);
@@ -3787,11 +4698,15 @@ impl EntropyApp {
                                         .map(|kc| {
                                             keycode_label_with_macro_names(
                                                 kc,
-                                                self.layout.as_ref().map(|l| l.custom_keycodes.as_slice()).unwrap_or(&[]),
+                                                self.layout
+                                                    .as_ref()
+                                                    .map(|l| l.custom_keycodes.as_slice())
+                                                    .unwrap_or(&[]),
                                                 &self.layer_names,
                                                 &self.keycode_picker.macro_names,
                                                 &self.keycode_picker.tap_dance_names,
-                                            ).replace('\n', " ")
+                                            )
+                                            .replace('\n', " ")
                                         })
                                         .collect()
                                 } else {
@@ -3803,11 +4718,15 @@ impl EntropyApp {
                                         .map(|kc| {
                                             keycode_label_with_macro_names(
                                                 kc,
-                                                self.layout.as_ref().map(|l| l.custom_keycodes.as_slice()).unwrap_or(&[]),
+                                                self.layout
+                                                    .as_ref()
+                                                    .map(|l| l.custom_keycodes.as_slice())
+                                                    .unwrap_or(&[]),
                                                 &self.layer_names,
                                                 &self.keycode_picker.macro_names,
                                                 &self.keycode_picker.tap_dance_names,
-                                            ).replace('\n', " ")
+                                            )
+                                            .replace('\n', " ")
                                         })
                                         .collect()
                                 };
@@ -3821,12 +4740,15 @@ impl EntropyApp {
                                     keys.join(" + ")
                                 }
                             };
-                            let field_resp = ui.horizontal_centered(|ui| {
-                                let field_btn = egui::Button::new(RichText::new(input_summary).size(13.0))
-                                    .frame(true)
-                                    .stroke(combo_outline_stroke);
-                                ui.add_sized(Vec2::new(compact_field_width, 32.0), field_btn)
-                            }).inner;
+                            let field_resp = ui
+                                .horizontal_centered(|ui| {
+                                    let field_btn =
+                                        egui::Button::new(RichText::new(input_summary).size(13.0))
+                                            .frame(true)
+                                            .stroke(combo_outline_stroke);
+                                    ui.add_sized(Vec2::new(compact_field_width, 32.0), field_btn)
+                                })
+                                .inner;
                             if field_resp.hovered() {
                                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                             }
@@ -3850,12 +4772,15 @@ impl EntropyApp {
                             ui.add_space(10.0);
                             ui.label(RichText::new("Output key").size(13.0).strong());
                             ui.add_space(6.0);
-                            let resp = ui.horizontal_centered(|ui| {
-                                let btn = egui::Button::new(RichText::new(&output_label).size(13.0))
-                                    .frame(true)
-                                    .stroke(combo_outline_stroke);
-                                ui.add_sized(Vec2::new(compact_field_width, 32.0), btn)
-                            }).inner;
+                            let resp = ui
+                                .horizontal_centered(|ui| {
+                                    let btn =
+                                        egui::Button::new(RichText::new(&output_label).size(13.0))
+                                            .frame(true)
+                                            .stroke(combo_outline_stroke);
+                                    ui.add_sized(Vec2::new(compact_field_width, 32.0), btn)
+                                })
+                                .inner;
                             if resp.hovered() {
                                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                             }
@@ -3872,7 +4797,11 @@ impl EntropyApp {
                                 ui.add_space(14.0);
                                 ui.separator();
                                 ui.add_space(10.0);
-                                ui.label(RichText::new("Time out period for combos").size(13.0).strong());
+                                ui.label(
+                                    RichText::new("Time out period for combos")
+                                        .size(13.0)
+                                        .strong(),
+                                );
                                 ui.add_space(4.0);
                                 let mut combo_term_text = current_combo_term.to_string();
                                 ui.horizontal_centered(|ui| {
@@ -3886,7 +4815,10 @@ impl EntropyApp {
                                     }
                                     ui.label("ms");
                                     if resp.changed() {
-                                        let filtered: String = combo_term_text.chars().filter(|c| c.is_ascii_digit()).collect();
+                                        let filtered: String = combo_term_text
+                                            .chars()
+                                            .filter(|c| c.is_ascii_digit())
+                                            .collect();
                                         if let Ok(parsed) = filtered.parse::<u16>() {
                                             self.combo_undo_stack.push(combo_undo_snapshot.clone());
                                             self.combo_term = Some(parsed.max(1));
@@ -3897,15 +4829,19 @@ impl EntropyApp {
                             }
                             ui.add_space(12.0);
                             ui.horizontal_centered(|ui| {
-                                let clear_btn = egui::Button::new(RichText::new("Clear combo").size(13.0))
-                                    .min_size(action_button_size)
-                                    .frame(true)
-                                    .stroke(combo_outline_stroke);
-                                let clear_enabled = combo_idx < self.combo_entries.len() && (
-                                    self.combo_entries[combo_idx].keys.iter().any(|&k| k != 0)
+                                let clear_btn =
+                                    egui::Button::new(RichText::new("Clear combo").size(13.0))
+                                        .min_size(action_button_size)
+                                        .frame(true)
+                                        .stroke(combo_outline_stroke);
+                                let clear_enabled = combo_idx < self.combo_entries.len()
+                                    && (self.combo_entries[combo_idx].keys.iter().any(|&k| k != 0)
                                         || self.combo_entries[combo_idx].output != 0
-                                        || self.combo_names.get(combo_idx).map(|s| !s.trim().is_empty()).unwrap_or(false)
-                                );
+                                        || self
+                                            .combo_names
+                                            .get(combo_idx)
+                                            .map(|s| !s.trim().is_empty())
+                                            .unwrap_or(false));
                                 let clear_resp = ui.add_enabled(clear_enabled, clear_btn);
                                 if clear_resp.hovered() && clear_enabled {
                                     ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
@@ -3920,19 +4856,32 @@ impl EntropyApp {
                                     self.combo_names_dirty = true;
                                 }
 
-                                let delete_btn = egui::Button::new(RichText::new("Delete combo").size(13.0))
-                                    .min_size(action_button_size)
-                                    .frame(true)
-                                    .stroke(combo_outline_stroke);
-                                let delete_resp = ui.add_enabled(combo_idx > 0 && self.combo_visible_count > 1, delete_btn);
-                                if delete_resp.hovered() && combo_idx > 0 && self.combo_visible_count > 1 {
+                                let delete_btn =
+                                    egui::Button::new(RichText::new("Delete combo").size(13.0))
+                                        .min_size(action_button_size)
+                                        .frame(true)
+                                        .stroke(combo_outline_stroke);
+                                let delete_resp = ui.add_enabled(
+                                    combo_idx > 0 && self.combo_visible_count > 1,
+                                    delete_btn,
+                                );
+                                if delete_resp.hovered()
+                                    && combo_idx > 0
+                                    && self.combo_visible_count > 1
+                                {
                                     ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                 }
                                 if delete_resp.clicked() {
                                     self.push_combo_undo();
-                                    for idx in combo_idx..self.combo_visible_count.saturating_sub(1) {
-                                        self.combo_entries[idx] = self.combo_entries[idx + 1].clone();
-                                        self.combo_names[idx] = self.combo_names.get(idx + 1).cloned().unwrap_or_default();
+                                    for idx in combo_idx..self.combo_visible_count.saturating_sub(1)
+                                    {
+                                        self.combo_entries[idx] =
+                                            self.combo_entries[idx + 1].clone();
+                                        self.combo_names[idx] = self
+                                            .combo_names
+                                            .get(idx + 1)
+                                            .cloned()
+                                            .unwrap_or_default();
                                     }
                                     let last_idx = self.combo_visible_count.saturating_sub(1);
                                     if last_idx < self.combo_entries.len() {
@@ -3941,8 +4890,10 @@ impl EntropyApp {
                                     if last_idx < self.combo_names.len() {
                                         self.combo_names[last_idx].clear();
                                     }
-                                    self.combo_visible_count = self.combo_visible_count.saturating_sub(1).max(1);
-                                    self.selected_combo = combo_idx.min(self.combo_visible_count.saturating_sub(1));
+                                    self.combo_visible_count =
+                                        self.combo_visible_count.saturating_sub(1).max(1);
+                                    self.selected_combo =
+                                        combo_idx.min(self.combo_visible_count.saturating_sub(1));
                                     self.combo_dirty = true;
                                     self.combo_names_dirty = true;
                                 }
@@ -3951,25 +4902,28 @@ impl EntropyApp {
                                     .min_size(action_button_size)
                                     .frame(true)
                                     .stroke(combo_outline_stroke);
-                                let undo_resp = ui.add_enabled(!self.combo_undo_stack.is_empty(), undo_btn);
+                                let undo_resp =
+                                    ui.add_enabled(!self.combo_undo_stack.is_empty(), undo_btn);
                                 if undo_resp.hovered() && !self.combo_undo_stack.is_empty() {
                                     ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                 }
                                 if undo_resp.clicked() {
-                                    if let Some((entries, names, term, selected, visible_count)) = self.combo_undo_stack.pop() {
+                                    if let Some((entries, names, term, selected, visible_count)) =
+                                        self.combo_undo_stack.pop()
+                                    {
                                         self.combo_entries = entries;
                                         self.combo_names = names;
                                         self.combo_term = term;
-                                        self.combo_visible_count = visible_count.clamp(1, self.combo_entries.len().max(1));
-                                        self.selected_combo = selected.min(self.combo_visible_count.saturating_sub(1));
+                                        self.combo_visible_count =
+                                            visible_count.clamp(1, self.combo_entries.len().max(1));
+                                        self.selected_combo = selected
+                                            .min(self.combo_visible_count.saturating_sub(1));
                                         self.combo_dirty = true;
                                         self.combo_names_dirty = true;
                                         self.combo_term_dirty = true;
                                     }
                                 }
                             });
-
-
                         },
                     );
                 });
@@ -4004,7 +4958,12 @@ impl EntropyApp {
             max_x = max_x.max(encoder.x + encoder.w);
             max_y = max_y.max(encoder.y + encoder.h);
         }
-        if min_x == f32::MAX { min_x = 0.0; min_y = 0.0; max_x = 1.0; max_y = 1.0; }
+        if min_x == f32::MAX {
+            min_x = 0.0;
+            min_y = 0.0;
+            max_x = 1.0;
+            max_y = 1.0;
+        }
 
         let span_x = max_x - min_x;
         let span_y = max_y - min_y;
@@ -4065,7 +5024,10 @@ impl EntropyApp {
                         .size()
                         .x
                     });
-                    egui::Rect::from_center_size(slot_rect.center(), Vec2::new(text_w + 20.0, tab_size.y))
+                    egui::Rect::from_center_size(
+                        slot_rect.center(),
+                        Vec2::new(text_w + 20.0, tab_size.y),
+                    )
                 };
                 let resp = ui.allocate_rect(text_rect, Sense::CLICK);
                 if matches!(tab, MainMenuTab::Keyboard) {
@@ -4151,7 +5113,8 @@ impl EntropyApp {
                     && !self.vial_unlock_polling
                     && !self.unlock_open;
                 let is_unlocked = if has_lock_button {
-                    self.hid_device.as_ref()
+                    self.hid_device
+                        .as_ref()
                         .and_then(|hid| hid.get_unlock_status().ok())
                         .map(|(unlocked, _keys)| unlocked)
                         .unwrap_or(false)
@@ -4164,7 +5127,10 @@ impl EntropyApp {
                 let lock_h = if has_lock_button { 32.0 } else { 0.0 };
                 let dropdown_size = Vec2::new(240.0, devices_h + lock_h + 8.0);
                 let dropdown_rect = egui::Rect::from_min_size(
-                    egui::pos2(device_rect.center().x - dropdown_size.x / 2.0, device_rect.bottom() + 6.0),
+                    egui::pos2(
+                        device_rect.center().x - dropdown_size.x / 2.0,
+                        device_rect.bottom() + 6.0,
+                    ),
                     dropdown_size,
                 );
                 let hover_bridge_rect = device_rect.union(dropdown_rect).expand(3.0);
@@ -4173,7 +5139,8 @@ impl EntropyApp {
                     .input(|i| i.pointer.hover_pos())
                     .map(|pos| hover_bridge_rect.contains(pos))
                     .unwrap_or(false);
-                let show_dropdown = !advanced_tab_hovered && !settings_tab_hovered
+                let show_dropdown = !advanced_tab_hovered
+                    && !settings_tab_hovered
                     && (device_tab_hovered || (was_open && pointer_over_bridge));
 
                 if show_dropdown {
@@ -4202,7 +5169,9 @@ impl EntropyApp {
                                             egui::Label::new("No devices found"),
                                         );
                                     } else {
-                                        for (i, dev) in self.device_manager.devices().iter().enumerate() {
+                                        for (i, dev) in
+                                            self.device_manager.devices().iter().enumerate()
+                                        {
                                             let is_selected = self.selected_device == Some(i);
                                             let label = if is_selected {
                                                 format!("✓ {}", dev.name)
@@ -4211,15 +5180,19 @@ impl EntropyApp {
                                             };
                                             let resp = ui.add_sized(
                                                 [dropdown_size.x - 16.0, 26.0],
-                                                egui::Button::new(
-                                                    RichText::new(label).color(if is_selected {
-                                                        ui.visuals().widgets.inactive.fg_stroke.color
+                                                egui::Button::new(RichText::new(label).color(
+                                                    if is_selected {
+                                                        ui.visuals()
+                                                            .widgets
+                                                            .inactive
+                                                            .fg_stroke
+                                                            .color
                                                     } else if ui.visuals().dark_mode {
                                                         Color32::from_gray(170)
                                                     } else {
                                                         Color32::from_gray(90)
-                                                    })
-                                                )
+                                                    },
+                                                ))
                                                 .fill(Color32::TRANSPARENT)
                                                 .stroke(egui::Stroke::NONE),
                                             );
@@ -4238,23 +5211,37 @@ impl EntropyApp {
 
                                     if has_lock_button {
                                         ui.add_space(6.0);
-                                        let lock_label = if is_unlocked { "🔓 Lock" } else { "🔒 Unlock" };
+                                        let lock_label = if is_unlocked {
+                                            "🔓 Lock"
+                                        } else {
+                                            "🔒 Unlock"
+                                        };
                                         let lock_text = if !is_unlocked {
-                                            RichText::new(lock_label).color(Color32::from_rgb(220, 120, 60))
+                                            RichText::new(lock_label)
+                                                .color(Color32::from_rgb(220, 120, 60))
                                         } else {
                                             RichText::new(lock_label)
                                         };
-                                        if ui.add_sized(
-                                            [dropdown_size.x - 16.0, 26.0],
-                                            egui::Button::new(lock_text)
-                                                .fill(Color32::TRANSPARENT)
-                                                .stroke(egui::Stroke::NONE),
-                                        ).clicked() {
+                                        if ui
+                                            .add_sized(
+                                                [dropdown_size.x - 16.0, 26.0],
+                                                egui::Button::new(lock_text)
+                                                    .fill(Color32::TRANSPARENT)
+                                                    .stroke(egui::Stroke::NONE),
+                                            )
+                                            .clicked()
+                                        {
                                             if is_unlocked {
                                                 if let Some(hid) = &self.hid_device {
                                                     match hid.lock() {
-                                                        Ok(()) => self.status_msg = "Keyboard locked".into(),
-                                                        Err(e) => self.status_msg = format!("Lock failed: {e}"),
+                                                        Ok(()) => {
+                                                            self.status_msg =
+                                                                "Keyboard locked".into()
+                                                        }
+                                                        Err(e) => {
+                                                            self.status_msg =
+                                                                format!("Lock failed: {e}")
+                                                        }
                                                     }
                                                 }
                                             } else {
@@ -4265,7 +5252,9 @@ impl EntropyApp {
                                 });
                         });
 
-                    ui.ctx().data_mut(|d| d.insert_temp(dropdown_id, device_tab_hovered || pointer_over_bridge));
+                    ui.ctx().data_mut(|d| {
+                        d.insert_temp(dropdown_id, device_tab_hovered || pointer_over_bridge)
+                    });
                 } else {
                     ui.ctx().data_mut(|d| d.insert_temp(dropdown_id, false));
                 }
@@ -4278,7 +5267,10 @@ impl EntropyApp {
                     .data(|d| d.get_temp::<bool>(dropdown_id))
                     .unwrap_or(false);
                 let dropdown_rect = egui::Rect::from_min_size(
-                    egui::pos2(advanced_rect.center().x - 76.0, advanced_rect.bottom() + 6.0),
+                    egui::pos2(
+                        advanced_rect.center().x - 76.0,
+                        advanced_rect.bottom() + 6.0,
+                    ),
                     Vec2::new(152.0, 106.0),
                 );
                 let hover_bridge_rect = advanced_rect.union(dropdown_rect).expand(3.0);
@@ -4287,12 +5279,17 @@ impl EntropyApp {
                     .input(|i| i.pointer.hover_pos())
                     .map(|pos| hover_bridge_rect.contains(pos))
                     .unwrap_or(false);
-                let show_dropdown = !device_tab_hovered && !settings_tab_hovered
+                let show_dropdown = !device_tab_hovered
+                    && !settings_tab_hovered
                     && (advanced_tab_hovered || (was_open && pointer_over_bridge));
 
                 if show_dropdown {
                     let dark = ui.visuals().dark_mode;
-                    let dropdown_fill = if dark { Color32::from_gray(32) } else { Color32::from_gray(248) };
+                    let dropdown_fill = if dark {
+                        Color32::from_gray(32)
+                    } else {
+                        Color32::from_gray(248)
+                    };
                     let auto_shift_supported = self.auto_shift_timeout.is_some();
                     let (combo_hovered, auto_shift_hovered, key_override_hovered) = egui::Area::new(egui::Id::new("advanced_dropdown_area"))
                         .order(egui::Order::Foreground)
@@ -4329,7 +5326,16 @@ impl EntropyApp {
                                 .inner
                         })
                         .inner;
-                    ui.ctx().data_mut(|d| d.insert_temp(dropdown_id, advanced_tab_hovered || combo_hovered || auto_shift_hovered || key_override_hovered || pointer_over_bridge));
+                    ui.ctx().data_mut(|d| {
+                        d.insert_temp(
+                            dropdown_id,
+                            advanced_tab_hovered
+                                || combo_hovered
+                                || auto_shift_hovered
+                                || key_override_hovered
+                                || pointer_over_bridge,
+                        )
+                    });
                 } else {
                     ui.ctx().data_mut(|d| d.insert_temp(dropdown_id, false));
                 }
@@ -4342,8 +5348,11 @@ impl EntropyApp {
                     .data(|d| d.get_temp::<bool>(dropdown_id))
                     .unwrap_or(false);
                 let dropdown_rect = egui::Rect::from_min_size(
-                    egui::pos2(settings_rect.center().x - 76.0, settings_rect.bottom() + 6.0),
-                    Vec2::new(152.0, 70.0),
+                    egui::pos2(
+                        settings_rect.center().x - 76.0,
+                        settings_rect.bottom() + 6.0,
+                    ),
+                    Vec2::new(152.0, 102.0),
                 );
                 let hover_bridge_rect = settings_rect.union(dropdown_rect).expand(3.0);
                 let pointer_over_bridge = ui
@@ -4351,377 +5360,774 @@ impl EntropyApp {
                     .input(|i| i.pointer.hover_pos())
                     .map(|pos| hover_bridge_rect.contains(pos))
                     .unwrap_or(false);
-                let show_dropdown = !device_tab_hovered && !advanced_tab_hovered
+                let show_dropdown = !device_tab_hovered
+                    && !advanced_tab_hovered
                     && (settings_tab_hovered || (was_open && pointer_over_bridge));
 
                 if show_dropdown {
                     let dark = ui.visuals().dark_mode;
-                    let dropdown_fill = if dark { Color32::from_gray(32) } else { Color32::from_gray(248) };
-                    let (matrix_hovered, encoders_hovered) = egui::Area::new(egui::Id::new("settings_dropdown_area"))
-                        .order(egui::Order::Foreground)
-                        .fixed_pos(dropdown_rect.min)
-                        .show(ui.ctx(), |ui| {
-                            egui::Frame::NONE
-                                .fill(dropdown_fill)
-                                .corner_radius(8.0)
-                                .inner_margin(egui::Margin::symmetric(6, 4))
-                                .show(ui, |ui| {
-                                    ui.set_min_width(dropdown_rect.width() - 12.0);
-                                    let matrix_resp = ui.add_sized([dropdown_rect.width() - 12.0, 30.0], egui::Button::new("Matrix Tester").frame(false));
-                                    let encoders_resp = ui.add_sized([dropdown_rect.width() - 12.0, 30.0], egui::Button::new("Encoders").frame(false));
-                                    if matrix_resp.hovered() || encoders_resp.hovered() {
-                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                    }
-                                    if matrix_resp.clicked() {
-                                        self.settings_tab = SettingsTab::MatrixTester;
-                                        if self.main_menu_tab != MainMenuTab::Settings { self.reset_matrix_tester_state(); }
-                                        self.matrix_tester_unlock_prompted = false;
-                                        self.main_menu_tab = MainMenuTab::Settings;
-                                    }
-                                    if encoders_resp.clicked() {
-                                        self.encoder_visibility_window_open = true;
-                                    }
-                                    (matrix_resp.hovered(), encoders_resp.hovered())
-                                })
-                                .inner
-                        })
-                        .inner;
-                    ui.ctx().data_mut(|d| d.insert_temp(dropdown_id, settings_tab_hovered || matrix_hovered || encoders_hovered || pointer_over_bridge));
+                    let dropdown_fill = if dark {
+                        Color32::from_gray(32)
+                    } else {
+                        Color32::from_gray(248)
+                    };
+                    let rgb_available = self.rgb_settings.supported
+                        || self
+                            .layout
+                            .as_ref()
+                            .map(|l| l.supports_rgb)
+                            .unwrap_or(false);
+                    let (matrix_hovered, rgb_hovered, encoders_hovered) =
+                        egui::Area::new(egui::Id::new("settings_dropdown_area"))
+                            .order(egui::Order::Foreground)
+                            .fixed_pos(dropdown_rect.min)
+                            .show(ui.ctx(), |ui| {
+                                egui::Frame::NONE
+                                    .fill(dropdown_fill)
+                                    .corner_radius(8.0)
+                                    .inner_margin(egui::Margin::symmetric(6, 4))
+                                    .show(ui, |ui| {
+                                        ui.set_min_width(dropdown_rect.width() - 12.0);
+                                        let matrix_resp = ui.add_sized(
+                                            [dropdown_rect.width() - 12.0, 30.0],
+                                            egui::Button::new("Matrix Tester").frame(false),
+                                        );
+                                        let rgb_resp = ui.add_enabled(
+                                            rgb_available,
+                                            egui::Button::new("RGB").frame(false).min_size(
+                                                Vec2::new(dropdown_rect.width() - 12.0, 30.0),
+                                            ),
+                                        );
+                                        let encoders_resp = ui.add_sized(
+                                            [dropdown_rect.width() - 12.0, 30.0],
+                                            egui::Button::new("Encoders").frame(false),
+                                        );
+                                        if matrix_resp.hovered()
+                                            || rgb_resp.hovered()
+                                            || encoders_resp.hovered()
+                                        {
+                                            ui.ctx()
+                                                .set_cursor_icon(egui::CursorIcon::PointingHand);
+                                        }
+                                        if matrix_resp.clicked() {
+                                            self.settings_tab = SettingsTab::MatrixTester;
+                                            if self.main_menu_tab != MainMenuTab::Settings {
+                                                self.reset_matrix_tester_state();
+                                            }
+                                            self.matrix_tester_unlock_prompted = false;
+                                            self.main_menu_tab = MainMenuTab::Settings;
+                                        }
+                                        if rgb_resp.clicked() {
+                                            self.rgb_window_open = true;
+                                        }
+                                        if !rgb_available {
+                                            let _ = rgb_resp.clone().on_hover_text(
+                                                "RGB settings are not available on this firmware",
+                                            );
+                                        }
+                                        if encoders_resp.clicked() {
+                                            self.encoder_visibility_window_open = true;
+                                        }
+                                        (
+                                            matrix_resp.hovered(),
+                                            rgb_resp.hovered(),
+                                            encoders_resp.hovered(),
+                                        )
+                                    })
+                                    .inner
+                            })
+                            .inner;
+                    ui.ctx().data_mut(|d| {
+                        d.insert_temp(
+                            dropdown_id,
+                            settings_tab_hovered
+                                || matrix_hovered
+                                || rgb_hovered
+                                || encoders_hovered
+                                || pointer_over_bridge,
+                        )
+                    });
                 } else {
                     ui.ctx().data_mut(|d| d.insert_temp(dropdown_id, false));
                 }
             }
-        if self.main_menu_tab == MainMenuTab::Settings {
-            self.draw_settings_screen(ui, layout, ctx, top_base_y + main_tabs_h + 14.0);
-            return;
-        }
+            if self.main_menu_tab == MainMenuTab::Settings {
+                self.draw_settings_screen(ui, layout, ctx, top_base_y + main_tabs_h + 14.0);
+                return;
+            }
 
-        // ── Layer switcher ─────────────────────────────────────────────────
-        {
-            let layer_count = self.layer_count;
-            let selected = self.selected_layer;
-            // raw_name — чистое имя без префикса, хранится в layer_names
-            let raw_name = self.layer_names.get(selected).cloned().unwrap_or_else(|| selected.to_string());
-            let visible_raw_name: String = raw_name.chars().take(12).collect();
-            // display_name — с префиксом для отображения
-            let display_name = if !raw_name.is_empty() && raw_name != selected.to_string() {
-                format!("{}. {}", selected, visible_raw_name)
-            } else {
-                visible_raw_name.clone()
-            };
-            let name = display_name;
-            let center_x = ui.max_rect().center().x;
-            let bar_y = top_base_y + main_tabs_h + 24.0;
-            let any_top_dropdown_open = ui.memory(|m| {
-                m.data.get_temp::<bool>(ui.make_persistent_id("device_dropdown_open")).unwrap_or(false)
-                    || m.data.get_temp::<bool>(ui.make_persistent_id("advanced_dropdown_open")).unwrap_or(false)
-                    || m.data.get_temp::<bool>(ui.make_persistent_id("settings_dropdown_open")).unwrap_or(false)
-            });
+            // ── Layer switcher ─────────────────────────────────────────────────
+            {
+                let layer_count = self.layer_count;
+                let selected = self.selected_layer;
+                // raw_name — чистое имя без префикса, хранится в layer_names
+                let raw_name = self
+                    .layer_names
+                    .get(selected)
+                    .cloned()
+                    .unwrap_or_else(|| selected.to_string());
+                let visible_raw_name: String = raw_name.chars().take(12).collect();
+                // display_name — с префиксом для отображения
+                let display_name = if !raw_name.is_empty() && raw_name != selected.to_string() {
+                    format!("{}. {}", selected, visible_raw_name)
+                } else {
+                    visible_raw_name.clone()
+                };
+                let name = display_name;
+                let center_x = ui.max_rect().center().x;
+                let bar_y = top_base_y + main_tabs_h + 24.0;
+                let any_top_dropdown_open = ui.memory(|m| {
+                    m.data
+                        .get_temp::<bool>(ui.make_persistent_id("device_dropdown_open"))
+                        .unwrap_or(false)
+                        || m.data
+                            .get_temp::<bool>(ui.make_persistent_id("advanced_dropdown_open"))
+                            .unwrap_or(false)
+                        || m.data
+                            .get_temp::<bool>(ui.make_persistent_id("settings_dropdown_open"))
+                            .unwrap_or(false)
+                });
 
-            // ZMK layer management buttons (+ Add / - Remove)
-            if !any_top_dropdown_open && self.firmware == FirmwareProtocol::Zmk {
-                #[cfg(not(target_arch = "wasm32"))]
-                {
-                    let op_busy = self.zmk_op_rx.is_some();
-                    let can_remove = !op_busy && layer_count > self.zmk_base_layer_count.max(1);
-                    // Place +/− just to the right of the → arrow
+                // ZMK layer management buttons (+ Add / - Remove)
+                if !any_top_dropdown_open && self.firmware == FirmwareProtocol::Zmk {
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        let op_busy = self.zmk_op_rx.is_some();
+                        let can_remove = !op_busy && layer_count > self.zmk_base_layer_count.max(1);
+                        // Place +/− just to the right of the → arrow
+                        let fixed_half = 85.0_f32;
+                        let gap = 16.0_f32;
+                        let right_arrow_x = center_x + fixed_half + gap + 24.0;
+                        let btn_x = right_arrow_x + 36.0;
+                        let mid_y = bar_y + layer_bar_h / 2.0;
+                        let sym_font = FontId::proportional(14.0);
+                        let active_color = if self.dark_mode {
+                            Color32::from_gray(200)
+                        } else {
+                            Color32::from_gray(60)
+                        };
+                        let disabled_color = if self.dark_mode {
+                            Color32::from_gray(70)
+                        } else {
+                            Color32::from_gray(180)
+                        };
+
+                        let add_rect = egui::Rect::from_center_size(
+                            egui::pos2(btn_x, mid_y - 8.0),
+                            Vec2::splat(16.0),
+                        );
+                        let remove_rect = egui::Rect::from_center_size(
+                            egui::pos2(btn_x, mid_y + 8.0),
+                            Vec2::splat(16.0),
+                        );
+                        let can_add = !op_busy && !self.zmk_no_extra_layers;
+                        let add_resp = ui.allocate_rect(
+                            add_rect,
+                            if can_add {
+                                Sense::click()
+                            } else {
+                                Sense::hover()
+                            },
+                        );
+                        let remove_resp = ui.allocate_rect(
+                            remove_rect,
+                            if can_remove {
+                                Sense::click()
+                            } else {
+                                Sense::hover()
+                            },
+                        );
+                        if add_resp.hovered() {
+                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                        }
+                        if remove_resp.hovered() && can_remove {
+                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                        }
+                        let add_col = if add_resp.hovered() && can_add {
+                            Color32::from_rgb(91, 104, 223)
+                        } else if can_add {
+                            active_color
+                        } else {
+                            disabled_color
+                        };
+                        let rem_col = if remove_resp.hovered() && can_remove {
+                            Color32::from_rgb(91, 104, 223)
+                        } else if can_remove {
+                            active_color
+                        } else {
+                            disabled_color
+                        };
+                        ui.painter().text(
+                            add_rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            "+",
+                            sym_font.clone(),
+                            add_col,
+                        );
+                        ui.painter().text(
+                            remove_rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            "−",
+                            sym_font,
+                            rem_col,
+                        );
+                        let add_hover_text = if self.zmk_no_extra_layers {
+                            "Firmware doesn't support extra layers"
+                        } else {
+                            "Add layer"
+                        };
+                        let add_clicked = add_resp.on_hover_text(add_hover_text).clicked();
+                        let rem_clicked = remove_resp
+                            .on_hover_text(if can_remove {
+                                "Remove last layer"
+                            } else {
+                                "Cannot remove base layers"
+                            })
+                            .clicked();
+                        if add_clicked && can_add {
+                            self.zmk_add_layer();
+                        }
+                        if rem_clicked && can_remove {
+                            self.zmk_remove_layer();
+                        }
+                    }
+                }
+
+                // Layer name / edit field
+                let name_rect = egui::Rect::from_min_size(
+                    egui::pos2(center_x - 85.0, bar_y),
+                    Vec2::new(170.0, 52.0),
+                );
+
+                let display_name_len = visible_raw_name.chars().count();
+                let display_label_size = if display_name_len > 10 {
+                    26.0
+                } else if display_name_len > 7 {
+                    31.0
+                } else {
+                    39.0
+                };
+                let label_font = egui::FontId {
+                    size: display_label_size,
+                    family: egui::FontFamily::Proportional,
+                };
+                let text_color = if self.dark_mode {
+                    Color32::from_gray(245)
+                } else {
+                    Color32::from_gray(60)
+                };
+
+                if self.editing_layer == Some(selected) {
+                    // Limit input to 12 chars
+                    if self.editing_layer_text.chars().count() > 12 {
+                        let s: String = self.editing_layer_text.chars().take(12).collect();
+                        self.editing_layer_text = s;
+                    }
+                    let editing_font = egui::FontId {
+                        size: 39.0,
+                        family: egui::FontFamily::Proportional,
+                    };
+                    let resp = ui.put(
+                        name_rect,
+                        egui::TextEdit::singleline(&mut self.editing_layer_text)
+                            .font(editing_font)
+                            .horizontal_align(egui::Align::Center)
+                            .char_limit(12)
+                            .frame(false),
+                    );
+                    // Request focus only on the first frame so lost_focus() works correctly.
+                    if !self.editing_layer_focus_requested {
+                        resp.request_focus();
+                        self.editing_layer_focus_requested = true;
+                    }
+                    // Commit on Enter or lost focus (click outside); cancel on Escape.
+                    let commit =
+                        resp.lost_focus() || ui.input(|inp| inp.key_pressed(egui::Key::Enter));
+                    let cancel = ui.input(|inp| inp.key_pressed(egui::Key::Escape));
+                    if commit || cancel {
+                        if commit && !self.editing_layer_text.trim().is_empty() {
+                            let new_name = self.editing_layer_text.trim().to_string();
+                            while self.layer_names.len() <= selected {
+                                self.layer_names.push(self.layer_names.len().to_string());
+                            }
+                            self.layer_names[selected] = new_name.clone();
+                            #[cfg(not(target_arch = "wasm32"))]
+                            save_layer_names(&self.layer_names, &self.current_device_name);
+                            #[cfg(target_arch = "wasm32")]
+                            save_layer_names(&self.layer_names, "default");
+                            // Also write name back to the connected device
+                            #[cfg(not(target_arch = "wasm32"))]
+                            if self.firmware == FirmwareProtocol::Zmk {
+                                if let Some(conn) = &mut self.zmk_conn {
+                                    let layer_id = self
+                                        .layout
+                                        .as_ref()
+                                        .and_then(|l| l.zmk_layer_ids.get(selected).copied())
+                                        .unwrap_or(selected as u32);
+                                    if let Err(e) = conn.set_layer_name(layer_id, &new_name) {
+                                        log::warn!("ZMK set_layer_name failed: {e}");
+                                    }
+                                }
+                            }
+                            #[cfg(not(target_arch = "wasm32"))]
+                            if self.firmware == FirmwareProtocol::Vial {
+                                if let Some(dev) = &self.hid_device {
+                                    if let Err(e) =
+                                        dev.set_qmk_setting_string(200 + selected as u16, &new_name)
+                                    {
+                                        log::warn!(
+                                            "Vial set_qmk_setting_string failed for layer {}: {}",
+                                            selected,
+                                            e
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                        self.editing_layer = None;
+                        self.editing_layer_focus_requested = false;
+                    }
+                } else {
+                    let mid_y = bar_y + layer_bar_h / 2.0;
+
+                    // Fixed arrow positions based on max 7-char name width so
+                    // arrows never jump around as the layer name changes.
+                    // name_rect is 170px wide → half = 85px; gap keeps arrows clear.
                     let fixed_half = 85.0_f32;
                     let gap = 16.0_f32;
-                    let right_arrow_x = center_x + fixed_half + gap + 24.0;
-                    let btn_x = right_arrow_x + 36.0;
-                    let mid_y = bar_y + layer_bar_h / 2.0;
-                    let sym_font = FontId::proportional(14.0);
-                    let active_color = if self.dark_mode { Color32::from_gray(200) } else { Color32::from_gray(60) };
-                    let disabled_color = if self.dark_mode { Color32::from_gray(70) } else { Color32::from_gray(180) };
+                    let arrow_y = mid_y - 2.0;
+                    let left_center = egui::pos2(center_x - fixed_half - gap - 24.0, arrow_y);
+                    let right_center = egui::pos2(center_x + fixed_half + gap + 24.0, arrow_y);
 
-                    let add_rect = egui::Rect::from_center_size(egui::pos2(btn_x, mid_y - 8.0), Vec2::splat(16.0));
-                    let remove_rect = egui::Rect::from_center_size(egui::pos2(btn_x, mid_y + 8.0), Vec2::splat(16.0));
-                    let can_add = !op_busy && !self.zmk_no_extra_layers;
-                    let add_resp = ui.allocate_rect(add_rect, if can_add { Sense::click() } else { Sense::hover() });
-                    let remove_resp = ui.allocate_rect(remove_rect, if can_remove { Sense::click() } else { Sense::hover() });
-                    if add_resp.hovered() { ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand); }
-                    if remove_resp.hovered() && can_remove { ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand); }
-                    let add_col = if add_resp.hovered() && can_add { Color32::from_rgb(91,104,223) } else if can_add { active_color } else { disabled_color };
-                    let rem_col = if remove_resp.hovered() && can_remove { Color32::from_rgb(91,104,223) } else if can_remove { active_color } else { disabled_color };
-                    ui.painter().text(add_rect.center(), egui::Align2::CENTER_CENTER, "+", sym_font.clone(), add_col);
-                    ui.painter().text(remove_rect.center(), egui::Align2::CENTER_CENTER, "−", sym_font, rem_col);
-                    let add_hover_text = if self.zmk_no_extra_layers { "Firmware doesn't support extra layers" } else { "Add layer" };
-                    let add_clicked = add_resp.on_hover_text(add_hover_text).clicked();
-                    let rem_clicked = remove_resp.on_hover_text(if can_remove { "Remove last layer" } else { "Cannot remove base layers" }).clicked();
-                    if add_clicked && can_add { self.zmk_add_layer(); }
-                    if rem_clicked && can_remove { self.zmk_remove_layer(); }
-                }
-            }
+                    // Still measure actual text width for painting the name and edit icon.
+                    let text_w = ui.fonts(|f| {
+                        f.layout_no_wrap(name.clone(), label_font.clone(), text_color)
+                            .size()
+                            .x
+                    });
 
+                    // Allocate name FIRST — arrows are allocated last and win in egui's
+                    // hit-test order (last allocation = highest priority).
+                    let name_hit = egui::Rect::from_center_size(
+                        egui::pos2(center_x, mid_y),
+                        Vec2::new(text_w + 12.0, 52.0),
+                    );
+                    let name_r = ui.allocate_rect(name_hit, Sense::click());
 
-            // Layer name / edit field
-            let name_rect = egui::Rect::from_min_size(egui::pos2(center_x - 85.0, bar_y), Vec2::new(170.0, 52.0));
+                    // Full layer switch zone from arrow to arrow for mouse wheel switching.
+                    // Keep click/hover hitboxes close to the actual arrow glyph size.
+                    let left_hit = egui::Rect::from_center_size(left_center, Vec2::new(28.0, 44.0));
+                    let right_hit =
+                        egui::Rect::from_center_size(right_center, Vec2::new(28.0, 44.0));
+                    let wheel_hit = egui::Rect::from_min_max(
+                        egui::pos2(left_hit.left(), mid_y - 26.0),
+                        egui::pos2(right_hit.right(), mid_y + 26.0),
+                    );
+                    let wheel_r = ui.allocate_rect(wheel_hit, Sense::hover());
 
-            let display_name_len = visible_raw_name.chars().count();
-            let display_label_size = if display_name_len > 10 {
-                26.0
-            } else if display_name_len > 7 {
-                31.0
-            } else {
-                39.0
-            };
-            let label_font = egui::FontId { size: display_label_size, family: egui::FontFamily::Proportional };
-            let text_color = if self.dark_mode { Color32::from_gray(245) } else { Color32::from_gray(60) };
-
-            if self.editing_layer == Some(selected) {
-                // Limit input to 12 chars
-                if self.editing_layer_text.chars().count() > 12 {
-                    let s: String = self.editing_layer_text.chars().take(12).collect();
-                    self.editing_layer_text = s;
-                }
-                let editing_font = egui::FontId { size: 39.0, family: egui::FontFamily::Proportional };
-                let resp = ui.put(name_rect,
-                    egui::TextEdit::singleline(&mut self.editing_layer_text)
-                        .font(editing_font)
-                        .horizontal_align(egui::Align::Center)
-                        .char_limit(12)
-                        .frame(false)
-                );
-                // Request focus only on the first frame so lost_focus() works correctly.
-                if !self.editing_layer_focus_requested {
-                    resp.request_focus();
-                    self.editing_layer_focus_requested = true;
-                }
-                // Commit on Enter or lost focus (click outside); cancel on Escape.
-                let commit = resp.lost_focus() || ui.input(|inp| inp.key_pressed(egui::Key::Enter));
-                let cancel = ui.input(|inp| inp.key_pressed(egui::Key::Escape));
-                if commit || cancel {
-                    if commit && !self.editing_layer_text.trim().is_empty() {
-                        let new_name = self.editing_layer_text.trim().to_string();
-                        while self.layer_names.len() <= selected { self.layer_names.push(self.layer_names.len().to_string()); }
-                        self.layer_names[selected] = new_name.clone();
-                        #[cfg(not(target_arch = "wasm32"))]
-                        save_layer_names(&self.layer_names, &self.current_device_name);
-                        #[cfg(target_arch = "wasm32")]
-                        save_layer_names(&self.layer_names, "default");
-                        // Also write name back to the connected device
-                        #[cfg(not(target_arch = "wasm32"))]
-                        if self.firmware == FirmwareProtocol::Zmk {
-                            if let Some(conn) = &mut self.zmk_conn {
-                                let layer_id = self.layout.as_ref()
-                                    .and_then(|l| l.zmk_layer_ids.get(selected).copied())
-                                    .unwrap_or(selected as u32);
-                                if let Err(e) = conn.set_layer_name(layer_id, &new_name) {
-                                    log::warn!("ZMK set_layer_name failed: {e}");
-                                }
-                            }
-                        }
-                        #[cfg(not(target_arch = "wasm32"))]
-                        if self.firmware == FirmwareProtocol::Vial {
-                            if let Some(dev) = &self.hid_device {
-                                if let Err(e) = dev.set_qmk_setting_string(200 + selected as u16, &new_name) {
-                                    log::warn!("Vial set_qmk_setting_string failed for layer {}: {}", selected, e);
-                                }
-                            }
+                    // Scroll wheel over the whole layer bar switches layers (down = next, up = prev)
+                    if wheel_r.hovered() {
+                        let scroll = ui.input(|i| i.raw_scroll_delta.y);
+                        if scroll < 0.0 && selected > 0 {
+                            self.selected_layer = selected - 1;
+                        } else if scroll > 0.0 && selected + 1 < layer_count {
+                            self.selected_layer = selected + 1;
                         }
                     }
-                    self.editing_layer = None;
-                    self.editing_layer_focus_requested = false;
-                }
-            } else {
-                let mid_y = bar_y + layer_bar_h / 2.0;
 
-                // Fixed arrow positions based on max 7-char name width so
-                // arrows never jump around as the layer name changes.
-                // name_rect is 170px wide → half = 85px; gap keeps arrows clear.
-                let fixed_half = 85.0_f32;
-                let gap = 16.0_f32;
-                let arrow_y = mid_y - 2.0;
-                let left_center  = egui::pos2(center_x - fixed_half - gap - 24.0, arrow_y);
-                let right_center = egui::pos2(center_x + fixed_half + gap + 24.0, arrow_y);
-
-                // Still measure actual text width for painting the name and edit icon.
-                let text_w = ui.fonts(|f| f.layout_no_wrap(name.clone(), label_font.clone(), text_color).size().x);
-
-                // Allocate name FIRST — arrows are allocated last and win in egui's
-                // hit-test order (last allocation = highest priority).
-                let name_hit = egui::Rect::from_center_size(egui::pos2(center_x, mid_y), Vec2::new(text_w + 12.0, 52.0));
-                let name_r = ui.allocate_rect(name_hit, Sense::click());
-
-                // Full layer switch zone from arrow to arrow for mouse wheel switching.
-                // Keep click/hover hitboxes close to the actual arrow glyph size.
-                let left_hit  = egui::Rect::from_center_size(left_center,  Vec2::new(28.0, 44.0));
-                let right_hit = egui::Rect::from_center_size(right_center, Vec2::new(28.0, 44.0));
-                let wheel_hit = egui::Rect::from_min_max(
-                    egui::pos2(left_hit.left(), mid_y - 26.0),
-                    egui::pos2(right_hit.right(), mid_y + 26.0),
-                );
-                let wheel_r = ui.allocate_rect(wheel_hit, Sense::hover());
-
-                // Scroll wheel over the whole layer bar switches layers (down = next, up = prev)
-                if wheel_r.hovered() {
-                    let scroll = ui.input(|i| i.raw_scroll_delta.y);
-                    if scroll < 0.0 && selected > 0 {
+                    // Allocate arrows LAST so they have click priority over the name rect.
+                    let left_r = ui.allocate_rect(left_hit, Sense::click());
+                    let right_r = ui.allocate_rect(right_hit, Sense::click());
+                    if left_r.hovered() {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                    }
+                    if right_r.hovered() {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                    }
+                    if left_r.clicked() && selected > 0 {
                         self.selected_layer = selected - 1;
-                    } else if scroll > 0.0 && selected + 1 < layer_count {
+                        self.jump_back_stack.clear();
+                    }
+                    if right_r.clicked() && selected + 1 < layer_count {
                         self.selected_layer = selected + 1;
+                        self.jump_back_stack.clear();
                     }
-                }
+                    if name_r.hovered() {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                    }
+                    if name_r.clicked() {
+                        self.editing_layer = Some(selected);
+                        self.editing_layer_text = raw_name.clone();
+                    }
 
-                // Allocate arrows LAST so they have click priority over the name rect.
-                let left_r  = ui.allocate_rect(left_hit,  Sense::click());
-                let right_r = ui.allocate_rect(right_hit, Sense::click());
-                if left_r.hovered()  { ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand); }
-                if right_r.hovered() { ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand); }
-                if left_r.clicked()  && selected > 0              { self.selected_layer = selected - 1; self.jump_back_stack.clear(); }
-                if right_r.clicked() && selected + 1 < layer_count { self.selected_layer = selected + 1; self.jump_back_stack.clear(); }
-                if name_r.hovered() { ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand); }
-                if name_r.clicked() {
-                    self.editing_layer = Some(selected);
-                    self.editing_layer_text = raw_name.clone();
-                }
-
-                // Paint
-                let dis = if self.dark_mode { Color32::from_gray(60) } else { Color32::from_gray(200) };
-                let ac_l = if left_r.hovered()  { Color32::from_rgb(91,104,223) } else if self.dark_mode { Color32::from_gray(140) } else { Color32::from_gray(120) };
-                let ac_r = if right_r.hovered() { Color32::from_rgb(91,104,223) } else if self.dark_mode { Color32::from_gray(140) } else { Color32::from_gray(120) };
-                ui.painter().text(left_center,  egui::Align2::CENTER_CENTER, "‹", FontId::proportional(52.0), if selected == 0 { dis } else { ac_l });
-                ui.painter().text(right_center, egui::Align2::CENTER_CENTER, "›", FontId::proportional(52.0), if selected + 1 >= layer_count { dis } else { ac_r });
-                ui.painter().text(egui::pos2(center_x, mid_y), egui::Align2::CENTER_CENTER, &name, label_font, text_color);
-
-                // Hint text below layer name
-                let hint_color = if self.dark_mode { Color32::from_gray(100) } else { Color32::from_gray(160) };
-                let hint_font = FontId::proportional(11.0);
-                let secondary_hint_font = hint_font.clone();
-                let hint_y = ui.max_rect().bottom() - 36.0;
-                let any_hovered = self.prev_hovered_key.is_some() || self.prev_hovered_encoder;
-                if let Some(hl) = self.hover_layer {
-                    let hl_name = self.layer_names.get(hl).cloned().unwrap_or_else(|| hl.to_string());
-                    let mut line = 0i32;
-                    let line_h = 13.0f32;
-                    let base_y = hint_y - 15.0;
-                    // Line 1: always
-                    ui.painter().text(egui::pos2(center_x, base_y + line as f32 * line_h), egui::Align2::CENTER_CENTER,
-                        "Left click to change this key", hint_font.clone(), hint_color);
-                    line += 1;
-                    // Line 2: go to layer (if not current)
-                    if hl != self.selected_layer {
-                        ui.painter().text(egui::pos2(center_x, base_y + line as f32 * line_h), egui::Align2::CENTER_CENTER,
-                            &format!("Right click to go to layer {}: {}", hl, hl_name), hint_font.clone(), hint_color);
-                        line += 1;
-                    }
-                    // Line 3: change layer number
-                    ui.painter().text(egui::pos2(center_x, base_y + line as f32 * line_h), egui::Align2::CENTER_CENTER,
-                        "Ctrl + Right click to change layer number", hint_font.clone(), hint_color);
-                    line += 1;
-                    // Line 4: go back (if in jump mode)
-                    if !self.jump_back_stack.is_empty() {
-                        ui.painter().text(egui::pos2(center_x, base_y + line as f32 * line_h), egui::Align2::CENTER_CENTER,
-                            "Esc to go back", hint_font.clone(), hint_color);
-                    }
-                    let _ = hint_font;
-                } else if !self.jump_back_stack.is_empty() {
-                    if any_hovered {
-                        ui.painter().text(egui::pos2(center_x, hint_y - 9.0), egui::Align2::CENTER_CENTER,
-                            "Left click to change this key", hint_font.clone(), hint_color);
-                    }
-                    ui.painter().text(egui::pos2(center_x, if any_hovered { hint_y + 5.0 } else { hint_y }), egui::Align2::CENTER_CENTER,
-                        "Right-click or Esc to go back", hint_font, hint_color);
-                } else if any_hovered {
-                    // Check if hovered key is a mod key
-                    let (hovered_is_mod, hovered_can_swap_side, hovered_is_macro, hovered_is_tap_dance, hovered_is_mouse, hovered_is_layer) = if self.firmware == FirmwareProtocol::Vial {
-                        let hint_kc = self.prev_hovered_key
-                            .and_then(|ki| self.layout.as_ref().map(|l| l.get_keycode(self.selected_layer, ki)))
-                            .or(self.prev_hovered_encoder_keycode)
-                            .or_else(|| {
-                                self.selected_key
-                                    .and_then(|(selected_layer, selected_ki)| (selected_layer == self.selected_layer)
-                                        .then(|| self.layout.as_ref().map(|l| l.get_keycode(self.selected_layer, selected_ki)))
-                                        .flatten())
-                            });
-                        hint_kc.map(|kc| {
-                            let is_plain_mod = (0x00E0..=0x00E7).contains(&kc) || matches!(kc, 0x52A1 | 0x52A2 | 0x52A4 | 0x52A7 | 0x52A8 | 0x52AF | 0x52B1 | 0x52B2 | 0x52B4 | 0x52B8);
-                            let is_mod = is_plain_mod || (kc >= 0x2000 && kc < 0x4000) || (kc >= 0x0100 && kc < 0x2000 && (kc & 0xFF) != 0);
-                            let can_swap_side = toggle_handed_modifier(kc).is_some();
-                            let is_macro = kc >= 0x7700 && kc <= 0x77FF;
-                            let is_tap_dance = kc >= 0x5700 && kc <= 0x57FF;
-                            let is_mouse = is_mouse_keycode(kc);
-                            let is_layer = (kc >= 0x5200 && kc < 0x5300) || (kc & 0xF000 == 0x4000);
-                            (is_mod, can_swap_side, is_macro, is_tap_dance, is_mouse, is_layer)
-                        }).unwrap_or((false, false, false, false, false, false))
-                    } else { (false, false, false, false, false, false) };
-                    if hovered_is_mod {
-                        if hovered_can_swap_side {
-                            ui.painter().text(egui::pos2(center_x, hint_y - 22.0), egui::Align2::CENTER_CENTER,
-                                "Left click to change this key", hint_font.clone(), hint_color);
-                            ui.painter().text(egui::pos2(center_x, hint_y - 4.0), egui::Align2::CENTER_CENTER,
-                                "Right click to change the modifier key", secondary_hint_font.clone(), hint_color);
-                            ui.painter().text(egui::pos2(center_x, hint_y + 12.0), egui::Align2::CENTER_CENTER,
-                                "Ctrl+right-click to switch left/right side", secondary_hint_font, hint_color);
-                        } else {
-                            ui.painter().text(egui::pos2(center_x, hint_y - 14.0), egui::Align2::CENTER_CENTER,
-                                "Left click to change this key", hint_font.clone(), hint_color);
-                            ui.painter().text(egui::pos2(center_x, hint_y + 4.0), egui::Align2::CENTER_CENTER,
-                                "Right click to change the modifier key", secondary_hint_font, hint_color);
-                        }
-                    } else if hovered_is_macro {
-                        ui.painter().text(egui::pos2(center_x, hint_y - 14.0), egui::Align2::CENTER_CENTER,
-                            "Left click to change this key", hint_font.clone(), hint_color);
-                        ui.painter().text(egui::pos2(center_x, hint_y + 4.0), egui::Align2::CENTER_CENTER,
-                            "Right click to edit macro", secondary_hint_font.clone(), hint_color);
-                    } else if hovered_is_tap_dance {
-                        ui.painter().text(egui::pos2(center_x, hint_y - 14.0), egui::Align2::CENTER_CENTER,
-                            "Left click to change this key", hint_font.clone(), hint_color);
-                        ui.painter().text(egui::pos2(center_x, hint_y + 4.0), egui::Align2::CENTER_CENTER,
-                            "Right click to edit tap dance", secondary_hint_font, hint_color);
-                    } else if hovered_is_mouse {
-                        ui.painter().text(egui::pos2(center_x, hint_y - 14.0), egui::Align2::CENTER_CENTER,
-                            "Left click to change this key", hint_font.clone(), hint_color);
-                        ui.painter().text(egui::pos2(center_x, hint_y + 4.0), egui::Align2::CENTER_CENTER,
-                            "Right click to open Mouse Keys settings", secondary_hint_font, hint_color);
-                    } else if hovered_is_layer {
-                        ui.painter().text(egui::pos2(center_x, hint_y - 22.0), egui::Align2::CENTER_CENTER,
-                            "Left click to change this key", hint_font.clone(), hint_color);
-                        ui.painter().text(egui::pos2(center_x, hint_y - 4.0), egui::Align2::CENTER_CENTER,
-                            "Right click to go to that layer", secondary_hint_font.clone(), hint_color);
-                        ui.painter().text(egui::pos2(center_x, hint_y + 12.0), egui::Align2::CENTER_CENTER,
-                            "Ctrl+right-click to change layer target", secondary_hint_font, hint_color);
+                    // Paint
+                    let dis = if self.dark_mode {
+                        Color32::from_gray(60)
                     } else {
-                        ui.painter().text(egui::pos2(center_x, hint_y), egui::Align2::CENTER_CENTER,
-                            "Left click to change this key", hint_font, hint_color);
+                        Color32::from_gray(200)
+                    };
+                    let ac_l = if left_r.hovered() {
+                        Color32::from_rgb(91, 104, 223)
+                    } else if self.dark_mode {
+                        Color32::from_gray(140)
+                    } else {
+                        Color32::from_gray(120)
+                    };
+                    let ac_r = if right_r.hovered() {
+                        Color32::from_rgb(91, 104, 223)
+                    } else if self.dark_mode {
+                        Color32::from_gray(140)
+                    } else {
+                        Color32::from_gray(120)
+                    };
+                    ui.painter().text(
+                        left_center,
+                        egui::Align2::CENTER_CENTER,
+                        "‹",
+                        FontId::proportional(52.0),
+                        if selected == 0 { dis } else { ac_l },
+                    );
+                    ui.painter().text(
+                        right_center,
+                        egui::Align2::CENTER_CENTER,
+                        "›",
+                        FontId::proportional(52.0),
+                        if selected + 1 >= layer_count {
+                            dis
+                        } else {
+                            ac_r
+                        },
+                    );
+                    ui.painter().text(
+                        egui::pos2(center_x, mid_y),
+                        egui::Align2::CENTER_CENTER,
+                        &name,
+                        label_font,
+                        text_color,
+                    );
+
+                    // Hint text below layer name
+                    let hint_color = if self.dark_mode {
+                        Color32::from_gray(100)
+                    } else {
+                        Color32::from_gray(160)
+                    };
+                    let hint_font = FontId::proportional(11.0);
+                    let secondary_hint_font = hint_font.clone();
+                    let hint_y = ui.max_rect().bottom() - 36.0;
+                    let any_hovered = self.prev_hovered_key.is_some() || self.prev_hovered_encoder;
+                    if let Some(hl) = self.hover_layer {
+                        let hl_name = self
+                            .layer_names
+                            .get(hl)
+                            .cloned()
+                            .unwrap_or_else(|| hl.to_string());
+                        let mut line = 0i32;
+                        let line_h = 13.0f32;
+                        let base_y = hint_y - 15.0;
+                        // Line 1: always
+                        ui.painter().text(
+                            egui::pos2(center_x, base_y + line as f32 * line_h),
+                            egui::Align2::CENTER_CENTER,
+                            "Left click to change this key",
+                            hint_font.clone(),
+                            hint_color,
+                        );
+                        line += 1;
+                        // Line 2: go to layer (if not current)
+                        if hl != self.selected_layer {
+                            ui.painter().text(
+                                egui::pos2(center_x, base_y + line as f32 * line_h),
+                                egui::Align2::CENTER_CENTER,
+                                &format!("Right click to go to layer {}: {}", hl, hl_name),
+                                hint_font.clone(),
+                                hint_color,
+                            );
+                            line += 1;
+                        }
+                        // Line 3: change layer number
+                        ui.painter().text(
+                            egui::pos2(center_x, base_y + line as f32 * line_h),
+                            egui::Align2::CENTER_CENTER,
+                            "Ctrl + Right click to change layer number",
+                            hint_font.clone(),
+                            hint_color,
+                        );
+                        line += 1;
+                        // Line 4: go back (if in jump mode)
+                        if !self.jump_back_stack.is_empty() {
+                            ui.painter().text(
+                                egui::pos2(center_x, base_y + line as f32 * line_h),
+                                egui::Align2::CENTER_CENTER,
+                                "Esc to go back",
+                                hint_font.clone(),
+                                hint_color,
+                            );
+                        }
+                        let _ = hint_font;
+                    } else if !self.jump_back_stack.is_empty() {
+                        if any_hovered {
+                            ui.painter().text(
+                                egui::pos2(center_x, hint_y - 9.0),
+                                egui::Align2::CENTER_CENTER,
+                                "Left click to change this key",
+                                hint_font.clone(),
+                                hint_color,
+                            );
+                        }
+                        ui.painter().text(
+                            egui::pos2(center_x, if any_hovered { hint_y + 5.0 } else { hint_y }),
+                            egui::Align2::CENTER_CENTER,
+                            "Right-click or Esc to go back",
+                            hint_font,
+                            hint_color,
+                        );
+                    } else if any_hovered {
+                        // Check if hovered key is a mod key
+                        let (
+                            hovered_is_mod,
+                            hovered_can_swap_side,
+                            hovered_is_macro,
+                            hovered_is_tap_dance,
+                            hovered_is_mouse,
+                            hovered_is_layer,
+                        ) = if self.firmware == FirmwareProtocol::Vial {
+                            let hint_kc = self
+                                .prev_hovered_key
+                                .and_then(|ki| {
+                                    self.layout
+                                        .as_ref()
+                                        .map(|l| l.get_keycode(self.selected_layer, ki))
+                                })
+                                .or(self.prev_hovered_encoder_keycode)
+                                .or_else(|| {
+                                    self.selected_key.and_then(|(selected_layer, selected_ki)| {
+                                        (selected_layer == self.selected_layer)
+                                            .then(|| {
+                                                self.layout.as_ref().map(|l| {
+                                                    l.get_keycode(self.selected_layer, selected_ki)
+                                                })
+                                            })
+                                            .flatten()
+                                    })
+                                });
+                            hint_kc
+                                .map(|kc| {
+                                    let is_plain_mod = (0x00E0..=0x00E7).contains(&kc)
+                                        || matches!(
+                                            kc,
+                                            0x52A1
+                                                | 0x52A2
+                                                | 0x52A4
+                                                | 0x52A7
+                                                | 0x52A8
+                                                | 0x52AF
+                                                | 0x52B1
+                                                | 0x52B2
+                                                | 0x52B4
+                                                | 0x52B8
+                                        );
+                                    let is_mod = is_plain_mod
+                                        || (kc >= 0x2000 && kc < 0x4000)
+                                        || (kc >= 0x0100 && kc < 0x2000 && (kc & 0xFF) != 0);
+                                    let can_swap_side = toggle_handed_modifier(kc).is_some();
+                                    let is_macro = kc >= 0x7700 && kc <= 0x77FF;
+                                    let is_tap_dance = kc >= 0x5700 && kc <= 0x57FF;
+                                    let is_mouse = is_mouse_keycode(kc);
+                                    let is_layer =
+                                        (kc >= 0x5200 && kc < 0x5300) || (kc & 0xF000 == 0x4000);
+                                    (
+                                        is_mod,
+                                        can_swap_side,
+                                        is_macro,
+                                        is_tap_dance,
+                                        is_mouse,
+                                        is_layer,
+                                    )
+                                })
+                                .unwrap_or((false, false, false, false, false, false))
+                        } else {
+                            (false, false, false, false, false, false)
+                        };
+                        if hovered_is_mod {
+                            if hovered_can_swap_side {
+                                ui.painter().text(
+                                    egui::pos2(center_x, hint_y - 22.0),
+                                    egui::Align2::CENTER_CENTER,
+                                    "Left click to change this key",
+                                    hint_font.clone(),
+                                    hint_color,
+                                );
+                                ui.painter().text(
+                                    egui::pos2(center_x, hint_y - 4.0),
+                                    egui::Align2::CENTER_CENTER,
+                                    "Right click to change the modifier key",
+                                    secondary_hint_font.clone(),
+                                    hint_color,
+                                );
+                                ui.painter().text(
+                                    egui::pos2(center_x, hint_y + 12.0),
+                                    egui::Align2::CENTER_CENTER,
+                                    "Ctrl+right-click to switch left/right side",
+                                    secondary_hint_font,
+                                    hint_color,
+                                );
+                            } else {
+                                ui.painter().text(
+                                    egui::pos2(center_x, hint_y - 14.0),
+                                    egui::Align2::CENTER_CENTER,
+                                    "Left click to change this key",
+                                    hint_font.clone(),
+                                    hint_color,
+                                );
+                                ui.painter().text(
+                                    egui::pos2(center_x, hint_y + 4.0),
+                                    egui::Align2::CENTER_CENTER,
+                                    "Right click to change the modifier key",
+                                    secondary_hint_font,
+                                    hint_color,
+                                );
+                            }
+                        } else if hovered_is_macro {
+                            ui.painter().text(
+                                egui::pos2(center_x, hint_y - 14.0),
+                                egui::Align2::CENTER_CENTER,
+                                "Left click to change this key",
+                                hint_font.clone(),
+                                hint_color,
+                            );
+                            ui.painter().text(
+                                egui::pos2(center_x, hint_y + 4.0),
+                                egui::Align2::CENTER_CENTER,
+                                "Right click to edit macro",
+                                secondary_hint_font.clone(),
+                                hint_color,
+                            );
+                        } else if hovered_is_tap_dance {
+                            ui.painter().text(
+                                egui::pos2(center_x, hint_y - 14.0),
+                                egui::Align2::CENTER_CENTER,
+                                "Left click to change this key",
+                                hint_font.clone(),
+                                hint_color,
+                            );
+                            ui.painter().text(
+                                egui::pos2(center_x, hint_y + 4.0),
+                                egui::Align2::CENTER_CENTER,
+                                "Right click to edit tap dance",
+                                secondary_hint_font,
+                                hint_color,
+                            );
+                        } else if hovered_is_mouse {
+                            ui.painter().text(
+                                egui::pos2(center_x, hint_y - 14.0),
+                                egui::Align2::CENTER_CENTER,
+                                "Left click to change this key",
+                                hint_font.clone(),
+                                hint_color,
+                            );
+                            ui.painter().text(
+                                egui::pos2(center_x, hint_y + 4.0),
+                                egui::Align2::CENTER_CENTER,
+                                "Right click to open Mouse Keys settings",
+                                secondary_hint_font,
+                                hint_color,
+                            );
+                        } else if hovered_is_layer {
+                            ui.painter().text(
+                                egui::pos2(center_x, hint_y - 22.0),
+                                egui::Align2::CENTER_CENTER,
+                                "Left click to change this key",
+                                hint_font.clone(),
+                                hint_color,
+                            );
+                            ui.painter().text(
+                                egui::pos2(center_x, hint_y - 4.0),
+                                egui::Align2::CENTER_CENTER,
+                                "Right click to go to that layer",
+                                secondary_hint_font.clone(),
+                                hint_color,
+                            );
+                            ui.painter().text(
+                                egui::pos2(center_x, hint_y + 12.0),
+                                egui::Align2::CENTER_CENTER,
+                                "Ctrl+right-click to change layer target",
+                                secondary_hint_font,
+                                hint_color,
+                            );
+                        } else {
+                            ui.painter().text(
+                                egui::pos2(center_x, hint_y),
+                                egui::Align2::CENTER_CENTER,
+                                "Left click to change this key",
+                                hint_font,
+                                hint_color,
+                            );
+                        }
+                    } else if name_r.hovered() {
+                        ui.painter().text(
+                            egui::pos2(center_x, hint_y),
+                            egui::Align2::CENTER_CENTER,
+                            "Click to rename layer",
+                            hint_font,
+                            hint_color,
+                        );
                     }
-                } else if name_r.hovered() {
-                    ui.painter().text(egui::pos2(center_x, hint_y), egui::Align2::CENTER_CENTER,
-                        "Click to rename layer", hint_font, hint_color);
                 }
             }
         }
-    }
 
         // Pass 1: allocate
-        let key_rects: Vec<(usize, egui::Rect)> = layout.keys.iter().enumerate().map(|(ki, key)| {
-            let rect = egui::Rect::from_min_size(
-                egui::pos2(
-                    offset_x + key.x * unit + padding,
-                    offset_y + key.y * unit + padding,
-                ),
-                Vec2::new(key.w * unit - padding * 2.0, key.h * unit - padding * 2.0),
-            );
-            (ki, rect)
-        }).collect();
-        let encoder_rects: Vec<(usize, egui::Rect)> = layout.encoders.iter().enumerate().map(|(ei, encoder)| {
-            let rect = egui::Rect::from_min_size(
-                egui::pos2(
-                    offset_x + encoder.x * unit + padding,
-                    offset_y + encoder.y * unit + padding,
-                ),
-                Vec2::new(encoder.w * unit - padding * 2.0, encoder.h * unit - padding * 2.0),
-            );
-            (ei, rect)
-        }).collect();
-        let mut encoder_groups: Vec<(u8, egui::Rect, Option<(usize, u16)>, Option<(usize, u16)>)> = Vec::new();
+        let key_rects: Vec<(usize, egui::Rect)> = layout
+            .keys
+            .iter()
+            .enumerate()
+            .map(|(ki, key)| {
+                let rect = egui::Rect::from_min_size(
+                    egui::pos2(
+                        offset_x + key.x * unit + padding,
+                        offset_y + key.y * unit + padding,
+                    ),
+                    Vec2::new(key.w * unit - padding * 2.0, key.h * unit - padding * 2.0),
+                );
+                (ki, rect)
+            })
+            .collect();
+        let encoder_rects: Vec<(usize, egui::Rect)> = layout
+            .encoders
+            .iter()
+            .enumerate()
+            .map(|(ei, encoder)| {
+                let rect = egui::Rect::from_min_size(
+                    egui::pos2(
+                        offset_x + encoder.x * unit + padding,
+                        offset_y + encoder.y * unit + padding,
+                    ),
+                    Vec2::new(
+                        encoder.w * unit - padding * 2.0,
+                        encoder.h * unit - padding * 2.0,
+                    ),
+                );
+                (ei, rect)
+            })
+            .collect();
+        let mut encoder_groups: Vec<(u8, egui::Rect, Option<(usize, u16)>, Option<(usize, u16)>)> =
+            Vec::new();
         for (ei, rect) in &encoder_rects {
             let encoder = &layout.encoders[*ei];
-            if !self.encoder_visibility.get(encoder.encoder_idx as usize).copied().unwrap_or(true) {
+            if !self
+                .encoder_visibility
+                .get(encoder.encoder_idx as usize)
+                .copied()
+                .unwrap_or(true)
+            {
                 continue;
             }
             let kc = layout.get_encoder_keycode(self.selected_layer, *ei);
-            if let Some((_, group_rect, ccw, cw)) = encoder_groups.iter_mut().find(|(idx, _, _, _)| *idx == encoder.encoder_idx) {
+            if let Some((_, group_rect, ccw, cw)) = encoder_groups
+                .iter_mut()
+                .find(|(idx, _, _, _)| *idx == encoder.encoder_idx)
+            {
                 *group_rect = group_rect.union(*rect);
                 if encoder.direction == 0 {
                     *ccw = Some((*ei, kc));
@@ -4732,8 +6138,16 @@ impl EntropyApp {
                 encoder_groups.push((
                     encoder.encoder_idx,
                     *rect,
-                    if encoder.direction == 0 { Some((*ei, kc)) } else { None },
-                    if encoder.direction == 0 { None } else { Some((*ei, kc)) },
+                    if encoder.direction == 0 {
+                        Some((*ei, kc))
+                    } else {
+                        None
+                    },
+                    if encoder.direction == 0 {
+                        None
+                    } else {
+                        Some((*ei, kc))
+                    },
                 ));
             }
         }
@@ -4743,7 +6157,10 @@ impl EntropyApp {
             let radius = group_rect.width().min(group_rect.height()) * 0.5;
             let mut best_key: Option<(usize, f32)> = None;
             for (ki, key_rect) in &key_rects {
-                if encoder_press_rects.iter().any(|(assigned_ki, _)| assigned_ki == ki) {
+                if encoder_press_rects
+                    .iter()
+                    .any(|(assigned_ki, _)| assigned_ki == ki)
+                {
                     continue;
                 }
                 let dist = key_rect.center().distance(center);
@@ -4803,13 +6220,16 @@ impl EntropyApp {
                 self.keycode_picker.tap_dance_editor_open = None;
                 self.keycode_picker.selected_tab = crate::keycode_picker::KeycodeTab::Basic;
                 if is_zmk {
-                    self.keycode_picker.zmk_behaviors = self.layout.as_ref()
-                        .map(|l| l.zmk_behaviors.clone()).unwrap_or_default();
+                    self.keycode_picker.zmk_behaviors = self
+                        .layout
+                        .as_ref()
+                        .map(|l| l.zmk_behaviors.clone())
+                        .unwrap_or_default();
                     self.keycode_picker.zmk_layer_count = self.layer_count;
                 }
             }
 
-            // Right-click on mod key — open second picker to change tap/key  
+            // Right-click on mod key — open second picker to change tap/key
             if response.secondary_clicked() && !is_zmk {
                 let kc = layout.get_keycode(self.selected_layer, *ki);
                 let ctrl_held = ui.input(|i| i.modifiers.ctrl);
@@ -4897,14 +6317,15 @@ impl EntropyApp {
             // Tooltip — for layer keys show mini layout preview
             let preview_layer: Option<usize> = if is_zmk {
                 let binding = layout.get_zmk_binding(self.selected_layer, *ki);
-                let beh_name = layout.zmk_behaviors.iter()
+                let beh_name = layout
+                    .zmk_behaviors
+                    .iter()
                     .find(|b| b.id == binding.behavior_id as u32)
                     .map(|b| b.display_name.as_str())
                     .unwrap_or("");
                 match beh_name {
-                    "Momentary Layer" | "Toggle Layer" | "To Layer" | "Sticky Layer" | "Layer-Tap" => {
-                        Some(binding.param1 as usize)
-                    }
+                    "Momentary Layer" | "Toggle Layer" | "To Layer" | "Sticky Layer"
+                    | "Layer-Tap" => Some(binding.param1 as usize),
                     _ => None,
                 }
             } else {
@@ -4949,10 +6370,15 @@ impl EntropyApp {
         }
 
         // Animate hover_layer_progress
-        let target_progress = if self.hover_layer.is_some() { 1.0f32 } else { 0.0f32 };
+        let target_progress = if self.hover_layer.is_some() {
+            1.0f32
+        } else {
+            0.0f32
+        };
         let speed = 4.0f32;
         let dt = ctx.input(|i| i.stable_dt).min(0.1);
-        self.hover_layer_progress += (target_progress - self.hover_layer_progress) * (speed * dt).min(1.0);
+        self.hover_layer_progress +=
+            (target_progress - self.hover_layer_progress) * (speed * dt).min(1.0);
         if (self.hover_layer_progress - target_progress).abs() > 0.01 {
             ctx.request_repaint();
         }
@@ -4961,11 +6387,17 @@ impl EntropyApp {
         let painter = ui.painter();
         let mut hovered_encoder = false;
         let mut hovered_encoder_keycode = None;
-        let hover_target = self.hover_layer.unwrap_or(prev_hover.unwrap_or(self.selected_layer));
+        let hover_target = self
+            .hover_layer
+            .unwrap_or(prev_hover.unwrap_or(self.selected_layer));
         let hover_alpha = self.hover_layer_progress;
         let dark = self.dark_mode;
         // Use hover layer for logic (TRNS resolution etc) when mostly visible
-        let layer = if hover_alpha > 0.5 { hover_target } else { self.selected_layer };
+        let layer = if hover_alpha > 0.5 {
+            hover_target
+        } else {
+            self.selected_layer
+        };
         for (ki, rect, _) in &rects {
             let key = &layout.keys[*ki];
             let is_selected = self.selected_key == Some((layer, *ki));
@@ -4974,9 +6406,17 @@ impl EntropyApp {
             let bg = if is_selected {
                 Color32::from_rgb(91, 104, 223)
             } else if is_hovered {
-                if dark { Color32::from_rgb(60, 60, 65) } else { Color32::from_rgb(232, 232, 240) }
+                if dark {
+                    Color32::from_rgb(60, 60, 65)
+                } else {
+                    Color32::from_rgb(232, 232, 240)
+                }
             } else {
-                if dark { Color32::from_rgb(48, 48, 52) } else { Color32::from_rgb(255, 255, 255) }
+                if dark {
+                    Color32::from_rgb(48, 48, 52)
+                } else {
+                    Color32::from_rgb(255, 255, 255)
+                }
             };
 
             let press_rect_override = encoder_press_rects
@@ -5009,21 +6449,36 @@ impl EntropyApp {
             if is_zmk {
                 // ZMK binding display
                 let binding = layout.get_zmk_binding(layer, *ki);
-                let is_trans = layout.zmk_behaviors.iter()
+                let is_trans = layout
+                    .zmk_behaviors
+                    .iter()
                     .find(|b| b.id == binding.behavior_id as u32)
                     .map(|b| b.display_name == "Transparent")
                     .unwrap_or(false);
-                let border = if dark { Color32::from_rgb(55, 55, 60) } else { Color32::from_rgb(210, 210, 218) };
-                painter.rect(draw_rect, 6.0, bg, Stroke::new(1.0, border), egui::StrokeKind::Inside);
+                let border = if dark {
+                    Color32::from_rgb(55, 55, 60)
+                } else {
+                    Color32::from_rgb(210, 210, 218)
+                };
+                painter.rect(
+                    draw_rect,
+                    6.0,
+                    bg,
+                    Stroke::new(1.0, border),
+                    egui::StrokeKind::Inside,
+                );
                 if is_trans && layer > 0 {
                     if is_hovering {
                         // During hover preview — TRNS keys are empty (no text)
                     } else {
                         // Normal display — show TRNS with fallback
-                        let fallback = (0..layer).rev()
+                        let fallback = (0..layer)
+                            .rev()
                             .map(|l| layout.get_zmk_binding(l, *ki))
                             .find(|b| {
-                                !layout.zmk_behaviors.iter()
+                                !layout
+                                    .zmk_behaviors
+                                    .iter()
                                     .find(|beh| beh.id == b.behavior_id as u32)
                                     .map(|beh| beh.display_name == "Transparent")
                                     .unwrap_or(false)
@@ -5036,41 +6491,100 @@ impl EntropyApp {
                         draw_key_label_dimmed(&painter, draw_rect, &label, dark);
                     }
                 } else {
-                    let label = zmk_binding_label(&binding, &layout.zmk_behaviors, &self.layer_names);
+                    let label =
+                        zmk_binding_label(&binding, &layout.zmk_behaviors, &self.layer_names);
                     draw_key_label(&painter, draw_rect, &label, dark);
                 }
             } else {
                 let kc = layout.get_keycode(layer, *ki);
 
                 if kc == 0x0001 {
-                    painter.rect(draw_rect, 6.0, bg, Stroke::new(1.0, if dark { Color32::from_rgb(55, 55, 60) } else { Color32::from_rgb(210, 210, 218) }), egui::StrokeKind::Inside);
+                    painter.rect(
+                        draw_rect,
+                        6.0,
+                        bg,
+                        Stroke::new(
+                            1.0,
+                            if dark {
+                                Color32::from_rgb(55, 55, 60)
+                            } else {
+                                Color32::from_rgb(210, 210, 218)
+                            },
+                        ),
+                        egui::StrokeKind::Inside,
+                    );
                     if !is_hovering {
-                        let fallback_kc = (0..layer).rev()
+                        let fallback_kc = (0..layer)
+                            .rev()
                             .map(|l| layout.get_keycode(l, *ki))
                             .find(|&k| k != 0x0001)
                             .unwrap_or(0x0000);
                         let label = if fallback_kc == 0x0000 || fallback_kc == 0x0001 {
                             "\u{25BD}".to_string()
                         } else {
-                            keycode_label_with_macro_names(fallback_kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names, &self.keycode_picker.tap_dance_names)
+                            keycode_label_with_macro_names(
+                                fallback_kc,
+                                &layout.custom_keycodes,
+                                &self.layer_names,
+                                &self.keycode_picker.macro_names,
+                                &self.keycode_picker.tap_dance_names,
+                            )
                         };
                         draw_key_label_dimmed(&painter, draw_rect, &label, dark);
                     }
                 } else if kc == 0x0000 {
-                    let no_bg = if dark { Color32::from_rgb(20, 20, 22) } else { Color32::from_rgb(238, 238, 242) };
-                    let no_border = if dark { Color32::from_rgb(40, 40, 44) } else { Color32::from_rgb(210, 210, 218) };
-                    let no_text = if dark { Color32::from_rgb(55, 55, 65) } else { Color32::from_rgb(180, 180, 195) };
-                    painter.rect(draw_rect, 6.0, no_bg, Stroke::new(1.0, no_border), egui::StrokeKind::Inside);
-                    painter.text(draw_rect.center(), egui::Align2::CENTER_CENTER, "\u{2715}", FontId::proportional(10.0), no_text);
+                    let no_bg = if dark {
+                        Color32::from_rgb(20, 20, 22)
+                    } else {
+                        Color32::from_rgb(238, 238, 242)
+                    };
+                    let no_border = if dark {
+                        Color32::from_rgb(40, 40, 44)
+                    } else {
+                        Color32::from_rgb(210, 210, 218)
+                    };
+                    let no_text = if dark {
+                        Color32::from_rgb(55, 55, 65)
+                    } else {
+                        Color32::from_rgb(180, 180, 195)
+                    };
+                    painter.rect(
+                        draw_rect,
+                        6.0,
+                        no_bg,
+                        Stroke::new(1.0, no_border),
+                        egui::StrokeKind::Inside,
+                    );
+                    painter.text(
+                        draw_rect.center(),
+                        egui::Align2::CENTER_CENTER,
+                        "\u{2715}",
+                        FontId::proportional(10.0),
+                        no_text,
+                    );
                 } else {
-                    let border = if dark { Color32::from_rgb(55, 55, 60) } else { Color32::from_rgb(210, 210, 218) };
-                    painter.rect(draw_rect, 6.0, bg, Stroke::new(1.0, border), egui::StrokeKind::Inside);
-                    let label = keycode_label_with_macro_names(kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names, &self.keycode_picker.tap_dance_names);
+                    let border = if dark {
+                        Color32::from_rgb(55, 55, 60)
+                    } else {
+                        Color32::from_rgb(210, 210, 218)
+                    };
+                    painter.rect(
+                        draw_rect,
+                        6.0,
+                        bg,
+                        Stroke::new(1.0, border),
+                        egui::StrokeKind::Inside,
+                    );
+                    let label = keycode_label_with_macro_names(
+                        kc,
+                        &layout.custom_keycodes,
+                        &self.layer_names,
+                        &self.keycode_picker.macro_names,
+                        &self.keycode_picker.tap_dance_names,
+                    );
                     draw_key_label(&painter, draw_rect, &label, dark);
                 }
             }
-
-
         }
 
         let encoder_custom_keycodes = layout.custom_keycodes.clone();
@@ -5087,19 +6601,31 @@ impl EntropyApp {
                     &encoder_layer_names,
                     &encoder_macro_names,
                     &encoder_tap_dance_names,
-                ).replace('\n', " "),
+                )
+                .replace('\n', " "),
             }
         };
 
-        let draw_encoder_arrow = |painter: &egui::Painter, center: egui::Pos2, encoder_radius: f32, top: bool, color: Color32| {
-            let (start_deg, end_deg) = if top { (240.0_f32, 300.0_f32) } else { (120.0_f32, 60.0_f32) };
+        let draw_encoder_arrow = |painter: &egui::Painter,
+                                  center: egui::Pos2,
+                                  encoder_radius: f32,
+                                  top: bool,
+                                  color: Color32| {
+            let (start_deg, end_deg) = if top {
+                (240.0_f32, 300.0_f32)
+            } else {
+                (120.0_f32, 60.0_f32)
+            };
             let r = encoder_radius * 1.22;
             let mut points = Vec::new();
             for step in 0..=12 {
                 let t = step as f32 / 12.0;
                 let deg = start_deg + (end_deg - start_deg) * t;
                 let rad = deg.to_radians();
-                points.push(egui::pos2(center.x + rad.cos() * r, center.y + rad.sin() * r));
+                points.push(egui::pos2(
+                    center.x + rad.cos() * r,
+                    center.y + rad.sin() * r,
+                ));
             }
             painter.add(egui::Shape::line(points.clone(), Stroke::new(1.7, color)));
             if points.len() >= 2 {
@@ -5110,8 +6636,14 @@ impl EntropyApp {
                 painter.add(egui::Shape::convex_polygon(
                     vec![
                         end,
-                        egui::pos2(end.x - dir.x * 3.6 + left.x * 2.4, end.y - dir.y * 3.6 + left.y * 2.4),
-                        egui::pos2(end.x - dir.x * 3.6 - left.x * 2.4, end.y - dir.y * 3.6 - left.y * 2.4),
+                        egui::pos2(
+                            end.x - dir.x * 3.6 + left.x * 2.4,
+                            end.y - dir.y * 3.6 + left.y * 2.4,
+                        ),
+                        egui::pos2(
+                            end.x - dir.x * 3.6 - left.x * 2.4,
+                            end.y - dir.y * 3.6 - left.y * 2.4,
+                        ),
                     ],
                     color,
                     Stroke::NONE,
@@ -5122,7 +6654,8 @@ impl EntropyApp {
         for (_encoder_idx, rect, ccw, cw) in &encoder_groups {
             let center = rect.center();
             let radius = rect.width().min(rect.height()) * 0.58;
-            let circle_bounds = egui::Rect::from_center_size(center, egui::vec2(radius * 2.0, radius * 2.0));
+            let circle_bounds =
+                egui::Rect::from_center_size(center, egui::vec2(radius * 2.0, radius * 2.0));
             let press_slot = encoder_press_rects
                 .iter()
                 .find(|(_, press_rect)| press_rect.center().distance(center) < 1.0)
@@ -5132,24 +6665,40 @@ impl EntropyApp {
                 let top_divider_y = press_rect.top() - divider_gap;
                 let bottom_divider_y = press_rect.bottom() + divider_gap;
                 (
-                    egui::Rect::from_min_max(circle_bounds.min, egui::pos2(circle_bounds.max.x, top_divider_y)),
+                    egui::Rect::from_min_max(
+                        circle_bounds.min,
+                        egui::pos2(circle_bounds.max.x, top_divider_y),
+                    ),
                     Some(egui::Rect::from_min_max(
                         egui::pos2(circle_bounds.min.x, top_divider_y),
                         egui::pos2(circle_bounds.max.x, bottom_divider_y),
                     )),
-                    egui::Rect::from_min_max(egui::pos2(circle_bounds.min.x, bottom_divider_y), circle_bounds.max),
+                    egui::Rect::from_min_max(
+                        egui::pos2(circle_bounds.min.x, bottom_divider_y),
+                        circle_bounds.max,
+                    ),
                 )
             } else {
                 (
-                    egui::Rect::from_min_max(circle_bounds.min, egui::pos2(circle_bounds.max.x, center.y)),
+                    egui::Rect::from_min_max(
+                        circle_bounds.min,
+                        egui::pos2(circle_bounds.max.x, center.y),
+                    ),
                     None,
-                    egui::Rect::from_min_max(egui::pos2(circle_bounds.min.x, center.y), circle_bounds.max),
+                    egui::Rect::from_min_max(
+                        egui::pos2(circle_bounds.min.x, center.y),
+                        circle_bounds.max,
+                    ),
                 )
             };
             let top_resp = ui.allocate_rect(top_rect, Sense::click());
-            let middle_resp = middle_rect.map(|middle_rect| ui.allocate_rect(middle_rect, Sense::click()));
+            let middle_resp =
+                middle_rect.map(|middle_rect| ui.allocate_rect(middle_rect, Sense::click()));
             let bottom_resp = ui.allocate_rect(bottom_rect, Sense::click());
-            if top_resp.hovered() || middle_resp.as_ref().map(|r| r.hovered()).unwrap_or(false) || bottom_resp.hovered() {
+            if top_resp.hovered()
+                || middle_resp.as_ref().map(|r| r.hovered()).unwrap_or(false)
+                || bottom_resp.hovered()
+            {
                 hovered_encoder = true;
                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
             }
@@ -5157,7 +6706,13 @@ impl EntropyApp {
             if top_resp.hovered() {
                 if let Some((_, kc)) = cw {
                     hovered_encoder_keycode = Some(*kc);
-                    let tip = keycode_tooltip_with_macro_names(*kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names, &self.keycode_picker.tap_dance_names);
+                    let tip = keycode_tooltip_with_macro_names(
+                        *kc,
+                        &layout.custom_keycodes,
+                        &self.layer_names,
+                        &self.keycode_picker.macro_names,
+                        &self.keycode_picker.tap_dance_names,
+                    );
                     let _ = top_resp.clone().on_hover_text(tip);
                 }
             }
@@ -5179,7 +6734,13 @@ impl EntropyApp {
                     hovered_key = Some(press_ki);
                     let kc = layout.get_keycode(self.selected_layer, press_ki);
                     hovered_encoder_keycode = Some(kc);
-                    let tip = keycode_tooltip_with_macro_names(kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names, &self.keycode_picker.tap_dance_names);
+                    let tip = keycode_tooltip_with_macro_names(
+                        kc,
+                        &layout.custom_keycodes,
+                        &self.layer_names,
+                        &self.keycode_picker.macro_names,
+                        &self.keycode_picker.tap_dance_names,
+                    );
                     let _ = middle_resp.clone().on_hover_text(tip);
                 }
                 if middle_resp.secondary_clicked() {
@@ -5194,7 +6755,13 @@ impl EntropyApp {
             if bottom_resp.hovered() {
                 if let Some((_, kc)) = ccw {
                     hovered_encoder_keycode = Some(*kc);
-                    let tip = keycode_tooltip_with_macro_names(*kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names, &self.keycode_picker.tap_dance_names);
+                    let tip = keycode_tooltip_with_macro_names(
+                        *kc,
+                        &layout.custom_keycodes,
+                        &self.layer_names,
+                        &self.keycode_picker.macro_names,
+                        &self.keycode_picker.tap_dance_names,
+                    );
                     let _ = bottom_resp.clone().on_hover_text(tip);
                 }
             }
@@ -5212,8 +6779,12 @@ impl EntropyApp {
                 }
             }
 
-            let top_selected = cw.map(|(visual_idx, _)| Some((layer, visual_idx)) == self.selected_encoder).unwrap_or(false);
-            let bottom_selected = ccw.map(|(visual_idx, _)| Some((layer, visual_idx)) == self.selected_encoder).unwrap_or(false);
+            let top_selected = cw
+                .map(|(visual_idx, _)| Some((layer, visual_idx)) == self.selected_encoder)
+                .unwrap_or(false);
+            let bottom_selected = ccw
+                .map(|(visual_idx, _)| Some((layer, visual_idx)) == self.selected_encoder)
+                .unwrap_or(false);
             let middle_selected = press_slot
                 .map(|(press_ki, _)| self.selected_key == Some((layer, press_ki)))
                 .unwrap_or(false);
@@ -5251,11 +6822,17 @@ impl EntropyApp {
 
             let painter = ui.painter();
             painter.circle_filled(center, fill_radius, visuals.inactive.bg_fill);
-            painter.with_clip_rect(top_rect).circle_filled(center, fill_radius, top_fill);
+            painter
+                .with_clip_rect(top_rect)
+                .circle_filled(center, fill_radius, top_fill);
             if let Some(middle_rect) = middle_rect {
-                painter.with_clip_rect(middle_rect).circle_filled(center, fill_radius, middle_fill);
+                painter
+                    .with_clip_rect(middle_rect)
+                    .circle_filled(center, fill_radius, middle_fill);
             }
-            painter.with_clip_rect(bottom_rect).circle_filled(center, fill_radius, bottom_fill);
+            painter
+                .with_clip_rect(bottom_rect)
+                .circle_filled(center, fill_radius, bottom_fill);
             painter.circle_stroke(center, radius, outline);
 
             let has_press_button = encoder_press_rects
@@ -5264,14 +6841,30 @@ impl EntropyApp {
             let top_label = encoder_label(cw.map(|(_, kc)| kc).unwrap_or(0x0000));
             let bottom_label = encoder_label(ccw.map(|(_, kc)| kc).unwrap_or(0x0000));
             let top_font = if has_press_button {
-                egui::FontId::proportional(if top_label.chars().count() > 9 { 6.6 } else { 7.4 })
+                egui::FontId::proportional(if top_label.chars().count() > 9 {
+                    6.6
+                } else {
+                    7.4
+                })
             } else {
-                egui::FontId::proportional(if top_label.chars().count() > 9 { 8.5 } else { 9.5 })
+                egui::FontId::proportional(if top_label.chars().count() > 9 {
+                    8.5
+                } else {
+                    9.5
+                })
             };
             let bottom_font = if has_press_button {
-                egui::FontId::proportional(if bottom_label.chars().count() > 9 { 6.6 } else { 7.4 })
+                egui::FontId::proportional(if bottom_label.chars().count() > 9 {
+                    6.6
+                } else {
+                    7.4
+                })
             } else {
-                egui::FontId::proportional(if bottom_label.chars().count() > 9 { 8.5 } else { 9.5 })
+                egui::FontId::proportional(if bottom_label.chars().count() > 9 {
+                    8.5
+                } else {
+                    9.5
+                })
             };
             let top_label_y = center.y - radius * if has_press_button { 0.52 } else { 0.30 };
             let bottom_label_y = center.y + radius * if has_press_button { 0.52 } else { 0.30 };
@@ -5317,11 +6910,13 @@ impl EntropyApp {
                 let top_divider_half_width = (((radius * radius)
                     - (top_divider_y - center.y) * (top_divider_y - center.y))
                     .max(0.0)
-                    .sqrt()) + divider_extend;
+                    .sqrt())
+                    + divider_extend;
                 let bottom_divider_half_width = (((radius * radius)
                     - (bottom_divider_y - center.y) * (bottom_divider_y - center.y))
                     .max(0.0)
-                    .sqrt()) + divider_extend;
+                    .sqrt())
+                    + divider_extend;
                 painter.line_segment(
                     [
                         egui::pos2(center.x - top_divider_half_width, top_divider_y),
@@ -5348,15 +6943,20 @@ impl EntropyApp {
 
                 let press_label = if is_zmk {
                     let binding = layout.get_zmk_binding(layer, press_ki);
-                    let is_trans = layout.zmk_behaviors.iter()
+                    let is_trans = layout
+                        .zmk_behaviors
+                        .iter()
                         .find(|b| b.id == binding.behavior_id as u32)
                         .map(|b| b.display_name == "Transparent")
                         .unwrap_or(false);
                     if is_trans && layer > 0 && !is_hovering {
-                        let fallback = (0..layer).rev()
+                        let fallback = (0..layer)
+                            .rev()
                             .map(|l| layout.get_zmk_binding(l, press_ki))
                             .find(|b| {
-                                !layout.zmk_behaviors.iter()
+                                !layout
+                                    .zmk_behaviors
+                                    .iter()
                                     .find(|beh| beh.id == b.behavior_id as u32)
                                     .map(|beh| beh.display_name == "Transparent")
                                     .unwrap_or(false)
@@ -5372,27 +6972,49 @@ impl EntropyApp {
                 } else {
                     let kc = layout.get_keycode(layer, press_ki);
                     if kc == 0x0001 && !is_hovering {
-                        let fallback_kc = (0..layer).rev()
+                        let fallback_kc = (0..layer)
+                            .rev()
                             .map(|l| layout.get_keycode(l, press_ki))
                             .find(|&k| k != 0x0001)
                             .unwrap_or(0x0000);
                         if fallback_kc == 0x0000 || fallback_kc == 0x0001 {
                             "▽".to_string()
                         } else {
-                            keycode_label_with_macro_names(fallback_kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names, &self.keycode_picker.tap_dance_names)
+                            keycode_label_with_macro_names(
+                                fallback_kc,
+                                &layout.custom_keycodes,
+                                &self.layer_names,
+                                &self.keycode_picker.macro_names,
+                                &self.keycode_picker.tap_dance_names,
+                            )
                         }
                     } else if kc == 0x0001 {
                         "▽".to_string()
                     } else if kc == 0x0000 {
                         "✕".to_string()
                     } else {
-                        keycode_label_with_macro_names(kc, &layout.custom_keycodes, &self.layer_names, &self.keycode_picker.macro_names, &self.keycode_picker.tap_dance_names)
+                        keycode_label_with_macro_names(
+                            kc,
+                            &layout.custom_keycodes,
+                            &self.layer_names,
+                            &self.keycode_picker.macro_names,
+                            &self.keycode_picker.tap_dance_names,
+                        )
                     }
-                }.replace('\n', " ");
-                let press_font = FontId::proportional(if press_label.chars().count() > 8 { 7.2 } else { 8.2 });
-                painter
-                    .with_clip_rect(press_text_rect)
-                    .text(press_text_rect.center(), egui::Align2::CENTER_CENTER, press_label, press_font, text_color);
+                }
+                .replace('\n', " ");
+                let press_font = FontId::proportional(if press_label.chars().count() > 8 {
+                    7.2
+                } else {
+                    8.2
+                });
+                painter.with_clip_rect(press_text_rect).text(
+                    press_text_rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    press_label,
+                    press_font,
+                    text_color,
+                );
             } else {
                 let divider_extend = 1.5;
                 let divider_half_width = radius + divider_extend;
@@ -5417,15 +7039,23 @@ impl EntropyApp {
 }
 
 fn draw_key_label_dimmed(painter: &egui::Painter, rect: egui::Rect, label: &str, dark: bool) {
-    let dim = if dark { Color32::from_rgb(60, 60, 65) } else { Color32::from_rgb(200, 200, 208) };
-    let dim_top = if dark { Color32::from_rgb(45, 45, 50) } else { Color32::from_rgb(215, 215, 220) };
+    let dim = if dark {
+        Color32::from_rgb(60, 60, 65)
+    } else {
+        Color32::from_rgb(200, 200, 208)
+    };
+    let dim_top = if dark {
+        Color32::from_rgb(45, 45, 50)
+    } else {
+        Color32::from_rgb(215, 215, 220)
+    };
     let (top, bottom) = if label.contains('\n') {
         let mut parts = label.splitn(2, '\n');
         let t = parts.next().unwrap_or("");
         let b = parts.next().unwrap_or(label);
         (Some(t), b)
     } else if let Some(pos) = label.find('/') {
-        (Some(&label[..pos]), &label[pos+1..])
+        (Some(&label[..pos]), &label[pos + 1..])
     } else {
         (None, label)
     };
@@ -5433,11 +7063,29 @@ fn draw_key_label_dimmed(painter: &egui::Painter, rect: egui::Rect, label: &str,
 
     if let Some(top_str) = top {
         let center = rect.center();
-        painter.text(egui::pos2(center.x, center.y - 7.0), egui::Align2::CENTER_CENTER, top_str, FontId::proportional(top_size.unwrap_or(9.0)), dim_top);
-        painter.text(egui::pos2(center.x, center.y + 6.0), egui::Align2::CENTER_CENTER, bottom, FontId::proportional(bottom_size), dim);
+        painter.text(
+            egui::pos2(center.x, center.y - 7.0),
+            egui::Align2::CENTER_CENTER,
+            top_str,
+            FontId::proportional(top_size.unwrap_or(9.0)),
+            dim_top,
+        );
+        painter.text(
+            egui::pos2(center.x, center.y + 6.0),
+            egui::Align2::CENTER_CENTER,
+            bottom,
+            FontId::proportional(bottom_size),
+            dim,
+        );
     } else {
         let font_size = if bottom == "↵" { 16.0 } else { bottom_size };
-        painter.text(rect.center(), egui::Align2::CENTER_CENTER, bottom, FontId::proportional(font_size), dim);
+        painter.text(
+            rect.center(),
+            egui::Align2::CENTER_CENTER,
+            bottom,
+            FontId::proportional(font_size),
+            dim,
+        );
     }
 }
 
@@ -5451,51 +7099,127 @@ fn with_alpha(color: Color32, alpha: f32) -> Color32 {
     )
 }
 
-fn draw_key_label_alpha(painter: &egui::Painter, rect: egui::Rect, label: &str, dark: bool, alpha: f32) {
+fn draw_key_label_alpha(
+    painter: &egui::Painter,
+    rect: egui::Rect,
+    label: &str,
+    dark: bool,
+    alpha: f32,
+) {
     let (top, bottom) = if label.contains('\n') {
         let mut parts = label.splitn(2, '\n');
         let t = parts.next().unwrap_or("");
         let b = parts.next().unwrap_or(label);
         (Some(t), b)
     } else if let Some(pos) = label.find('/') {
-        (Some(&label[..pos]), &label[pos+1..])
+        (Some(&label[..pos]), &label[pos + 1..])
     } else {
         (None, label)
     };
     let (top_size, bottom_size) = key_label_font_sizes(label);
-    let top_color = with_alpha(if dark { Color32::from_rgb(130, 130, 145) } else { Color32::from_rgb(130, 130, 150) }, alpha);
-    let main_color = with_alpha(if dark { Color32::from_rgb(232, 232, 240) } else { Color32::from_rgb(26, 26, 30) }, alpha);
+    let top_color = with_alpha(
+        if dark {
+            Color32::from_rgb(130, 130, 145)
+        } else {
+            Color32::from_rgb(130, 130, 150)
+        },
+        alpha,
+    );
+    let main_color = with_alpha(
+        if dark {
+            Color32::from_rgb(232, 232, 240)
+        } else {
+            Color32::from_rgb(26, 26, 30)
+        },
+        alpha,
+    );
     if let Some(top_str) = top {
         let center = rect.center();
-        painter.text(egui::pos2(center.x, center.y - 7.0), egui::Align2::CENTER_CENTER, top_str, FontId::proportional(top_size.unwrap_or(9.0)), top_color);
-        painter.text(egui::pos2(center.x, center.y + 6.0), egui::Align2::CENTER_CENTER, bottom, FontId::proportional(bottom_size), main_color);
+        painter.text(
+            egui::pos2(center.x, center.y - 7.0),
+            egui::Align2::CENTER_CENTER,
+            top_str,
+            FontId::proportional(top_size.unwrap_or(9.0)),
+            top_color,
+        );
+        painter.text(
+            egui::pos2(center.x, center.y + 6.0),
+            egui::Align2::CENTER_CENTER,
+            bottom,
+            FontId::proportional(bottom_size),
+            main_color,
+        );
     } else {
         let font_size = if bottom == "↵" { 16.0 } else { bottom_size };
-        painter.text(rect.center(), egui::Align2::CENTER_CENTER, bottom, FontId::proportional(font_size), main_color);
+        painter.text(
+            rect.center(),
+            egui::Align2::CENTER_CENTER,
+            bottom,
+            FontId::proportional(font_size),
+            main_color,
+        );
     }
 }
 
-fn draw_key_label_dimmed_alpha(painter: &egui::Painter, rect: egui::Rect, label: &str, dark: bool, alpha: f32) {
-    let dim = with_alpha(if dark { Color32::from_rgb(80, 80, 90) } else { Color32::from_rgb(180, 180, 195) }, alpha);
-    let dim_top = with_alpha(if dark { Color32::from_rgb(60, 60, 70) } else { Color32::from_rgb(190, 190, 205) }, alpha);
+fn draw_key_label_dimmed_alpha(
+    painter: &egui::Painter,
+    rect: egui::Rect,
+    label: &str,
+    dark: bool,
+    alpha: f32,
+) {
+    let dim = with_alpha(
+        if dark {
+            Color32::from_rgb(80, 80, 90)
+        } else {
+            Color32::from_rgb(180, 180, 195)
+        },
+        alpha,
+    );
+    let dim_top = with_alpha(
+        if dark {
+            Color32::from_rgb(60, 60, 70)
+        } else {
+            Color32::from_rgb(190, 190, 205)
+        },
+        alpha,
+    );
     let (top, bottom) = if label.contains('\n') {
         let mut parts = label.splitn(2, '\n');
         let t = parts.next().unwrap_or("");
         let b = parts.next().unwrap_or(label);
         (Some(t), b)
     } else if let Some(pos) = label.find('/') {
-        (Some(&label[..pos]), &label[pos+1..])
+        (Some(&label[..pos]), &label[pos + 1..])
     } else {
         (None, label)
     };
     let (top_size, bottom_size) = key_label_font_sizes(label);
     if let Some(top_str) = top {
         let center = rect.center();
-        painter.text(egui::pos2(center.x, center.y - 7.0), egui::Align2::CENTER_CENTER, top_str, FontId::proportional(top_size.unwrap_or(9.0)), dim_top);
-        painter.text(egui::pos2(center.x, center.y + 6.0), egui::Align2::CENTER_CENTER, bottom, FontId::proportional(bottom_size), dim);
+        painter.text(
+            egui::pos2(center.x, center.y - 7.0),
+            egui::Align2::CENTER_CENTER,
+            top_str,
+            FontId::proportional(top_size.unwrap_or(9.0)),
+            dim_top,
+        );
+        painter.text(
+            egui::pos2(center.x, center.y + 6.0),
+            egui::Align2::CENTER_CENTER,
+            bottom,
+            FontId::proportional(bottom_size),
+            dim,
+        );
     } else {
         let font_size = if bottom == "↵" { 16.0 } else { bottom_size };
-        painter.text(rect.center(), egui::Align2::CENTER_CENTER, bottom, FontId::proportional(font_size), dim);
+        painter.text(
+            rect.center(),
+            egui::Align2::CENTER_CENTER,
+            bottom,
+            FontId::proportional(font_size),
+            dim,
+        );
     }
 }
 
@@ -5508,7 +7232,7 @@ fn draw_key_label(painter: &egui::Painter, rect: egui::Rect, label: &str, dark: 
         (Some(t), b)
     } else if let Some(pos) = label.find('/') {
         let t = &label[..pos];
-        let b = &label[pos+1..];
+        let b = &label[pos + 1..];
         (Some(t), b)
     } else {
         (None, label)
@@ -5521,10 +7245,30 @@ fn draw_key_label(painter: &egui::Painter, rect: egui::Rect, label: &str, dark: 
         let top_pos = egui::pos2(center.x, center.y - 7.0);
         let bot_pos = egui::pos2(center.x, center.y + 6.0);
 
-        let top_color = if dark { Color32::from_rgb(130, 130, 145) } else { Color32::from_rgb(130, 130, 150) };
-        let main_color = if dark { Color32::from_rgb(232, 232, 240) } else { Color32::from_rgb(26, 26, 30) };
-        painter.text(top_pos, egui::Align2::CENTER_CENTER, top_str, FontId::proportional(top_size.unwrap_or(9.0)), top_color);
-        painter.text(bot_pos, egui::Align2::CENTER_CENTER, bottom, FontId::proportional(bottom_size), main_color);
+        let top_color = if dark {
+            Color32::from_rgb(130, 130, 145)
+        } else {
+            Color32::from_rgb(130, 130, 150)
+        };
+        let main_color = if dark {
+            Color32::from_rgb(232, 232, 240)
+        } else {
+            Color32::from_rgb(26, 26, 30)
+        };
+        painter.text(
+            top_pos,
+            egui::Align2::CENTER_CENTER,
+            top_str,
+            FontId::proportional(top_size.unwrap_or(9.0)),
+            top_color,
+        );
+        painter.text(
+            bot_pos,
+            egui::Align2::CENTER_CENTER,
+            bottom,
+            FontId::proportional(bottom_size),
+            main_color,
+        );
     } else {
         let font_size = if bottom == "↵" { 16.0 } else { bottom_size };
         painter.text(
@@ -5532,7 +7276,11 @@ fn draw_key_label(painter: &egui::Painter, rect: egui::Rect, label: &str, dark: 
             egui::Align2::CENTER_CENTER,
             bottom,
             FontId::proportional(font_size),
-            if dark { Color32::from_rgb(232, 232, 240) } else { Color32::from_rgb(26, 26, 30) },
+            if dark {
+                Color32::from_rgb(232, 232, 240)
+            } else {
+                Color32::from_rgb(26, 26, 30)
+            },
         );
     }
 }
@@ -5577,8 +7325,18 @@ impl EntropyApp {
         let painter = ui.painter();
         for (key_idx, rect, _) in &keys {
             let is_selected = self.selected_key == Some((self.selected_layer, *key_idx));
-            let bg = if is_selected { Color32::from_rgb(70, 110, 190) } else { Color32::from_gray(45) };
-            painter.rect(*rect, 6.0, bg, Stroke::new(1.0, Color32::from_gray(80)), egui::StrokeKind::Inside);
+            let bg = if is_selected {
+                Color32::from_rgb(70, 110, 190)
+            } else {
+                Color32::from_gray(45)
+            };
+            painter.rect(
+                *rect,
+                6.0,
+                bg,
+                Stroke::new(1.0, Color32::from_gray(80)),
+                egui::StrokeKind::Inside,
+            );
             painter.text(
                 rect.center(),
                 egui::Align2::CENTER_CENTER,

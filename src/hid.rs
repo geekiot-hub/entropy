@@ -1,6 +1,5 @@
 /// Vial protocol implementation over HID.
 /// Based on vial-gui Python source: protocol/keyboard_comm.py
-
 use anyhow::{bail, Context, Result};
 
 /// Raw HID packet size (without report ID byte)
@@ -12,6 +11,9 @@ const CMD_VIA_GET_KEYBOARD_VALUE: u8 = 0x02;
 const CMD_VIA_SET_KEYBOARD_VALUE: u8 = 0x03;
 const CMD_VIA_GET_KEYCODE: u8 = 0x04;
 const CMD_VIA_SET_KEYCODE: u8 = 0x05;
+const CMD_VIA_LIGHTING_SET_VALUE: u8 = 0x07;
+const CMD_VIA_LIGHTING_GET_VALUE: u8 = 0x08;
+const CMD_VIA_LIGHTING_SAVE: u8 = 0x09;
 const CMD_VIA_GET_LAYER_COUNT: u8 = 0x11;
 const CMD_VIA_KEYMAP_GET_BUFFER: u8 = 0x12;
 const CMD_VIA_MACRO_GET_COUNT: u8 = 0x0C;
@@ -21,6 +23,16 @@ const CMD_VIA_MACRO_SET_BUFFER: u8 = 0x0F;
 const CMD_VIA_VIAL_PREFIX: u8 = 0xFE;
 
 const VIA_SWITCH_MATRIX_STATE: u8 = 0x03;
+const QMK_BACKLIGHT_BRIGHTNESS: u8 = 0x09;
+const QMK_BACKLIGHT_EFFECT: u8 = 0x0A;
+const QMK_RGBLIGHT_BRIGHTNESS: u8 = 0x80;
+const QMK_RGBLIGHT_EFFECT: u8 = 0x81;
+const QMK_RGBLIGHT_EFFECT_SPEED: u8 = 0x82;
+const QMK_RGBLIGHT_COLOR: u8 = 0x83;
+const VIALRGB_GET_INFO: u8 = 0x40;
+const VIALRGB_GET_MODE: u8 = 0x41;
+const VIALRGB_GET_SUPPORTED: u8 = 0x42;
+const VIALRGB_SET_MODE: u8 = 0x41;
 
 // Vial sub-commands (used after CMD_VIA_VIAL_PREFIX)
 const CMD_VIAL_GET_KEYBOARD_ID: u8 = 0x00;
@@ -73,7 +85,8 @@ impl HidDevice {
         // Read response — hidapi on Windows returns MSG_LEN bytes (no report ID)
         // on Linux/macOS may include report ID prefix
         let mut read_buf = [0u8; MSG_LEN + 1];
-        let bytes_read = self.device
+        let bytes_read = self
+            .device
             .read_timeout(&mut read_buf, 2000)
             .context("HID read failed")?;
 
@@ -107,8 +120,9 @@ impl HidDevice {
     pub fn get_keyboard_id(&self) -> Result<(u32, u64)> {
         let resp = self.usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_GET_KEYBOARD_ID])?;
         let vial_proto = u32::from_le_bytes([resp[0], resp[1], resp[2], resp[3]]);
-        let kb_id = u64::from_le_bytes([resp[4], resp[5], resp[6], resp[7],
-                                        resp[8], resp[9], resp[10], resp[11]]);
+        let kb_id = u64::from_le_bytes([
+            resp[4], resp[5], resp[6], resp[7], resp[8], resp[9], resp[10], resp[11],
+        ]);
         Ok((vial_proto, kb_id))
     }
 
@@ -152,8 +166,8 @@ impl HidDevice {
                 .context("Failed to decompress vial definition (tried xz and lzma)")?;
         }
 
-        let json_str = std::str::from_utf8(&decompressed)
-            .context("Vial definition is not valid UTF-8")?;
+        let json_str =
+            std::str::from_utf8(&decompressed).context("Vial definition is not valid UTF-8")?;
 
         let value: serde_json::Value =
             serde_json::from_str(json_str).context("Failed to parse vial JSON")?;
@@ -207,7 +221,9 @@ impl HidDevice {
         while i + 1 < resp.len() {
             let row = resp[i];
             let col = resp[i + 1];
-            if row == 0xFF && col == 0xFF { break; }
+            if row == 0xFF && col == 0xFF {
+                break;
+            }
             keys.push((row, col));
             i += 2;
         }
@@ -261,7 +277,7 @@ impl HidDevice {
             cmd[3] = chunk;
             let resp = self.usb_send(&cmd)?;
             let n = chunk.min((size - offset) as u8) as usize;
-            buf.extend_from_slice(&resp[4..4+n]);
+            buf.extend_from_slice(&resp[4..4 + n]);
             offset += chunk as u16;
         }
         Ok(buf)
@@ -279,7 +295,7 @@ impl HidDevice {
             cmd[2] = (offset & 0xFF) as u8;
             cmd[3] = chunk as u8;
             let start = offset as usize;
-            cmd[4..4+chunk as usize].copy_from_slice(&data[start..start+chunk as usize]);
+            cmd[4..4 + chunk as usize].copy_from_slice(&data[start..start + chunk as usize]);
             self.usb_send(&cmd)?;
             offset += chunk;
         }
@@ -291,13 +307,21 @@ impl HidDevice {
         let mut macros = Vec::new();
         let mut start = 0;
         for _ in 0..count {
-            let end = buf[start..].iter().position(|&b| b == 0).map(|p| start + p).unwrap_or(buf.len());
+            let end = buf[start..]
+                .iter()
+                .position(|&b| b == 0)
+                .map(|p| start + p)
+                .unwrap_or(buf.len());
             let s = String::from_utf8_lossy(&buf[start..end]).to_string();
             macros.push(s);
             start = end + 1;
-            if start >= buf.len() { break; }
+            if start >= buf.len() {
+                break;
+            }
         }
-        while macros.len() < count as usize { macros.push(String::new()); }
+        while macros.len() < count as usize {
+            macros.push(String::new());
+        }
         macros
     }
 
@@ -316,13 +340,22 @@ impl HidDevice {
 
     /// Get number of combo entries available
     pub fn get_combo_count(&self) -> Result<u8> {
-        let resp = self.usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_DYNAMIC_ENTRY_OP, DYNAMIC_VIAL_GET_NUM_ENTRIES])?;
+        let resp = self.usb_send(&[
+            CMD_VIA_VIAL_PREFIX,
+            CMD_VIAL_DYNAMIC_ENTRY_OP,
+            DYNAMIC_VIAL_GET_NUM_ENTRIES,
+        ])?;
         Ok(resp[1])
     }
 
     /// Get combo entry: ([trigger_keys; 4], output_keycode)
     pub fn get_combo(&self, idx: u8) -> Result<([u16; 4], u16)> {
-        let resp = self.usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_DYNAMIC_ENTRY_OP, DYNAMIC_VIAL_COMBO_GET, idx])?;
+        let resp = self.usb_send(&[
+            CMD_VIA_VIAL_PREFIX,
+            CMD_VIAL_DYNAMIC_ENTRY_OP,
+            DYNAMIC_VIAL_COMBO_GET,
+            idx,
+        ])?;
         if resp[0] != 0 {
             anyhow::bail!("combo get error: {}", resp[0]);
         }
@@ -360,21 +393,38 @@ impl HidDevice {
 
     /// Get number of key override entries available
     pub fn get_key_override_count(&self) -> Result<u8> {
-        let resp = self.usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_DYNAMIC_ENTRY_OP, DYNAMIC_VIAL_GET_NUM_ENTRIES])?;
+        let resp = self.usb_send(&[
+            CMD_VIA_VIAL_PREFIX,
+            CMD_VIAL_DYNAMIC_ENTRY_OP,
+            DYNAMIC_VIAL_GET_NUM_ENTRIES,
+        ])?;
         Ok(resp[2])
     }
 
     /// Get key override entry:
     /// (trigger, replacement, layers, trigger_mods, negative_mod_mask, suppressed_mods, options)
     pub fn get_key_override(&self, idx: u8) -> Result<(u16, u16, u16, u8, u8, u8, u8)> {
-        let resp = self.usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_DYNAMIC_ENTRY_OP, DYNAMIC_VIAL_KEY_OVERRIDE_GET, idx])?;
+        let resp = self.usb_send(&[
+            CMD_VIA_VIAL_PREFIX,
+            CMD_VIAL_DYNAMIC_ENTRY_OP,
+            DYNAMIC_VIAL_KEY_OVERRIDE_GET,
+            idx,
+        ])?;
         if resp[0] != 0 {
             anyhow::bail!("key override get error: {}", resp[0]);
         }
         let trigger = u16::from_le_bytes([resp[1], resp[2]]);
         let replacement = u16::from_le_bytes([resp[3], resp[4]]);
         let layers = u16::from_le_bytes([resp[5], resp[6]]);
-        Ok((trigger, replacement, layers, resp[7], resp[8], resp[9], resp[10]))
+        Ok((
+            trigger,
+            replacement,
+            layers,
+            resp[7],
+            resp[8],
+            resp[9],
+            resp[10],
+        ))
     }
 
     /// Set key override entry
@@ -421,7 +471,15 @@ impl HidDevice {
 
     pub fn set_encoder(&self, layer: u8, idx: u8, direction: u8, keycode: u16) -> Result<()> {
         let bytes = keycode.to_be_bytes();
-        let _ = self.usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_SET_ENCODER, layer, idx, direction, bytes[0], bytes[1]])?;
+        let _ = self.usb_send(&[
+            CMD_VIA_VIAL_PREFIX,
+            CMD_VIAL_SET_ENCODER,
+            layer,
+            idx,
+            direction,
+            bytes[0],
+            bytes[1],
+        ])?;
         Ok(())
     }
 
@@ -509,15 +567,123 @@ impl HidDevice {
         Ok(())
     }
 
+    pub fn get_qmk_rgblight_brightness(&self) -> Result<u8> {
+        let resp = self.usb_send(&[CMD_VIA_LIGHTING_GET_VALUE, QMK_RGBLIGHT_BRIGHTNESS])?;
+        Ok(resp[2])
+    }
+
+    pub fn set_qmk_rgblight_brightness(&self, value: u8) -> Result<()> {
+        self.usb_send(&[CMD_VIA_LIGHTING_SET_VALUE, QMK_RGBLIGHT_BRIGHTNESS, value])?;
+        Ok(())
+    }
+
+    pub fn get_qmk_rgblight_effect(&self) -> Result<u8> {
+        let resp = self.usb_send(&[CMD_VIA_LIGHTING_GET_VALUE, QMK_RGBLIGHT_EFFECT])?;
+        Ok(resp[2])
+    }
+
+    pub fn set_qmk_rgblight_effect(&self, value: u8) -> Result<()> {
+        self.usb_send(&[CMD_VIA_LIGHTING_SET_VALUE, QMK_RGBLIGHT_EFFECT, value])?;
+        Ok(())
+    }
+
+    pub fn get_qmk_rgblight_effect_speed(&self) -> Result<u8> {
+        let resp = self.usb_send(&[CMD_VIA_LIGHTING_GET_VALUE, QMK_RGBLIGHT_EFFECT_SPEED])?;
+        Ok(resp[2])
+    }
+
+    pub fn get_qmk_rgblight_color(&self) -> Result<(u8, u8)> {
+        let resp = self.usb_send(&[CMD_VIA_LIGHTING_GET_VALUE, QMK_RGBLIGHT_COLOR])?;
+        Ok((resp[2], resp[3]))
+    }
+
+    pub fn save_rgb(&self) -> Result<()> {
+        self.usb_send(&[CMD_VIA_LIGHTING_SAVE])?;
+        Ok(())
+    }
+
+    pub fn get_vialrgb_info(&self) -> Result<(u16, u8)> {
+        let resp = self.usb_send(&[CMD_VIA_LIGHTING_GET_VALUE, VIALRGB_GET_INFO])?;
+        let data = &resp[2..];
+        Ok((u16::from_le_bytes([data[0], data[1]]), data[2]))
+    }
+
+    pub fn get_vialrgb_supported_effects(&self) -> Result<Vec<u16>> {
+        let mut effects = vec![0u16];
+        let mut max_effect = 0u16;
+        while max_effect < 0xFFFF {
+            let mut cmd = [0u8; MSG_LEN];
+            cmd[0] = CMD_VIA_LIGHTING_GET_VALUE;
+            cmd[1] = VIALRGB_GET_SUPPORTED;
+            cmd[2..4].copy_from_slice(&max_effect.to_le_bytes());
+            let resp = self.usb_send(&cmd)?;
+            let mut batch_max = max_effect;
+            for chunk in resp[2..].chunks_exact(2) {
+                let value = u16::from_le_bytes([chunk[0], chunk[1]]);
+                if value != 0xFFFF && !effects.contains(&value) {
+                    effects.push(value);
+                }
+                batch_max = batch_max.max(value);
+            }
+            if batch_max == 0xFFFF || batch_max == max_effect {
+                break;
+            }
+            max_effect = batch_max;
+        }
+        effects.sort_unstable();
+        Ok(effects)
+    }
+
+    pub fn get_vialrgb_mode(&self) -> Result<(u16, u8, u8, u8, u8)> {
+        let resp = self.usb_send(&[CMD_VIA_LIGHTING_GET_VALUE, VIALRGB_GET_MODE])?;
+        let data = &resp[2..];
+        Ok((
+            u16::from_le_bytes([data[0], data[1]]),
+            data[2],
+            data[3],
+            data[4],
+            data[5],
+        ))
+    }
+
+    pub fn set_vialrgb_mode(
+        &self,
+        mode: u16,
+        speed: u8,
+        hue: u8,
+        saturation: u8,
+        brightness: u8,
+    ) -> Result<()> {
+        let mut cmd = [0u8; MSG_LEN];
+        cmd[0] = CMD_VIA_LIGHTING_SET_VALUE;
+        cmd[1] = VIALRGB_SET_MODE;
+        cmd[2..4].copy_from_slice(&mode.to_le_bytes());
+        cmd[4] = speed;
+        cmd[5] = hue;
+        cmd[6] = saturation;
+        cmd[7] = brightness;
+        self.usb_send(&cmd)?;
+        Ok(())
+    }
+
     /// Get number of tap dance entries available
     pub fn get_tap_dance_count(&self) -> Result<u8> {
-        let resp = self.usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_DYNAMIC_ENTRY_OP, DYNAMIC_VIAL_GET_NUM_ENTRIES])?;
+        let resp = self.usb_send(&[
+            CMD_VIA_VIAL_PREFIX,
+            CMD_VIAL_DYNAMIC_ENTRY_OP,
+            DYNAMIC_VIAL_GET_NUM_ENTRIES,
+        ])?;
         Ok(resp[1]) // second byte matches macro count response layout
     }
 
     /// Get a tap dance entry: (on_tap, on_hold, on_double_tap, on_tap_hold, tapping_term)
     pub fn get_tap_dance(&self, idx: u8) -> Result<(u16, u16, u16, u16, u16)> {
-        let resp = self.usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_DYNAMIC_ENTRY_OP, DYNAMIC_VIAL_TAP_DANCE_GET, idx])?;
+        let resp = self.usb_send(&[
+            CMD_VIA_VIAL_PREFIX,
+            CMD_VIAL_DYNAMIC_ENTRY_OP,
+            DYNAMIC_VIAL_TAP_DANCE_GET,
+            idx,
+        ])?;
         // resp[0] = status (0=ok), resp[1..] = entry data
         if resp[0] != 0 {
             anyhow::bail!("tap dance get error: {}", resp[0]);
@@ -531,7 +697,15 @@ impl HidDevice {
     }
 
     /// Set a tap dance entry
-    pub fn set_tap_dance(&self, idx: u8, on_tap: u16, on_hold: u16, on_double_tap: u16, on_tap_hold: u16, tapping_term: u16) -> Result<()> {
+    pub fn set_tap_dance(
+        &self,
+        idx: u8,
+        on_tap: u16,
+        on_hold: u16,
+        on_double_tap: u16,
+        on_tap_hold: u16,
+        tapping_term: u16,
+    ) -> Result<()> {
         let mut cmd = [0u8; 32];
         cmd[0] = CMD_VIA_VIAL_PREFIX;
         cmd[1] = CMD_VIAL_DYNAMIC_ENTRY_OP;

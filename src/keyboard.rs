@@ -62,9 +62,12 @@ pub struct KeyboardLayout {
     pub layer_names: Vec<String>,
     /// Custom keycodes from vial JSON: symbolic name, short button label, readable tooltip title.
     pub custom_keycodes: Vec<CustomKeycode>,
-    /// Whether the keyboard definition exposes a lighting section for RGB/backlight controls
+    /// Whether the keyboard definition exposes runtime RGB controls.
     #[serde(default)]
     pub supports_rgb: bool,
+    /// Lighting backend from Vial/QMK definition, for example `qmk_rgblight` or `vialrgb`.
+    #[serde(default)]
+    pub lighting_mode: Option<String>,
     /// Firmware type
     #[serde(default = "default_firmware")]
     pub firmware: FirmwareProtocol,
@@ -130,7 +133,10 @@ fn parse_layer_names_from_json(json: &serde_json::Value) -> Vec<String> {
                     if let Some(s) = v.as_str() {
                         Some(s.trim().to_string())
                     } else if let Some(inner) = v.as_array() {
-                        inner.first().and_then(|x| x.as_str()).map(|s| s.trim().to_string())
+                        inner
+                            .first()
+                            .and_then(|x| x.as_str())
+                            .map(|s| s.trim().to_string())
                     } else {
                         None
                     }
@@ -226,9 +232,7 @@ impl KeyboardLayout {
             .context("missing 'layouts.keymap'")?;
 
         // Optional: "layout" array provides explicit [row, col] per key index
-        let layout_array = layouts
-            .get("layout")
-            .and_then(|v| v.as_array());
+        let layout_array = layouts.get("layout").and_then(|v| v.as_array());
 
         let mut keys = Vec::new();
         let mut encoders = Vec::new();
@@ -303,8 +307,10 @@ impl KeyboardLayout {
                         continue;
                     }
 
-                    let (mat_row, mat_col) = parse_matrix_from_label(label)
-                        .unwrap_or(((keys.len() / cols.max(1)) as u8, (keys.len() % cols.max(1)) as u8));
+                    let (mat_row, mat_col) = parse_matrix_from_label(label).unwrap_or((
+                        (keys.len() / cols.max(1)) as u8,
+                        (keys.len() % cols.max(1)) as u8,
+                    ));
 
                     keys.push(PhysicalKey {
                         x: cur_x,
@@ -329,34 +335,77 @@ impl KeyboardLayout {
         let layer_names = parse_layer_names_from_json(json);
 
         // Parse custom keycodes
-        let custom_keycodes = if let Some(customs) = json.get("customKeycodes").and_then(|v| v.as_array()) {
-            customs.iter().map(|c| {
-                let name = c.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                let title = c.get("title").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
-                let short_raw = c.get("shortName").and_then(|v| v.as_str()).unwrap_or("");
-                let label = if short_raw.is_empty() {
-                    name.clone()
-                } else {
-                    let parts: Vec<&str> = short_raw.lines().filter(|l| !l.is_empty()).collect();
-                    match parts.len() {
-                        0 => name.clone(),
-                        1 => parts[0].to_string(),
-                        _ => format!("{}\n{}", parts[0], parts[1..].join(" ")),
-                    }
-                };
-                let title = if title.is_empty() {
-                    name.clone()
-                } else {
-                    title
-                };
-                CustomKeycode { name, label, title }
-            }).collect()
-        } else {
-            vec![]
-        };
+        let custom_keycodes =
+            if let Some(customs) = json.get("customKeycodes").and_then(|v| v.as_array()) {
+                customs
+                    .iter()
+                    .map(|c| {
+                        let name = c
+                            .get("name")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string();
+                        let title = c
+                            .get("title")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .trim()
+                            .to_string();
+                        let short_raw = c.get("shortName").and_then(|v| v.as_str()).unwrap_or("");
+                        let label = if short_raw.is_empty() {
+                            name.clone()
+                        } else {
+                            let parts: Vec<&str> =
+                                short_raw.lines().filter(|l| !l.is_empty()).collect();
+                            match parts.len() {
+                                0 => name.clone(),
+                                1 => parts[0].to_string(),
+                                _ => format!("{}\n{}", parts[0], parts[1..].join(" ")),
+                            }
+                        };
+                        let title = if title.is_empty() {
+                            name.clone()
+                        } else {
+                            title
+                        };
+                        CustomKeycode { name, label, title }
+                    })
+                    .collect()
+            } else {
+                vec![]
+            };
 
         let num_keys = keys.len();
-        let supports_rgb = json.get("lighting").is_some();
+        let lighting_mode = json
+            .get("lighting")
+            .and_then(|v| v.as_str())
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .or_else(|| {
+                let has_rgb_matrix = json.get("rgb_matrix").is_some()
+                    || json
+                        .get("features")
+                        .and_then(|v| v.get("rgb_matrix"))
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false);
+                let has_rgblight = json.get("rgblight").is_some()
+                    || json
+                        .get("features")
+                        .and_then(|v| v.get("rgblight"))
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false);
+                if has_rgb_matrix {
+                    Some("vialrgb".to_string())
+                } else if has_rgblight {
+                    Some("qmk_rgblight".to_string())
+                } else {
+                    None
+                }
+            });
+        let supports_rgb = matches!(
+            lighting_mode.as_deref(),
+            Some("qmk_rgblight") | Some("qmk_backlight_rgblight") | Some("vialrgb")
+        );
         Ok(Self {
             name,
             rows,
@@ -368,6 +417,7 @@ impl KeyboardLayout {
             layer_names,
             custom_keycodes,
             supports_rgb,
+            lighting_mode,
             firmware: FirmwareProtocol::Vial,
             zmk_bindings: vec![],
             zmk_behaviors: vec![],
@@ -388,7 +438,8 @@ impl KeyboardLayout {
     /// Sets ZMK binding for (layer, key_idx).
     pub fn set_zmk_binding(&mut self, layer: usize, key_idx: usize, binding: ZmkBinding) {
         while self.zmk_bindings.len() <= layer {
-            self.zmk_bindings.push(vec![ZmkBinding::none(); self.keys.len()]);
+            self.zmk_bindings
+                .push(vec![ZmkBinding::none(); self.keys.len()]);
         }
         if let Some(layer_data) = self.zmk_bindings.get_mut(layer) {
             if let Some(slot) = layer_data.get_mut(key_idx) {
