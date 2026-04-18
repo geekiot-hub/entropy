@@ -4992,18 +4992,11 @@ impl EntropyApp {
 
             let painter = ui.painter();
             let center = rect.center();
-            let radius = rect.width().min(rect.height()) * 0.5;
+            let radius = rect.width().min(rect.height()) * 0.58;
             painter.circle_filled(center, radius, visuals.inactive.bg_fill);
             painter.with_clip_rect(top_rect).circle_filled(center, radius, top_fill);
             painter.with_clip_rect(bottom_rect).circle_filled(center, radius, bottom_fill);
             painter.circle_stroke(center, radius, outline);
-            painter.line_segment(
-                [
-                    egui::pos2(center.x - radius * 0.82, center.y),
-                    egui::pos2(center.x + radius * 0.82, center.y),
-                ],
-                Stroke::new(1.0, outline.color),
-            );
 
             let has_press_button = encoder_press_rects
                 .iter()
@@ -5060,6 +5053,24 @@ impl EntropyApp {
                 .iter()
                 .find(|(_, press_rect)| press_rect.center().distance(center) < 1.0)
             {
+                let divider_half_width = radius * 0.72;
+                let divider_gap = radius * 0.06;
+                let top_divider_y = press_rect.top() - divider_gap;
+                let bottom_divider_y = press_rect.bottom() + divider_gap;
+                painter.line_segment(
+                    [
+                        egui::pos2(center.x - divider_half_width, top_divider_y),
+                        egui::pos2(center.x + divider_half_width, top_divider_y),
+                    ],
+                    Stroke::new(1.0, outline.color),
+                );
+                painter.line_segment(
+                    [
+                        egui::pos2(center.x - divider_half_width, bottom_divider_y),
+                        egui::pos2(center.x + divider_half_width, bottom_divider_y),
+                    ],
+                    Stroke::new(1.0, outline.color),
+                );
                 let is_hovering = hover_alpha > 0.05;
                 let is_selected = self.selected_key == Some((layer, *press_ki));
                 let is_hovered = hovered_key == Some(*press_ki);
@@ -5130,7 +5141,17 @@ impl EntropyApp {
                     }
                 }.replace('\n', " ");
                 let press_font = FontId::proportional(if press_label.chars().count() > 8 { 7.2 } else { 8.2 });
-                painter.text(press_rect.center(), egui::Align2::CENTER_CENTER, press_label, press_font, text_color);
+                painter
+                    .with_clip_rect(*press_rect)
+                    .text(press_rect.center(), egui::Align2::CENTER_CENTER, press_label, press_font, text_color);
+            } else {
+                painter.line_segment(
+                    [
+                        egui::pos2(center.x - radius * 0.82, center.y),
+                        egui::pos2(center.x + radius * 0.82, center.y),
+                    ],
+                    Stroke::new(1.0, outline.color),
+                );
             }
         }
 
