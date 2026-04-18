@@ -115,6 +115,7 @@ fn parse_layer_names_from_json(json: &serde_json::Value) -> Vec<String> {
         json.get("layer_names"),
         json.get("layerNames"),
         json.get("layers"),
+        json.get("layouts").and_then(|v| v.get("labels")),
         json.get("layouts").and_then(|v| v.get("layer_names")),
         json.get("layouts").and_then(|v| v.get("layerNames")),
         json.get("vial").and_then(|v| v.get("layer_names")),
@@ -125,8 +126,15 @@ fn parse_layer_names_from_json(json: &serde_json::Value) -> Vec<String> {
         if let Some(arr) = candidate.as_array() {
             let names: Vec<String> = arr
                 .iter()
-                .filter_map(|v| v.as_str())
-                .map(|s| s.trim().to_string())
+                .filter_map(|v| {
+                    if let Some(s) = v.as_str() {
+                        Some(s.trim().to_string())
+                    } else if let Some(inner) = v.as_array() {
+                        inner.first().and_then(|x| x.as_str()).map(|s| s.trim().to_string())
+                    } else {
+                        None
+                    }
+                })
                 .filter(|s| !s.is_empty())
                 .collect();
             if !names.is_empty() {
