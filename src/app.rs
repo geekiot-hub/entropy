@@ -680,6 +680,145 @@ fn rgb_effect_supports_speed(kind: RgbSupportKind, effect: u16) -> bool {
     }
 }
 
+fn rgb_picker_contrast(color: impl Into<egui::Rgba>) -> Color32 {
+    if color.into().intensity() < 0.5 {
+        Color32::WHITE
+    } else {
+        Color32::BLACK
+    }
+}
+
+fn compact_rgb_slider_1d(
+    ui: &mut egui::Ui,
+    value: &mut f32,
+    color_at: impl Fn(f32) -> Color32,
+) -> bool {
+    let desired_size = Vec2::new(ui.spacing().slider_width, 18.0);
+    let (rect, response) = ui.allocate_exact_size(desired_size, Sense::click_and_drag());
+
+    if let Some(pos) = response.interact_pointer_pos() {
+        *value = ((pos.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
+    }
+
+    if ui.is_rect_visible(rect) {
+        let visuals = ui.style().interact(&response);
+        let rect = rect.expand(visuals.expansion);
+        let mut mesh = egui::epaint::Mesh::default();
+        const N: u32 = 36;
+        for i in 0..N {
+            let t = i as f32 / (N - 1) as f32;
+            let x = egui::lerp(rect.x_range(), t);
+            mesh.colored_vertex(egui::pos2(x, rect.top()), color_at(t));
+            mesh.colored_vertex(egui::pos2(x, rect.bottom()), color_at(t));
+            if i + 1 < N {
+                let idx = i * 2;
+                mesh.add_triangle(idx, idx + 1, idx + 2);
+                mesh.add_triangle(idx + 1, idx + 2, idx + 3);
+            }
+        }
+        ui.painter().add(egui::Shape::mesh(mesh));
+
+        let x = egui::lerp(rect.x_range(), *value);
+        let picked_color = color_at(*value);
+        let stroke = Stroke::new(1.2, rgb_picker_contrast(picked_color));
+        let top = egui::pos2(x, rect.top() - 2.0);
+        let left = egui::pos2(x - 7.0, rect.bottom() + 1.0);
+        let right = egui::pos2(x + 7.0, rect.bottom() + 1.0);
+        ui.painter().add(egui::Shape::convex_polygon(
+            vec![top, left, right],
+            picked_color,
+            stroke,
+        ));
+        ui.painter().rect_stroke(
+            rect,
+            2.0,
+            visuals.bg_stroke,
+            egui::StrokeKind::Inside,
+        );
+    }
+
+    response.changed()
+}
+
+fn compact_rgb_slider_2d(
+    ui: &mut egui::Ui,
+    x_value: &mut f32,
+    y_value: &mut f32,
+    color_at: impl Fn(f32, f32) -> Color32,
+) -> bool {
+    let desired_size = Vec2::splat(ui.spacing().slider_width);
+    let (rect, response) = ui.allocate_exact_size(desired_size, Sense::click_and_drag());
+
+    if let Some(pos) = response.interact_pointer_pos() {
+        *x_value = ((pos.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
+        *y_value = ((rect.bottom() - pos.y) / rect.height()).clamp(0.0, 1.0);
+    }
+
+    if ui.is_rect_visible(rect) {
+        let visuals = ui.style().interact(&response);
+        let rect = rect.expand(visuals.expansion);
+        let mut mesh = egui::epaint::Mesh::default();
+        const N: u32 = 36;
+        for xi in 0..N {
+            let xt = xi as f32 / (N - 1) as f32;
+            let x = egui::lerp(rect.x_range(), xt);
+            for yi in 0..N {
+                let yt = yi as f32 / (N - 1) as f32;
+                let y = egui::lerp(rect.y_range(), 1.0 - yt);
+                mesh.colored_vertex(egui::pos2(x, y), color_at(xt, yt));
+                if xi + 1 < N && yi + 1 < N {
+                    let tl = yi + xi * N;
+                    mesh.add_triangle(tl, tl + 1, tl + N);
+                    mesh.add_triangle(tl + 1, tl + N, tl + N + 1);
+                }
+            }
+        }
+        ui.painter().add(egui::Shape::mesh(mesh));
+
+        let x = egui::lerp(rect.x_range(), *x_value);
+        let y = egui::lerp(rect.y_range(), 1.0 - *y_value);
+        let picked_color = color_at(*x_value, *y_value);
+        let stroke = Stroke::new(1.6, rgb_picker_contrast(picked_color));
+        ui.painter().circle_stroke(egui::pos2(x, y), 10.0, stroke);
+        ui.painter().rect_stroke(
+            rect,
+            2.0,
+            visuals.bg_stroke,
+            egui::StrokeKind::Inside,
+        );
+    }
+
+    response.changed()
+}
+
+fn compact_rgb_color_picker(ui: &mut egui::Ui, hsva: &mut egui::ecolor::Hsva) -> bool {
+    let mut changed = false;
+    let mut h = hsva.h.rem_euclid(1.0);
+    let mut s = hsva.s.clamp(0.0, 1.0);
+    let mut v = hsva.v.clamp(0.0, 1.0);
+
+    changed |= compact_rgb_slider_2d(ui, &mut s, &mut v, |s, v| {
+        egui::ecolor::Hsva { h, s, v, a: 1.0 }.into()
+    });
+    ui.add_space(6.0);
+    changed |= compact_rgb_slider_1d(ui, &mut h, |h| {
+        egui::ecolor::Hsva {
+            h,
+            s: 1.0,
+            v: 1.0,
+            a: 1.0,
+        }
+        .into()
+    });
+
+    if changed {
+        hsva.h = h;
+        hsva.s = s;
+        hsva.v = v;
+    }
+    changed
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 fn load_rgb_settings(
     dev_conn: &crate::hid::HidDevice,
@@ -3966,12 +4105,8 @@ impl EntropyApp {
                                         &swatch_resp,
                                         egui::PopupCloseBehavior::CloseOnClickOutside,
                                         |ui| {
-                                            ui.spacing_mut().slider_width = 144.0;
-                                            if egui::color_picker::color_picker_hsva_2d(
-                                                ui,
-                                                &mut picked_hsva,
-                                                egui::color_picker::Alpha::Opaque,
-                                            ) {
+                                            ui.spacing_mut().slider_width = 136.0;
+                                            if compact_rgb_color_picker(ui, &mut picked_hsva) {
                                                 let hue = (picked_hsva.h.rem_euclid(1.0) * 255.0)
                                                     .round()
                                                     .clamp(0.0, 255.0)
