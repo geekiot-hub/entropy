@@ -4941,8 +4941,31 @@ impl EntropyApp {
         };
 
         for (_encoder_idx, rect, ccw, cw) in &encoder_groups {
-            let top_rect = egui::Rect::from_min_max(rect.min, egui::pos2(rect.max.x, rect.center().y));
-            let bottom_rect = egui::Rect::from_min_max(egui::pos2(rect.min.x, rect.center().y), rect.max);
+            let center = rect.center();
+            let radius = rect.width().min(rect.height()) * 0.58;
+            let press_slot = encoder_press_rects
+                .iter()
+                .find(|(_, press_rect)| press_rect.center().distance(center) < 1.0)
+                .map(|(press_ki, press_rect)| (*press_ki, *press_rect));
+            let (top_rect, middle_rect, bottom_rect) = if let Some((_, press_rect)) = press_slot {
+                let divider_gap = radius * 0.06;
+                let top_divider_y = press_rect.top() - divider_gap;
+                let bottom_divider_y = press_rect.bottom() + divider_gap;
+                (
+                    egui::Rect::from_min_max(rect.min, egui::pos2(rect.max.x, top_divider_y)),
+                    Some(egui::Rect::from_min_max(
+                        egui::pos2(rect.min.x, top_divider_y),
+                        egui::pos2(rect.max.x, bottom_divider_y),
+                    )),
+                    egui::Rect::from_min_max(egui::pos2(rect.min.x, bottom_divider_y), rect.max),
+                )
+            } else {
+                (
+                    egui::Rect::from_min_max(rect.min, egui::pos2(rect.max.x, rect.center().y)),
+                    None,
+                    egui::Rect::from_min_max(egui::pos2(rect.min.x, rect.center().y), rect.max),
+                )
+            };
             let top_resp = ui.allocate_rect(top_rect, Sense::click());
             let bottom_resp = ui.allocate_rect(bottom_rect, Sense::click());
             if top_resp.hovered() || bottom_resp.hovered() {
@@ -4967,6 +4990,12 @@ impl EntropyApp {
 
             let top_selected = cw.map(|(visual_idx, _)| Some((layer, visual_idx)) == self.selected_encoder).unwrap_or(false);
             let bottom_selected = ccw.map(|(visual_idx, _)| Some((layer, visual_idx)) == self.selected_encoder).unwrap_or(false);
+            let middle_selected = press_slot
+                .map(|(press_ki, _)| self.selected_key == Some((layer, press_ki)))
+                .unwrap_or(false);
+            let middle_hovered = press_slot
+                .map(|(press_ki, _)| hovered_key == Some(press_ki))
+                .unwrap_or(false);
             let visuals = &ui.visuals().widgets;
             let top_fill = if top_selected {
                 visuals.active.bg_fill
@@ -4982,19 +5011,27 @@ impl EntropyApp {
             } else {
                 visuals.inactive.bg_fill
             };
-            let outline = if top_selected || bottom_selected {
+            let middle_fill = if middle_selected {
+                visuals.active.bg_fill
+            } else if middle_hovered {
+                visuals.hovered.bg_fill
+            } else {
+                visuals.inactive.bg_fill
+            };
+            let outline = if top_selected || bottom_selected || middle_selected {
                 visuals.active.bg_stroke
-            } else if top_resp.hovered() || bottom_resp.hovered() {
+            } else if top_resp.hovered() || bottom_resp.hovered() || middle_hovered {
                 visuals.hovered.bg_stroke
             } else {
                 visuals.inactive.bg_stroke
             };
 
             let painter = ui.painter();
-            let center = rect.center();
-            let radius = rect.width().min(rect.height()) * 0.58;
             painter.circle_filled(center, radius, visuals.inactive.bg_fill);
             painter.with_clip_rect(top_rect).circle_filled(center, radius, top_fill);
+            if let Some(middle_rect) = middle_rect {
+                painter.with_clip_rect(middle_rect).circle_filled(center, radius, middle_fill);
+            }
             painter.with_clip_rect(bottom_rect).circle_filled(center, radius, bottom_fill);
             painter.circle_stroke(center, radius, outline);
 
@@ -5049,14 +5086,11 @@ impl EntropyApp {
             draw_encoder_arrow(painter, center, radius, true, arrow_color_top);
             draw_encoder_arrow(painter, center, radius, false, arrow_color_bottom);
 
-            if let Some((press_ki, press_rect)) = encoder_press_rects
-                .iter()
-                .find(|(_, press_rect)| press_rect.center().distance(center) < 1.0)
-            {
+            if let Some((press_ki, _)) = press_slot {
+                let middle_rect = middle_rect.unwrap();
                 let divider_half_width = radius * 0.72;
-                let divider_gap = radius * 0.06;
-                let top_divider_y = press_rect.top() - divider_gap;
-                let bottom_divider_y = press_rect.bottom() + divider_gap;
+                let top_divider_y = middle_rect.top();
+                let bottom_divider_y = middle_rect.bottom();
                 painter.line_segment(
                     [
                         egui::pos2(center.x - divider_half_width, top_divider_y),
@@ -5072,29 +5106,24 @@ impl EntropyApp {
                     Stroke::new(1.0, outline.color),
                 );
                 let is_hovering = hover_alpha > 0.05;
-                let is_selected = self.selected_key == Some((layer, *press_ki));
-                let is_hovered = hovered_key == Some(*press_ki);
-                let text_color = if is_selected {
+                let text_color = if middle_selected {
                     visuals.active.fg_stroke.color
-                } else if is_hovered {
+                } else if middle_hovered {
                     visuals.hovered.fg_stroke.color
                 } else {
                     visuals.inactive.fg_stroke.color
                 };
-                let press_text_rect = egui::Rect::from_min_max(
-                    egui::pos2(center.x - divider_half_width + 4.0, top_divider_y + 2.0),
-                    egui::pos2(center.x + divider_half_width - 4.0, bottom_divider_y - 2.0),
-                );
+                let press_text_rect = middle_rect.shrink2(egui::vec2(4.0, 2.0));
 
                 let press_label = if is_zmk {
-                    let binding = layout.get_zmk_binding(layer, *press_ki);
+                    let binding = layout.get_zmk_binding(layer, press_ki);
                     let is_trans = layout.zmk_behaviors.iter()
                         .find(|b| b.id == binding.behavior_id as u32)
                         .map(|b| b.display_name == "Transparent")
                         .unwrap_or(false);
                     if is_trans && layer > 0 && !is_hovering {
                         let fallback = (0..layer).rev()
-                            .map(|l| layout.get_zmk_binding(l, *press_ki))
+                            .map(|l| layout.get_zmk_binding(l, press_ki))
                             .find(|b| {
                                 !layout.zmk_behaviors.iter()
                                     .find(|beh| beh.id == b.behavior_id as u32)
@@ -5110,10 +5139,10 @@ impl EntropyApp {
                         zmk_binding_label(&binding, &layout.zmk_behaviors, &self.layer_names)
                     }
                 } else {
-                    let kc = layout.get_keycode(layer, *press_ki);
+                    let kc = layout.get_keycode(layer, press_ki);
                     if kc == 0x0001 && !is_hovering {
                         let fallback_kc = (0..layer).rev()
-                            .map(|l| layout.get_keycode(l, *press_ki))
+                            .map(|l| layout.get_keycode(l, press_ki))
                             .find(|&k| k != 0x0001)
                             .unwrap_or(0x0000);
                         if fallback_kc == 0x0000 || fallback_kc == 0x0001 {
