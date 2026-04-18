@@ -3966,6 +3966,7 @@ impl EntropyApp {
                                         &swatch_resp,
                                         egui::PopupCloseBehavior::CloseOnClickOutside,
                                         |ui| {
+                                            ui.spacing_mut().slider_width = 144.0;
                                             if egui::color_picker::color_picker_hsva_2d(
                                                 ui,
                                                 &mut picked_hsva,
