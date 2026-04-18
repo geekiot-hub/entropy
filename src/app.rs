@@ -42,6 +42,46 @@ fn load_layer_names(device_name: &str) -> Vec<String> {
     v
 }
 
+fn encoder_visibility_path(device_name: &str) -> std::path::PathBuf {
+    let dir = dirs::config_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join("entropy");
+    std::fs::create_dir_all(&dir).ok();
+    let slug = device_name.chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+        .collect::<String>();
+    dir.join(format!("encoder_visibility_{}.json", slug))
+}
+
+fn load_encoder_visibility(device_name: &str, count: usize) -> Vec<bool> {
+    if count == 0 {
+        return vec![];
+    }
+    let path = encoder_visibility_path(device_name);
+    if let Ok(data) = std::fs::read_to_string(&path) {
+        if let Ok(mut v) = serde_json::from_str::<Vec<bool>>(&data) {
+            v.truncate(count);
+            while v.len() < count {
+                v.push(true);
+            }
+            return v;
+        }
+    }
+    vec![true; count]
+}
+
+fn save_encoder_visibility(visibility: &[bool], device_name: &str) {
+    let path = encoder_visibility_path(device_name);
+    match serde_json::to_string_pretty(visibility) {
+        Ok(json) => {
+            if let Err(e) = std::fs::write(&path, json) {
+                log::warn!("save_encoder_visibility failed: {}", e);
+            }
+        }
+        Err(e) => log::warn!("save_encoder_visibility serialize failed: {}", e),
+    }
+}
+
 fn save_layer_names(names: &[String], device_name: &str) {
     // Always save at least 16 slots so load_layer_names can detect a valid file
     let mut full = names.to_vec();
@@ -536,6 +576,8 @@ pub struct EntropyApp {
     auto_shift_timeout: Option<u16>,
     mouse_keys_settings: MouseKeysSettingsState,
     mouse_keys_window_open: bool,
+    encoder_visibility: Vec<bool>,
+    encoder_visibility_window_open: bool,
     combo_term_dirty: bool,
     combo_window_open: bool,
     combo_reopen_after_pick: bool,
@@ -622,6 +664,8 @@ impl EntropyApp {
             auto_shift_timeout: None,
             mouse_keys_settings: MouseKeysSettingsState::default(),
             mouse_keys_window_open: false,
+            encoder_visibility: vec![],
+            encoder_visibility_window_open: false,
             combo_term_dirty: false,
             combo_window_open: false,
             combo_reopen_after_pick: false,
@@ -708,6 +752,8 @@ impl EntropyApp {
         self.auto_shift_window_open = false;
         self.mouse_keys_settings = MouseKeysSettingsState::default();
         self.mouse_keys_window_open = false;
+        self.encoder_visibility.clear();
+        self.encoder_visibility_window_open = false;
         self.key_override_entries.clear();
         self.key_override_names.clear();
         self.key_override_window_open = false;
@@ -1235,6 +1281,9 @@ impl EntropyApp {
                     }
                     self.layer_names = layer_names;
                 }
+
+                let encoder_count = r.layout.encoder_count();
+                self.encoder_visibility = load_encoder_visibility(&device_name, encoder_count);
 
                 // Populate picker based on firmware
                 self.keycode_picker.firmware = self.firmware;
@@ -2513,6 +2562,7 @@ impl eframe::App for EntropyApp {
         let any_floating_window_open = self.combo_window_open
             || self.auto_shift_window_open
             || self.mouse_keys_window_open
+            || self.encoder_visibility_window_open
             || self.key_override_window_open
             || self.keycode_picker.open;
         if any_floating_window_open {
@@ -2532,6 +2582,7 @@ impl eframe::App for EntropyApp {
                         self.combo_window_open = false;
                         self.auto_shift_window_open = false;
                         self.mouse_keys_window_open = false;
+                        self.encoder_visibility_window_open = false;
                         self.key_override_window_open = false;
                         self.keycode_picker.open = false;
                     }
@@ -2546,6 +2597,9 @@ impl eframe::App for EntropyApp {
         }
         if self.mouse_keys_window_open {
             self.show_mouse_keys_window(ctx);
+        }
+        if self.encoder_visibility_window_open {
+            self.show_encoder_visibility_window(ctx);
         }
         if self.key_override_window_open {
             self.show_key_override_window(ctx);
@@ -2928,6 +2982,38 @@ impl EntropyApp {
             }
         });
         changed
+    }
+
+    fn show_encoder_visibility_window(&mut self, ctx: &egui::Context) {
+        let mut open = self.encoder_visibility_window_open;
+        egui::Window::new("Encoders")
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(false)
+            .movable(true)
+            .order(egui::Order::Foreground)
+            .default_width(280.0)
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .frame(crate::ui_style::modal_window_frame(&ctx.style(), ctx.style().visuals.dark_mode))
+            .show(ctx, |ui| {
+                if self.encoder_visibility.is_empty() {
+                    ui.label("No encoders found for this device.");
+                    return;
+                }
+                ui.label(RichText::new("Choose which encoders are visible in the main layout").size(12.0).color(app_muted_text(ui.visuals().dark_mode)));
+                ui.add_space(10.0);
+                let mut changed = false;
+                for (idx, visible) in self.encoder_visibility.iter_mut().enumerate() {
+                    let resp = ui.checkbox(visible, format!("Show Encoder {}", idx + 1));
+                    if resp.changed() {
+                        changed = true;
+                    }
+                }
+                if changed && !self.current_device_name.is_empty() {
+                    save_encoder_visibility(&self.encoder_visibility, &self.current_device_name);
+                }
+            });
+        self.encoder_visibility_window_open = open;
     }
 
     fn show_auto_shift_window(&mut self, ctx: &egui::Context) {
@@ -4257,7 +4343,7 @@ impl EntropyApp {
                     .unwrap_or(false);
                 let dropdown_rect = egui::Rect::from_min_size(
                     egui::pos2(settings_rect.center().x - 76.0, settings_rect.bottom() + 6.0),
-                    Vec2::new(152.0, 36.0),
+                    Vec2::new(152.0, 70.0),
                 );
                 let hover_bridge_rect = settings_rect.union(dropdown_rect).expand(3.0);
                 let pointer_over_bridge = ui
@@ -4271,7 +4357,7 @@ impl EntropyApp {
                 if show_dropdown {
                     let dark = ui.visuals().dark_mode;
                     let dropdown_fill = if dark { Color32::from_gray(32) } else { Color32::from_gray(248) };
-                    let matrix_hovered = egui::Area::new(egui::Id::new("settings_dropdown_area"))
+                    let (matrix_hovered, encoders_hovered) = egui::Area::new(egui::Id::new("settings_dropdown_area"))
                         .order(egui::Order::Foreground)
                         .fixed_pos(dropdown_rect.min)
                         .show(ui.ctx(), |ui| {
@@ -4282,7 +4368,8 @@ impl EntropyApp {
                                 .show(ui, |ui| {
                                     ui.set_min_width(dropdown_rect.width() - 12.0);
                                     let matrix_resp = ui.add_sized([dropdown_rect.width() - 12.0, 30.0], egui::Button::new("Matrix Tester").frame(false));
-                                    if matrix_resp.hovered() {
+                                    let encoders_resp = ui.add_sized([dropdown_rect.width() - 12.0, 30.0], egui::Button::new("Encoders").frame(false));
+                                    if matrix_resp.hovered() || encoders_resp.hovered() {
                                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                     }
                                     if matrix_resp.clicked() {
@@ -4291,12 +4378,15 @@ impl EntropyApp {
                                         self.matrix_tester_unlock_prompted = false;
                                         self.main_menu_tab = MainMenuTab::Settings;
                                     }
-                                    matrix_resp.hovered()
+                                    if encoders_resp.clicked() {
+                                        self.encoder_visibility_window_open = true;
+                                    }
+                                    (matrix_resp.hovered(), encoders_resp.hovered())
                                 })
                                 .inner
                         })
                         .inner;
-                    ui.ctx().data_mut(|d| d.insert_temp(dropdown_id, settings_tab_hovered || matrix_hovered || pointer_over_bridge));
+                    ui.ctx().data_mut(|d| d.insert_temp(dropdown_id, settings_tab_hovered || matrix_hovered || encoders_hovered || pointer_over_bridge));
                 } else {
                     ui.ctx().data_mut(|d| d.insert_temp(dropdown_id, false));
                 }
@@ -4627,6 +4717,9 @@ impl EntropyApp {
         let mut encoder_groups: Vec<(u8, egui::Rect, Option<(usize, u16)>, Option<(usize, u16)>)> = Vec::new();
         for (ei, rect) in &encoder_rects {
             let encoder = &layout.encoders[*ei];
+            if !self.encoder_visibility.get(encoder.encoder_idx as usize).copied().unwrap_or(true) {
+                continue;
+            }
             let kc = layout.get_encoder_keycode(self.selected_layer, *ei);
             if let Some((_, group_rect, ccw, cw)) = encoder_groups.iter_mut().find(|(idx, _, _, _)| *idx == encoder.encoder_idx) {
                 *group_rect = group_rect.union(*rect);
