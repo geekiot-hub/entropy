@@ -510,6 +510,7 @@ pub struct EntropyApp {
     hover_layer: Option<usize>,
     /// Key index hovered in previous frame (for hint display)
     prev_hovered_key: Option<usize>,
+    prev_hovered_encoder: bool,
     /// Set when secondary click was handled by a key (prevents global jump-back)
     secondary_click_handled: bool,
     /// Deferred left/right modifier swap, applied after Ctrl is released
@@ -589,6 +590,7 @@ impl EntropyApp {
             scan_frame: 0,
             hover_layer: None,
             prev_hovered_key: None,
+            prev_hovered_encoder: false,
             secondary_click_handled: false,
             pending_handed_swap: None,
             hover_layer_progress: 0.0,
@@ -3793,9 +3795,12 @@ impl EntropyApp {
         let main_tabs_gap = 4.0_f32;
         let layer_bar_h = 68.0_f32;
         let top_reserved_h = main_tabs_h + main_tabs_gap + layer_bar_h;
+        let bottom_reserved_h = 76.0_f32;
         let top_base_y = ui.min_rect().top() + 6.0;
         let offset_x = (avail.x - layout_w) / 2.0 + ui.min_rect().left() - min_x * unit;
-        let offset_y = (avail.y - layout_h - top_reserved_h) / 2.0 + ui.min_rect().top() - min_y * unit + top_reserved_h;
+        let content_top = ui.min_rect().top() + top_reserved_h;
+        let content_bottom = ui.max_rect().bottom() - bottom_reserved_h;
+        let offset_y = ((content_top + content_bottom) - layout_h) / 2.0 - min_y * unit;
 
         // ── Main menu tabs ────────────────────────────────────────────────
         {
@@ -4276,9 +4281,14 @@ impl EntropyApp {
             let name = display_name;
             let center_x = ui.max_rect().center().x;
             let bar_y = top_base_y + main_tabs_h + 24.0;
+            let any_top_dropdown_open = ui.memory(|m| {
+                m.data.get_temp::<bool>(ui.make_persistent_id("device_dropdown_open")).unwrap_or(false)
+                    || m.data.get_temp::<bool>(ui.make_persistent_id("advanced_dropdown_open")).unwrap_or(false)
+                    || m.data.get_temp::<bool>(ui.make_persistent_id("settings_dropdown_open")).unwrap_or(false)
+            });
 
             // ZMK layer management buttons (+ Add / - Remove)
-            if self.firmware == FirmwareProtocol::Zmk {
+            if !any_top_dropdown_open && self.firmware == FirmwareProtocol::Zmk {
                 #[cfg(not(target_arch = "wasm32"))]
                 {
                     let op_busy = self.zmk_op_rx.is_some();
@@ -4319,7 +4329,7 @@ impl EntropyApp {
             let label_font = egui::FontId { size: 39.0, family: egui::FontFamily::Proportional };
             let text_color = if self.dark_mode { Color32::from_gray(245) } else { Color32::from_gray(60) };
 
-            if self.editing_layer == Some(selected) {
+            if !any_top_dropdown_open && self.editing_layer == Some(selected) {
                 // Limit input to 7 chars
                 if self.editing_layer_text.chars().count() > 7 {
                     let s: String = self.editing_layer_text.chars().take(7).collect();
@@ -4365,7 +4375,7 @@ impl EntropyApp {
                     self.editing_layer = None;
                     self.editing_layer_focus_requested = false;
                 }
-            } else {
+            } else if !any_top_dropdown_open {
                 let mid_y = bar_y + layer_bar_h / 2.0;
 
                 // Fixed arrow positions based on max 7-char name width so
@@ -4430,7 +4440,7 @@ impl EntropyApp {
                 let hint_font = FontId::proportional(11.0);
                 let secondary_hint_font = hint_font.clone();
                 let hint_y = ui.max_rect().bottom() - 36.0;
-                let any_hovered = self.prev_hovered_key.is_some();
+                let any_hovered = self.prev_hovered_key.is_some() || self.prev_hovered_encoder;
                 if let Some(hl) = self.hover_layer {
                     let hl_name = self.layer_names.get(hl).cloned().unwrap_or_else(|| hl.to_string());
                     let mut line = 0i32;
@@ -4786,6 +4796,7 @@ impl EntropyApp {
 
         // Pass 3: paint
         let painter = ui.painter();
+        let mut hovered_encoder = false;
         let hover_target = self.hover_layer.unwrap_or(prev_hover.unwrap_or(self.selected_layer));
         let hover_alpha = self.hover_layer_progress;
         let dark = self.dark_mode;
@@ -4971,6 +4982,7 @@ impl EntropyApp {
             let middle_resp = middle_rect.map(|middle_rect| ui.allocate_rect(middle_rect, Sense::click()));
             let bottom_resp = ui.allocate_rect(bottom_rect, Sense::click());
             if top_resp.hovered() || middle_resp.as_ref().map(|r| r.hovered()).unwrap_or(false) || bottom_resp.hovered() {
+                hovered_encoder = true;
                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
             }
             if top_resp.clicked() {
@@ -5207,6 +5219,7 @@ impl EntropyApp {
         }
 
         self.prev_hovered_key = hovered_key;
+        self.prev_hovered_encoder = hovered_encoder;
 
         if layout_h > avail.y {
             ui.allocate_space(Vec2::new(0.0, (layout_h - avail.y).max(0.0)));
