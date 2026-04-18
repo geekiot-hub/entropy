@@ -4943,6 +4943,7 @@ impl EntropyApp {
         for (_encoder_idx, rect, ccw, cw) in &encoder_groups {
             let center = rect.center();
             let radius = rect.width().min(rect.height()) * 0.58;
+            let circle_bounds = egui::Rect::from_center_size(center, egui::vec2(radius * 2.0, radius * 2.0));
             let press_slot = encoder_press_rects
                 .iter()
                 .find(|(_, press_rect)| press_rect.center().distance(center) < 1.0)
@@ -4952,18 +4953,18 @@ impl EntropyApp {
                 let top_divider_y = press_rect.top() - divider_gap;
                 let bottom_divider_y = press_rect.bottom() + divider_gap;
                 (
-                    egui::Rect::from_min_max(rect.min, egui::pos2(rect.max.x, top_divider_y)),
+                    egui::Rect::from_min_max(circle_bounds.min, egui::pos2(circle_bounds.max.x, top_divider_y)),
                     Some(egui::Rect::from_min_max(
-                        egui::pos2(rect.min.x, top_divider_y),
-                        egui::pos2(rect.max.x, bottom_divider_y),
+                        egui::pos2(circle_bounds.min.x, top_divider_y),
+                        egui::pos2(circle_bounds.max.x, bottom_divider_y),
                     )),
-                    egui::Rect::from_min_max(egui::pos2(rect.min.x, bottom_divider_y), rect.max),
+                    egui::Rect::from_min_max(egui::pos2(circle_bounds.min.x, bottom_divider_y), circle_bounds.max),
                 )
             } else {
                 (
-                    egui::Rect::from_min_max(rect.min, egui::pos2(rect.max.x, rect.center().y)),
+                    egui::Rect::from_min_max(circle_bounds.min, egui::pos2(circle_bounds.max.x, center.y)),
                     None,
-                    egui::Rect::from_min_max(egui::pos2(rect.min.x, rect.center().y), rect.max),
+                    egui::Rect::from_min_max(egui::pos2(circle_bounds.min.x, center.y), circle_bounds.max),
                 )
             };
             let top_resp = ui.allocate_rect(top_rect, Sense::click());
