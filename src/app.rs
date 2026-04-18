@@ -1752,6 +1752,7 @@ impl EntropyApp {
         self.selected_key = key_target.map(|ki| (self.selected_layer, ki));
         self.selected_encoder = encoder_target.map(|ei| (self.selected_layer, ei));
         self.keycode_picker.open = true;
+        self.keycode_picker.result = None;
         self.keycode_picker.search_query.clear();
         self.keycode_picker.layer_names = self.layer_names.clone();
         self.keycode_picker.firmware = self.firmware;
@@ -4157,40 +4158,43 @@ impl EntropyApp {
 
                 if show_dropdown {
                     let dark = ui.visuals().dark_mode;
-                    let dropdown_fill = if dark {
-                        Color32::from_gray(32)
-                    } else {
-                        Color32::from_gray(248)
-                    };
+                    let dropdown_fill = if dark { Color32::from_gray(32) } else { Color32::from_gray(248) };
+                    let auto_shift_supported = self.auto_shift_timeout.is_some();
                     let (combo_hovered, auto_shift_hovered, key_override_hovered) = egui::Area::new(egui::Id::new("advanced_dropdown_area"))
                         .order(egui::Order::Foreground)
                         .fixed_pos(dropdown_rect.min)
                         .show(ui.ctx(), |ui| {
-                            ui.set_min_size(dropdown_rect.size());
-                            let local_rect = egui::Rect::from_min_size(egui::Pos2::ZERO, dropdown_rect.size());
-                            ui.painter().rect(local_rect, 8.0, dropdown_fill, egui::Stroke::NONE, egui::StrokeKind::Inside);
-                            let combo_rect = egui::Rect::from_min_max(egui::pos2(6.0, 4.0), egui::pos2(local_rect.max.x - 6.0, local_rect.max.y - 36.0));
-                            let auto_shift_rect = egui::Rect::from_min_max(egui::pos2(6.0, 38.0), egui::pos2(local_rect.max.x - 6.0, local_rect.max.y - 18.0));
-                            let key_override_rect = egui::Rect::from_min_max(egui::pos2(6.0, 72.0), egui::pos2(local_rect.max.x - 6.0, local_rect.max.y));
-                            let combo_resp = ui.allocate_rect(combo_rect, Sense::CLICK);
-                            let auto_shift_resp = ui.allocate_rect(auto_shift_rect, Sense::CLICK);
-                            let key_override_resp = ui.allocate_rect(key_override_rect, Sense::CLICK);
-                            if combo_resp.hovered() || auto_shift_resp.hovered() || key_override_resp.hovered() { ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand); }
-                            if combo_resp.clicked() { self.combo_window_open = true; if self.combo_visible_count == 0 { self.combo_visible_count = 1; } }
-                            let auto_shift_supported = self.auto_shift_timeout.is_some();
-                            if auto_shift_resp.clicked() && auto_shift_supported { self.auto_shift_window_open = true; }
-                            if key_override_resp.clicked() { self.key_override_window_open = true; }
-                            let item_fill = |hovered: bool, dark: bool| if hovered { if dark { Color32::from_gray(46) } else { Color32::from_gray(238) } } else { Color32::TRANSPARENT };
-                            ui.painter().rect(combo_rect, 6.0, item_fill(combo_resp.hovered(), dark), egui::Stroke::NONE, egui::StrokeKind::Inside);
-                            ui.painter().rect(auto_shift_rect, 6.0, item_fill(auto_shift_resp.hovered(), dark), egui::Stroke::NONE, egui::StrokeKind::Inside);
-                            ui.painter().rect(key_override_rect, 6.0, item_fill(key_override_resp.hovered(), dark), egui::Stroke::NONE, egui::StrokeKind::Inside);
-                            ui.painter().text(combo_rect.center(), egui::Align2::CENTER_CENTER, "Combo", FontId::proportional(14.0), ui.visuals().widgets.inactive.fg_stroke.color);
-                            let auto_shift_color = if auto_shift_supported { ui.visuals().widgets.inactive.fg_stroke.color } else { app_muted_text(dark) };
-                            ui.painter().text(auto_shift_rect.center(), egui::Align2::CENTER_CENTER, "Auto Shift", FontId::proportional(14.0), auto_shift_color);
-                            ui.painter().text(key_override_rect.center(), egui::Align2::CENTER_CENTER, "Key Overrides", FontId::proportional(14.0), ui.visuals().widgets.inactive.fg_stroke.color);
-                            if !auto_shift_supported { let _ = auto_shift_resp.clone().on_hover_text("Auto Shift is not enabled in this keyboard firmware"); }
-                            (combo_resp.hovered(), auto_shift_resp.hovered(), key_override_resp.hovered())
-                        }).inner;
+                            egui::Frame::NONE
+                                .fill(dropdown_fill)
+                                .corner_radius(8.0)
+                                .inner_margin(egui::Margin::symmetric(6, 4))
+                                .show(ui, |ui| {
+                                    ui.set_min_width(dropdown_rect.width() - 12.0);
+                                    let combo_resp = ui.add_sized([dropdown_rect.width() - 12.0, 30.0], egui::Button::new("Combo").frame(false));
+                                    let auto_shift_color = if auto_shift_supported { ui.visuals().widgets.inactive.fg_stroke.color } else { app_muted_text(dark) };
+                                    let auto_shift_resp = ui.add_sized([dropdown_rect.width() - 12.0, 30.0], egui::Button::new(RichText::new("Auto Shift").color(auto_shift_color)).frame(false));
+                                    let key_override_resp = ui.add_sized([dropdown_rect.width() - 12.0, 30.0], egui::Button::new("Key Overrides").frame(false));
+                                    if combo_resp.hovered() || auto_shift_resp.hovered() || key_override_resp.hovered() {
+                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                    }
+                                    if combo_resp.clicked() {
+                                        self.combo_window_open = true;
+                                        if self.combo_visible_count == 0 { self.combo_visible_count = 1; }
+                                    }
+                                    if auto_shift_resp.clicked() && auto_shift_supported {
+                                        self.auto_shift_window_open = true;
+                                    }
+                                    if key_override_resp.clicked() {
+                                        self.key_override_window_open = true;
+                                    }
+                                    if !auto_shift_supported {
+                                        let _ = auto_shift_resp.clone().on_hover_text("Auto Shift is not enabled in this keyboard firmware");
+                                    }
+                                    (combo_resp.hovered(), auto_shift_resp.hovered(), key_override_resp.hovered())
+                                })
+                                .inner
+                        })
+                        .inner;
                     ui.ctx().data_mut(|d| d.insert_temp(dropdown_id, advanced_tab_hovered || combo_hovered || auto_shift_hovered || key_override_hovered || pointer_over_bridge));
                 } else {
                     ui.ctx().data_mut(|d| d.insert_temp(dropdown_id, false));
@@ -4223,23 +4227,27 @@ impl EntropyApp {
                         .order(egui::Order::Foreground)
                         .fixed_pos(dropdown_rect.min)
                         .show(ui.ctx(), |ui| {
-                            ui.set_min_size(dropdown_rect.size());
-                            let local_rect = egui::Rect::from_min_size(egui::Pos2::ZERO, dropdown_rect.size());
-                            ui.painter().rect(local_rect, 8.0, dropdown_fill, egui::Stroke::NONE, egui::StrokeKind::Inside);
-                            let matrix_rect = local_rect.shrink2(Vec2::new(6.0, 4.0));
-                            let matrix_resp = ui.allocate_rect(matrix_rect, Sense::CLICK);
-                            if matrix_resp.hovered() { ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand); }
-                            if matrix_resp.clicked() {
-                                self.settings_tab = SettingsTab::MatrixTester;
-                                if self.main_menu_tab != MainMenuTab::Settings { self.reset_matrix_tester_state(); }
-                                self.matrix_tester_unlock_prompted = false;
-                                self.main_menu_tab = MainMenuTab::Settings;
-                            }
-                            let matrix_fill = if matrix_resp.hovered() { if dark { Color32::from_gray(46) } else { Color32::from_gray(238) } } else { Color32::TRANSPARENT };
-                            ui.painter().rect(matrix_rect, 6.0, matrix_fill, egui::Stroke::NONE, egui::StrokeKind::Inside);
-                            ui.painter().text(matrix_rect.center(), egui::Align2::CENTER_CENTER, "Matrix Tester", FontId::proportional(14.0), ui.visuals().widgets.inactive.fg_stroke.color);
-                            matrix_resp.hovered()
-                        }).inner;
+                            egui::Frame::NONE
+                                .fill(dropdown_fill)
+                                .corner_radius(8.0)
+                                .inner_margin(egui::Margin::symmetric(6, 4))
+                                .show(ui, |ui| {
+                                    ui.set_min_width(dropdown_rect.width() - 12.0);
+                                    let matrix_resp = ui.add_sized([dropdown_rect.width() - 12.0, 30.0], egui::Button::new("Matrix Tester").frame(false));
+                                    if matrix_resp.hovered() {
+                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                    }
+                                    if matrix_resp.clicked() {
+                                        self.settings_tab = SettingsTab::MatrixTester;
+                                        if self.main_menu_tab != MainMenuTab::Settings { self.reset_matrix_tester_state(); }
+                                        self.matrix_tester_unlock_prompted = false;
+                                        self.main_menu_tab = MainMenuTab::Settings;
+                                    }
+                                    matrix_resp.hovered()
+                                })
+                                .inner
+                        })
+                        .inner;
                     ui.ctx().data_mut(|d| d.insert_temp(dropdown_id, settings_tab_hovered || matrix_hovered || pointer_over_bridge));
                 } else {
                     ui.ctx().data_mut(|d| d.insert_temp(dropdown_id, false));
