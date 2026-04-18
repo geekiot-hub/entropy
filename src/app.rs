@@ -4967,8 +4967,9 @@ impl EntropyApp {
                 )
             };
             let top_resp = ui.allocate_rect(top_rect, Sense::click());
+            let middle_resp = middle_rect.map(|middle_rect| ui.allocate_rect(middle_rect, Sense::click()));
             let bottom_resp = ui.allocate_rect(bottom_rect, Sense::click());
-            if top_resp.hovered() || bottom_resp.hovered() {
+            if top_resp.hovered() || middle_resp.as_ref().map(|r| r.hovered()).unwrap_or(false) || bottom_resp.hovered() {
                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
             }
             if top_resp.clicked() {
@@ -4977,6 +4978,28 @@ impl EntropyApp {
                     self.selected_encoder = Some((layer, *visual_idx));
                     self.keycode_picker.open = true;
                     self.keycode_picker.result = None;
+                }
+            }
+            if let (Some((press_ki, _)), Some(middle_resp)) = (press_slot, middle_resp.as_ref()) {
+                if middle_resp.hovered() {
+                    hovered_key = Some(press_ki);
+                }
+                if middle_resp.clicked() {
+                    self.selected_encoder = None;
+                    self.selected_key = Some((self.selected_layer, press_ki));
+                    self.keycode_picker.open = true;
+                    self.keycode_picker.search_query.clear();
+                    self.keycode_picker.layer_names = self.layer_names.clone();
+                    self.keycode_picker.firmware = self.firmware;
+                    self.keycode_picker.vial_quantum_pending_mod = None;
+                    self.keycode_picker.vial_quantum_pending_mt = None;
+                    self.keycode_picker.tap_dance_editor_open = None;
+                    self.keycode_picker.selected_tab = crate::keycode_picker::KeycodeTab::Basic;
+                    if is_zmk {
+                        self.keycode_picker.zmk_behaviors = self.layout.as_ref()
+                            .map(|l| l.zmk_behaviors.clone()).unwrap_or_default();
+                        self.keycode_picker.zmk_layer_count = self.layer_count;
+                    }
                 }
             }
             if bottom_resp.clicked() {
@@ -4993,9 +5016,7 @@ impl EntropyApp {
             let middle_selected = press_slot
                 .map(|(press_ki, _)| self.selected_key == Some((layer, press_ki)))
                 .unwrap_or(false);
-            let middle_hovered = press_slot
-                .map(|(press_ki, _)| hovered_key == Some(press_ki))
-                .unwrap_or(false);
+            let middle_hovered = middle_resp.as_ref().map(|r| r.hovered()).unwrap_or(false);
             let visuals = &ui.visuals().widgets;
             let top_fill = if top_selected {
                 visuals.active.bg_fill
@@ -5020,7 +5041,7 @@ impl EntropyApp {
             };
             let outline = if top_selected || bottom_selected || middle_selected {
                 visuals.active.bg_stroke
-            } else if top_resp.hovered() || bottom_resp.hovered() || middle_hovered {
+            } else if top_resp.hovered() || middle_hovered || bottom_resp.hovered() {
                 visuals.hovered.bg_stroke
             } else {
                 visuals.inactive.bg_stroke
