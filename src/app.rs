@@ -5090,7 +5090,7 @@ impl EntropyApp {
                 let middle_rect = middle_rect.unwrap();
                 let top_divider_y = middle_rect.top();
                 let bottom_divider_y = middle_rect.bottom();
-                let divider_extend = 4.0;
+                let divider_extend = 0.75;
                 let top_divider_half_width = (((radius * radius)
                     - (top_divider_y - center.y) * (top_divider_y - center.y))
                     .max(0.0)
@@ -5104,14 +5104,14 @@ impl EntropyApp {
                         egui::pos2(center.x - top_divider_half_width, top_divider_y),
                         egui::pos2(center.x + top_divider_half_width, top_divider_y),
                     ],
-                    Stroke::new(1.2, outline.color),
+                    Stroke::new(1.0, outline.color),
                 );
                 painter.line_segment(
                     [
                         egui::pos2(center.x - bottom_divider_half_width, bottom_divider_y),
                         egui::pos2(center.x + bottom_divider_half_width, bottom_divider_y),
                     ],
-                    Stroke::new(1.2, outline.color),
+                    Stroke::new(1.0, outline.color),
                 );
                 let is_hovering = hover_alpha > 0.05;
                 let text_color = if middle_selected {
@@ -5171,10 +5171,12 @@ impl EntropyApp {
                     .with_clip_rect(press_text_rect)
                     .text(press_text_rect.center(), egui::Align2::CENTER_CENTER, press_label, press_font, text_color);
             } else {
+                let divider_extend = 1.5;
+                let divider_half_width = radius + divider_extend;
                 painter.line_segment(
                     [
-                        egui::pos2(center.x - radius * 0.82, center.y),
-                        egui::pos2(center.x + radius * 0.82, center.y),
+                        egui::pos2(center.x - divider_half_width, center.y),
+                        egui::pos2(center.x + divider_half_width, center.y),
                     ],
                     Stroke::new(1.0, outline.color),
                 );
