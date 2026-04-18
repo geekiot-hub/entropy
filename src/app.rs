@@ -810,6 +810,21 @@ impl EntropyApp {
                             }
                         }
 
+                        let mut firmware_layer_names = Vec::new();
+                        for layer in 0..layer_count.min(16) {
+                            match dev_conn.get_qmk_setting_string(200 + layer as u16) {
+                                Ok(name) if !name.is_empty() => firmware_layer_names.push(name),
+                                Ok(_) => firmware_layer_names.push(layer.to_string()),
+                                Err(_) => {
+                                    firmware_layer_names.clear();
+                                    break;
+                                }
+                            }
+                        }
+                        if !firmware_layer_names.is_empty() {
+                            layout.layer_names = firmware_layer_names;
+                        }
+
                         // Read macros
                         let macro_texts = match dev_conn.get_macro_count() {
                             Ok(count) => {
