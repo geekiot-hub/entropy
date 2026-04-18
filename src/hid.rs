@@ -592,6 +592,11 @@ impl HidDevice {
         Ok(resp[2])
     }
 
+    pub fn set_qmk_rgblight_effect_speed(&self, value: u8) -> Result<()> {
+        self.usb_send(&[CMD_VIA_LIGHTING_SET_VALUE, QMK_RGBLIGHT_EFFECT_SPEED, value])?;
+        Ok(())
+    }
+
     pub fn get_qmk_rgblight_color(&self) -> Result<(u8, u8)> {
         let resp = self.usb_send(&[CMD_VIA_LIGHTING_GET_VALUE, QMK_RGBLIGHT_COLOR])?;
         Ok((resp[2], resp[3]))

@@ -672,6 +672,14 @@ fn rgb_effect_supports_color(kind: RgbSupportKind, effect: u16) -> bool {
     }
 }
 
+fn rgb_effect_supports_speed(kind: RgbSupportKind, effect: u16) -> bool {
+    match kind {
+        RgbSupportKind::QmkRgblight => matches!(effect, 2..=36),
+        RgbSupportKind::VialRgb => !matches!(effect, 0..=5),
+        RgbSupportKind::None => false,
+    }
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 fn load_rgb_settings(
     dev_conn: &crate::hid::HidDevice,
@@ -3734,6 +3742,30 @@ impl EntropyApp {
         }
     }
 
+    fn set_rgb_speed(&mut self, speed: u8) {
+        let Some(hid) = &self.hid_device else {
+            return;
+        };
+        let result = match self.rgb_settings.kind {
+            RgbSupportKind::QmkRgblight => hid.set_qmk_rgblight_effect_speed(speed),
+            RgbSupportKind::VialRgb => hid.set_vialrgb_mode(
+                self.rgb_settings.effect,
+                speed,
+                self.rgb_settings.hue,
+                self.rgb_settings.saturation,
+                self.rgb_settings.brightness,
+            ),
+            RgbSupportKind::None => return,
+        };
+        match result {
+            Ok(()) => self.rgb_settings.speed = speed,
+            Err(e) => {
+                self.status_msg = format!("Failed to update RGB speed: {}", e);
+                log::warn!("set_rgb_speed failed: {e}");
+            }
+        }
+    }
+
     fn save_rgb_settings(&mut self) {
         let Some(hid) = &self.hid_device else {
             return;
@@ -3748,6 +3780,7 @@ impl EntropyApp {
 
     fn show_rgb_window(&mut self, ctx: &egui::Context) {
         let mut open = self.rgb_window_open;
+        let mut close_after_save = false;
         let dark = ctx.style().visuals.dark_mode;
         let style = ctx.style().as_ref().clone();
         let frame = crate::ui_style::modal_window_frame(&style, dark);
@@ -3759,7 +3792,7 @@ impl EntropyApp {
             .resizable(false)
             .movable(true)
             .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
-            .fixed_size(Vec2::new(500.0, 220.0))
+            .fixed_size(Vec2::new(500.0, 270.0))
             .frame(frame)
             .order(egui::Order::Foreground)
             .show(ctx, |ui| {
@@ -3791,10 +3824,15 @@ impl EntropyApp {
                     .find(|(id, _)| *id == self.rgb_settings.effect)
                     .map(|(_, name)| *name)
                     .unwrap_or("Unknown");
+                let speed_max = 255.0_f32;
+                let mut speed_percent = ((self.rgb_settings.speed as f32 / speed_max) * 100.0)
+                    .round()
+                    .clamp(0.0, 100.0);
                 let mut color_hsva = egui::ecolor::Hsva {
                     h: self.rgb_settings.hue as f32 / 255.0,
                     s: self.rgb_settings.saturation as f32 / 255.0,
-                    v: 1.0,
+                    v: (self.rgb_settings.brightness.max(1) as f32 / brightness_max as f32)
+                        .clamp(0.0, 1.0),
                     a: 1.0,
                 };
 
@@ -3870,25 +3908,78 @@ impl EntropyApp {
                                         [label_width, 24.0],
                                         egui::Label::new(RichText::new("Color").size(12.5)),
                                     );
-                                    let resp = egui::color_picker::color_edit_button_hsva(
-                                        ui,
-                                        &mut color_hsva,
-                                        egui::color_picker::Alpha::Opaque,
+                                    let border = if dark {
+                                        Color32::from_gray(95)
+                                    } else {
+                                        Color32::from_gray(185)
+                                    };
+                                    egui::Frame::new()
+                                        .fill(app_surface_fill(dark))
+                                        .stroke(Stroke::new(1.0, border))
+                                        .corner_radius(8.0)
+                                        .inner_margin(egui::Margin::symmetric(8, 6))
+                                        .show(ui, |ui| {
+                                            ui.spacing_mut().interact_size = Vec2::new(52.0, 28.0);
+                                            let resp = egui::color_picker::color_edit_button_hsva(
+                                                ui,
+                                                &mut color_hsva,
+                                                egui::color_picker::Alpha::Opaque,
+                                            );
+                                            if resp.changed() {
+                                                let hue = (color_hsva.h.rem_euclid(1.0) * 255.0)
+                                                    .round()
+                                                    .clamp(0.0, 255.0)
+                                                    as u8;
+                                                let saturation = (color_hsva.s.clamp(0.0, 1.0) * 255.0)
+                                                    .round()
+                                                    .clamp(0.0, 255.0)
+                                                    as u8;
+                                                self.set_rgb_color(hue, saturation);
+                                            }
+                                        });
+                                });
+                            }
+
+                            if rgb_effect_supports_speed(self.rgb_settings.kind, selected_effect) {
+                                ui.add_space(10.0);
+
+                                ui.horizontal(|ui| {
+                                    ui.set_width(label_width + control_width);
+                                    ui.add_sized(
+                                        [label_width, 24.0],
+                                        egui::Label::new(RichText::new("Speed").size(12.5)),
                                     );
-                                    if resp.changed() {
-                                        let hue = (color_hsva.h.rem_euclid(1.0) * 255.0)
-                                            .round()
-                                            .clamp(0.0, 255.0) as u8;
-                                        let saturation = (color_hsva.s.clamp(0.0, 1.0) * 255.0)
-                                            .round()
-                                            .clamp(0.0, 255.0) as u8;
-                                        self.set_rgb_color(hue, saturation);
-                                    }
-                                    ui.add_space(10.0);
-                                    ui.label(
-                                        RichText::new("Click to choose")
-                                            .size(11.5)
-                                            .color(app_muted_text(dark)),
+                                    ui.scope(|ui| {
+                                        ui.spacing_mut().slider_width = 184.0;
+                                        let slider = egui::Slider::new(
+                                            &mut speed_percent,
+                                            0.0..=100.0,
+                                        )
+                                        .step_by(1.0)
+                                        .show_value(false)
+                                        .trailing_fill(true);
+                                        let resp = ui.add_sized([192.0, 24.0], slider);
+                                        if resp.changed() {
+                                            let raw_value = ((speed_percent / 100.0) * speed_max)
+                                                .round()
+                                                .clamp(0.0, speed_max)
+                                                as u8;
+                                            self.set_rgb_speed(raw_value);
+                                        }
+                                    });
+                                    ui.add_space(8.0);
+                                    ui.add_sized(
+                                        [52.0, 28.0],
+                                        egui::Label::new(
+                                            RichText::new(format!("{}%", speed_percent as u8))
+                                                .size(12.0)
+                                                .color(if dark {
+                                                    Color32::from_gray(230)
+                                                } else {
+                                                    Color32::from_gray(55)
+                                                }),
+                                        )
+                                        .sense(egui::Sense::hover()),
                                     );
                                 });
                             }
@@ -3943,6 +4034,7 @@ impl EntropyApp {
                                     .min_size(crate::ui_style::modal_action_button_size());
                                 if ui.add(btn).clicked() {
                                     self.save_rgb_settings();
+                                    close_after_save = true;
                                 }
                             });
                         },
@@ -3950,6 +4042,9 @@ impl EntropyApp {
                 });
             });
 
+        if close_after_save {
+            open = false;
+        }
         self.rgb_window_open = open;
     }
 
