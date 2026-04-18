@@ -19,19 +19,23 @@ fn layer_names_path(device_name: &str) -> std::path::PathBuf {
     dir.join(format!("layer_names_{}.json", slug))
 }
 
-fn load_layer_names(device_name: &str) -> Vec<String> {
+fn load_saved_layer_names(device_name: &str) -> Option<Vec<String>> {
     let path = layer_names_path(device_name);
-    if let Ok(data) = std::fs::read_to_string(&path) {
-        if let Ok(mut v) = serde_json::from_str::<Vec<String>>(&data) {
-            if !v.is_empty() {
-                // Pad to at least 16 so indexing is always safe
-                while v.len() < 16 {
-                    let n = v.len();
-                    v.push(n.to_string());
-                }
-                return v;
-            }
-        }
+    let data = std::fs::read_to_string(&path).ok()?;
+    let mut v = serde_json::from_str::<Vec<String>>(&data).ok()?;
+    if v.is_empty() {
+        return None;
+    }
+    while v.len() < 16 {
+        let n = v.len();
+        v.push(n.to_string());
+    }
+    Some(v)
+}
+
+fn load_layer_names(device_name: &str) -> Vec<String> {
+    if let Some(v) = load_saved_layer_names(device_name) {
+        return v;
     }
     let mut v: Vec<String> = (0..16).map(|i| i.to_string()).collect();
     v[0] = "Main".to_string();
@@ -1221,11 +1225,13 @@ impl EntropyApp {
                         self.layer_names.push(n.to_string());
                     }
                 } else {
-                    // Vial: prefer names from descriptor/firmware, then overlay local overrides if present
+                    // Vial: prefer names from descriptor/firmware, then overlay local overrides only if a real saved file exists
                     let mut layer_names = r.layout.layer_names.clone();
-                    let local_layer_names = load_layer_names(&device_name);
-                    if !local_layer_names.is_empty() {
+                    if let Some(local_layer_names) = load_saved_layer_names(&device_name) {
                         layer_names = local_layer_names;
+                    }
+                    if layer_names.is_empty() {
+                        layer_names = load_layer_names(&device_name);
                     }
                     self.layer_names = layer_names;
                 }
