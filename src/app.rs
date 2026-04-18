@@ -4441,8 +4441,9 @@ impl EntropyApp {
                 // name_rect is 170px wide → half = 85px; gap keeps arrows clear.
                 let fixed_half = 85.0_f32;
                 let gap = 16.0_f32;
-                let left_center  = egui::pos2(center_x - fixed_half - gap - 24.0, mid_y);
-                let right_center = egui::pos2(center_x + fixed_half + gap + 24.0, mid_y);
+                let arrow_y = mid_y - 2.0;
+                let left_center  = egui::pos2(center_x - fixed_half - gap - 24.0, arrow_y);
+                let right_center = egui::pos2(center_x + fixed_half + gap + 24.0, arrow_y);
 
                 // Still measure actual text width for painting the name and edit icon.
                 let text_w = ui.fonts(|f| f.layout_no_wrap(name.clone(), label_font.clone(), text_color).size().x);
