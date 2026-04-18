@@ -1748,6 +1748,99 @@ impl EntropyApp {
         }
     }
 
+    fn open_picker_for_target(&mut self, key_target: Option<usize>, encoder_target: Option<usize>, is_zmk: bool) {
+        self.selected_key = key_target.map(|ki| (self.selected_layer, ki));
+        self.selected_encoder = encoder_target.map(|ei| (self.selected_layer, ei));
+        self.keycode_picker.open = true;
+        self.keycode_picker.search_query.clear();
+        self.keycode_picker.layer_names = self.layer_names.clone();
+        self.keycode_picker.firmware = self.firmware;
+        self.keycode_picker.vial_quantum_pending_mod = None;
+        self.keycode_picker.vial_quantum_pending_mt = None;
+        self.keycode_picker.vial_layer_pending = None;
+        self.keycode_picker.tap_dance_editor_open = None;
+        self.keycode_picker.selected_tab = crate::keycode_picker::KeycodeTab::Basic;
+        if is_zmk {
+            self.keycode_picker.zmk_behaviors = self.layout.as_ref()
+                .map(|l| l.zmk_behaviors.clone()).unwrap_or_default();
+            self.keycode_picker.zmk_layer_count = self.layer_count;
+        }
+    }
+
+    fn handle_secondary_target(&mut self, ctrl_held: bool, is_zmk: bool, kc: u16, key_target: Option<usize>, encoder_target: Option<usize>) {
+        if is_zmk {
+            return;
+        }
+        if ctrl_held {
+            if let Some(swapped) = toggle_handed_modifier(kc) {
+                if let Some(visual_idx) = encoder_target {
+                    self.assign_encoder_keycode(self.selected_layer, visual_idx, swapped);
+                } else if let Some(ki) = key_target {
+                    self.pending_handed_swap = Some((self.selected_layer, ki, swapped));
+                }
+                self.secondary_click_handled = true;
+            } else {
+                let layer_base: Option<u16> = if kc >= 0x5200 && kc < 0x5300 {
+                    Some(kc & 0xFFE0)
+                } else if kc & 0xF000 == 0x4000 {
+                    Some(0x4000)
+                } else {
+                    None
+                };
+                if let Some(base) = layer_base {
+                    self.open_picker_for_target(key_target, encoder_target, is_zmk);
+                    self.keycode_picker.vial_layer_pending = Some(base);
+                    self.secondary_click_handled = true;
+                }
+            }
+            if self.secondary_click_handled {
+                return;
+            }
+        }
+        if kc >= 0x7700 && kc <= 0x77FF {
+            let macro_n = (kc - 0x7700) as u8;
+            self.open_picker_for_target(key_target, encoder_target, is_zmk);
+            self.keycode_picker.selected_tab = crate::keycode_picker::KeycodeTab::Macro;
+            self.keycode_picker.macro_inline_selected = Some(macro_n);
+            self.secondary_click_handled = true;
+            return;
+        }
+        if kc >= 0x5700 && kc <= 0x57FF {
+            let td_n = (kc - 0x5700) as u8;
+            self.open_picker_for_target(key_target, encoder_target, is_zmk);
+            self.keycode_picker.selected_tab = crate::keycode_picker::KeycodeTab::TapDance;
+            self.keycode_picker.tap_dance_editor_open = Some(td_n);
+            self.secondary_click_handled = true;
+            return;
+        }
+        if is_mouse_keycode(kc) {
+            self.mouse_keys_window_open = true;
+            self.secondary_click_handled = true;
+            return;
+        }
+        let is_layer_key = (kc >= 0x5200 && kc < 0x5300) || (kc & 0xF000 == 0x4000);
+        let pending_base: Option<u16> = if is_layer_key {
+            None
+        } else if kc >= 0x2000 && kc < 0x4000 {
+            Some(kc & 0xFF00)
+        } else if kc >= 0x0100 && kc < 0x2000 && (kc & 0xFF) != 0 {
+            Some(kc & 0xFF00)
+        } else {
+            None
+        };
+        if let Some(base) = pending_base {
+            self.open_picker_for_target(key_target, encoder_target, is_zmk);
+            if kc >= 0x2000 {
+                self.keycode_picker.vial_quantum_pending_mt = Some(base);
+                self.keycode_picker.vial_quantum_pending_mod = None;
+            } else {
+                self.keycode_picker.vial_quantum_pending_mod = Some(base);
+                self.keycode_picker.vial_quantum_pending_mt = None;
+            }
+            self.secondary_click_handled = true;
+        }
+    }
+
     fn assign_keycode(&mut self, layer: usize, ki: usize, kc_value: u16) {
         // Save old value for undo
         let old_kc = self.layout.as_ref().map(|l| l.get_keycode(layer, ki)).unwrap_or(0);
@@ -4063,121 +4156,42 @@ impl EntropyApp {
                     && (advanced_tab_hovered || (was_open && pointer_over_bridge));
 
                 if show_dropdown {
-                    let dropdown_fill = if ui.visuals().dark_mode {
+                    let dark = ui.visuals().dark_mode;
+                    let dropdown_fill = if dark {
                         Color32::from_gray(32)
                     } else {
                         Color32::from_gray(248)
                     };
-                    ui.painter().rect(
-                        dropdown_rect,
-                        8.0,
-                        dropdown_fill,
-                        egui::Stroke::NONE,
-                        egui::StrokeKind::Inside,
-                    );
-
-                    let combo_rect = egui::Rect::from_min_max(
-                        dropdown_rect.min + Vec2::new(6.0, 4.0),
-                        egui::pos2(dropdown_rect.max.x - 6.0, dropdown_rect.min.y + 34.0),
-                    );
-                    let combo_resp = ui.allocate_rect(combo_rect, Sense::CLICK);
-                    if combo_resp.hovered() {
-                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                    }
-                    if combo_resp.clicked() {
-                        self.main_menu_tab = MainMenuTab::Keyboard;
-                        self.combo_window_open = true;
-                    }
-
-                    let auto_shift_supported = self.auto_shift_timeout.is_some();
-                    let auto_shift_rect = egui::Rect::from_min_max(
-                        dropdown_rect.min + Vec2::new(6.0, 38.0),
-                        egui::pos2(dropdown_rect.max.x - 6.0, dropdown_rect.min.y + 68.0),
-                    );
-                    let mut auto_shift_resp = ui.allocate_rect(auto_shift_rect, Sense::CLICK);
-                    if auto_shift_supported && auto_shift_resp.hovered() {
-                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                    }
-                    if auto_shift_supported && auto_shift_resp.clicked() {
-                        self.main_menu_tab = MainMenuTab::Keyboard;
-                        self.auto_shift_window_open = true;
-                    }
-                    if !auto_shift_supported {
-                        auto_shift_resp = auto_shift_resp.on_hover_text("Auto Shift is not enabled in this firmware.");
-                    }
-
-                    let key_override_rect = egui::Rect::from_min_max(
-                        dropdown_rect.min + Vec2::new(6.0, 72.0),
-                        dropdown_rect.max - Vec2::new(6.0, 4.0),
-                    );
-                    let key_override_resp = ui.allocate_rect(key_override_rect, Sense::CLICK);
-                    if key_override_resp.hovered() {
-                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                    }
-                    if key_override_resp.clicked() {
-                        self.main_menu_tab = MainMenuTab::Keyboard;
-                        self.key_override_window_open = true;
-                    }
-
-                    let item_fill = |hovered: bool, dark_mode: bool| {
-                        if hovered {
-                            if dark_mode {
-                                Color32::from_gray(46)
-                            } else {
-                                Color32::from_gray(238)
-                            }
-                        } else {
-                            Color32::TRANSPARENT
-                        }
-                    };
-                    ui.painter().rect(
-                        combo_rect,
-                        6.0,
-                        item_fill(combo_resp.hovered(), ui.visuals().dark_mode),
-                        egui::Stroke::NONE,
-                        egui::StrokeKind::Inside,
-                    );
-                    ui.painter().text(
-                        combo_rect.center(),
-                        egui::Align2::CENTER_CENTER,
-                        "Combo",
-                        FontId::proportional(14.0),
-                        ui.visuals().widgets.inactive.fg_stroke.color,
-                    );
-                    ui.painter().rect(
-                        auto_shift_rect,
-                        6.0,
-                        item_fill(auto_shift_supported && auto_shift_resp.hovered(), ui.visuals().dark_mode),
-                        egui::Stroke::NONE,
-                        egui::StrokeKind::Inside,
-                    );
-                    ui.painter().text(
-                        auto_shift_rect.center(),
-                        egui::Align2::CENTER_CENTER,
-                        "Auto Shift",
-                        FontId::proportional(14.0),
-                        if auto_shift_supported {
-                            ui.visuals().widgets.inactive.fg_stroke.color
-                        } else {
-                            app_muted_text(ui.visuals().dark_mode)
-                        },
-                    );
-                    ui.painter().rect(
-                        key_override_rect,
-                        6.0,
-                        item_fill(key_override_resp.hovered(), ui.visuals().dark_mode),
-                        egui::Stroke::NONE,
-                        egui::StrokeKind::Inside,
-                    );
-                    ui.painter().text(
-                        key_override_rect.center(),
-                        egui::Align2::CENTER_CENTER,
-                        "Key Overrides",
-                        FontId::proportional(14.0),
-                        ui.visuals().widgets.inactive.fg_stroke.color,
-                    );
-
-                    ui.ctx().data_mut(|d| d.insert_temp(dropdown_id, advanced_tab_hovered || combo_resp.hovered() || auto_shift_resp.hovered() || key_override_resp.hovered() || pointer_over_bridge));
+                    let (combo_hovered, auto_shift_hovered, key_override_hovered) = egui::Area::new(egui::Id::new("advanced_dropdown_area"))
+                        .order(egui::Order::Foreground)
+                        .fixed_pos(dropdown_rect.min)
+                        .show(ui.ctx(), |ui| {
+                            ui.set_min_size(dropdown_rect.size());
+                            let local_rect = egui::Rect::from_min_size(egui::Pos2::ZERO, dropdown_rect.size());
+                            ui.painter().rect(local_rect, 8.0, dropdown_fill, egui::Stroke::NONE, egui::StrokeKind::Inside);
+                            let combo_rect = egui::Rect::from_min_max(egui::pos2(6.0, 4.0), egui::pos2(local_rect.max.x - 6.0, local_rect.max.y - 36.0));
+                            let auto_shift_rect = egui::Rect::from_min_max(egui::pos2(6.0, 38.0), egui::pos2(local_rect.max.x - 6.0, local_rect.max.y - 18.0));
+                            let key_override_rect = egui::Rect::from_min_max(egui::pos2(6.0, 72.0), egui::pos2(local_rect.max.x - 6.0, local_rect.max.y));
+                            let combo_resp = ui.allocate_rect(combo_rect, Sense::CLICK);
+                            let auto_shift_resp = ui.allocate_rect(auto_shift_rect, Sense::CLICK);
+                            let key_override_resp = ui.allocate_rect(key_override_rect, Sense::CLICK);
+                            if combo_resp.hovered() || auto_shift_resp.hovered() || key_override_resp.hovered() { ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand); }
+                            if combo_resp.clicked() { self.combo_window_open = true; if self.combo_visible_count == 0 { self.combo_visible_count = 1; } }
+                            let auto_shift_supported = self.auto_shift_timeout.is_some();
+                            if auto_shift_resp.clicked() && auto_shift_supported { self.auto_shift_window_open = true; }
+                            if key_override_resp.clicked() { self.key_override_window_open = true; }
+                            let item_fill = |hovered: bool, dark: bool| if hovered { if dark { Color32::from_gray(46) } else { Color32::from_gray(238) } } else { Color32::TRANSPARENT };
+                            ui.painter().rect(combo_rect, 6.0, item_fill(combo_resp.hovered(), dark), egui::Stroke::NONE, egui::StrokeKind::Inside);
+                            ui.painter().rect(auto_shift_rect, 6.0, item_fill(auto_shift_resp.hovered(), dark), egui::Stroke::NONE, egui::StrokeKind::Inside);
+                            ui.painter().rect(key_override_rect, 6.0, item_fill(key_override_resp.hovered(), dark), egui::Stroke::NONE, egui::StrokeKind::Inside);
+                            ui.painter().text(combo_rect.center(), egui::Align2::CENTER_CENTER, "Combo", FontId::proportional(14.0), ui.visuals().widgets.inactive.fg_stroke.color);
+                            let auto_shift_color = if auto_shift_supported { ui.visuals().widgets.inactive.fg_stroke.color } else { app_muted_text(dark) };
+                            ui.painter().text(auto_shift_rect.center(), egui::Align2::CENTER_CENTER, "Auto Shift", FontId::proportional(14.0), auto_shift_color);
+                            ui.painter().text(key_override_rect.center(), egui::Align2::CENTER_CENTER, "Key Overrides", FontId::proportional(14.0), ui.visuals().widgets.inactive.fg_stroke.color);
+                            if !auto_shift_supported { let _ = auto_shift_resp.clone().on_hover_text("Auto Shift is not enabled in this keyboard firmware"); }
+                            (combo_resp.hovered(), auto_shift_resp.hovered(), key_override_resp.hovered())
+                        }).inner;
+                    ui.ctx().data_mut(|d| d.insert_temp(dropdown_id, advanced_tab_hovered || combo_hovered || auto_shift_hovered || key_override_hovered || pointer_over_bridge));
                 } else {
                     ui.ctx().data_mut(|d| d.insert_temp(dropdown_id, false));
                 }
@@ -4203,64 +4217,34 @@ impl EntropyApp {
                     && (settings_tab_hovered || (was_open && pointer_over_bridge));
 
                 if show_dropdown {
-                    let dropdown_fill = if ui.visuals().dark_mode {
-                        Color32::from_gray(32)
-                    } else {
-                        Color32::from_gray(248)
-                    };
-                    ui.painter().rect(
-                        dropdown_rect,
-                        8.0,
-                        dropdown_fill,
-                        egui::Stroke::NONE,
-                        egui::StrokeKind::Inside,
-                    );
-
-                    let matrix_rect = dropdown_rect.shrink2(Vec2::new(6.0, 4.0));
-                    let matrix_resp = ui.allocate_rect(matrix_rect, Sense::CLICK);
-                    if matrix_resp.hovered() {
-                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                    }
-                    if matrix_resp.clicked() {
-                        self.settings_tab = SettingsTab::MatrixTester;
-                        if self.main_menu_tab != MainMenuTab::Settings {
-                            self.reset_matrix_tester_state();
-                        }
-                        self.matrix_tester_unlock_prompted = false;
-                        self.main_menu_tab = MainMenuTab::Settings;
-                    }
-
-                    let matrix_fill = if matrix_resp.hovered() {
-                        if ui.visuals().dark_mode {
-                            Color32::from_gray(46)
-                        } else {
-                            Color32::from_gray(238)
-                        }
-                    } else {
-                        Color32::TRANSPARENT
-                    };
-                    ui.painter().rect(
-                        matrix_rect,
-                        6.0,
-                        matrix_fill,
-                        egui::Stroke::NONE,
-                        egui::StrokeKind::Inside,
-                    );
-                    ui.painter().text(
-                        matrix_rect.center(),
-                        egui::Align2::CENTER_CENTER,
-                        "Matrix Tester",
-                        FontId::proportional(14.0),
-                        ui.visuals().widgets.inactive.fg_stroke.color,
-                    );
-
-                    ui.ctx().data_mut(|d| d.insert_temp(dropdown_id, settings_tab_hovered || matrix_resp.hovered() || pointer_over_bridge));
+                    let dark = ui.visuals().dark_mode;
+                    let dropdown_fill = if dark { Color32::from_gray(32) } else { Color32::from_gray(248) };
+                    let matrix_hovered = egui::Area::new(egui::Id::new("settings_dropdown_area"))
+                        .order(egui::Order::Foreground)
+                        .fixed_pos(dropdown_rect.min)
+                        .show(ui.ctx(), |ui| {
+                            ui.set_min_size(dropdown_rect.size());
+                            let local_rect = egui::Rect::from_min_size(egui::Pos2::ZERO, dropdown_rect.size());
+                            ui.painter().rect(local_rect, 8.0, dropdown_fill, egui::Stroke::NONE, egui::StrokeKind::Inside);
+                            let matrix_rect = local_rect.shrink2(Vec2::new(6.0, 4.0));
+                            let matrix_resp = ui.allocate_rect(matrix_rect, Sense::CLICK);
+                            if matrix_resp.hovered() { ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand); }
+                            if matrix_resp.clicked() {
+                                self.settings_tab = SettingsTab::MatrixTester;
+                                if self.main_menu_tab != MainMenuTab::Settings { self.reset_matrix_tester_state(); }
+                                self.matrix_tester_unlock_prompted = false;
+                                self.main_menu_tab = MainMenuTab::Settings;
+                            }
+                            let matrix_fill = if matrix_resp.hovered() { if dark { Color32::from_gray(46) } else { Color32::from_gray(238) } } else { Color32::TRANSPARENT };
+                            ui.painter().rect(matrix_rect, 6.0, matrix_fill, egui::Stroke::NONE, egui::StrokeKind::Inside);
+                            ui.painter().text(matrix_rect.center(), egui::Align2::CENTER_CENTER, "Matrix Tester", FontId::proportional(14.0), ui.visuals().widgets.inactive.fg_stroke.color);
+                            matrix_resp.hovered()
+                        }).inner;
+                    ui.ctx().data_mut(|d| d.insert_temp(dropdown_id, settings_tab_hovered || matrix_hovered || pointer_over_bridge));
                 } else {
                     ui.ctx().data_mut(|d| d.insert_temp(dropdown_id, false));
                 }
             }
-        }
-
         if self.main_menu_tab == MainMenuTab::Settings {
             self.draw_settings_screen(ui, layout, ctx, top_base_y + main_tabs_h + 14.0);
             return;
@@ -4329,7 +4313,7 @@ impl EntropyApp {
             let label_font = egui::FontId { size: 39.0, family: egui::FontFamily::Proportional };
             let text_color = if self.dark_mode { Color32::from_gray(245) } else { Color32::from_gray(60) };
 
-            if !any_top_dropdown_open && self.editing_layer == Some(selected) {
+            if self.editing_layer == Some(selected) {
                 // Limit input to 7 chars
                 if self.editing_layer_text.chars().count() > 7 {
                     let s: String = self.editing_layer_text.chars().take(7).collect();
@@ -4375,7 +4359,7 @@ impl EntropyApp {
                     self.editing_layer = None;
                     self.editing_layer_focus_requested = false;
                 }
-            } else if !any_top_dropdown_open {
+            } else {
                 let mid_y = bar_y + layer_bar_h / 2.0;
 
                 // Fixed arrow positions based on max 7-char name width so
@@ -4532,6 +4516,7 @@ impl EntropyApp {
                 }
             }
         }
+    }
 
         // Pass 1: allocate
         let key_rects: Vec<(usize, egui::Rect)> = layout.keys.iter().enumerate().map(|(ki, key)| {
@@ -4909,16 +4894,20 @@ impl EntropyApp {
 
         }
 
+        let encoder_custom_keycodes = layout.custom_keycodes.clone();
+        let encoder_layer_names = self.layer_names.clone();
+        let encoder_macro_names = self.keycode_picker.macro_names.clone();
+        let encoder_tap_dance_names = self.keycode_picker.tap_dance_names.clone();
         let encoder_label = |kc: u16| -> String {
             match kc {
                 0x0000 => "✕".to_string(),
                 0x0001 => "▽".to_string(),
                 _ => keycode_label_with_macro_names(
                     kc,
-                    &layout.custom_keycodes,
-                    &self.layer_names,
-                    &self.keycode_picker.macro_names,
-                    &self.keycode_picker.tap_dance_names,
+                    &encoder_custom_keycodes,
+                    &encoder_layer_names,
+                    &encoder_macro_names,
+                    &encoder_tap_dance_names,
                 ).replace('\n', " "),
             }
         };
@@ -4985,6 +4974,12 @@ impl EntropyApp {
                 hovered_encoder = true;
                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
             }
+            let ctrl_held = ui.input(|i| i.modifiers.ctrl);
+            if top_resp.secondary_clicked() {
+                if let Some((visual_idx, kc)) = cw {
+                    self.handle_secondary_target(ctrl_held, is_zmk, *kc, None, Some(*visual_idx));
+                }
+            }
             if top_resp.clicked() {
                 if let Some((visual_idx, _)) = cw {
                     self.selected_key = None;
@@ -4997,28 +4992,24 @@ impl EntropyApp {
                 if middle_resp.hovered() {
                     hovered_key = Some(press_ki);
                 }
+                if middle_resp.secondary_clicked() {
+                    let kc = layout.get_keycode(self.selected_layer, press_ki);
+                    self.handle_secondary_target(ctrl_held, is_zmk, kc, Some(press_ki), None);
+                }
                 if middle_resp.clicked() {
+                    self.open_picker_for_target(Some(press_ki), None, is_zmk);
                     self.selected_encoder = None;
-                    self.selected_key = Some((self.selected_layer, press_ki));
-                    self.keycode_picker.open = true;
-                    self.keycode_picker.search_query.clear();
-                    self.keycode_picker.layer_names = self.layer_names.clone();
-                    self.keycode_picker.firmware = self.firmware;
-                    self.keycode_picker.vial_quantum_pending_mod = None;
-                    self.keycode_picker.vial_quantum_pending_mt = None;
-                    self.keycode_picker.tap_dance_editor_open = None;
-                    self.keycode_picker.selected_tab = crate::keycode_picker::KeycodeTab::Basic;
-                    if is_zmk {
-                        self.keycode_picker.zmk_behaviors = self.layout.as_ref()
-                            .map(|l| l.zmk_behaviors.clone()).unwrap_or_default();
-                        self.keycode_picker.zmk_layer_count = self.layer_count;
-                    }
+                }
+            }
+            if bottom_resp.secondary_clicked() {
+                if let Some((visual_idx, kc)) = ccw {
+                    self.handle_secondary_target(ctrl_held, is_zmk, *kc, None, Some(*visual_idx));
                 }
             }
             if bottom_resp.clicked() {
                 if let Some((visual_idx, _)) = ccw {
                     self.selected_key = None;
-                    self.selected_encoder = Some((layer, *visual_idx));
+                    self.selected_encoder = Some((self.selected_layer, *visual_idx));
                     self.keycode_picker.open = true;
                     self.keycode_picker.result = None;
                 }
