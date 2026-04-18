@@ -3898,53 +3898,67 @@ impl EntropyApp {
                                     });
                             });
 
-                            if rgb_effect_supports_color(self.rgb_settings.kind, selected_effect) {
-                                ui.add_space(10.0);
+                            ui.add_space(10.0);
 
-                                ui.horizontal(|ui| {
-                                    ui.set_width(label_width + control_width);
-                                    ui.add_sized(
-                                        [label_width, 24.0],
-                                        egui::Label::new(RichText::new("Color").size(12.5)),
-                                    );
+                            let color_enabled = rgb_effect_supports_color(self.rgb_settings.kind, selected_effect);
+                            ui.horizontal(|ui| {
+                                ui.set_width(label_width + control_width);
+                                ui.add_sized(
+                                    [label_width, 24.0],
+                                    egui::Label::new(
+                                        RichText::new("Color")
+                                            .size(12.5)
+                                            .color(if color_enabled {
+                                                ui.visuals().text_color()
+                                            } else {
+                                                app_muted_text(dark)
+                                            }),
+                                    ),
+                                );
 
-                                    let popup_id = ui.make_persistent_id("rgb_color_popup");
-                                    let border = if dark {
-                                        Color32::from_gray(95)
+                                let popup_id = ui.make_persistent_id("rgb_color_popup");
+                                let border = if dark {
+                                    Color32::from_gray(95)
+                                } else {
+                                    Color32::from_gray(185)
+                                };
+                                let swatch_border = if color_enabled && ui.memory(|m| m.is_popup_open(popup_id)) {
+                                    app_accent()
+                                } else {
+                                    border
+                                };
+                                let swatch_color: Color32 = color_hsva.into();
+                                let swatch_sense = if color_enabled { Sense::click() } else { Sense::hover() };
+                                let (swatch_rect, swatch_resp) = ui.allocate_exact_size(
+                                    Vec2::new(56.0, 32.0),
+                                    swatch_sense,
+                                );
+                                if color_enabled && swatch_resp.hovered() {
+                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                }
+                                if color_enabled && swatch_resp.clicked() {
+                                    ui.memory_mut(|m| m.toggle_popup(popup_id));
+                                }
+                                ui.painter().rect(
+                                    swatch_rect,
+                                    8.0,
+                                    app_surface_fill(dark),
+                                    Stroke::new(1.0, swatch_border),
+                                    egui::StrokeKind::Inside,
+                                );
+                                ui.painter().rect(
+                                    swatch_rect.shrink(5.0),
+                                    5.0,
+                                    if color_enabled {
+                                        swatch_color
                                     } else {
-                                        Color32::from_gray(185)
-                                    };
-                                    let swatch_border = if ui.memory(|m| m.is_popup_open(popup_id)) {
-                                        app_accent()
-                                    } else {
-                                        border
-                                    };
-                                    let swatch_color: Color32 = color_hsva.into();
-                                    let (swatch_rect, swatch_resp) = ui.allocate_exact_size(
-                                        Vec2::new(56.0, 32.0),
-                                        Sense::click(),
-                                    );
-                                    if swatch_resp.hovered() {
-                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                    }
-                                    if swatch_resp.clicked() {
-                                        ui.memory_mut(|m| m.toggle_popup(popup_id));
-                                    }
-                                    ui.painter().rect(
-                                        swatch_rect,
-                                        8.0,
-                                        app_surface_fill(dark),
-                                        Stroke::new(1.0, swatch_border),
-                                        egui::StrokeKind::Inside,
-                                    );
-                                    ui.painter().rect(
-                                        swatch_rect.shrink(5.0),
-                                        5.0,
-                                        swatch_color,
-                                        Stroke::new(1.0, swatch_border.gamma_multiply(0.85)),
-                                        egui::StrokeKind::Inside,
-                                    );
+                                        swatch_color.gamma_multiply(0.45)
+                                    },
+                                    Stroke::new(1.0, swatch_border.gamma_multiply(0.85)),
+                                    egui::StrokeKind::Inside,
+                                );
 
+                                if color_enabled {
                                     let mut picked_hsva = color_hsva;
                                     egui::popup_below_widget(
                                         ui,
@@ -3973,18 +3987,27 @@ impl EntropyApp {
                                             }
                                         },
                                     );
-                                });
-                            }
+                                }
+                            });
 
-                            if rgb_effect_supports_speed(self.rgb_settings.kind, selected_effect) {
-                                ui.add_space(10.0);
+                            ui.add_space(10.0);
 
-                                ui.horizontal(|ui| {
-                                    ui.set_width(label_width + control_width);
-                                    ui.add_sized(
-                                        [label_width, 24.0],
-                                        egui::Label::new(RichText::new("Speed").size(12.5)),
-                                    );
+                            let speed_enabled = rgb_effect_supports_speed(self.rgb_settings.kind, selected_effect);
+                            ui.horizontal(|ui| {
+                                ui.set_width(label_width + control_width);
+                                ui.add_sized(
+                                    [label_width, 24.0],
+                                    egui::Label::new(
+                                        RichText::new("Speed")
+                                            .size(12.5)
+                                            .color(if speed_enabled {
+                                                ui.visuals().text_color()
+                                            } else {
+                                                app_muted_text(dark)
+                                            }),
+                                    ),
+                                );
+                                ui.add_enabled_ui(speed_enabled, |ui| {
                                     ui.scope(|ui| {
                                         ui.spacing_mut().slider_width = 184.0;
                                         let slider = egui::Slider::new(
@@ -4003,22 +4026,26 @@ impl EntropyApp {
                                             self.set_rgb_speed(raw_value);
                                         }
                                     });
-                                    ui.add_space(8.0);
-                                    ui.add_sized(
-                                        [52.0, 28.0],
-                                        egui::Label::new(
-                                            RichText::new(format!("{}%", speed_percent as u8))
-                                                .size(12.0)
-                                                .color(if dark {
+                                });
+                                ui.add_space(8.0);
+                                ui.add_sized(
+                                    [52.0, 28.0],
+                                    egui::Label::new(
+                                        RichText::new(format!("{}%", speed_percent as u8))
+                                            .size(12.0)
+                                            .color(if speed_enabled {
+                                                if dark {
                                                     Color32::from_gray(230)
                                                 } else {
                                                     Color32::from_gray(55)
-                                                }),
-                                        )
-                                        .sense(egui::Sense::hover()),
-                                    );
-                                });
-                            }
+                                                }
+                                            } else {
+                                                app_muted_text(dark)
+                                            }),
+                                    )
+                                    .sense(egui::Sense::hover()),
+                                );
+                            });
 
                             ui.add_space(10.0);
 
