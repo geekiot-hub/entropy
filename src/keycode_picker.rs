@@ -2437,29 +2437,46 @@ Word".into(),   0x7C73, "Capitalizes until end of current word".into()),
         });
 
         let media_keys: &[(&str, &str, u16)] = &[
+            ("⏻", "Power",   0x00A5),
+            ("🌙", "Sleep",   0x00A6),
+            ("☀", "Wake",    0x00A7),
             ("🔇", "Mute",    0x00A8),
-            ("🔉", "Vol-",    0x00AA),
             ("🔊", "Vol+",    0x00A9),
-            ("⏮", "Prev",    0x00AC),
+            ("🔉", "Vol-",    0x00AA),
             ("⏭", "Next",    0x00AB),
+            ("⏮", "Prev",    0x00AC),
             ("⏹", "Stop",    0x00AD),
             ("⏯", "Play",    0x00AE),
             ("🎵", "Media",   0x00AF),
-            ("✉", "Mail",    0x00B0),
-            ("∑", "Calc",    0x00B1),
-            ("📁", "Files",   0x00B2),
-            ("🔍", "Search",  0x00B3),
-            ("🌐", "Home",    0x00B4),
-            ("←", "Back",    0x00B5),
-            ("→", "Fwd",     0x00B6),
-            ("⏹", "Web",     0x00B7),
-            ("↻", "Reload",  0x00B8),
-            ("★", "Favs",    0x00B9),
-            ("🌙", "Sleep",   0x00A5),
-            ("☀", "Wake",    0x00A6),
-            ("🔅", "Bright-", 0x00BB),
-            ("🔆", "Bright+", 0x00A7),
-            ("⏻", "Power",   0x0066),
+            ("⏏", "Eject",   0x00B0),
+            ("✉", "Mail",    0x00B1),
+            ("∑", "Calc",    0x00B2),
+            ("📁", "Files",   0x00B3),
+            ("🔍", "Search",  0x00B4),
+            ("🌐", "Home",    0x00B5),
+            ("←", "Back",    0x00B6),
+            ("→", "Fwd",     0x00B7),
+            ("⏹", "Web",     0x00B8),
+            ("↻", "Reload",  0x00B9),
+            ("★", "Favs",    0x00BA),
+            ("⏩", "Fast+",   0x00BB),
+            ("⏪", "Rewind",  0x00BC),
+            ("🔆", "Bright+", 0x00BD),
+            ("🔅", "Bright-", 0x00BE),
+            ("🪟", "Mission", 0x00BF),
+            ("🚀", "Launch",  0x00C0),
+        ];
+        let basic_app_keys: &[(&str, u16)] = &[
+            ("Exec",   0x0074),
+            ("Help",   0x0075),
+            ("Select", 0x0077),
+            ("Stop",   0x0078),
+            ("Again",  0x0079),
+            ("Undo",   0x007A),
+            ("Cut",    0x007B),
+            ("Copy",   0x007C),
+            ("Paste",  0x007D),
+            ("Find",   0x007E),
         ];
 
         ui.add_space(10.0);
@@ -2496,6 +2513,18 @@ Word".into(),   0x7C73, "Capitalizes until end of current word".into()),
                     icon_pos.y + icon_height + line_spacing,
                 );
                 ui.painter().galley(text_pos, text_galley, visuals.fg_stroke.color);
+                if resp.clicked() { self.result = Some(*value); self.open = false; }
+                resp.on_hover_text(crate::keycode::keycode_tooltip(*value, &[], &self.layer_names));
+            }
+        });
+
+        ui.add_space(10.0);
+        ui.label(RichText::new("Basic app / edit keys").size(11.0).color(Color32::from_gray(150)));
+        ui.add_space(4.0);
+        ui.horizontal_wrapped(|ui| {
+            for (label, value) in basic_app_keys {
+                let resp = ui.add(egui::Button::new(RichText::new(*label).size(11.0))
+                    .min_size(Vec2::new(56.0, 42.0)));
                 if resp.clicked() { self.result = Some(*value); self.open = false; }
                 resp.on_hover_text(crate::keycode::keycode_tooltip(*value, &[], &self.layer_names));
             }
