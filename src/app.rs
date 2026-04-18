@@ -5074,20 +5074,6 @@ impl EntropyApp {
                 let is_hovering = hover_alpha > 0.05;
                 let is_selected = self.selected_key == Some((layer, *press_ki));
                 let is_hovered = hovered_key == Some(*press_ki);
-                let bg = if is_selected {
-                    Color32::from_rgb(91, 104, 223)
-                } else if is_hovered {
-                    if dark { Color32::from_rgb(60, 60, 65) } else { Color32::from_rgb(232, 232, 240) }
-                } else {
-                    visuals.inactive.bg_fill
-                };
-                let border = if is_selected {
-                    visuals.active.bg_stroke.color
-                } else if is_hovered {
-                    visuals.hovered.bg_stroke.color
-                } else {
-                    outline.color
-                };
                 let text_color = if is_selected {
                     visuals.active.fg_stroke.color
                 } else if is_hovered {
@@ -5095,7 +5081,10 @@ impl EntropyApp {
                 } else {
                     visuals.inactive.fg_stroke.color
                 };
-                painter.rect(*press_rect, 5.0, bg, Stroke::new(1.0, border), egui::StrokeKind::Inside);
+                let press_text_rect = egui::Rect::from_min_max(
+                    egui::pos2(center.x - divider_half_width + 4.0, top_divider_y + 2.0),
+                    egui::pos2(center.x + divider_half_width - 4.0, bottom_divider_y - 2.0),
+                );
 
                 let press_label = if is_zmk {
                     let binding = layout.get_zmk_binding(layer, *press_ki);
@@ -5142,8 +5131,8 @@ impl EntropyApp {
                 }.replace('\n', " ");
                 let press_font = FontId::proportional(if press_label.chars().count() > 8 { 7.2 } else { 8.2 });
                 painter
-                    .with_clip_rect(*press_rect)
-                    .text(press_rect.center(), egui::Align2::CENTER_CENTER, press_label, press_font, text_color);
+                    .with_clip_rect(press_text_rect)
+                    .text(press_text_rect.center(), egui::Align2::CENTER_CENTER, press_label, press_font, text_color);
             } else {
                 painter.line_segment(
                     [
