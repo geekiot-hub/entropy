@@ -57,6 +57,9 @@ pub struct KeyboardLayout {
     pub encoders: Vec<PhysicalEncoder>,
     pub layers: Vec<Vec<u16>>, // layers[layer][key_idx] = keycode (Vial)
     pub encoder_layers: Vec<Vec<u16>>, // encoder_layers[layer][encoder_visual_idx] = keycode (Vial)
+    /// Layer names from descriptor/firmware when available.
+    #[serde(default)]
+    pub layer_names: Vec<String>,
     /// Custom keycodes from vial JSON: symbolic name, short button label, readable tooltip title.
     pub custom_keycodes: Vec<CustomKeycode>,
     /// Whether the keyboard definition exposes a lighting section for RGB/backlight controls
@@ -105,6 +108,34 @@ fn parse_encoder_from_label(label: &str) -> Option<(u8, u8)> {
     let first_line = lines.first()?.trim();
     let (idx, dir) = first_line.split_once(',')?;
     Some((idx.trim().parse().ok()?, dir.trim().parse().ok()?))
+}
+
+fn parse_layer_names_from_json(json: &serde_json::Value) -> Vec<String> {
+    let candidates = [
+        json.get("layer_names"),
+        json.get("layerNames"),
+        json.get("layers"),
+        json.get("layouts").and_then(|v| v.get("layer_names")),
+        json.get("layouts").and_then(|v| v.get("layerNames")),
+        json.get("vial").and_then(|v| v.get("layer_names")),
+        json.get("vial").and_then(|v| v.get("layerNames")),
+    ];
+
+    for candidate in candidates.into_iter().flatten() {
+        if let Some(arr) = candidate.as_array() {
+            let names: Vec<String> = arr
+                .iter()
+                .filter_map(|v| v.as_str())
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+            if !names.is_empty() {
+                return names;
+            }
+        }
+    }
+
+    vec![]
 }
 
 impl KeyboardLayout {
@@ -287,6 +318,8 @@ impl KeyboardLayout {
             }
         }
 
+        let layer_names = parse_layer_names_from_json(json);
+
         // Parse custom keycodes
         let custom_keycodes = if let Some(customs) = json.get("customKeycodes").and_then(|v| v.as_array()) {
             customs.iter().map(|c| {
@@ -324,6 +357,7 @@ impl KeyboardLayout {
             encoders,
             layers: vec![vec![0u16; num_keys]; 4],
             encoder_layers: vec![],
+            layer_names,
             custom_keycodes,
             supports_rgb,
             firmware: FirmwareProtocol::Vial,

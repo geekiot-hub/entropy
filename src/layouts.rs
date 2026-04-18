@@ -134,6 +134,7 @@ pub fn build_layout_from_zmk(
         encoders: vec![],
         layers: vec![vec![0u16; num_keys]; layer_count],
         encoder_layers: vec![],
+        layer_names: vec![],
         custom_keycodes: vec![],
         supports_rgb: false,
         firmware: crate::firmware::FirmwareProtocol::Zmk,

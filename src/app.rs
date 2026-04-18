@@ -989,6 +989,7 @@ impl EntropyApp {
                                 encoders: vec![],
                                 layers: vec![],
                                 encoder_layers: vec![],
+                                layer_names: vec![],
                                 custom_keycodes: vec![],
                                 supports_rgb: false,
                                 firmware: FirmwareProtocol::Zmk,
@@ -1197,15 +1198,21 @@ impl EntropyApp {
 
                 // Load per-device layer names
                 let device_name = r.device_name.clone();
-                // For ZMK, use device layer names if available; otherwise load from file
                 if !r.layout.zmk_layer_names.is_empty() {
+                    // ZMK: device-reported names
                     self.layer_names = r.layout.zmk_layer_names.clone();
                     while self.layer_names.len() < 16 {
                         let n = self.layer_names.len();
                         self.layer_names.push(n.to_string());
                     }
                 } else {
-                    self.layer_names = load_layer_names(&device_name);
+                    // Vial: prefer names from descriptor/firmware, then overlay local overrides if present
+                    let mut layer_names = r.layout.layer_names.clone();
+                    let local_layer_names = load_layer_names(&device_name);
+                    if !local_layer_names.is_empty() {
+                        layer_names = local_layer_names;
+                    }
+                    self.layer_names = layer_names;
                 }
 
                 // Populate picker based on firmware
