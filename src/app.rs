@@ -5090,7 +5090,7 @@ impl EntropyApp {
                 let middle_rect = middle_rect.unwrap();
                 let top_divider_y = middle_rect.top();
                 let bottom_divider_y = middle_rect.bottom();
-                let divider_extend = 0.75;
+                let divider_extend = 2.0;
                 let top_divider_half_width = (((radius * radius)
                     - (top_divider_y - center.y) * (top_divider_y - center.y))
                     .max(0.0)
