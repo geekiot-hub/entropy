@@ -4312,7 +4312,7 @@ impl EntropyApp {
             let selected = self.selected_layer;
             // raw_name — чистое имя без префикса, хранится в layer_names
             let raw_name = self.layer_names.get(selected).cloned().unwrap_or_else(|| selected.to_string());
-            let visible_raw_name: String = raw_name.chars().take(9).collect();
+            let visible_raw_name: String = raw_name.chars().take(12).collect();
             // display_name — с префиксом для отображения
             let display_name = if !raw_name.is_empty() && raw_name != selected.to_string() {
                 format!("{}. {}", selected, visible_raw_name)
@@ -4367,20 +4367,37 @@ impl EntropyApp {
             // Layer name / edit field
             let name_rect = egui::Rect::from_min_size(egui::pos2(center_x - 85.0, bar_y), Vec2::new(170.0, 52.0));
 
-            let label_font = egui::FontId { size: 39.0, family: egui::FontFamily::Proportional };
+            let display_name_len = visible_raw_name.chars().count();
+            let display_label_size = if display_name_len > 10 {
+                26.0
+            } else if display_name_len > 7 {
+                31.0
+            } else {
+                39.0
+            };
+            let label_font = egui::FontId { size: display_label_size, family: egui::FontFamily::Proportional };
             let text_color = if self.dark_mode { Color32::from_gray(245) } else { Color32::from_gray(60) };
 
             if self.editing_layer == Some(selected) {
-                // Limit input to 15 chars
-                if self.editing_layer_text.chars().count() > 15 {
-                    let s: String = self.editing_layer_text.chars().take(15).collect();
+                // Limit input to 12 chars
+                if self.editing_layer_text.chars().count() > 12 {
+                    let s: String = self.editing_layer_text.chars().take(12).collect();
                     self.editing_layer_text = s;
                 }
+                let editing_name_len = self.editing_layer_text.chars().count();
+                let editing_label_size = if editing_name_len > 10 {
+                    26.0
+                } else if editing_name_len > 7 {
+                    31.0
+                } else {
+                    39.0
+                };
+                let editing_font = egui::FontId { size: editing_label_size, family: egui::FontFamily::Proportional };
                 let resp = ui.put(name_rect,
                     egui::TextEdit::singleline(&mut self.editing_layer_text)
-                        .font(label_font.clone())
+                        .font(editing_font)
                         .horizontal_align(egui::Align::Center)
-                        .char_limit(15)
+                        .char_limit(12)
                         .frame(false)
                 );
                 // Request focus only on the first frame so lost_focus() works correctly.
