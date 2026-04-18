@@ -4399,7 +4399,7 @@ impl EntropyApp {
                         save_layer_names(&self.layer_names, &self.current_device_name);
                         #[cfg(target_arch = "wasm32")]
                         save_layer_names(&self.layer_names, "default");
-                        // ZMK: also write name to device
+                        // Also write name back to the connected device
                         #[cfg(not(target_arch = "wasm32"))]
                         if self.firmware == FirmwareProtocol::Zmk {
                             if let Some(conn) = &mut self.zmk_conn {
@@ -4408,6 +4408,14 @@ impl EntropyApp {
                                     .unwrap_or(selected as u32);
                                 if let Err(e) = conn.set_layer_name(layer_id, &new_name) {
                                     log::warn!("ZMK set_layer_name failed: {e}");
+                                }
+                            }
+                        }
+                        #[cfg(not(target_arch = "wasm32"))]
+                        if self.firmware == FirmwareProtocol::Vial {
+                            if let Some(dev) = &self.hid_device {
+                                if let Err(e) = dev.set_qmk_setting_string(200 + selected as u16, &new_name) {
+                                    log::warn!("Vial set_qmk_setting_string failed for layer {}: {}", selected, e);
                                 }
                             }
                         }

@@ -489,6 +489,26 @@ impl HidDevice {
         Ok(String::from_utf8_lossy(&bytes[..end]).trim().to_string())
     }
 
+    pub fn set_qmk_setting_string(&self, qsid: u16, value: &str) -> Result<()> {
+        let mut cmd = [0u8; 32];
+        cmd[0] = CMD_VIA_VIAL_PREFIX;
+        cmd[1] = CMD_VIAL_QMK_SETTINGS_SET;
+        cmd[2..4].copy_from_slice(&qsid.to_le_bytes());
+
+        let safe_value = value.replace('%', "%%");
+        let bytes = safe_value.as_bytes();
+        let max_len = cmd.len().saturating_sub(4);
+        let copy_len = bytes.len().min(max_len.saturating_sub(1));
+        cmd[4..4 + copy_len].copy_from_slice(&bytes[..copy_len]);
+        cmd[4 + copy_len] = 0;
+
+        let resp = self.usb_send(&cmd)?;
+        if resp[0] != 0 {
+            anyhow::bail!("qmk setting set error or unsupported qsid: {qsid}");
+        }
+        Ok(())
+    }
+
     /// Get number of tap dance entries available
     pub fn get_tap_dance_count(&self) -> Result<u8> {
         let resp = self.usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_DYNAMIC_ENTRY_OP, DYNAMIC_VIAL_GET_NUM_ENTRIES])?;
