@@ -3952,31 +3952,25 @@ impl EntropyApp {
                                         &swatch_resp,
                                         egui::PopupCloseBehavior::CloseOnClickOutside,
                                         |ui| {
-                                            egui::Frame::popup(ui.style())
-                                                .corner_radius(10.0)
-                                                .show(ui, |ui| {
-                                                    ui.set_min_width(220.0);
-                                                    if egui::color_picker::color_picker_hsva_2d(
-                                                        ui,
-                                                        &mut picked_hsva,
-                                                        egui::color_picker::Alpha::Opaque,
-                                                    ) {
-                                                        let hue = (picked_hsva.h.rem_euclid(1.0)
-                                                            * 255.0)
-                                                            .round()
-                                                            .clamp(0.0, 255.0)
-                                                            as u8;
-                                                        let saturation = (picked_hsva
-                                                            .s
-                                                            .clamp(0.0, 1.0)
-                                                            * 255.0)
-                                                            .round()
-                                                            .clamp(0.0, 255.0)
-                                                            as u8;
-                                                        self.set_rgb_color(hue, saturation);
-                                                        color_hsva = picked_hsva;
-                                                    }
-                                                });
+                                            if egui::color_picker::color_picker_hsva_2d(
+                                                ui,
+                                                &mut picked_hsva,
+                                                egui::color_picker::Alpha::Opaque,
+                                            ) {
+                                                let hue = (picked_hsva.h.rem_euclid(1.0) * 255.0)
+                                                    .round()
+                                                    .clamp(0.0, 255.0)
+                                                    as u8;
+                                                let saturation = (picked_hsva
+                                                    .s
+                                                    .clamp(0.0, 1.0)
+                                                    * 255.0)
+                                                    .round()
+                                                    .clamp(0.0, 255.0)
+                                                    as u8;
+                                                self.set_rgb_color(hue, saturation);
+                                                color_hsva = picked_hsva;
+                                            }
                                         },
                                     );
                                 });
