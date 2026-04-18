@@ -4274,8 +4274,8 @@ impl EntropyApp {
                 raw_name.clone()
             };
             let name = display_name;
-            let center_x = ui.min_rect().center().x;
-            let bar_y = ui.min_rect().top() + (avail.y - layout_h - layer_bar_h) / 2.0 + 4.0;
+            let center_x = ui.max_rect().center().x;
+            let bar_y = top_base_y + main_tabs_h + 24.0;
 
             // ZMK layer management buttons (+ Add / - Remove)
             if self.firmware == FirmwareProtocol::Zmk {
@@ -4429,7 +4429,7 @@ impl EntropyApp {
                 let hint_color = if self.dark_mode { Color32::from_gray(100) } else { Color32::from_gray(160) };
                 let hint_font = FontId::proportional(11.0);
                 let secondary_hint_font = hint_font.clone();
-                let hint_y = bar_y + layer_bar_h + 18.0;
+                let hint_y = ui.max_rect().bottom() - 36.0;
                 let any_hovered = self.prev_hovered_key.is_some();
                 if let Some(hl) = self.hover_layer {
                     let hl_name = self.layer_names.get(hl).cloned().unwrap_or_else(|| hl.to_string());
