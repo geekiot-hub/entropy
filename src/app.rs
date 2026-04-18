@@ -3831,8 +3831,7 @@ impl EntropyApp {
                 let mut color_hsva = egui::ecolor::Hsva {
                     h: self.rgb_settings.hue as f32 / 255.0,
                     s: self.rgb_settings.saturation as f32 / 255.0,
-                    v: (self.rgb_settings.brightness.max(1) as f32 / brightness_max as f32)
-                        .clamp(0.0, 1.0),
+                    v: 1.0,
                     a: 1.0,
                 };
 
@@ -3908,35 +3907,78 @@ impl EntropyApp {
                                         [label_width, 24.0],
                                         egui::Label::new(RichText::new("Color").size(12.5)),
                                     );
+
+                                    let popup_id = ui.make_persistent_id("rgb_color_popup");
                                     let border = if dark {
                                         Color32::from_gray(95)
                                     } else {
                                         Color32::from_gray(185)
                                     };
-                                    egui::Frame::new()
-                                        .fill(app_surface_fill(dark))
-                                        .stroke(Stroke::new(1.0, border))
-                                        .corner_radius(8.0)
-                                        .inner_margin(egui::Margin::symmetric(8, 6))
-                                        .show(ui, |ui| {
-                                            ui.spacing_mut().interact_size = Vec2::new(52.0, 28.0);
-                                            let resp = egui::color_picker::color_edit_button_hsva(
-                                                ui,
-                                                &mut color_hsva,
-                                                egui::color_picker::Alpha::Opaque,
-                                            );
-                                            if resp.changed() {
-                                                let hue = (color_hsva.h.rem_euclid(1.0) * 255.0)
-                                                    .round()
-                                                    .clamp(0.0, 255.0)
-                                                    as u8;
-                                                let saturation = (color_hsva.s.clamp(0.0, 1.0) * 255.0)
-                                                    .round()
-                                                    .clamp(0.0, 255.0)
-                                                    as u8;
-                                                self.set_rgb_color(hue, saturation);
-                                            }
-                                        });
+                                    let swatch_border = if ui.memory(|m| m.is_popup_open(popup_id)) {
+                                        app_accent()
+                                    } else {
+                                        border
+                                    };
+                                    let swatch_color: Color32 = color_hsva.into();
+                                    let (swatch_rect, swatch_resp) = ui.allocate_exact_size(
+                                        Vec2::new(56.0, 32.0),
+                                        Sense::click(),
+                                    );
+                                    if swatch_resp.hovered() {
+                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                    }
+                                    if swatch_resp.clicked() {
+                                        ui.memory_mut(|m| m.toggle_popup(popup_id));
+                                    }
+                                    ui.painter().rect(
+                                        swatch_rect,
+                                        8.0,
+                                        app_surface_fill(dark),
+                                        Stroke::new(1.0, swatch_border),
+                                        egui::StrokeKind::Inside,
+                                    );
+                                    ui.painter().rect(
+                                        swatch_rect.shrink(5.0),
+                                        5.0,
+                                        swatch_color,
+                                        Stroke::new(1.0, swatch_border.gamma_multiply(0.85)),
+                                        egui::StrokeKind::Inside,
+                                    );
+
+                                    let mut picked_hsva = color_hsva;
+                                    egui::popup_below_widget(
+                                        ui,
+                                        popup_id,
+                                        &swatch_resp,
+                                        egui::PopupCloseBehavior::CloseOnClickOutside,
+                                        |ui| {
+                                            egui::Frame::popup(ui.style())
+                                                .corner_radius(10.0)
+                                                .show(ui, |ui| {
+                                                    ui.set_min_width(220.0);
+                                                    if egui::color_picker::color_picker_hsva_2d(
+                                                        ui,
+                                                        &mut picked_hsva,
+                                                        egui::color_picker::Alpha::Opaque,
+                                                    ) {
+                                                        let hue = (picked_hsva.h.rem_euclid(1.0)
+                                                            * 255.0)
+                                                            .round()
+                                                            .clamp(0.0, 255.0)
+                                                            as u8;
+                                                        let saturation = (picked_hsva
+                                                            .s
+                                                            .clamp(0.0, 1.0)
+                                                            * 255.0)
+                                                            .round()
+                                                            .clamp(0.0, 255.0)
+                                                            as u8;
+                                                        self.set_rgb_color(hue, saturation);
+                                                        color_hsva = picked_hsva;
+                                                    }
+                                                });
+                                        },
+                                    );
                                 });
                             }
 
