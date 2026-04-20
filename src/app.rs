@@ -6956,7 +6956,7 @@ impl EntropyApp {
                             .find(|&k| k != 0x0001)
                             .unwrap_or(0x0000);
                         let label = if fallback_kc == 0x0000 || fallback_kc == 0x0001 {
-                            "\u{25BD}".to_string()
+                            String::new()
                         } else {
                             keycode_label_with_macro_names(
                                 fallback_kc,
@@ -6979,24 +6979,12 @@ impl EntropyApp {
                     } else {
                         Color32::from_rgb(210, 210, 218)
                     };
-                    let no_text = if dark {
-                        Color32::from_rgb(55, 55, 65)
-                    } else {
-                        Color32::from_rgb(180, 180, 195)
-                    };
                     painter.rect(
                         draw_rect,
                         6.0,
                         no_bg,
                         Stroke::new(1.0, no_border),
                         egui::StrokeKind::Inside,
-                    );
-                    painter.text(
-                        draw_rect.center(),
-                        egui::Align2::CENTER_CENTER,
-                        "\u{2715}",
-                        FontId::proportional(10.0),
-                        no_text,
                     );
                 } else {
                     let border = if dark {
