@@ -2282,6 +2282,12 @@ impl EntropyApp {
             max_x = max_x.max(key.x + key.w);
             max_y = max_y.max(key.y + key.h);
         }
+        for encoder in &layout.encoders {
+            min_x = min_x.min(encoder.x);
+            min_y = min_y.min(encoder.y);
+            max_x = max_x.max(encoder.x + encoder.w);
+            max_y = max_y.max(encoder.y + encoder.h);
+        }
         if min_x == f32::MAX {
             return;
         }
