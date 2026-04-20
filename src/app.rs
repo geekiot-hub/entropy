@@ -2295,14 +2295,15 @@ impl EntropyApp {
         let span_x = max_x - min_x;
         let span_y = max_y - min_y;
         let margin = 40.0_f32;
-        let scale_x = (board_rect.width() - margin) / (span_x * base_unit).max(1.0);
-        let scale_y = (content_rect.height() - margin) / (span_y * base_unit).max(1.0);
+        let avail = ui.available_size();
+        let scale_x = (avail.x - margin) / (span_x * base_unit).max(1.0);
+        let scale_y = (avail.y - margin) / (span_y * base_unit).max(1.0);
         let scale = scale_x.min(scale_y).min(1.0);
         let unit = base_unit * scale;
         let layout_w = span_x * unit;
         let layout_h = span_y * unit;
-        let offset_x = content_rect.center().x - layout_w / 2.0 - min_x * unit;
-        let offset_y = content_rect.center().y - layout_h / 2.0 - min_y * unit;
+        let offset_x = (avail.x - layout_w) / 2.0 + ui.min_rect().left() - min_x * unit;
+        let offset_y = ((content_rect.top() + content_rect.bottom()) - layout_h) / 2.0 - min_y * unit;
 
         for key in &layout.keys {
             let matrix_idx = key.row as usize * layout.cols + key.col as usize;
