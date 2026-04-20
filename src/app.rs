@@ -2295,8 +2295,8 @@ impl EntropyApp {
         let unit = base_unit * scale;
         let layout_w = span_x * unit;
         let layout_h = span_y * unit;
-        let offset_x = board_rect.center().x - layout_w / 2.0 - min_x * unit;
-        let offset_y = board_rect.center().y - layout_h / 2.0 - min_y * unit;
+        let offset_x = content_rect.center().x - layout_w / 2.0 - min_x * unit;
+        let offset_y = content_rect.center().y - layout_h / 2.0 - min_y * unit;
 
         for key in &layout.keys {
             let matrix_idx = key.row as usize * layout.cols + key.col as usize;
