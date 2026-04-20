@@ -6972,7 +6972,7 @@ impl EntropyApp {
                     let no_bg = if dark {
                         Color32::from_rgb(20, 20, 22)
                     } else {
-                        Color32::from_rgb(238, 238, 242)
+                        Color32::from_rgb(255, 255, 255)
                     };
                     let no_border = if dark {
                         Color32::from_rgb(40, 40, 44)
