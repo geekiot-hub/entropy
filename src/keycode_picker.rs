@@ -2320,6 +2320,8 @@ Toggle".into(),0x7C52, "Toggles Combo feature on and off".into()),
             ("Caps
 Word".into(),   0x7C73, "Capitalizes until end of current word".into()),
             ("Repeat".into(),       0x7C79, "Repeats the last pressed key".into()),
+            ("Alt
+Repeat".into(),  0x7C7A, "Alt repeats the last pressed key".into()),
         ];
         let extra_fn_keys: &[(&str, u16)] = &[
             ("F13", 0x0068), ("F14", 0x0069), ("F15", 0x006A), ("F16", 0x006B),

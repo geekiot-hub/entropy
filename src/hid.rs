@@ -55,6 +55,8 @@ const DYNAMIC_VIAL_COMBO_GET: u8 = 0x03;
 const DYNAMIC_VIAL_COMBO_SET: u8 = 0x04;
 const DYNAMIC_VIAL_KEY_OVERRIDE_GET: u8 = 0x05;
 const DYNAMIC_VIAL_KEY_OVERRIDE_SET: u8 = 0x06;
+const DYNAMIC_VIAL_ALT_REPEAT_KEY_GET: u8 = 0x07;
+const DYNAMIC_VIAL_ALT_REPEAT_KEY_SET: u8 = 0x08;
 
 const BUFFER_FETCH_CHUNK: usize = 28;
 
@@ -401,6 +403,16 @@ impl HidDevice {
         Ok(resp[2])
     }
 
+    /// Get number of alt repeat key entries available
+    pub fn get_alt_repeat_key_count(&self) -> Result<u8> {
+        let resp = self.usb_send(&[
+            CMD_VIA_VIAL_PREFIX,
+            CMD_VIAL_DYNAMIC_ENTRY_OP,
+            DYNAMIC_VIAL_GET_NUM_ENTRIES,
+        ])?;
+        Ok(resp[3])
+    }
+
     /// Get key override entry:
     /// (trigger, replacement, layers, trigger_mods, negative_mod_mask, suppressed_mods, options)
     pub fn get_key_override(&self, idx: u8) -> Result<(u16, u16, u16, u8, u8, u8, u8)> {
@@ -454,6 +466,50 @@ impl HidDevice {
         let resp = self.usb_send(&cmd)?;
         if resp[0] != 0 {
             anyhow::bail!("key override set error: {}", resp[0]);
+        }
+        Ok(())
+    }
+
+    /// Get alt repeat key entry: (last_key, alt_key, allowed_mods, options)
+    pub fn get_alt_repeat_key(&self, idx: u8) -> Result<(u16, u16, u8, u8)> {
+        let resp = self.usb_send(&[
+            CMD_VIA_VIAL_PREFIX,
+            CMD_VIAL_DYNAMIC_ENTRY_OP,
+            DYNAMIC_VIAL_ALT_REPEAT_KEY_GET,
+            idx,
+        ])?;
+        if resp[0] != 0 {
+            anyhow::bail!("alt repeat key get error: {}", resp[0]);
+        }
+        Ok((
+            u16::from_le_bytes([resp[1], resp[2]]),
+            u16::from_le_bytes([resp[3], resp[4]]),
+            resp[5],
+            resp[6],
+        ))
+    }
+
+    /// Set alt repeat key entry
+    pub fn set_alt_repeat_key(
+        &self,
+        idx: u8,
+        keycode: u16,
+        alt_keycode: u16,
+        allowed_mods: u8,
+        options: u8,
+    ) -> Result<()> {
+        let mut cmd = [0u8; 32];
+        cmd[0] = CMD_VIA_VIAL_PREFIX;
+        cmd[1] = CMD_VIAL_DYNAMIC_ENTRY_OP;
+        cmd[2] = DYNAMIC_VIAL_ALT_REPEAT_KEY_SET;
+        cmd[3] = idx;
+        cmd[4..6].copy_from_slice(&keycode.to_le_bytes());
+        cmd[6..8].copy_from_slice(&alt_keycode.to_le_bytes());
+        cmd[8] = allowed_mods;
+        cmd[9] = options;
+        let resp = self.usb_send(&cmd)?;
+        if resp[0] != 0 {
+            anyhow::bail!("alt repeat key set error: {}", resp[0]);
         }
         Ok(())
     }

@@ -408,6 +408,7 @@ pub const KEYCODES: &[Keycode] = &[
     Keycode { value: 0x7C52, name: "CMB_TOG",             label: "Combo\nToggle",category: KeycodeCategory::Special },
     Keycode { value: 0x7C73, name: "QK_CAPS_WORD_TOGGLE", label: "Caps\nWord",   category: KeycodeCategory::Special },
     Keycode { value: 0x7C79, name: "QK_REPEAT_KEY",       label: "Repeat",       category: KeycodeCategory::Special },
+    Keycode { value: 0x7C7A, name: "QK_ALT_REPEAT_KEY",   label: "Alt\nRepeat",  category: KeycodeCategory::Special },
     // RGB Light
     Keycode { value: 0x7820, name: "RGB_TOG",  label: "RGB\nTog",  category: KeycodeCategory::Special },
     Keycode { value: 0x7821, name: "RGB_MOD",  label: "RGB\nMod",  category: KeycodeCategory::Special },
@@ -995,6 +996,7 @@ fn simple_key_tooltip(kc: &Keycode) -> String {
         "CMB_TOG"             => "Toggles Combo feature on and off",
         "QK_CAPS_WORD_TOGGLE" => "Capitalizes until end of current word",
         "QK_REPEAT_KEY"       => "Repeats the last pressed key",
+        "QK_ALT_REPEAT_KEY"   => "Alt repeats the last pressed key",
         // RGB
         "RGB_TOG"  => "RGB lighting — toggle on/off",
         "RGB_MOD"  => "RGB lighting — next animation mode",

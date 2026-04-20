@@ -335,6 +335,8 @@ struct ConnectResult {
     rgb_settings: RgbSettingsState,
     /// Key Override entries
     key_override_entries: Vec<KeyOverrideEntry>,
+    /// Alt Repeat entries
+    alt_repeat_entries: Vec<AltRepeatKeyEntry>,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -443,6 +445,40 @@ struct KeyOverrideEntry {
     negative_mod_mask: u8,
     suppressed_mods: u8,
     options: KeyOverrideOptionsState,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct AltRepeatKeyOptionsState {
+    default_to_this_alt_key: bool,
+    bidirectional: bool,
+    ignore_mod_handedness: bool,
+    enabled: bool,
+}
+
+impl AltRepeatKeyOptionsState {
+    fn from_bits(bits: u8) -> Self {
+        Self {
+            default_to_this_alt_key: bits & (1 << 0) != 0,
+            bidirectional: bits & (1 << 1) != 0,
+            ignore_mod_handedness: bits & (1 << 2) != 0,
+            enabled: bits & (1 << 3) != 0,
+        }
+    }
+
+    fn bits(self) -> u8 {
+        (self.default_to_this_alt_key as u8)
+            | ((self.bidirectional as u8) << 1)
+            | ((self.ignore_mod_handedness as u8) << 2)
+            | ((self.enabled as u8) << 3)
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct AltRepeatKeyEntry {
+    keycode: u16,
+    alt_keycode: u16,
+    allowed_mods: u8,
+    options: AltRepeatKeyOptionsState,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -928,6 +964,10 @@ fn is_mouse_keycode(kc: u16) -> bool {
     (0x00CD..=0x00DF).contains(&kc)
 }
 
+fn is_alt_repeat_keycode(kc: u16) -> bool {
+    kc == 0x7C7A
+}
+
 #[derive(Clone, Debug)]
 enum UndoAction {
     Key {
@@ -947,6 +987,12 @@ enum UndoAction {
 enum KeyOverridePickField {
     Trigger,
     Replacement,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum AltRepeatPickField {
+    LastKey,
+    AltKey,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -1019,6 +1065,11 @@ pub struct EntropyApp {
     auto_shift_timeout: Option<u16>,
     mouse_keys_settings: MouseKeysSettingsState,
     mouse_keys_window_open: bool,
+    alt_repeat_entries: Vec<AltRepeatKeyEntry>,
+    alt_repeat_window_open: bool,
+    selected_alt_repeat: usize,
+    alt_repeat_pick_target: Option<AltRepeatPickField>,
+    alt_repeat_reopen_after_pick: bool,
     rgb_settings: RgbSettingsState,
     rgb_window_open: bool,
     encoder_visibility: Vec<bool>,
@@ -1109,6 +1160,11 @@ impl EntropyApp {
             auto_shift_timeout: None,
             mouse_keys_settings: MouseKeysSettingsState::default(),
             mouse_keys_window_open: false,
+            alt_repeat_entries: vec![],
+            alt_repeat_window_open: false,
+            selected_alt_repeat: 0,
+            alt_repeat_pick_target: None,
+            alt_repeat_reopen_after_pick: false,
             rgb_settings: RgbSettingsState::default(),
             rgb_window_open: false,
             encoder_visibility: vec![],
@@ -1199,6 +1255,11 @@ impl EntropyApp {
         self.auto_shift_window_open = false;
         self.mouse_keys_settings = MouseKeysSettingsState::default();
         self.mouse_keys_window_open = false;
+        self.alt_repeat_entries.clear();
+        self.alt_repeat_window_open = false;
+        self.selected_alt_repeat = 0;
+        self.alt_repeat_pick_target = None;
+        self.alt_repeat_reopen_after_pick = false;
         self.rgb_settings = RgbSettingsState::default();
         self.rgb_window_open = false;
         self.encoder_visibility.clear();
@@ -1521,6 +1582,34 @@ impl EntropyApp {
                             }
                         };
 
+                        let alt_repeat_entries = match dev_conn.get_alt_repeat_key_count() {
+                            Ok(count) => {
+                                log::info!("Alt Repeat count: {count}");
+                                let mut entries = Vec::new();
+                                for i in 0..count {
+                                    match dev_conn.get_alt_repeat_key(i) {
+                                        Ok((keycode, alt_keycode, allowed_mods, options)) => {
+                                            entries.push(AltRepeatKeyEntry {
+                                                keycode,
+                                                alt_keycode,
+                                                allowed_mods,
+                                                options: AltRepeatKeyOptionsState::from_bits(options),
+                                            });
+                                        }
+                                        Err(e) => {
+                                            log::warn!("get_alt_repeat_key({i}): {e}");
+                                            entries.push(Default::default());
+                                        }
+                                    }
+                                }
+                                entries
+                            }
+                            Err(e) => {
+                                log::warn!("get_alt_repeat_key_count: {e}");
+                                vec![]
+                            }
+                        };
+
                         Ok(ConnectResult {
                             device_name: dev.name.clone(),
                             macro_texts,
@@ -1532,6 +1621,7 @@ impl EntropyApp {
                             mouse_keys_settings,
                             rgb_settings,
                             key_override_entries,
+                            alt_repeat_entries,
                             layout,
                             layer_count,
                             zmk_conn: None,
@@ -1584,6 +1674,7 @@ impl EntropyApp {
                                 mouse_keys_settings: MouseKeysSettingsState::default(),
                                 rgb_settings: RgbSettingsState::default(),
                                 key_override_entries: vec![],
+                                alt_repeat_entries: vec![],
                                 layout,
                                 layer_count: 0,
                                 zmk_conn: Some(conn),
@@ -1644,6 +1735,7 @@ impl EntropyApp {
                             mouse_keys_settings: MouseKeysSettingsState::default(),
                             rgb_settings: RgbSettingsState::default(),
                             key_override_entries: vec![],
+                            alt_repeat_entries: vec![],
                             layout,
                             layer_count,
                             zmk_conn: Some(conn),
@@ -1691,6 +1783,8 @@ impl EntropyApp {
                 self.keycode_picker.tap_dance_entries = r.tap_dance_entries.clone();
                 self.combo_entries = r.combo_entries.clone();
                 self.key_override_entries = r.key_override_entries.clone();
+                self.alt_repeat_entries = r.alt_repeat_entries.clone();
+                self.selected_alt_repeat = 0;
                 self.key_override_names = load_key_override_names(&self.current_device_name);
                 self.key_override_names
                     .resize(self.key_override_entries.len(), String::new());
@@ -2381,6 +2475,21 @@ impl EntropyApp {
                     self.key_override_window_open = true;
                     self.key_override_reopen_after_pick = false;
                 }
+            } else if let Some(field) = self.alt_repeat_pick_target.take() {
+                let idx = self
+                    .selected_alt_repeat
+                    .min(self.alt_repeat_entries.len().saturating_sub(1));
+                if let Some(entry) = self.alt_repeat_entries.get_mut(idx) {
+                    match field {
+                        AltRepeatPickField::LastKey => entry.keycode = kc_value,
+                        AltRepeatPickField::AltKey => entry.alt_keycode = kc_value,
+                    }
+                }
+                self.write_alt_repeat_entry(idx);
+                if self.alt_repeat_reopen_after_pick {
+                    self.alt_repeat_window_open = true;
+                    self.alt_repeat_reopen_after_pick = false;
+                }
             } else if let Some((layer, encoder_visual_idx)) = self.selected_encoder {
                 #[cfg(not(target_arch = "wasm32"))]
                 self.assign_encoder_keycode(layer, encoder_visual_idx, kc_value);
@@ -2392,12 +2501,18 @@ impl EntropyApp {
                         }
                     }
                 }
+                if is_alt_repeat_keycode(kc_value) {
+                    self.alt_repeat_window_open = true;
+                }
             } else if let Some((layer, ki)) = self.selected_key {
                 #[cfg(not(target_arch = "wasm32"))]
                 self.assign_keycode(layer, ki, kc_value);
                 #[cfg(target_arch = "wasm32")]
                 if let Some(layout) = &mut self.layout {
                     layout.set_keycode(layer, ki, kc_value);
+                }
+                if is_alt_repeat_keycode(kc_value) {
+                    self.alt_repeat_window_open = true;
                 }
             }
             self.selected_key = None;
@@ -2582,6 +2697,11 @@ impl EntropyApp {
         }
         if is_mouse_keycode(kc) {
             self.mouse_keys_window_open = true;
+            self.secondary_click_handled = true;
+            return;
+        }
+        if is_alt_repeat_keycode(kc) {
+            self.alt_repeat_window_open = true;
             self.secondary_click_handled = true;
             return;
         }
@@ -3357,6 +3477,7 @@ impl eframe::App for EntropyApp {
         let any_floating_window_open = self.combo_window_open
             || self.auto_shift_window_open
             || self.mouse_keys_window_open
+            || self.alt_repeat_window_open
             || self.rgb_window_open
             || self.encoder_visibility_window_open
             || self.key_override_window_open
@@ -3381,6 +3502,7 @@ impl eframe::App for EntropyApp {
                         self.combo_window_open = false;
                         self.auto_shift_window_open = false;
                         self.mouse_keys_window_open = false;
+                        self.alt_repeat_window_open = false;
                         self.rgb_window_open = false;
                         self.encoder_visibility_window_open = false;
                         self.key_override_window_open = false;
@@ -3397,6 +3519,9 @@ impl eframe::App for EntropyApp {
         }
         if self.mouse_keys_window_open {
             self.show_mouse_keys_window(ctx);
+        }
+        if self.alt_repeat_window_open {
+            self.show_alt_repeat_window(ctx);
         }
         if self.rgb_window_open {
             self.show_rgb_window(ctx);
@@ -3430,6 +3555,16 @@ impl eframe::App for EntropyApp {
             if self.key_override_reopen_after_pick {
                 self.key_override_window_open = true;
                 self.key_override_reopen_after_pick = false;
+            }
+        }
+        if self.alt_repeat_pick_target.is_some()
+            && !self.keycode_picker.open
+            && self.keycode_picker.result.is_none()
+        {
+            self.alt_repeat_pick_target = None;
+            if self.alt_repeat_reopen_after_pick {
+                self.alt_repeat_window_open = true;
+                self.alt_repeat_reopen_after_pick = false;
             }
         }
 
@@ -3717,6 +3852,33 @@ impl EntropyApp {
         self.key_override_pick_target = Some(target);
         self.key_override_reopen_after_pick = true;
         self.key_override_window_open = false;
+        self.keycode_picker.result = None;
+        self.keycode_picker.open = true;
+    }
+
+    fn write_alt_repeat_entry(&mut self, idx: usize) {
+        let Some(entry) = self.alt_repeat_entries.get(idx).cloned() else {
+            return;
+        };
+        let Some(hid) = &self.hid_device else {
+            return;
+        };
+        if let Err(e) = hid.set_alt_repeat_key(
+            idx as u8,
+            entry.keycode,
+            entry.alt_keycode,
+            entry.allowed_mods,
+            entry.options.bits(),
+        ) {
+            self.status_msg = format!("Failed to save Alt Repeat {}: {}", idx + 1, e);
+            log::warn!("set_alt_repeat_key({idx}) failed: {e}");
+        }
+    }
+
+    fn open_alt_repeat_picker(&mut self, target: AltRepeatPickField) {
+        self.alt_repeat_pick_target = Some(target);
+        self.alt_repeat_reopen_after_pick = true;
+        self.alt_repeat_window_open = false;
         self.keycode_picker.result = None;
         self.keycode_picker.open = true;
     }
@@ -4315,6 +4477,218 @@ impl EntropyApp {
                 }
             });
         self.encoder_visibility_window_open = open;
+    }
+
+    fn show_alt_repeat_window(&mut self, ctx: &egui::Context) {
+        if !self.keycode_picker.open && ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            self.alt_repeat_window_open = false;
+            return;
+        }
+
+        let mut open = self.alt_repeat_window_open;
+        let dark = ctx.style().visuals.dark_mode;
+        let style = ctx.style().as_ref().clone();
+        let frame = crate::ui_style::modal_window_frame(&style, dark);
+
+        egui::Window::new("Alt Repeat")
+            .id(egui::Id::new("alt_repeat_window"))
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(false)
+            .movable(true)
+            .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
+            .fixed_size(Vec2::new(520.0, 430.0))
+            .frame(frame)
+            .order(egui::Order::Foreground)
+            .show(ctx, |ui| {
+                ui.add_space(8.0);
+
+                if self.alt_repeat_entries.is_empty() {
+                    ui.vertical_centered(|ui| {
+                        ui.add_space(96.0);
+                        ui.label(
+                            RichText::new("Alt Repeat settings are not available on this firmware.")
+                                .size(13.0)
+                                .color(app_muted_text(dark)),
+                        );
+                        ui.add_space(6.0);
+                        ui.label(
+                            RichText::new("This keyboard does not expose Vial Alt Repeat entries.")
+                                .size(11.5)
+                                .color(app_muted_text(dark)),
+                        );
+                    });
+                    return;
+                }
+
+                let idx = self
+                    .selected_alt_repeat
+                    .min(self.alt_repeat_entries.len().saturating_sub(1));
+                let mut edited = self.alt_repeat_entries.get(idx).cloned().unwrap_or_default();
+                let original = edited.clone();
+                let content_width = 420.0_f32;
+                let field_width = 220.0_f32;
+                let custom_keycodes = self
+                    .layout
+                    .as_ref()
+                    .map(|l| l.custom_keycodes.clone())
+                    .unwrap_or_default();
+                let custom = custom_keycodes.as_slice();
+                let layer_names = self.layer_names.clone();
+                let macro_names = self.keycode_picker.macro_names.clone();
+                let tap_dance_names = self.keycode_picker.tap_dance_names.clone();
+                let key_label = |value: u16| {
+                    if value == 0 {
+                        "Pick key".to_string()
+                    } else {
+                        keycode_label_with_macro_names(
+                            value,
+                            custom,
+                            &layer_names,
+                            &macro_names,
+                            &tap_dance_names,
+                        )
+                        .replace('\n', " ")
+                    }
+                };
+
+                ui.horizontal_centered(|ui| {
+                    for entry_idx in 0..self.alt_repeat_entries.len() {
+                        let selected = entry_idx == idx;
+                        let button = egui::Button::new(
+                            RichText::new((entry_idx + 1).to_string()).size(12.0),
+                        )
+                        .min_size(Vec2::new(34.0, 28.0))
+                        .selected(selected);
+                        let resp = ui
+                            .add(button)
+                            .on_hover_cursor(egui::CursorIcon::PointingHand);
+                        if resp.clicked() {
+                            self.selected_alt_repeat = entry_idx;
+                        }
+                    }
+                });
+
+                ui.add_space(10.0);
+                ui.vertical_centered(|ui| {
+                    egui::ScrollArea::vertical()
+                        .max_height(334.0)
+                        .auto_shrink([false, true])
+                        .show(ui, |ui| {
+                            ui.allocate_ui_with_layout(
+                                Vec2::new(content_width, 0.0),
+                                egui::Layout::top_down(egui::Align::Min),
+                                |ui| {
+                                    egui::Grid::new(ui.id().with("alt_repeat_grid"))
+                                        .num_columns(2)
+                                        .spacing([18.0, 10.0])
+                                        .show(ui, |ui| {
+                                            ui.label(RichText::new("Enable").size(12.5));
+                                            let enable_resp = ui.checkbox(&mut edited.options.enabled, "");
+                                            if enable_resp.hovered() {
+                                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                            }
+                                            ui.end_row();
+
+                                            ui.label(RichText::new("Last key").size(12.5));
+                                            let last_key_resp = ui
+                                                .add(
+                                                    egui::Button::new(
+                                                        RichText::new(key_label(edited.keycode)).size(12.0),
+                                                    )
+                                                    .min_size(Vec2::new(field_width, 34.0)),
+                                                )
+                                                .on_hover_cursor(egui::CursorIcon::PointingHand);
+                                            if last_key_resp.clicked() {
+                                                self.open_alt_repeat_picker(AltRepeatPickField::LastKey);
+                                            }
+                                            last_key_resp.on_hover_text(keycode_tooltip_with_macro_names(
+                                                edited.keycode,
+                                                custom,
+                                                &layer_names,
+                                                &macro_names,
+                                                &tap_dance_names,
+                                            ));
+                                            ui.end_row();
+
+                                            ui.label(RichText::new("Alt key").size(12.5));
+                                            let alt_key_resp = ui
+                                                .add(
+                                                    egui::Button::new(
+                                                        RichText::new(key_label(edited.alt_keycode)).size(12.0),
+                                                    )
+                                                    .min_size(Vec2::new(field_width, 34.0)),
+                                                )
+                                                .on_hover_cursor(egui::CursorIcon::PointingHand);
+                                            if alt_key_resp.clicked() {
+                                                self.open_alt_repeat_picker(AltRepeatPickField::AltKey);
+                                            }
+                                            alt_key_resp.on_hover_text(keycode_tooltip_with_macro_names(
+                                                edited.alt_keycode,
+                                                custom,
+                                                &layer_names,
+                                                &macro_names,
+                                                &tap_dance_names,
+                                            ));
+                                            ui.end_row();
+
+                                            ui.label(RichText::new("Allowed mods").size(12.5));
+                                            ui.vertical(|ui| {
+                                                Self::draw_key_override_mod_mask(
+                                                    ui,
+                                                    &mut edited.allowed_mods,
+                                                    "alt_repeat_allowed_mods",
+                                                );
+                                            });
+                                            ui.end_row();
+
+                                            ui.label(RichText::new("Options").size(12.5));
+                                            ui.vertical(|ui| {
+                                                let option_row = |ui: &mut egui::Ui, label: &str, value: &mut bool| {
+                                                    let resp = ui.checkbox(value, label);
+                                                    if resp.hovered() {
+                                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                                    }
+                                                };
+                                                option_row(
+                                                    ui,
+                                                    "Default to this alt key",
+                                                    &mut edited.options.default_to_this_alt_key,
+                                                );
+                                                option_row(
+                                                    ui,
+                                                    "Bidirectional",
+                                                    &mut edited.options.bidirectional,
+                                                );
+                                                option_row(
+                                                    ui,
+                                                    "Ignore mod handedness",
+                                                    &mut edited.options.ignore_mod_handedness,
+                                                );
+                                            });
+                                            ui.end_row();
+                                        });
+
+                                    ui.add_space(10.0);
+                                    ui.label(
+                                        RichText::new("Changes are written to the keyboard immediately.")
+                                            .size(11.0)
+                                            .color(app_muted_text(dark)),
+                                    );
+                                },
+                            );
+                        });
+                });
+
+                if edited != original {
+                    if let Some(slot) = self.alt_repeat_entries.get_mut(idx) {
+                        *slot = edited;
+                    }
+                    self.write_alt_repeat_entry(idx);
+                }
+            });
+
+        self.alt_repeat_window_open = open;
     }
 
     fn show_auto_shift_window(&mut self, ctx: &egui::Context) {
@@ -6333,6 +6707,7 @@ impl EntropyApp {
                             hovered_is_macro,
                             hovered_is_tap_dance,
                             hovered_is_mouse,
+                            hovered_is_alt_repeat,
                             hovered_is_layer,
                         ) = if self.firmware == FirmwareProtocol::Vial {
                             let hint_kc = self
@@ -6377,6 +6752,7 @@ impl EntropyApp {
                                     let is_macro = kc >= 0x7700 && kc <= 0x77FF;
                                     let is_tap_dance = kc >= 0x5700 && kc <= 0x57FF;
                                     let is_mouse = is_mouse_keycode(kc);
+                                    let is_alt_repeat = is_alt_repeat_keycode(kc);
                                     let is_layer =
                                         (kc >= 0x5200 && kc < 0x5300) || (kc & 0xF000 == 0x4000);
                                     (
@@ -6385,12 +6761,13 @@ impl EntropyApp {
                                         is_macro,
                                         is_tap_dance,
                                         is_mouse,
+                                        is_alt_repeat,
                                         is_layer,
                                     )
                                 })
-                                .unwrap_or((false, false, false, false, false, false))
+                                .unwrap_or((false, false, false, false, false, false, false))
                         } else {
-                            (false, false, false, false, false, false)
+                            (false, false, false, false, false, false, false)
                         };
                         if hovered_is_mod {
                             if hovered_can_swap_side {
@@ -6473,6 +6850,21 @@ impl EntropyApp {
                                 egui::pos2(center_x, hint_y + 4.0),
                                 egui::Align2::CENTER_CENTER,
                                 "Right click to open Mouse Keys settings",
+                                secondary_hint_font.clone(),
+                                hint_color,
+                            );
+                        } else if hovered_is_alt_repeat {
+                            ui.painter().text(
+                                egui::pos2(center_x, hint_y - 14.0),
+                                egui::Align2::CENTER_CENTER,
+                                "Left click to change this key",
+                                hint_font.clone(),
+                                hint_color,
+                            );
+                            ui.painter().text(
+                                egui::pos2(center_x, hint_y + 4.0),
+                                egui::Align2::CENTER_CENTER,
+                                "Right click to open Alt Repeat settings",
                                 secondary_hint_font,
                                 hint_color,
                             );
@@ -6725,9 +7117,13 @@ impl EntropyApp {
                     self.keycode_picker.tap_dance_editor_open = Some(td_n);
                     self.secondary_click_handled = true;
                 }
-                // Mouse keys (0x00F0..=0x00FC) — RClick opens Mouse keys settings
+                // Mouse keys — RClick opens Mouse keys settings
                 if is_mouse_keycode(kc) {
                     self.mouse_keys_window_open = true;
+                    self.secondary_click_handled = true;
+                }
+                if is_alt_repeat_keycode(kc) {
+                    self.alt_repeat_window_open = true;
                     self.secondary_click_handled = true;
                 }
                 // MT: 0x2000..0x3FFF, Mod+Key: 0x0100..0x1FFF with kc != 0
