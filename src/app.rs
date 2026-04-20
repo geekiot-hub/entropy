@@ -726,14 +726,17 @@ fn compact_rgb_slider_1d(
         let x = egui::lerp(rect.x_range(), *value);
         let picked_color = color_at(*value);
         let stroke = Stroke::new(1.2, rgb_picker_contrast(picked_color));
-        let top = egui::pos2(x, rect.top() - 2.0);
-        let left = egui::pos2(x - 7.0, rect.bottom() + 1.0);
-        let right = egui::pos2(x + 7.0, rect.bottom() + 1.0);
-        ui.painter().add(egui::Shape::convex_polygon(
-            vec![top, left, right],
+        let handle_rect = egui::Rect::from_center_size(
+            egui::pos2(x, rect.center().y),
+            Vec2::new(10.0, rect.height() + 6.0),
+        );
+        ui.painter().rect(
+            handle_rect,
+            3.0,
             picked_color,
             stroke,
-        ));
+            egui::StrokeKind::Inside,
+        );
         ui.painter().rect_stroke(
             rect,
             2.0,
