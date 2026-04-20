@@ -695,9 +695,14 @@ fn compact_rgb_slider_1d(
 ) -> bool {
     let desired_size = Vec2::new(ui.spacing().slider_width, 18.0);
     let (rect, response) = ui.allocate_exact_size(desired_size, Sense::click_and_drag());
+    let mut changed = false;
 
     if let Some(pos) = response.interact_pointer_pos() {
-        *value = ((pos.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
+        let new_value = ((pos.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
+        if (*value - new_value).abs() > f32::EPSILON {
+            *value = new_value;
+            changed = true;
+        }
     }
 
     if ui.is_rect_visible(rect) {
@@ -737,7 +742,7 @@ fn compact_rgb_slider_1d(
         );
     }
 
-    response.changed()
+    changed
 }
 
 fn compact_rgb_slider_2d(
@@ -748,10 +753,19 @@ fn compact_rgb_slider_2d(
 ) -> bool {
     let desired_size = Vec2::splat(ui.spacing().slider_width);
     let (rect, response) = ui.allocate_exact_size(desired_size, Sense::click_and_drag());
+    let mut changed = false;
 
     if let Some(pos) = response.interact_pointer_pos() {
-        *x_value = ((pos.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
-        *y_value = ((rect.bottom() - pos.y) / rect.height()).clamp(0.0, 1.0);
+        let new_x_value = ((pos.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
+        let new_y_value = ((rect.bottom() - pos.y) / rect.height()).clamp(0.0, 1.0);
+        if (*x_value - new_x_value).abs() > f32::EPSILON {
+            *x_value = new_x_value;
+            changed = true;
+        }
+        if (*y_value - new_y_value).abs() > f32::EPSILON {
+            *y_value = new_y_value;
+            changed = true;
+        }
     }
 
     if ui.is_rect_visible(rect) {
@@ -788,7 +802,7 @@ fn compact_rgb_slider_2d(
         );
     }
 
-    response.changed()
+    changed
 }
 
 fn compact_rgb_color_picker(ui: &mut egui::Ui, hsva: &mut egui::ecolor::Hsva) -> bool {
@@ -4056,12 +4070,14 @@ impl EntropyApp {
                                 );
 
                                 let popup_id = ui.make_persistent_id("rgb_color_popup");
+                                let popup_hsva_id = popup_id.with("hsva");
+                                let popup_open = ui.memory(|m| m.is_popup_open(popup_id));
                                 let border = if dark {
                                     Color32::from_gray(95)
                                 } else {
                                     Color32::from_gray(185)
                                 };
-                                let swatch_border = if color_enabled && ui.memory(|m| m.is_popup_open(popup_id)) {
+                                let swatch_border = if color_enabled && popup_open {
                                     app_accent()
                                 } else {
                                     border
@@ -4076,6 +4092,7 @@ impl EntropyApp {
                                     ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                 }
                                 if color_enabled && swatch_resp.clicked() {
+                                    ui.ctx().data_mut(|d| d.insert_temp(popup_hsva_id, color_hsva));
                                     ui.memory_mut(|m| m.toggle_popup(popup_id));
                                 }
                                 ui.painter().rect(
@@ -4098,7 +4115,10 @@ impl EntropyApp {
                                 );
 
                                 if color_enabled {
-                                    let mut picked_hsva = color_hsva;
+                                    let mut picked_hsva = ui
+                                        .ctx()
+                                        .data(|d| d.get_temp::<egui::ecolor::Hsva>(popup_hsva_id))
+                                        .unwrap_or(color_hsva);
                                     egui::popup_below_widget(
                                         ui,
                                         popup_id,
@@ -4120,6 +4140,7 @@ impl EntropyApp {
                                                     as u8;
                                                 self.set_rgb_color(hue, saturation);
                                                 color_hsva = picked_hsva;
+                                                ui.ctx().data_mut(|d| d.insert_temp(popup_hsva_id, picked_hsva));
                                             }
                                         },
                                     );
