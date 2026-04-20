@@ -2157,7 +2157,7 @@ impl EntropyApp {
         let dark = ui.visuals().dark_mode;
         let content_rect = egui::Rect::from_min_max(
             egui::pos2(ui.min_rect().left() + 20.0, content_top),
-            egui::pos2(ui.min_rect().right() - 20.0, ui.max_rect().bottom() - 16.0),
+            egui::pos2(ui.min_rect().right() - 20.0, ui.max_rect().bottom() - 76.0),
         );
 
         let top_line_y = content_rect.top() + 18.0;
@@ -2242,7 +2242,7 @@ impl EntropyApp {
             Color32::from_rgb(232, 245, 236)
         };
 
-        let board_top = top_line_y + 48.0;
+        let board_top = content_rect.top() + 52.0;
         let board_rect = egui::Rect::from_min_max(
             egui::pos2(content_rect.left(), board_top),
             egui::pos2(content_rect.right(), content_rect.bottom()),
