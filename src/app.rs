@@ -5894,7 +5894,7 @@ impl EntropyApp {
                 }
             }
             if self.main_menu_tab == MainMenuTab::Settings {
-                self.draw_settings_screen(ui, layout, ctx, top_base_y + main_tabs_h + 14.0);
+                self.draw_settings_screen(ui, layout, ctx, ui.min_rect().top() + top_reserved_h);
                 return;
             }
 
