@@ -2304,7 +2304,7 @@ impl KeycodePicker {
             ("✕
 None".into(),       0x0000, "KC_NO — disables this key completely, it sends nothing when pressed".into()),
             ("▽
-TRNS".into(),       0x0001, "KC_TRNS — transparent key, inherits the key from the layer below".into()),
+Inherit".into(),    0x0001, "KC_TRNS — inherits the key from the layer below".into()),
             ("Esc
 ~".into(),        0x7C16, format!("Grave/Escape — sends Esc normally, ` when Shift or {} is held", gui_mod_name())),
             ("⚡
@@ -3077,10 +3077,10 @@ fn show_zmk(&mut self, ctx: &egui::Context) {
         ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| {
             if let Some(id) = transparent_id {
-                let resp = ui.add(egui::Button::new(RichText::new("▽ TRNS").size(11.0))
+                let resp = ui.add(egui::Button::new(RichText::new("▽ Inherit").size(11.0))
                     .min_size(Vec2::new(64.0, 38.0)));
                 if resp.clicked() { self.zmk_assign(id, 0, 0); }
-                resp.on_hover_text("Transparent — fall through to layer below");
+                resp.on_hover_text("Inherit the key from the layer below");
             }
             if let Some(id) = none_id {
                 let resp = ui.add(egui::Button::new(RichText::new("✕ None").size(11.0))

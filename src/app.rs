@@ -6979,10 +6979,11 @@ impl EntropyApp {
                     } else {
                         Color32::from_rgb(210, 210, 218)
                     };
+                    let fill = if is_selected || is_hovered { bg } else { no_bg };
                     painter.rect(
                         draw_rect,
                         6.0,
-                        no_bg,
+                        fill,
                         Stroke::new(1.0, no_border),
                         egui::StrokeKind::Inside,
                     );
