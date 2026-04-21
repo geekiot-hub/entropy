@@ -5503,8 +5503,11 @@ impl EntropyApp {
                 let name_field_width = compact_field_width;
                 let action_button_size = crate::ui_style::modal_action_button_size();
 
-                ui.vertical_centered(|ui| {
-                    ui.set_width(content_width);
+                ui.horizontal_centered(|ui| {
+                    ui.allocate_ui_with_layout(
+                        Vec2::new(content_width, 0.0),
+                        egui::Layout::top_down(egui::Align::Center),
+                        |ui| {
                             let selected_combo_label = match self.combo_names.get(self.selected_combo) {
                                 Some(name) if !name.trim().is_empty() => {
                                     format!("C{}: {}", self.selected_combo, name.trim())
@@ -5774,6 +5777,8 @@ impl EntropyApp {
                                     }
                                 }
                             });
+                        },
+                    );
                 });
             });
         self.focus_modal_window(&shown);
