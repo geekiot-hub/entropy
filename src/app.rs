@@ -5586,7 +5586,9 @@ impl EntropyApp {
                             };
 
                             ui.add_space(12.0);
-                            crate::ui_style::modal_section_title(ui, "Input keys");
+                            ui.horizontal_centered(|ui| {
+                                crate::ui_style::modal_section_title(ui, "Input keys");
+                            });
                             ui.add_space(6.0);
                             let input_summary = {
                                 let keys: Vec<String> = if self.combo_capture_open {
@@ -5668,7 +5670,9 @@ impl EntropyApp {
                             }
 
                             ui.add_space(10.0);
-                            crate::ui_style::modal_section_title(ui, "Output key");
+                            ui.horizontal_centered(|ui| {
+                                crate::ui_style::modal_section_title(ui, "Output key");
+                            });
                             ui.add_space(6.0);
                             let resp = ui
                                 .horizontal_centered(|ui| {
@@ -5693,11 +5697,13 @@ impl EntropyApp {
 
                             if let Some(current_combo_term) = self.combo_term {
                                 ui.add_space(12.0);
-                                ui.label(
-                                    RichText::new("Time out period for combos")
-                                        .size(13.0)
-                                        .strong(),
-                                );
+                                ui.horizontal_centered(|ui| {
+                                    ui.label(
+                                        RichText::new("Time out period for combos")
+                                            .size(13.0)
+                                            .strong(),
+                                    );
+                                });
                                 ui.add_space(4.0);
                                 let mut combo_term_text = current_combo_term.to_string();
                                 ui.horizontal_centered(|ui| {
