@@ -2492,6 +2492,9 @@ impl EntropyApp {
                 self.write_alt_repeat_entry(idx);
                 if self.alt_repeat_reopen_after_pick {
                     self.alt_repeat_window_open = true;
+                    self.alt_repeat_visible_count = self
+                        .alt_repeat_visible_count
+                        .clamp(1, self.alt_repeat_entries.len().max(1));
                     self.alt_repeat_reopen_after_pick = false;
                 }
             } else if let Some((layer, encoder_visual_idx)) = self.selected_encoder {
@@ -2506,7 +2509,7 @@ impl EntropyApp {
                     }
                 }
                 if is_alt_repeat_keycode(kc_value) {
-                    self.alt_repeat_window_open = true;
+                    self.open_alt_repeat_window_compact();
                 }
             } else if let Some((layer, ki)) = self.selected_key {
                 #[cfg(not(target_arch = "wasm32"))]
@@ -2516,7 +2519,7 @@ impl EntropyApp {
                     layout.set_keycode(layer, ki, kc_value);
                 }
                 if is_alt_repeat_keycode(kc_value) {
-                    self.alt_repeat_window_open = true;
+                    self.open_alt_repeat_window_compact();
                 }
             }
             self.selected_key = None;
@@ -2705,7 +2708,7 @@ impl EntropyApp {
             return;
         }
         if is_alt_repeat_keycode(kc) {
-            self.alt_repeat_window_open = true;
+            self.open_alt_repeat_window_compact();
             self.secondary_click_handled = true;
             return;
         }
@@ -3887,6 +3890,12 @@ impl EntropyApp {
         self.keycode_picker.open = true;
     }
 
+    fn open_alt_repeat_window_compact(&mut self) {
+        self.selected_alt_repeat = 0;
+        self.alt_repeat_visible_count = 1;
+        self.alt_repeat_window_open = true;
+    }
+
     fn write_auto_shift_flags(&mut self) {
         let Some(hid) = &self.hid_device else {
             return;
@@ -4549,7 +4558,7 @@ impl EntropyApp {
                     }
                 });
 
-                ui.add_space(6.0);
+                ui.add_space(4.0);
                 let idx = self.selected_alt_repeat;
                 let current = self.alt_repeat_entries[idx].clone();
                 let mut edited = current.clone();
@@ -7143,7 +7152,7 @@ impl EntropyApp {
                     self.secondary_click_handled = true;
                 }
                 if is_alt_repeat_keycode(kc) {
-                    self.alt_repeat_window_open = true;
+                    self.open_alt_repeat_window_compact();
                     self.secondary_click_handled = true;
                 }
                 // MT: 0x2000..0x3FFF, Mod+Key: 0x0100..0x1FFF with kc != 0
