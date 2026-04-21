@@ -5602,7 +5602,7 @@ impl EntropyApp {
                             ui.horizontal_centered(|ui| {
                                 ui.allocate_ui_with_layout(
                                     Vec2::new(compact_field_width, 0.0),
-                                    egui::Layout::top_down(egui::Align::Center),
+                                    egui::Layout::top_down(egui::Align::Min),
                                     |ui| {
                                         crate::ui_style::modal_section_title(ui, "Input keys");
                                     },
@@ -5703,7 +5703,7 @@ impl EntropyApp {
                             ui.horizontal_centered(|ui| {
                                 ui.allocate_ui_with_layout(
                                     Vec2::new(compact_field_width, 0.0),
-                                    egui::Layout::top_down(egui::Align::Center),
+                                    egui::Layout::top_down(egui::Align::Min),
                                     |ui| {
                                         crate::ui_style::modal_section_title(ui, "Output key");
                                     },
@@ -5747,7 +5747,7 @@ impl EntropyApp {
                                 ui.horizontal_centered(|ui| {
                                     ui.allocate_ui_with_layout(
                                         Vec2::new(compact_field_width, 0.0),
-                                        egui::Layout::top_down(egui::Align::Center),
+                                        egui::Layout::top_down(egui::Align::Min),
                                         |ui| {
                                             ui.label(
                                                 RichText::new("Time out period for combos")
