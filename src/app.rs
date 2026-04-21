@@ -5127,10 +5127,8 @@ impl EntropyApp {
 
                     ui.add_space(2.0);
                     ui.horizontal_centered(|ui| {
-                        ui.allocate_ui_with_layout(
-                            Vec2::new(content_width, 0.0),
-                            egui::Layout::top_down(egui::Align::Min),
-                            |ui| {
+                        ui.vertical(|ui| {
+                            ui.set_width(content_width);
                             egui::ComboBox::from_id_salt("key_override_entry_select")
                                 .selected_text(selected_override_label)
                                 .width(180.0)
@@ -5316,8 +5314,7 @@ impl EntropyApp {
                             ui.checkbox(&mut edited.options.one_mod, "Any one trigger modifier is enough");
                             ui.checkbox(&mut edited.options.no_reregister_trigger, "Do not send the original trigger key after the override ends");
                             ui.checkbox(&mut edited.options.no_unregister_on_other_key_down, "Keep the override active even if another key is pressed");
-                            },
-                        );
+                        });
                     });
 
                     ui.add_space(0.0);
