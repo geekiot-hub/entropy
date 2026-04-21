@@ -481,24 +481,17 @@ impl KeycodePicker {
         // Macro key picker (sub-window of macro editor)
         if let Some((macro_idx, action_idx)) = self.macro_key_pick {
             let mut pick_open = true;
-            egui::Window::new("Pick key")
-                .id(self.popup_state.id(PopupKey::MacroKeyPickWindow))
-                .order(egui::Order::Foreground)
-                .open(&mut pick_open)
-                .collapsible(false)
-                .resizable(false)
-                .min_size(Vec2::new(KEY_PICKER_POPUP_WIDTH, KEY_PICKER_POPUP_HEIGHT))
-                .default_size([KEY_PICKER_POPUP_WIDTH, KEY_PICKER_POPUP_HEIGHT])
-                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-                .frame(
-                    crate::ui_style::modal_window_frame(ctx.style().as_ref(), ctx.style().visuals.dark_mode)
-                )
+            crate::ui_style::centered_modal_window(
+                ctx,
+                "Pick key",
+                self.popup_state.id(PopupKey::MacroKeyPickWindow),
+                &mut pick_open,
+                Vec2::new(KEY_PICKER_POPUP_WIDTH, KEY_PICKER_POPUP_HEIGHT),
+            )
                 .show(ctx, |ui| {
                     apply_picker_button_visuals(ui);
-                    ui.label(RichText::new("Press a key on your keyboard, or click below")
-                        .size(11.0).color(Color32::from_gray(140)));
-                    ui.label(RichText::new("Best for normal keys, navigation, media and special actions.")
-                        .size(10.5).color(Color32::from_gray(120)));
+                    crate::ui_style::modal_intro(ui, "Press a key on your keyboard, or click below");
+                    crate::ui_style::modal_hint(ui, "Best for normal keys, navigation, media and special actions.");
                     ui.add_space(4.0);
                     // Physical key capture
                     ctx.input(|i| {
@@ -640,24 +633,16 @@ impl KeycodePicker {
 
         let mut still_open = true;
         let picker_size = Vec2::new(920.0, 560.0);
-        egui::Window::new("Key Editor")
-            .id(self.popup_state.id(PopupKey::PickerWindow))
-            .order(egui::Order::Foreground)
-            .open(&mut still_open)
-            .collapsible(false)
-            .resizable(false)
-            .default_size(picker_size)
-            .min_size(picker_size)
-            .max_size(picker_size)
-            .fixed_size(picker_size)
-            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-            .frame(
-                crate::ui_style::modal_window_frame(ctx.style().as_ref(), ctx.style().visuals.dark_mode)
-            )
+        crate::ui_style::centered_modal_window(
+            ctx,
+            "Key Editor",
+            self.popup_state.id(PopupKey::PickerWindow),
+            &mut still_open,
+            picker_size,
+        )
             .show(ctx, |ui| {
                 apply_picker_button_visuals(ui);
-                ui.label(RichText::new("Press a key on your keyboard, or pick below")
-                    .size(11.0).color(Color32::from_gray(140)));
+                crate::ui_style::modal_intro(ui, "Press a key on your keyboard, or pick below");
                 ui.add_space(4.0);
 
                 if self.selected_tab == KeycodeTab::Rgb && !self.supports_rgb {
@@ -749,21 +734,16 @@ impl KeycodePicker {
                 }
             });
             let mut still_open = true;
-            let resp_win = egui::Window::new("Pick layer")
-                .id(self.popup_state.id(PopupKey::PickLayerWindow))
-                .order(egui::Order::Foreground)
-                .open(&mut still_open)
-                .collapsible(false)
-                .resizable(false)
-                .min_size(Vec2::new(300.0, 100.0))
-                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-                .frame(
-                    crate::ui_style::modal_window_frame(ctx.style().as_ref(), ctx.style().visuals.dark_mode)
-                )
+            let resp_win = crate::ui_style::centered_modal_window(
+                ctx,
+                "Pick layer",
+                self.popup_state.id(PopupKey::PickLayerWindow),
+                &mut still_open,
+                Vec2::new(300.0, 120.0),
+            )
                 .show(ctx, |ui| {
                     apply_picker_button_visuals(ui);
-                    ui.label(RichText::new("Choose which layer. Esc to cancel.")
-                        .size(11.0).color(Color32::from_gray(140)));
+                    crate::ui_style::modal_intro(ui, "Choose which layer. Esc to cancel.");
                     ui.add_space(6.0);
                     ui.horizontal_wrapped(|ui| {
                         for n in 0u16..self.layer_names.len().max(4) as u16 {
@@ -835,22 +815,16 @@ impl KeycodePicker {
         if let Some(base) = pending {
             let title = if is_mt { "Pick tap key (hold = modifier)" } else { "Pick key for modifier combo" };
             let mut still_open = true;
-            let resp_win = egui::Window::new(title)
-                .id(self.popup_state.id(PopupKey::PendingKeyPickWindow))
-                .order(egui::Order::Foreground)
-                .open(&mut still_open)
-                .collapsible(false)
-                .resizable(false)
-                .min_size(Vec2::new(KEY_PICKER_POPUP_WIDTH, KEY_PICKER_POPUP_HEIGHT))
-                .default_size([KEY_PICKER_POPUP_WIDTH, KEY_PICKER_POPUP_HEIGHT])
-                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-                .frame(
-                    crate::ui_style::modal_window_frame(ctx.style().as_ref(), ctx.style().visuals.dark_mode)
-                )
+            let resp_win = crate::ui_style::centered_modal_window(
+                ctx,
+                title,
+                self.popup_state.id(PopupKey::PendingKeyPickWindow),
+                &mut still_open,
+                Vec2::new(KEY_PICKER_POPUP_WIDTH, KEY_PICKER_POPUP_HEIGHT),
+            )
                 .show(ctx, |ui| {
                     apply_picker_button_visuals(ui);
-                    ui.label(RichText::new("Press a key on your keyboard, or click below. Esc to cancel.")
-                        .size(11.0).color(Color32::from_gray(140)));
+                    crate::ui_style::modal_intro(ui, "Press a key on your keyboard, or click below. Esc to cancel.");
                     ui.add_space(6.0);
                     let key_choices: Vec<&'static crate::keycode::Keycode> = KEYCODES.iter()
                         .filter(|kc| matches!(kc.category, KeycodeCategory::Basic | KeycodeCategory::Function | KeycodeCategory::Navigation))
@@ -1883,13 +1857,13 @@ impl KeycodePicker {
         }
 
         let mut still_open = true;
-        egui::Window::new("Tap Dance Editor")
-            .id(self.popup_state.id(PopupKey::TapDanceEditorWindow))
-            .open(&mut still_open)
-            .collapsible(false)
-            .resizable(true)
-            .min_size(Vec2::new(600.0, 350.0))
-            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+        crate::ui_style::centered_modal_window(
+            ctx,
+            "Tap Dance Editor",
+            self.popup_state.id(PopupKey::TapDanceEditorWindow),
+            &mut still_open,
+            Vec2::new(600.0, 420.0),
+        )
             .show(ctx, |ui| {
                 // Tabs
                 ui.horizontal_wrapped(|ui| {
@@ -2048,18 +2022,17 @@ impl KeycodePicker {
                 .collect()
         };
         let mut still_open = true;
-        egui::Window::new(format!("Pick key for {}", field_name))
-            .open(&mut still_open)
-            .collapsible(false)
-            .resizable(false)
-            .min_size(Vec2::new(KEY_PICKER_POPUP_WIDTH, KEY_PICKER_POPUP_HEIGHT))
-            .default_size([KEY_PICKER_POPUP_WIDTH, KEY_PICKER_POPUP_HEIGHT])
-            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+        crate::ui_style::centered_modal_window(
+            ctx,
+            &format!("Pick key for {}", field_name),
+            self.popup_state.id(PopupKey::TdKeyPickWindow),
+            &mut still_open,
+            Vec2::new(KEY_PICKER_POPUP_WIDTH, KEY_PICKER_POPUP_HEIGHT),
+        )
             .show(ctx, |ui| {
                 apply_picker_button_visuals(ui);
-                ui.label(RichText::new("Press a key on your keyboard, or click below. Esc to cancel.")
-                    .size(11.0).color(Color32::from_gray(140)));
-                ui.label(RichText::new(helper_text).size(10.5).color(Color32::from_gray(120)));
+                crate::ui_style::modal_intro(ui, "Press a key on your keyboard, or click below. Esc to cancel.");
+                crate::ui_style::modal_hint(ui, helper_text);
                 ui.add_space(4.0);
                 if ui.add(egui::Button::new(RichText::new("None (clear)").size(12.0))
                     .min_size(Vec2::new(100.0, 28.0))).clicked() {

@@ -5092,7 +5092,7 @@ impl EntropyApp {
                             let label = key_override_display_name(&self.key_override_names, idx);
                             let resp = ui.add(
                                 egui::Button::new(RichText::new(label).size(11.0))
-                                    .min_size(Vec2::new(52.0, 28.0))
+                                    .min_size(crate::ui_style::modal_tab_button_size())
                                     .fill(if active { app_hover_fill(dark) } else { app_surface_fill(dark) })
                                     .stroke(egui::Stroke::new(1.0, app_border_color(dark))),
                             ).on_hover_cursor(egui::CursorIcon::PointingHand);
@@ -5104,7 +5104,7 @@ impl EntropyApp {
                         if self.key_override_visible_count < self.key_override_entries.len() {
                             let add_resp = ui.add(
                                 egui::Button::new(RichText::new("+").size(14.0))
-                                    .min_size(Vec2::new(28.0, 28.0))
+                                    .min_size(crate::ui_style::modal_tab_add_button_size())
                                     .fill(app_surface_fill(dark))
                                     .stroke(egui::Stroke::new(1.0, app_border_color(dark))),
                             ).on_hover_cursor(egui::CursorIcon::PointingHand);
@@ -5195,7 +5195,7 @@ impl EntropyApp {
                                         ui.horizontal_centered(|ui| {
                                             let trigger_resp = ui.add(
                                                 egui::Button::new(RichText::new(trigger_label).size(12.0))
-                                                    .min_size(Vec2::new(field_width, 34.0)),
+                                                    .min_size(crate::ui_style::modal_field_button_size(field_width)),
                                             ).on_hover_cursor(egui::CursorIcon::PointingHand);
                                             if trigger_resp.clicked() {
                                                 self.open_key_override_picker(KeyOverridePickField::Trigger);
@@ -5248,7 +5248,7 @@ impl EntropyApp {
                                         ui.horizontal_centered(|ui| {
                                             let replacement_resp = ui.add(
                                                 egui::Button::new(RichText::new(replacement_label).size(12.0))
-                                                    .min_size(Vec2::new(field_width, 34.0)),
+                                                    .min_size(crate::ui_style::modal_field_button_size(field_width)),
                                             ).on_hover_cursor(egui::CursorIcon::PointingHand);
                                             if replacement_resp.clicked() {
                                                 self.open_key_override_picker(KeyOverridePickField::Replacement);
@@ -5452,25 +5452,26 @@ impl EntropyApp {
                 }
 
                 ui.vertical_centered(|ui| {
-                    ui.label(
-                        RichText::new("Press multiple keys together to send a separate keycode.")
-                            .size(12.0)
-                            .color(Color32::from_gray(150)),
+                    crate::ui_style::modal_hint(
+                        ui,
+                        "Press multiple keys together to send a separate keycode.",
                     );
                 });
 
                 if self.firmware != FirmwareProtocol::Vial {
-                    ui.label(
-                        RichText::new("Dynamic combos are not supported for this firmware.")
-                            .color(Color32::from_gray(140)),
+                    crate::ui_style::modal_empty_state(
+                        ui,
+                        "Dynamic combos are not supported for this firmware.",
+                        None,
                     );
                     return;
                 }
 
                 if self.combo_entries.is_empty() {
-                    ui.label(
-                        RichText::new("This keyboard does not report any dynamic combo slots.")
-                            .color(Color32::from_gray(140)),
+                    crate::ui_style::modal_empty_state(
+                        ui,
+                        "This keyboard does not report any dynamic combo slots.",
+                        None,
                     );
                     return;
                 }
@@ -5523,7 +5524,7 @@ impl EntropyApp {
                         let tab = egui::Button::new(tab_text)
                             .frame(true)
                             .stroke(tab_stroke)
-                            .min_size(Vec2::new(48.0, 28.0));
+                            .min_size(crate::ui_style::modal_tab_button_size());
                         let resp = ui.add(tab);
                         if resp.hovered() {
                             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
@@ -5659,7 +5660,7 @@ impl EntropyApp {
                                         egui::Button::new(RichText::new(input_summary).size(13.0))
                                             .frame(true)
                                             .stroke(combo_outline_stroke);
-                                    ui.add_sized(Vec2::new(compact_field_width, 32.0), field_btn)
+                                    ui.add_sized(crate::ui_style::modal_field_button_size(compact_field_width), field_btn)
                                 })
                                 .inner;
                             if field_resp.hovered() {
@@ -5691,7 +5692,7 @@ impl EntropyApp {
                                         egui::Button::new(RichText::new(&output_label).size(13.0))
                                             .frame(true)
                                             .stroke(combo_outline_stroke);
-                                    ui.add_sized(Vec2::new(compact_field_width, 32.0), btn)
+                                    ui.add_sized(crate::ui_style::modal_field_button_size(compact_field_width), btn)
                                 })
                                 .inner;
                             if resp.hovered() {

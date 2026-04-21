@@ -64,6 +64,22 @@ pub fn modal_action_button_size() -> Vec2 {
     Vec2::new(104.0, 32.0)
 }
 
+pub fn modal_tab_button_size() -> Vec2 {
+    Vec2::new(52.0, 28.0)
+}
+
+pub fn modal_tab_add_button_size() -> Vec2 {
+    Vec2::new(28.0, 28.0)
+}
+
+pub fn modal_field_button_height() -> f32 {
+    34.0
+}
+
+pub fn modal_field_button_size(width: f32) -> Vec2 {
+    Vec2::new(width, modal_field_button_height())
+}
+
 pub fn modal_window_frame(style: &egui::Style, dark: bool) -> egui::Frame {
     egui::Frame::window(style)
         .fill(window_fill(dark))
@@ -129,6 +145,14 @@ pub fn modal_content(ui: &mut Ui, layout: ModalLayout, add_contents: impl FnOnce
 
 pub fn modal_section_title(ui: &mut Ui, title: &str) {
     ui.label(RichText::new(title).size(12.5).strong());
+}
+
+pub fn modal_intro(ui: &mut Ui, text: &str) {
+    ui.label(
+        RichText::new(text)
+            .size(11.0)
+            .color(Color32::from_gray(if ui.visuals().dark_mode { 140 } else { 140 })),
+    );
 }
 
 pub fn modal_hint(ui: &mut Ui, text: &str) {
