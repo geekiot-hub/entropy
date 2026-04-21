@@ -4496,7 +4496,7 @@ impl EntropyApp {
             .resizable(false)
             .movable(true)
             .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
-            .fixed_size(Vec2::new(448.0, 372.0))
+            .fixed_size(Vec2::new(448.0, 344.0))
             .frame(frame)
             .order(egui::Order::Foreground)
             .show(ctx, |ui| {
@@ -4596,15 +4596,15 @@ impl EntropyApp {
                 });
 
                 ui.add_space(8.0);
-                ui.vertical_centered(|ui| {
-                    egui::ScrollArea::vertical()
-                        .max_height(292.0)
-                        .auto_shrink([false, true])
-                        .show(ui, |ui| {
-                            ui.allocate_ui_with_layout(
-                                Vec2::new(content_width, 0.0),
-                                egui::Layout::top_down(egui::Align::Min),
-                                |ui| {
+                ui.horizontal_centered(|ui| {
+                    ui.allocate_ui_with_layout(
+                        Vec2::new(content_width, 0.0),
+                        egui::Layout::top_down(egui::Align::Min),
+                        |ui| {
+                            egui::ScrollArea::vertical()
+                                .max_height(246.0)
+                                .auto_shrink([false, true])
+                                .show(ui, |ui| {
                                     ui.horizontal(|ui| {
                                         ui.label(RichText::new("Enable").size(12.5));
                                         let resp = ui.checkbox(&mut edited.options.enabled, "");
@@ -4701,9 +4701,9 @@ impl EntropyApp {
                                             .size(11.0)
                                             .color(app_muted_text(dark)),
                                     );
-                                },
-                            );
-                        });
+                                });
+                        },
+                    );
                 });
 
                 if edited != current {
