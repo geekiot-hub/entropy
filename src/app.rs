@@ -4293,31 +4293,21 @@ impl EntropyApp {
         let mut open = self.rgb_window_open;
         let mut close_after_save = false;
         let dark = ctx.style().visuals.dark_mode;
-        let style = ctx.style().as_ref().clone();
-        let frame = crate::ui_style::modal_window_frame(&style, dark);
 
-        let shown = egui::Window::new("RGB")
-            .id(self.popup_state.id(PopupKey::RgbWindow))
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(false)
-            .movable(true)
-            .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
-            .fixed_size(Vec2::new(500.0, 270.0))
-            .frame(frame)
-            .order(egui::Order::Foreground)
+        let shown = crate::ui_style::centered_modal_window(
+            ctx,
+            "RGB",
+            self.popup_state.id(PopupKey::RgbWindow),
+            &mut open,
+            Vec2::new(500.0, 270.0),
+        )
             .show(ctx, |ui| {
-                ui.add_space(6.0);
-
                 if !self.rgb_settings.supported {
-                    ui.vertical_centered(|ui| {
-                        ui.add_space(52.0);
-                        ui.label(
-                            RichText::new("RGB settings are not available on this firmware.")
-                                .size(13.0)
-                                .color(app_muted_text(dark)),
-                        );
-                    });
+                    crate::ui_style::modal_empty_state(
+                        ui,
+                        "RGB settings are not available on this firmware.",
+                        None,
+                    );
                     return;
                 }
 
@@ -4346,16 +4336,12 @@ impl EntropyApp {
                     a: 1.0,
                 };
 
-                ui.vertical_centered(|ui| {
-                    ui.set_width(500.0);
-                    ui.add_space(4.0);
-
-                    ui.allocate_ui_with_layout(
-                        Vec2::new(380.0, 0.0),
-                        egui::Layout::top_down(egui::Align::Center),
-                        |ui| {
-                            let label_width = 96.0_f32;
-                            let control_width = 252.0_f32;
+                crate::ui_style::modal_content(
+                    ui,
+                    crate::ui_style::ModalLayout::new(380.0).with_top_padding(4.0),
+                    |ui| {
+                        let label_width = 96.0_f32;
+                        let control_width = 252.0_f32;
 
                             ui.horizontal(|ui| {
                                 ui.set_width(label_width + control_width);
@@ -4605,19 +4591,16 @@ impl EntropyApp {
                                 );
                             });
 
-                            ui.add_space(22.0);
-
-                            ui.horizontal_centered(|ui| {
-                                let btn = egui::Button::new(RichText::new("Save").size(13.0))
-                                    .min_size(crate::ui_style::modal_action_button_size());
-                                if ui.add(btn).clicked() {
-                                    self.save_rgb_settings();
-                                    close_after_save = true;
-                                }
-                            });
-                        },
-                    );
-                });
+                        crate::ui_style::modal_action_row(ui, |ui| {
+                            let btn = egui::Button::new(RichText::new("Save").size(13.0))
+                                .min_size(crate::ui_style::modal_action_button_size());
+                            if ui.add(btn).clicked() {
+                                self.save_rgb_settings();
+                                close_after_save = true;
+                            }
+                        });
+                    },
+                );
             });
 
         if close_after_save {
@@ -4629,40 +4612,35 @@ impl EntropyApp {
 
     fn show_encoder_visibility_window(&mut self, ctx: &egui::Context) {
         let mut open = self.encoder_visibility_window_open;
-        let shown = egui::Window::new("Encoders")
-            .id(self.popup_state.id(PopupKey::EncoderVisibilityWindow))
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(false)
-            .movable(true)
-            .order(egui::Order::Foreground)
-            .default_width(280.0)
-            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-            .frame(crate::ui_style::modal_window_frame(
-                &ctx.style(),
-                ctx.style().visuals.dark_mode,
-            ))
+        let shown = crate::ui_style::centered_modal_window(
+            ctx,
+            "Encoders",
+            self.popup_state.id(PopupKey::EncoderVisibilityWindow),
+            &mut open,
+            Vec2::new(320.0, 220.0),
+        )
             .show(ctx, |ui| {
                 if self.encoder_visibility.is_empty() {
-                    ui.label("No encoders found for this device.");
+                    crate::ui_style::modal_empty_state(ui, "No encoders found for this device.", None);
                     return;
                 }
-                ui.label(
-                    RichText::new("Choose which encoders are visible in the main layout")
-                        .size(12.0)
-                        .color(app_muted_text(ui.visuals().dark_mode)),
-                );
-                ui.add_space(10.0);
-                let mut changed = false;
-                for (idx, visible) in self.encoder_visibility.iter_mut().enumerate() {
-                    let resp = ui.checkbox(visible, format!("Show Encoder {}", idx + 1));
-                    if resp.changed() {
-                        changed = true;
+                crate::ui_style::modal_content(ui, crate::ui_style::ModalLayout::new(260.0), |ui| {
+                    crate::ui_style::modal_hint(ui, "Choose which encoders are visible in the main layout.");
+                    ui.add_space(10.0);
+                    let mut changed = false;
+                    for (idx, visible) in self.encoder_visibility.iter_mut().enumerate() {
+                        let resp = ui.checkbox(visible, format!("Show Encoder {}", idx + 1));
+                        if resp.hovered() {
+                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                        }
+                        if resp.changed() {
+                            changed = true;
+                        }
                     }
-                }
-                if changed && !self.current_device_name.is_empty() {
-                    save_encoder_visibility(&self.encoder_visibility, &self.current_device_name);
-                }
+                    if changed && !self.current_device_name.is_empty() {
+                        save_encoder_visibility(&self.encoder_visibility, &self.current_device_name);
+                    }
+                });
             });
         self.focus_modal_window(&shown);
         self.encoder_visibility_window_open = open;
@@ -4676,15 +4654,13 @@ impl EntropyApp {
 
         let dark = ctx.style().visuals.dark_mode;
         let mut open = self.alt_repeat_window_open;
-        let shown = egui::Window::new("Alt Repeat")
-            .id(self.popup_state.id(PopupKey::AltRepeatWindow))
-            .order(egui::Order::Foreground)
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(false)
-            .fixed_size(Vec2::new(444.0, 500.0))
-            .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
-            .frame(crate::ui_style::modal_window_frame(ctx.style().as_ref(), dark))
+        let shown = crate::ui_style::centered_modal_window(
+            ctx,
+            "Alt Repeat",
+            self.popup_state.id(PopupKey::AltRepeatWindow),
+            &mut open,
+            Vec2::new(444.0, 500.0),
+        )
             .show(ctx, |ui| {
                 if self.alt_repeat_entries.is_empty() {
                     ui.label("Alt Repeat is not supported by this keyboard.");
@@ -4748,11 +4724,10 @@ impl EntropyApp {
                     &self.keycode_picker.tap_dance_names,
                 );
 
-                ui.horizontal(|ui| {
-                    let left_pad = ((ui.available_width() - content_width).max(0.0)) * 0.5;
-                    ui.add_space(left_pad);
-                    ui.vertical(|ui| {
-                        ui.set_width(content_width);
+                crate::ui_style::modal_content(
+                    ui,
+                    crate::ui_style::ModalLayout::new(content_width).with_top_padding(2.0),
+                    |ui| {
 
                         egui::ComboBox::from_id_salt("alt_repeat_entry_select")
                             .selected_text(format!("AR{}", self.selected_alt_repeat))
@@ -4780,7 +4755,7 @@ impl EntropyApp {
                         });
 
                         ui.add_space(8.0);
-                        ui.label(RichText::new("Last key").size(12.0).strong());
+                        crate::ui_style::modal_section_title(ui, "Last key");
                         ui.add_space(4.0);
                         ui.horizontal_centered(|ui| {
                             let resp = ui
@@ -4796,7 +4771,7 @@ impl EntropyApp {
                         });
 
                         ui.add_space(8.0);
-                        ui.label(RichText::new("Alt key").size(12.0).strong());
+                        crate::ui_style::modal_section_title(ui, "Alt key");
                         ui.add_space(4.0);
                         ui.horizontal_centered(|ui| {
                             let resp = ui
@@ -4848,8 +4823,8 @@ impl EntropyApp {
                             "Ignore mod handedness",
                             &mut edited.options.ignore_mod_handedness,
                         );
-                    });
-                });
+                    },
+                );
 
                 if edited != current {
                     if let Some(slot) = self.alt_repeat_entries.get_mut(idx) {
@@ -4866,40 +4841,21 @@ impl EntropyApp {
     fn show_auto_shift_window(&mut self, ctx: &egui::Context) {
         let mut open = self.auto_shift_window_open;
         let dark = ctx.style().visuals.dark_mode;
-        let style = ctx.style().as_ref().clone();
-        let frame = crate::ui_style::modal_window_frame(&style, dark);
 
-        let shown = egui::Window::new("Auto Shift")
-            .id(self.popup_state.id(PopupKey::AutoShiftWindow))
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(false)
-            .movable(true)
-            .default_pos(egui::pos2(
-                ctx.screen_rect().center().x - 220.0,
-                ctx.screen_rect().center().y - 140.0,
-            ))
-            .fixed_size(Vec2::new(440.0, 280.0))
-            .frame(frame)
-            .order(egui::Order::Foreground)
+        let shown = crate::ui_style::centered_modal_window(
+            ctx,
+            "Auto Shift",
+            self.popup_state.id(PopupKey::AutoShiftWindow),
+            &mut open,
+            Vec2::new(440.0, 280.0),
+        )
             .show(ctx, |ui| {
-                ui.add_space(8.0);
-
                 if self.auto_shift_timeout.is_none() {
-                    ui.vertical_centered(|ui| {
-                        ui.add_space(64.0);
-                        ui.label(
-                            RichText::new("Auto Shift is not enabled in this firmware.")
-                                .size(13.0)
-                                .color(app_muted_text(dark)),
-                        );
-                        ui.add_space(6.0);
-                        ui.label(
-                            RichText::new("Enable AUTO_SHIFT_ENABLE in the keyboard rules.mk to use this window.")
-                                .size(11.5)
-                                .color(app_muted_text(dark)),
-                        );
-                    });
+                    crate::ui_style::modal_empty_state(
+                        ui,
+                        "Auto Shift is not enabled in this firmware.",
+                        Some("Enable AUTO_SHIFT_ENABLE in the keyboard rules.mk to use this window."),
+                    );
                     return;
                 }
 
@@ -4907,12 +4863,11 @@ impl EntropyApp {
                 let mut timeout_text = timeout_value.to_string();
                 let content_width = 360.0_f32;
 
-                ui.vertical_centered(|ui| {
-                    ui.allocate_ui_with_layout(
-                        Vec2::new(content_width, 0.0),
-                        egui::Layout::top_down(egui::Align::Min),
-                        |ui| {
-                            egui::Grid::new(ui.id().with("auto_shift_grid"))
+                crate::ui_style::modal_content(
+                    ui,
+                    crate::ui_style::ModalLayout::new(content_width).with_top_padding(8.0),
+                    |ui| {
+                        egui::Grid::new(ui.id().with("auto_shift_grid"))
                                 .num_columns(2)
                                 .spacing([18.0, 10.0])
                                 .show(ui, |ui| {
@@ -4961,9 +4916,8 @@ impl EntropyApp {
                                         self.write_auto_shift_flags();
                                     }
                                 });
-                        },
-                    );
-                });
+                    },
+                );
             });
 
         self.focus_modal_window(&shown);
@@ -4989,38 +4943,21 @@ impl EntropyApp {
         }
 
         let mut open = self.mouse_keys_window_open;
-        let dark = ctx.style().visuals.dark_mode;
-        let style = ctx.style().as_ref().clone();
-        let frame = crate::ui_style::modal_window_frame(&style, dark);
 
-        let shown = egui::Window::new("Mouse keys")
-            .id(self.popup_state.id(PopupKey::MouseKeysWindow))
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(false)
-            .movable(true)
-            .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
-            .fixed_size(Vec2::new(520.0, 360.0))
-            .frame(frame)
-            .order(egui::Order::Foreground)
+        let shown = crate::ui_style::centered_modal_window(
+            ctx,
+            "Mouse keys",
+            self.popup_state.id(PopupKey::MouseKeysWindow),
+            &mut open,
+            Vec2::new(520.0, 360.0),
+        )
             .show(ctx, |ui| {
-                ui.add_space(8.0);
-
                 if !self.mouse_keys_settings.supported {
-                    ui.vertical_centered(|ui| {
-                        ui.add_space(80.0);
-                        ui.label(
-                            RichText::new("Mouse keys settings are not available on this firmware.")
-                                .size(13.0)
-                                .color(app_muted_text(dark)),
-                        );
-                        ui.add_space(6.0);
-                        ui.label(
-                            RichText::new("Enable MOUSEKEY_ENABLE and QMK_SETTINGS in the keyboard rules.mk to use this window.")
-                                .size(11.5)
-                                .color(app_muted_text(dark)),
-                        );
-                    });
+                    crate::ui_style::modal_empty_state(
+                        ui,
+                        "Mouse keys settings are not available on this firmware.",
+                        Some("Enable MOUSEKEY_ENABLE and QMK_SETTINGS in the keyboard rules.mk to use this window."),
+                    );
                     return;
                 }
 
@@ -5039,12 +4976,11 @@ impl EntropyApp {
                     (17, "Time until maximum scroll speed is reached",                 1000),
                 ];
 
-                ui.vertical_centered(|ui| {
-                    ui.allocate_ui_with_layout(
-                        Vec2::new(content_width, 0.0),
-                        egui::Layout::top_down(egui::Align::Min),
-                        |ui| {
-                            egui::Grid::new(ui.id().with("mouse_keys_grid"))
+                crate::ui_style::modal_content(
+                    ui,
+                    crate::ui_style::ModalLayout::new(content_width).with_top_padding(8.0),
+                    |ui| {
+                        egui::Grid::new(ui.id().with("mouse_keys_grid"))
                                 .num_columns(2)
                                 .spacing([18.0, 10.0])
                                 .show(ui, |ui| {
@@ -5106,15 +5042,13 @@ impl EntropyApp {
                                     }
                                 });
 
-                            ui.add_space(10.0);
-                            ui.label(
-                                RichText::new("Changes are written to the keyboard immediately.")
-                                    .size(11.0)
-                                    .color(app_muted_text(dark)),
-                            );
-                        },
-                    );
-                });
+                        ui.add_space(10.0);
+                        crate::ui_style::modal_hint(
+                            ui,
+                            "Changes are written to the keyboard immediately.",
+                        );
+                    },
+                );
             });
 
         self.focus_modal_window(&shown);
@@ -5129,17 +5063,13 @@ impl EntropyApp {
 
         let dark = ctx.style().visuals.dark_mode;
         let mut open = self.key_override_window_open;
-        let shown = egui::Window::new("Key Overrides")
-            .id(self.popup_state.id(PopupKey::KeyOverrideWindow))
-            .order(egui::Order::Foreground)
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(false)
-            .fixed_size(Vec2::new(448.0, 468.0))
-            .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
-            .frame(
-                crate::ui_style::modal_window_frame(ctx.style().as_ref(), dark)
-            )
+        let shown = crate::ui_style::centered_modal_window(
+            ctx,
+            "Key Overrides",
+            self.popup_state.id(PopupKey::KeyOverrideWindow),
+            &mut open,
+            Vec2::new(448.0, 468.0),
+        )
             .show(ctx, |ui| {
                 if self.key_override_entries.is_empty() {
                     ui.label("Key Overrides are not supported by this keyboard.");
@@ -5475,21 +5405,13 @@ impl EntropyApp {
         }
 
         let mut open = self.combo_window_open;
-        let shown = egui::Window::new("Combo")
-            .id(self.popup_state.id(PopupKey::ComboWindow))
-            .order(egui::Order::Foreground)
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(false)
-            .default_width(360.0)
-            .min_width(360.0)
-            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-            .frame(
-                egui::Frame::window(ctx.style().as_ref())
-                    .fill(app_window_fill(ctx.style().visuals.dark_mode))
-                    .stroke(egui::Stroke::NONE)
-                    .inner_margin(egui::Margin::same(10)),
-            )
+        let shown = crate::ui_style::centered_modal_window(
+            ctx,
+            "Combo",
+            self.popup_state.id(PopupKey::ComboWindow),
+            &mut open,
+            Vec2::new(360.0, 430.0),
+        )
             .show(ctx, |ui| {
                 ui.style_mut().visuals.button_frame = true;
                 if ui.visuals().dark_mode {
@@ -5679,7 +5601,7 @@ impl EntropyApp {
                             };
 
                             ui.add_space(12.0);
-                            ui.label(RichText::new("Input keys").size(13.0).strong());
+                            crate::ui_style::modal_section_title(ui, "Input keys");
                             ui.add_space(6.0);
                             let input_summary = {
                                 let keys: Vec<String> = if self.combo_capture_open {
@@ -5761,7 +5683,7 @@ impl EntropyApp {
                             }
 
                             ui.add_space(10.0);
-                            ui.label(RichText::new("Output key").size(13.0).strong());
+                            crate::ui_style::modal_section_title(ui, "Output key");
                             ui.add_space(6.0);
                             let resp = ui
                                 .horizontal_centered(|ui| {

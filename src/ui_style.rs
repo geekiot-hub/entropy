@@ -1,4 +1,4 @@
-use egui::{Color32, Stroke, Vec2};
+use egui::{Color32, RichText, Stroke, Ui, Vec2};
 
 pub fn accent() -> Color32 {
     Color32::from_rgb(91, 104, 223)
@@ -73,4 +73,93 @@ pub fn modal_window_frame(style: &egui::Style, dark: bool) -> egui::Frame {
 
 pub fn modal_backdrop_alpha(dark: bool) -> u8 {
     if dark { 96 } else { 48 }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ModalLayout {
+    pub content_width: f32,
+    pub top_padding: f32,
+}
+
+impl ModalLayout {
+    pub fn new(content_width: f32) -> Self {
+        Self {
+            content_width,
+            top_padding: 6.0,
+        }
+    }
+
+    pub fn with_top_padding(mut self, top_padding: f32) -> Self {
+        self.top_padding = top_padding;
+        self
+    }
+}
+
+pub fn centered_modal_window<'a>(
+    ctx: &egui::Context,
+    title: &'a str,
+    id: egui::Id,
+    open: &'a mut bool,
+    size: Vec2,
+) -> egui::Window<'a> {
+    egui::Window::new(title)
+        .id(id)
+        .open(open)
+        .collapsible(false)
+        .resizable(false)
+        .movable(true)
+        .order(egui::Order::Foreground)
+        .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
+        .fixed_size(size)
+        .frame(modal_window_frame(ctx.style().as_ref(), ctx.style().visuals.dark_mode))
+}
+
+pub fn modal_content(ui: &mut Ui, layout: ModalLayout, add_contents: impl FnOnce(&mut Ui)) {
+    ui.vertical_centered(|ui| {
+        if layout.top_padding > 0.0 {
+            ui.add_space(layout.top_padding);
+        }
+        ui.allocate_ui_with_layout(
+            Vec2::new(layout.content_width, 0.0),
+            egui::Layout::top_down(egui::Align::Min),
+            add_contents,
+        );
+    });
+}
+
+pub fn modal_section_title(ui: &mut Ui, title: &str) {
+    ui.label(RichText::new(title).size(12.5).strong());
+}
+
+pub fn modal_hint(ui: &mut Ui, text: &str) {
+    ui.label(
+        RichText::new(text)
+            .size(11.0)
+            .color(muted_text(ui.visuals().dark_mode)),
+    );
+}
+
+pub fn modal_empty_state(ui: &mut Ui, title: &str, detail: Option<&str>) {
+    let dark = ui.visuals().dark_mode;
+    ui.vertical_centered(|ui| {
+        ui.add_space(72.0);
+        ui.label(
+            RichText::new(title)
+                .size(13.0)
+                .color(muted_text(dark)),
+        );
+        if let Some(detail) = detail {
+            ui.add_space(6.0);
+            ui.label(
+                RichText::new(detail)
+                    .size(11.5)
+                    .color(muted_text(dark)),
+            );
+        }
+    });
+}
+
+pub fn modal_action_row(ui: &mut Ui, add_contents: impl FnOnce(&mut Ui)) {
+    ui.add_space(18.0);
+    ui.horizontal_centered(add_contents);
 }
