@@ -1012,6 +1012,18 @@ enum AltRepeatPickField {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
+enum PendingPopupOpen {
+    Combo,
+    AutoShift,
+    KeyOverrides,
+    Rgb,
+    EncoderVisibility,
+    MouseKeys,
+    AltRepeat,
+    AltRepeatCompact,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum MainMenuTab {
     Keyboard,
     Advanced,
@@ -1090,6 +1102,7 @@ pub struct EntropyApp {
     modal_focus_frames: u8,
     prev_any_floating_window_open: bool,
     popup_state: PopupState,
+    pending_popup_open: Option<PendingPopupOpen>,
     last_single_instance_signal: String,
     rgb_settings: RgbSettingsState,
     rgb_window_open: bool,
@@ -1190,6 +1203,7 @@ impl EntropyApp {
             modal_focus_frames: 0,
             prev_any_floating_window_open: false,
             popup_state: PopupState::default(),
+            pending_popup_open: None,
             last_single_instance_signal: read_single_instance_signal(),
             rgb_settings: RgbSettingsState::default(),
             rgb_window_open: false,
@@ -2517,11 +2531,7 @@ impl EntropyApp {
                 }
                 self.write_alt_repeat_entry(idx);
                 if self.alt_repeat_reopen_after_pick {
-                    self.request_modal_focus();
-                    if !self.alt_repeat_window_open {
-                        self.popup_state.on_open(PopupKey::AltRepeatWindow);
-                    }
-                    self.alt_repeat_window_open = true;
+                    self.queue_popup_open(PendingPopupOpen::AltRepeat);
                     self.alt_repeat_visible_count = self
                         .alt_repeat_visible_count
                         .clamp(1, self.alt_repeat_entries.len().max(1));
@@ -2733,10 +2743,7 @@ impl EntropyApp {
             return;
         }
         if is_mouse_keycode(kc) {
-            if !self.mouse_keys_window_open {
-                self.popup_state.on_open(PopupKey::MouseKeysWindow);
-            }
-            self.mouse_keys_window_open = true;
+            self.queue_popup_open(PendingPopupOpen::MouseKeys);
             self.secondary_click_handled = true;
             return;
         }
@@ -3067,6 +3074,8 @@ impl eframe::App for EntropyApp {
 
         #[cfg(not(target_arch = "wasm32"))]
         self.poll_single_instance_signal(ctx);
+
+        self.process_pending_popup_open(ctx);
 
         // Apply theme
         if self.dark_mode {
@@ -3582,6 +3591,10 @@ impl eframe::App for EntropyApp {
             self.show_key_override_window(ctx);
         }
 
+        if self.pending_popup_open.is_some() {
+            ctx.request_repaint();
+        }
+
         if !self.unlock_open && !self.vial_unlock_polling {
             self.keycode_picker.show(ctx);
             self.apply_picker_results();
@@ -3601,10 +3614,7 @@ impl eframe::App for EntropyApp {
         {
             self.combo_pick_target = None;
             if self.combo_reopen_after_pick {
-                if !self.combo_window_open {
-                    self.popup_state.on_open(PopupKey::ComboWindow);
-                }
-                self.combo_window_open = true;
+                self.queue_popup_open(PendingPopupOpen::Combo);
                 self.combo_reopen_after_pick = false;
             }
         }
@@ -3614,10 +3624,7 @@ impl eframe::App for EntropyApp {
         {
             self.key_override_pick_target = None;
             if self.key_override_reopen_after_pick {
-                if !self.key_override_window_open {
-                    self.popup_state.on_open(PopupKey::KeyOverrideWindow);
-                }
-                self.key_override_window_open = true;
+                self.queue_popup_open(PendingPopupOpen::KeyOverrides);
                 self.key_override_reopen_after_pick = false;
             }
         }
@@ -3627,11 +3634,7 @@ impl eframe::App for EntropyApp {
         {
             self.alt_repeat_pick_target = None;
             if self.alt_repeat_reopen_after_pick {
-                self.request_modal_focus();
-                if !self.alt_repeat_window_open {
-                    self.popup_state.on_open(PopupKey::AltRepeatWindow);
-                }
-                self.alt_repeat_window_open = true;
+                self.queue_popup_open(PendingPopupOpen::AltRepeat);
                 self.alt_repeat_reopen_after_pick = false;
             }
         }
@@ -3952,13 +3955,7 @@ impl EntropyApp {
     }
 
     fn open_alt_repeat_window_compact(&mut self) {
-        self.selected_alt_repeat = 0;
-        self.alt_repeat_visible_count = 1;
-        self.request_modal_focus();
-        if !self.alt_repeat_window_open {
-            self.popup_state.on_open(PopupKey::AltRepeatWindow);
-        }
-        self.alt_repeat_window_open = true;
+        self.queue_popup_open(PendingPopupOpen::AltRepeatCompact);
     }
 
     fn close_top_dropdowns(&self, ctx: &egui::Context) {
@@ -3971,6 +3968,57 @@ impl EntropyApp {
 
     fn request_modal_focus(&mut self) {
         self.modal_focus_frames = 6;
+    }
+
+    fn queue_popup_open(&mut self, popup: PendingPopupOpen) {
+        self.request_modal_focus();
+        self.pending_popup_open = Some(popup);
+    }
+
+    fn process_pending_popup_open(&mut self, ctx: &egui::Context) {
+        let Some(popup) = self.pending_popup_open.take() else {
+            return;
+        };
+        match popup {
+            PendingPopupOpen::Combo => {
+                self.popup_state.on_open(PopupKey::ComboWindow);
+                self.combo_window_open = true;
+                if self.combo_visible_count == 0 {
+                    self.combo_visible_count = 1;
+                }
+            }
+            PendingPopupOpen::AutoShift => {
+                self.popup_state.on_open(PopupKey::AutoShiftWindow);
+                self.auto_shift_window_open = true;
+            }
+            PendingPopupOpen::KeyOverrides => {
+                self.popup_state.on_open(PopupKey::KeyOverrideWindow);
+                self.key_override_window_open = true;
+            }
+            PendingPopupOpen::Rgb => {
+                self.popup_state.on_open(PopupKey::RgbWindow);
+                self.rgb_window_open = true;
+            }
+            PendingPopupOpen::EncoderVisibility => {
+                self.popup_state.on_open(PopupKey::EncoderVisibilityWindow);
+                self.encoder_visibility_window_open = true;
+            }
+            PendingPopupOpen::MouseKeys => {
+                self.popup_state.on_open(PopupKey::MouseKeysWindow);
+                self.mouse_keys_window_open = true;
+            }
+            PendingPopupOpen::AltRepeat => {
+                self.popup_state.on_open(PopupKey::AltRepeatWindow);
+                self.alt_repeat_window_open = true;
+            }
+            PendingPopupOpen::AltRepeatCompact => {
+                self.selected_alt_repeat = 0;
+                self.alt_repeat_visible_count = 1;
+                self.popup_state.on_open(PopupKey::AltRepeatWindow);
+                self.alt_repeat_window_open = true;
+            }
+        }
+        ctx.request_repaint();
     }
 
     fn focus_modal_window<T>(&mut self, shown: &Option<egui::InnerResponse<T>>) {
@@ -6244,28 +6292,16 @@ impl EntropyApp {
                                     }
                                     if combo_resp.clicked() {
                                         self.close_top_dropdowns(ui.ctx());
-                                        self.request_modal_focus();
-                                        if !self.combo_window_open {
-                                            self.popup_state.on_open(PopupKey::ComboWindow);
-                                        }
-                                        self.combo_window_open = true;
+                                        self.queue_popup_open(PendingPopupOpen::Combo);
                                         if self.combo_visible_count == 0 { self.combo_visible_count = 1; }
                                     }
                                     if auto_shift_resp.clicked() && auto_shift_supported {
                                         self.close_top_dropdowns(ui.ctx());
-                                        self.request_modal_focus();
-                                        if !self.auto_shift_window_open {
-                                            self.popup_state.on_open(PopupKey::AutoShiftWindow);
-                                        }
-                                        self.auto_shift_window_open = true;
+                                        self.queue_popup_open(PendingPopupOpen::AutoShift);
                                     }
                                     if key_override_resp.clicked() {
                                         self.close_top_dropdowns(ui.ctx());
-                                        self.request_modal_focus();
-                                        if !self.key_override_window_open {
-                                            self.popup_state.on_open(PopupKey::KeyOverrideWindow);
-                                        }
-                                        self.key_override_window_open = true;
+                                        self.queue_popup_open(PendingPopupOpen::KeyOverrides);
                                     }
                                     if !auto_shift_supported {
                                         let _ = auto_shift_resp.clone().on_hover_text("Auto Shift is not enabled in this keyboard firmware");
@@ -6372,11 +6408,7 @@ impl EntropyApp {
                                         }
                                         if rgb_resp.clicked() && rgb_available {
                                             self.close_top_dropdowns(ui.ctx());
-                                            self.request_modal_focus();
-                                            if !self.rgb_window_open {
-                                                self.popup_state.on_open(PopupKey::RgbWindow);
-                                            }
-                                            self.rgb_window_open = true;
+                                            self.queue_popup_open(PendingPopupOpen::Rgb);
                                         }
                                         if !rgb_available {
                                             let _ = rgb_resp.clone().on_hover_text(
@@ -6385,11 +6417,7 @@ impl EntropyApp {
                                         }
                                         if encoders_resp.clicked() {
                                             self.close_top_dropdowns(ui.ctx());
-                                            self.request_modal_focus();
-                                            if !self.encoder_visibility_window_open {
-                                                self.popup_state.on_open(PopupKey::EncoderVisibilityWindow);
-                                            }
-                                            self.encoder_visibility_window_open = true;
+                                            self.queue_popup_open(PendingPopupOpen::EncoderVisibility);
                                         }
                                         (
                                             matrix_resp.hovered(),
@@ -7265,11 +7293,7 @@ impl EntropyApp {
                 }
                 // Mouse keys — RClick opens Mouse keys settings
                 if is_mouse_keycode(kc) {
-                    self.request_modal_focus();
-                    if !self.mouse_keys_window_open {
-                        self.popup_state.on_open(PopupKey::MouseKeysWindow);
-                    }
-                    self.mouse_keys_window_open = true;
+                    self.queue_popup_open(PendingPopupOpen::MouseKeys);
                     self.secondary_click_handled = true;
                 }
                 if is_alt_repeat_keycode(kc) {
