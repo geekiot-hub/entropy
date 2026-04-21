@@ -5560,7 +5560,8 @@ impl EntropyApp {
                                             crate::ui_style::modal_field_button_size(name_field_width),
                                             egui::TextEdit::singleline(name)
                                                 .hint_text("Name")
-                                                .char_limit(12),
+                                                .char_limit(12)
+                                                .vertical_align(egui::Align::Center),
                                         )
                                     })
                                     .inner;
@@ -5714,9 +5715,11 @@ impl EntropyApp {
                                 let mut combo_term_text = current_combo_term.to_string();
                                 ui.horizontal_centered(|ui| {
                                     let resp = ui.add_sized(
-                                        crate::ui_style::modal_small_button_size(80.0),
+                                        crate::ui_style::modal_small_button_size(54.0),
                                         egui::TextEdit::singleline(&mut combo_term_text)
-                                            .hint_text("ms"),
+                                            .hint_text("ms")
+                                            .desired_width(30.0)
+                                            .vertical_align(egui::Align::Center),
                                     );
                                     if resp.hovered() {
                                         ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
