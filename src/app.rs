@@ -1086,7 +1086,7 @@ pub struct EntropyApp {
     alt_repeat_visible_count: usize,
     alt_repeat_pick_target: Option<AltRepeatPickField>,
     alt_repeat_reopen_after_pick: bool,
-    modal_focus_pending: bool,
+    modal_focus_frames: u8,
     prev_any_floating_window_open: bool,
     last_single_instance_signal: String,
     rgb_settings: RgbSettingsState,
@@ -1185,7 +1185,7 @@ impl EntropyApp {
             alt_repeat_visible_count: 1,
             alt_repeat_pick_target: None,
             alt_repeat_reopen_after_pick: false,
-            modal_focus_pending: false,
+            modal_focus_frames: 0,
             prev_any_floating_window_open: false,
             last_single_instance_signal: read_single_instance_signal(),
             rgb_settings: RgbSettingsState::default(),
@@ -2480,7 +2480,7 @@ impl EntropyApp {
                     self.combo_dirty = true;
                 }
                 if self.combo_reopen_after_pick {
-                    self.modal_focus_pending = true;
+                    self.request_modal_focus();
                     self.combo_window_open = true;
                     self.combo_reopen_after_pick = false;
                 }
@@ -2498,7 +2498,7 @@ impl EntropyApp {
                 }
                 self.write_key_override(idx);
                 if self.key_override_reopen_after_pick {
-                    self.modal_focus_pending = true;
+                    self.request_modal_focus();
                     self.key_override_window_open = true;
                     self.key_override_reopen_after_pick = false;
                 }
@@ -2514,7 +2514,7 @@ impl EntropyApp {
                 }
                 self.write_alt_repeat_entry(idx);
                 if self.alt_repeat_reopen_after_pick {
-                    self.modal_focus_pending = true;
+                    self.request_modal_focus();
                     self.alt_repeat_window_open = true;
                     self.alt_repeat_visible_count = self
                         .alt_repeat_visible_count
@@ -3517,7 +3517,7 @@ impl eframe::App for EntropyApp {
             || self.key_override_window_open
             || self.keycode_picker.open;
         if any_floating_window_open && !self.prev_any_floating_window_open {
-            self.modal_focus_pending = true;
+            self.request_modal_focus();
         }
         if any_floating_window_open {
             let screen_rect = ctx.screen_rect();
@@ -3612,7 +3612,7 @@ impl eframe::App for EntropyApp {
         {
             self.alt_repeat_pick_target = None;
             if self.alt_repeat_reopen_after_pick {
-                self.modal_focus_pending = true;
+                self.request_modal_focus();
                 self.alt_repeat_window_open = true;
                 self.alt_repeat_reopen_after_pick = false;
             }
@@ -3936,7 +3936,7 @@ impl EntropyApp {
     fn open_alt_repeat_window_compact(&mut self) {
         self.selected_alt_repeat = 0;
         self.alt_repeat_visible_count = 1;
-        self.modal_focus_pending = true;
+        self.request_modal_focus();
         self.alt_repeat_window_open = true;
     }
 
@@ -3948,11 +3948,18 @@ impl EntropyApp {
         });
     }
 
+    fn request_modal_focus(&mut self) {
+        self.modal_focus_frames = 6;
+    }
+
     fn focus_modal_window<T>(&mut self, shown: &Option<egui::InnerResponse<T>>) {
-        if self.modal_focus_pending {
+        if self.modal_focus_frames > 0 {
             if let Some(shown) = shown {
                 shown.response.request_focus();
-                self.modal_focus_pending = false;
+                self.modal_focus_frames = self.modal_focus_frames.saturating_sub(1);
+                if shown.response.has_focus() {
+                    self.modal_focus_frames = 0;
+                }
             }
         }
     }
@@ -6204,18 +6211,18 @@ impl EntropyApp {
                                     }
                                     if combo_resp.clicked() {
                                         self.close_top_dropdowns(ui.ctx());
-                                        self.modal_focus_pending = true;
+                                        self.request_modal_focus();
                                         self.combo_window_open = true;
                                         if self.combo_visible_count == 0 { self.combo_visible_count = 1; }
                                     }
                                     if auto_shift_resp.clicked() && auto_shift_supported {
                                         self.close_top_dropdowns(ui.ctx());
-                                        self.modal_focus_pending = true;
+                                        self.request_modal_focus();
                                         self.auto_shift_window_open = true;
                                     }
                                     if key_override_resp.clicked() {
                                         self.close_top_dropdowns(ui.ctx());
-                                        self.modal_focus_pending = true;
+                                        self.request_modal_focus();
                                         self.key_override_window_open = true;
                                     }
                                     if !auto_shift_supported {
@@ -6323,7 +6330,7 @@ impl EntropyApp {
                                         }
                                         if rgb_resp.clicked() && rgb_available {
                                             self.close_top_dropdowns(ui.ctx());
-                                            self.modal_focus_pending = true;
+                                            self.request_modal_focus();
                                             self.rgb_window_open = true;
                                         }
                                         if !rgb_available {
@@ -6333,7 +6340,7 @@ impl EntropyApp {
                                         }
                                         if encoders_resp.clicked() {
                                             self.close_top_dropdowns(ui.ctx());
-                                            self.modal_focus_pending = true;
+                                            self.request_modal_focus();
                                             self.encoder_visibility_window_open = true;
                                         }
                                         (
@@ -7210,7 +7217,7 @@ impl EntropyApp {
                 }
                 // Mouse keys — RClick opens Mouse keys settings
                 if is_mouse_keycode(kc) {
-                    self.modal_focus_pending = true;
+                    self.request_modal_focus();
                     self.mouse_keys_window_open = true;
                     self.secondary_click_handled = true;
                 }
