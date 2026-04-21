@@ -1071,6 +1071,8 @@ pub struct EntropyApp {
     alt_repeat_visible_count: usize,
     alt_repeat_pick_target: Option<AltRepeatPickField>,
     alt_repeat_reopen_after_pick: bool,
+    modal_focus_pending: bool,
+    prev_any_floating_window_open: bool,
     rgb_settings: RgbSettingsState,
     rgb_window_open: bool,
     encoder_visibility: Vec<bool>,
@@ -1167,6 +1169,8 @@ impl EntropyApp {
             alt_repeat_visible_count: 1,
             alt_repeat_pick_target: None,
             alt_repeat_reopen_after_pick: false,
+            modal_focus_pending: false,
+            prev_any_floating_window_open: false,
             rgb_settings: RgbSettingsState::default(),
             rgb_window_open: false,
             encoder_visibility: vec![],
@@ -3489,6 +3493,9 @@ impl eframe::App for EntropyApp {
             || self.encoder_visibility_window_open
             || self.key_override_window_open
             || self.keycode_picker.open;
+        if any_floating_window_open && !self.prev_any_floating_window_open {
+            self.modal_focus_pending = true;
+        }
         if any_floating_window_open {
             let screen_rect = ctx.screen_rect();
             egui::Area::new("window_backdrop".into())
@@ -3514,6 +3521,9 @@ impl eframe::App for EntropyApp {
                         self.encoder_visibility_window_open = false;
                         self.key_override_window_open = false;
                         self.keycode_picker.open = false;
+                        if let Some(id) = ctx.memory(|m| m.focused()) {
+                            ctx.memory_mut(|m| m.surrender_focus(id));
+                        }
                     }
                 });
         }
@@ -3544,6 +3554,15 @@ impl eframe::App for EntropyApp {
             self.keycode_picker.show(ctx);
             self.apply_picker_results();
         }
+
+        self.prev_any_floating_window_open = self.combo_window_open
+            || self.auto_shift_window_open
+            || self.mouse_keys_window_open
+            || self.alt_repeat_window_open
+            || self.rgb_window_open
+            || self.encoder_visibility_window_open
+            || self.key_override_window_open
+            || self.keycode_picker.open;
         if self.combo_pick_target.is_some()
             && !self.keycode_picker.open
             && self.keycode_picker.result.is_none()
@@ -3896,6 +3915,15 @@ impl EntropyApp {
         self.alt_repeat_window_open = true;
     }
 
+    fn focus_modal_window<T>(&mut self, shown: &Option<egui::InnerResponse<T>>) {
+        if self.modal_focus_pending {
+            if let Some(shown) = shown {
+                shown.response.request_focus();
+                self.modal_focus_pending = false;
+            }
+        }
+    }
+
     fn write_auto_shift_flags(&mut self) {
         let Some(hid) = &self.hid_device else {
             return;
@@ -4123,7 +4151,7 @@ impl EntropyApp {
         let style = ctx.style().as_ref().clone();
         let frame = crate::ui_style::modal_window_frame(&style, dark);
 
-        egui::Window::new("RGB")
+        let shown = egui::Window::new("RGB")
             .id(egui::Id::new("rgb_window"))
             .open(&mut open)
             .collapsible(false)
@@ -4450,12 +4478,13 @@ impl EntropyApp {
         if close_after_save {
             open = false;
         }
+        self.focus_modal_window(&shown);
         self.rgb_window_open = open;
     }
 
     fn show_encoder_visibility_window(&mut self, ctx: &egui::Context) {
         let mut open = self.encoder_visibility_window_open;
-        egui::Window::new("Encoders")
+        let shown = egui::Window::new("Encoders")
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
@@ -4489,6 +4518,7 @@ impl EntropyApp {
                     save_encoder_visibility(&self.encoder_visibility, &self.current_device_name);
                 }
             });
+        self.focus_modal_window(&shown);
         self.encoder_visibility_window_open = open;
     }
 
@@ -4500,7 +4530,7 @@ impl EntropyApp {
 
         let dark = ctx.style().visuals.dark_mode;
         let mut open = self.alt_repeat_window_open;
-        egui::Window::new("Alt Repeat")
+        let shown = egui::Window::new("Alt Repeat")
             .id(egui::Id::new("alt_repeat_window_v2"))
             .order(egui::Order::Foreground)
             .open(&mut open)
@@ -4683,6 +4713,7 @@ impl EntropyApp {
                 }
             });
 
+        self.focus_modal_window(&shown);
         self.alt_repeat_window_open = open;
     }
 
@@ -4692,7 +4723,7 @@ impl EntropyApp {
         let style = ctx.style().as_ref().clone();
         let frame = crate::ui_style::modal_window_frame(&style, dark);
 
-        egui::Window::new("Auto Shift")
+        let shown = egui::Window::new("Auto Shift")
             .id(egui::Id::new("auto_shift_window"))
             .open(&mut open)
             .collapsible(false)
@@ -4789,6 +4820,7 @@ impl EntropyApp {
                 });
             });
 
+        self.focus_modal_window(&shown);
         self.auto_shift_window_open = open;
     }
 
@@ -4815,7 +4847,7 @@ impl EntropyApp {
         let style = ctx.style().as_ref().clone();
         let frame = crate::ui_style::modal_window_frame(&style, dark);
 
-        egui::Window::new("Mouse keys")
+        let shown = egui::Window::new("Mouse keys")
             .id(egui::Id::new("mouse_keys_window"))
             .open(&mut open)
             .collapsible(false)
@@ -4939,6 +4971,7 @@ impl EntropyApp {
                 });
             });
 
+        self.focus_modal_window(&shown);
         self.mouse_keys_window_open = open;
     }
 
@@ -4950,7 +4983,7 @@ impl EntropyApp {
 
         let dark = ctx.style().visuals.dark_mode;
         let mut open = self.key_override_window_open;
-        egui::Window::new("Key Overrides")
+        let shown = egui::Window::new("Key Overrides")
             .order(egui::Order::Foreground)
             .open(&mut open)
             .collapsible(false)
@@ -5251,6 +5284,7 @@ impl EntropyApp {
                     self.write_key_override(idx);
                 }
             });
+        self.focus_modal_window(&shown);
         self.key_override_window_open = open;
     }
 
@@ -5294,7 +5328,7 @@ impl EntropyApp {
         }
 
         let mut open = self.combo_window_open;
-        egui::Window::new("Combo")
+        let shown = egui::Window::new("Combo")
             .order(egui::Order::Foreground)
             .open(&mut open)
             .collapsible(false)
@@ -5737,6 +5771,7 @@ impl EntropyApp {
                     );
                 });
             });
+        self.focus_modal_window(&shown);
         self.combo_window_open = open;
         if !self.combo_window_open {
             self.combo_capture_open = false;
