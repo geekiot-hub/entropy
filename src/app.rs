@@ -5498,10 +5498,10 @@ impl EntropyApp {
                 let combo_outline_stroke = crate::ui_style::modal_outline_stroke(ui.visuals().dark_mode);
 
                 let combo_idx = self.selected_combo;
-                let content_width = 296.0_f32;
-                let compact_field_width = 148.0_f32;
-                let name_field_width = compact_field_width;
                 let action_button_size = crate::ui_style::modal_action_button_size();
+                let content_width = action_button_size.x * 2.0 + 8.0;
+                let compact_field_width = content_width;
+                let name_field_width = content_width;
 
                 crate::ui_style::modal_content(
                     ui,
@@ -5514,27 +5514,33 @@ impl EntropyApp {
                             _ => format!("C{}", self.selected_combo),
                         };
                         ui.horizontal_centered(|ui| {
-                            egui::ComboBox::from_id_salt("combo_entry_select")
-                                .selected_text(selected_combo_label)
-                                .width(compact_field_width)
-                                .show_ui(ui, |ui| {
-                                    for idx in 0..self.combo_entries.len() {
-                                        let label = match self.combo_names.get(idx) {
-                                            Some(name) if !name.trim().is_empty() => {
-                                                format!("C{}: {}", idx, name.trim())
+                            ui.allocate_ui_with_layout(
+                                Vec2::new(compact_field_width, 0.0),
+                                egui::Layout::left_to_right(egui::Align::Center),
+                                |ui| {
+                                    egui::ComboBox::from_id_salt("combo_entry_select")
+                                        .selected_text(selected_combo_label)
+                                        .width(compact_field_width)
+                                        .show_ui(ui, |ui| {
+                                            for idx in 0..self.combo_entries.len() {
+                                                let label = match self.combo_names.get(idx) {
+                                                    Some(name) if !name.trim().is_empty() => {
+                                                        format!("C{}: {}", idx, name.trim())
+                                                    }
+                                                    _ => format!("C{}", idx),
+                                                };
+                                                let resp = ui.selectable_value(
+                                                    &mut self.selected_combo,
+                                                    idx,
+                                                    label,
+                                                );
+                                                if resp.hovered() {
+                                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                                }
                                             }
-                                            _ => format!("C{}", idx),
-                                        };
-                                        let resp = ui.selectable_value(
-                                            &mut self.selected_combo,
-                                            idx,
-                                            label,
-                                        );
-                                        if resp.hovered() {
-                                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                        }
-                                    }
-                                });
+                                        });
+                                },
+                            );
                         });
 
                         ui.add_space(crate::ui_style::modal_space_md());
@@ -5550,9 +5556,9 @@ impl EntropyApp {
                             if let Some(name) = self.combo_names.get_mut(combo_idx) {
                                 let resp = ui
                                     .horizontal_centered(|ui| {
-                                        ui.add(
+                                        ui.add_sized(
+                                            crate::ui_style::modal_field_button_size(name_field_width),
                                             egui::TextEdit::singleline(name)
-                                                .desired_width(name_field_width)
                                                 .hint_text("Name")
                                                 .char_limit(12),
                                         )
@@ -5707,9 +5713,9 @@ impl EntropyApp {
                                 ui.add_space(4.0);
                                 let mut combo_term_text = current_combo_term.to_string();
                                 ui.horizontal_centered(|ui| {
-                                    let resp = ui.add(
+                                    let resp = ui.add_sized(
+                                        crate::ui_style::modal_small_button_size(80.0),
                                         egui::TextEdit::singleline(&mut combo_term_text)
-                                            .desired_width(45.0)
                                             .hint_text("ms"),
                                     );
                                     if resp.hovered() {
