@@ -4517,48 +4517,30 @@ impl EntropyApp {
                 if self.selected_alt_repeat >= self.alt_repeat_entries.len() {
                     self.selected_alt_repeat = 0;
                 }
-                self.alt_repeat_visible_count = self
-                    .alt_repeat_visible_count
-                    .max(1)
-                    .min(self.alt_repeat_entries.len().max(1));
                 self.selected_alt_repeat = self
                     .selected_alt_repeat
-                    .min(self.alt_repeat_visible_count.saturating_sub(1));
+                    .min(self.alt_repeat_entries.len().saturating_sub(1));
 
-                ui.horizontal_wrapped(|ui| {
-                    for idx in 0..self.alt_repeat_visible_count {
-                        let active = idx == self.selected_alt_repeat;
-                        let resp = ui
-                            .add(
-                                egui::Button::new(RichText::new(format!("AR{}", idx)).size(11.0))
-                                    .min_size(Vec2::new(52.0, 28.0))
-                                    .fill(if active { app_hover_fill(dark) } else { app_surface_fill(dark) })
-                                    .stroke(egui::Stroke::new(1.0, app_border_color(dark))),
-                            )
-                            .on_hover_cursor(egui::CursorIcon::PointingHand);
-                        if resp.clicked() {
-                            self.selected_alt_repeat = idx;
-                        }
-                    }
-
-                    if self.alt_repeat_visible_count < self.alt_repeat_entries.len() {
-                        let add_resp = ui
-                            .add(
-                                egui::Button::new(RichText::new("+").size(14.0))
-                                    .min_size(Vec2::new(28.0, 28.0))
-                                    .fill(app_surface_fill(dark))
-                                    .stroke(egui::Stroke::new(1.0, app_border_color(dark))),
-                            )
-                            .on_hover_cursor(egui::CursorIcon::PointingHand);
-                        add_resp.clone().on_hover_text("Add Alt Repeat entry");
-                        if add_resp.clicked() {
-                            self.alt_repeat_visible_count += 1;
-                            self.selected_alt_repeat = self.alt_repeat_visible_count.saturating_sub(1);
-                        }
-                    }
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Entry").size(12.0));
+                    egui::ComboBox::from_id_salt("alt_repeat_entry_select")
+                        .selected_text(format!("AR{}", self.selected_alt_repeat))
+                        .width(120.0)
+                        .show_ui(ui, |ui| {
+                            for idx in 0..self.alt_repeat_entries.len() {
+                                let resp = ui.selectable_value(
+                                    &mut self.selected_alt_repeat,
+                                    idx,
+                                    format!("AR{}", idx),
+                                );
+                                if resp.hovered() {
+                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                }
+                            }
+                        });
                 });
 
-                ui.add_space(4.0);
+                ui.add_space(2.0);
                 let idx = self.selected_alt_repeat;
                 let current = self.alt_repeat_entries[idx].clone();
                 let mut edited = current.clone();
