@@ -2480,6 +2480,7 @@ impl EntropyApp {
                     self.combo_dirty = true;
                 }
                 if self.combo_reopen_after_pick {
+                    self.modal_focus_pending = true;
                     self.combo_window_open = true;
                     self.combo_reopen_after_pick = false;
                 }
@@ -2497,6 +2498,7 @@ impl EntropyApp {
                 }
                 self.write_key_override(idx);
                 if self.key_override_reopen_after_pick {
+                    self.modal_focus_pending = true;
                     self.key_override_window_open = true;
                     self.key_override_reopen_after_pick = false;
                 }
@@ -2512,6 +2514,7 @@ impl EntropyApp {
                 }
                 self.write_alt_repeat_entry(idx);
                 if self.alt_repeat_reopen_after_pick {
+                    self.modal_focus_pending = true;
                     self.alt_repeat_window_open = true;
                     self.alt_repeat_visible_count = self
                         .alt_repeat_visible_count
@@ -3609,6 +3612,7 @@ impl eframe::App for EntropyApp {
         {
             self.alt_repeat_pick_target = None;
             if self.alt_repeat_reopen_after_pick {
+                self.modal_focus_pending = true;
                 self.alt_repeat_window_open = true;
                 self.alt_repeat_reopen_after_pick = false;
             }
@@ -3932,7 +3936,16 @@ impl EntropyApp {
     fn open_alt_repeat_window_compact(&mut self) {
         self.selected_alt_repeat = 0;
         self.alt_repeat_visible_count = 1;
+        self.modal_focus_pending = true;
         self.alt_repeat_window_open = true;
+    }
+
+    fn close_top_dropdowns(&self, ctx: &egui::Context) {
+        ctx.data_mut(|d| {
+            d.insert_temp(egui::Id::new("device_dropdown_open"), false);
+            d.insert_temp(egui::Id::new("advanced_dropdown_open"), false);
+            d.insert_temp(egui::Id::new("settings_dropdown_open"), false);
+        });
     }
 
     fn focus_modal_window<T>(&mut self, shown: &Option<egui::InnerResponse<T>>) {
@@ -6190,13 +6203,19 @@ impl EntropyApp {
                                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                     }
                                     if combo_resp.clicked() {
+                                        self.close_top_dropdowns(ui.ctx());
+                                        self.modal_focus_pending = true;
                                         self.combo_window_open = true;
                                         if self.combo_visible_count == 0 { self.combo_visible_count = 1; }
                                     }
                                     if auto_shift_resp.clicked() && auto_shift_supported {
+                                        self.close_top_dropdowns(ui.ctx());
+                                        self.modal_focus_pending = true;
                                         self.auto_shift_window_open = true;
                                     }
                                     if key_override_resp.clicked() {
+                                        self.close_top_dropdowns(ui.ctx());
+                                        self.modal_focus_pending = true;
                                         self.key_override_window_open = true;
                                     }
                                     if !auto_shift_supported {
@@ -6294,6 +6313,7 @@ impl EntropyApp {
                                                 .set_cursor_icon(egui::CursorIcon::PointingHand);
                                         }
                                         if matrix_resp.clicked() {
+                                            self.close_top_dropdowns(ui.ctx());
                                             self.settings_tab = SettingsTab::MatrixTester;
                                             if self.main_menu_tab != MainMenuTab::Settings {
                                                 self.reset_matrix_tester_state();
@@ -6302,6 +6322,8 @@ impl EntropyApp {
                                             self.main_menu_tab = MainMenuTab::Settings;
                                         }
                                         if rgb_resp.clicked() && rgb_available {
+                                            self.close_top_dropdowns(ui.ctx());
+                                            self.modal_focus_pending = true;
                                             self.rgb_window_open = true;
                                         }
                                         if !rgb_available {
@@ -6310,6 +6332,8 @@ impl EntropyApp {
                                             );
                                         }
                                         if encoders_resp.clicked() {
+                                            self.close_top_dropdowns(ui.ctx());
+                                            self.modal_focus_pending = true;
                                             self.encoder_visibility_window_open = true;
                                         }
                                         (
@@ -7186,6 +7210,7 @@ impl EntropyApp {
                 }
                 // Mouse keys — RClick opens Mouse keys settings
                 if is_mouse_keycode(kc) {
+                    self.modal_focus_pending = true;
                     self.mouse_keys_window_open = true;
                     self.secondary_click_handled = true;
                 }
