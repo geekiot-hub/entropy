@@ -5410,7 +5410,7 @@ impl EntropyApp {
             "Combo",
             self.popup_state.id(PopupKey::ComboWindow),
             &mut open,
-            Vec2::new(360.0, 430.0),
+            Vec2::new(316.0, 430.0),
         )
             .show(ctx, |ui| {
                 ui.style_mut().visuals.button_frame = true;
@@ -5498,14 +5498,14 @@ impl EntropyApp {
                 let combo_outline_stroke = crate::ui_style::modal_outline_stroke(ui.visuals().dark_mode);
 
                 let combo_idx = self.selected_combo;
-                let content_width = 340.0_f32;
-                let compact_field_width = ((content_width - 110.0) * 0.5).round();
+                let content_width = 296.0_f32;
+                let compact_field_width = 148.0_f32;
                 let name_field_width = compact_field_width;
                 let action_button_size = crate::ui_style::modal_action_button_size();
 
                 crate::ui_style::modal_content(
                     ui,
-                    crate::ui_style::ModalLayout::new(340.0).with_top_padding(0.0),
+                    crate::ui_style::ModalLayout::new(content_width).with_top_padding(0.0),
                     |ui| {
                         let selected_combo_label = match self.combo_names.get(self.selected_combo) {
                             Some(name) if !name.trim().is_empty() => {
@@ -5692,9 +5692,7 @@ impl EntropyApp {
                             }
 
                             if let Some(current_combo_term) = self.combo_term {
-                                ui.add_space(14.0);
-                                ui.separator();
-                                ui.add_space(10.0);
+                                ui.add_space(12.0);
                                 ui.label(
                                     RichText::new("Time out period for combos")
                                         .size(13.0)
