@@ -5225,9 +5225,9 @@ impl EntropyApp {
                                 &self.keycode_picker.tap_dance_names,
                             );
 
-                            ui.add_space(6.0);
-                            ui.label(RichText::new("Trigger").size(12.0).strong());
                             ui.add_space(4.0);
+                            ui.label(RichText::new("Trigger").size(12.0).strong());
+                            ui.add_space(2.0);
                             ui.horizontal_centered(|ui| {
                                 let trigger_resp = ui.add(
                                     egui::Button::new(RichText::new(trigger_label).size(12.0))
@@ -5239,7 +5239,7 @@ impl EntropyApp {
                                 trigger_resp.on_hover_text(trigger_tip);
                             });
 
-                            ui.add_space(6.0);
+                            ui.add_space(0.0);
                             let suppressed_resp = egui::CollapsingHeader::new(
                                 RichText::new("Suppressed mods").size(11.0).color(app_muted_text(dark))
                             )
@@ -5278,9 +5278,9 @@ impl EntropyApp {
                                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                             }
 
-                            ui.add_space(6.0);
-                            ui.label(RichText::new("Replacement").size(12.0).strong());
                             ui.add_space(4.0);
+                            ui.label(RichText::new("Replacement").size(12.0).strong());
+                            ui.add_space(2.0);
                             ui.horizontal_centered(|ui| {
                                 let replacement_resp = ui.add(
                                     egui::Button::new(RichText::new(replacement_label).size(12.0))
@@ -5292,7 +5292,7 @@ impl EntropyApp {
                                 replacement_resp.on_hover_text(replacement_tip);
                             });
 
-                            ui.add_space(6.0);
+                            ui.add_space(0.0);
                             let layers_resp = egui::CollapsingHeader::new(
                                 RichText::new("Enable on layers").size(11.0).color(app_muted_text(dark))
                             )
@@ -5305,7 +5305,7 @@ impl EntropyApp {
                                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                             }
 
-                            ui.add_space(6.0);
+                            ui.add_space(2.0);
                             ui.label(RichText::new("How this override behaves").size(11.0).color(app_muted_text(dark)));
                             ui.add_space(2.0);
                             ui.checkbox(&mut edited.options.activation_trigger_down, "Activate as soon as the trigger key is pressed");
