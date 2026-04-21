@@ -4505,7 +4505,7 @@ impl EntropyApp {
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
-            .fixed_size(Vec2::new(476.0, 420.0))
+            .fixed_size(Vec2::new(476.0, 560.0))
             .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
             .frame(crate::ui_style::modal_window_frame(ctx.style().as_ref(), dark))
             .show(ctx, |ui| {
@@ -4596,7 +4596,7 @@ impl EntropyApp {
                     ui.vertical(|ui| {
                         ui.set_width(content_width);
                         egui::ScrollArea::vertical()
-                            .max_height(314.0)
+                            .max_height(452.0)
                             .auto_shrink([false, true])
                             .show(ui, |ui| {
                                 ui.set_width(content_width);
