@@ -5704,27 +5704,24 @@ impl EntropyApp {
 
                             if let Some(current_combo_term) = self.combo_term {
                                 ui.add_space(12.0);
+                                let mut combo_term_text = current_combo_term.to_string();
                                 ui.horizontal_centered(|ui| {
                                     ui.label(
-                                        RichText::new("Time out period for combos")
+                                        RichText::new("Time out period for combos:")
                                             .size(13.0)
                                             .strong(),
                                     );
-                                });
-                                ui.add_space(4.0);
-                                let mut combo_term_text = current_combo_term.to_string();
-                                ui.horizontal_centered(|ui| {
+                                    ui.add_space(6.0);
                                     let resp = ui.add_sized(
-                                        crate::ui_style::modal_small_button_size(54.0),
+                                        crate::ui_style::modal_small_button_size(36.0),
                                         egui::TextEdit::singleline(&mut combo_term_text)
                                             .hint_text("ms")
-                                            .desired_width(30.0)
+                                            .desired_width(20.0)
                                             .vertical_align(egui::Align::Center),
                                     );
                                     if resp.hovered() {
                                         ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
                                     }
-                                    ui.label("ms");
                                     if resp.changed() {
                                         let filtered: String = combo_term_text
                                             .chars()
