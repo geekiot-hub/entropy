@@ -4501,6 +4501,7 @@ impl EntropyApp {
         let dark = ctx.style().visuals.dark_mode;
         let mut open = self.alt_repeat_window_open;
         egui::Window::new("Alt Repeat")
+            .id(egui::Id::new("alt_repeat_window_v2"))
             .order(egui::Order::Foreground)
             .open(&mut open)
             .collapsible(false)
