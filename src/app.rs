@@ -1080,8 +1080,10 @@ pub struct EntropyApp {
     auto_shift_timeout: Option<u16>,
     mouse_keys_settings: MouseKeysSettingsState,
     mouse_keys_window_open: bool,
+    mouse_keys_window_nonce: u64,
     alt_repeat_entries: Vec<AltRepeatKeyEntry>,
     alt_repeat_window_open: bool,
+    alt_repeat_window_nonce: u64,
     selected_alt_repeat: usize,
     alt_repeat_visible_count: usize,
     alt_repeat_pick_target: Option<AltRepeatPickField>,
@@ -1091,8 +1093,10 @@ pub struct EntropyApp {
     last_single_instance_signal: String,
     rgb_settings: RgbSettingsState,
     rgb_window_open: bool,
+    rgb_window_nonce: u64,
     encoder_visibility: Vec<bool>,
     encoder_visibility_window_open: bool,
+    encoder_visibility_window_nonce: u64,
     combo_term_dirty: bool,
     combo_window_open: bool,
     combo_window_nonce: u64,
@@ -1182,8 +1186,10 @@ impl EntropyApp {
             auto_shift_timeout: None,
             mouse_keys_settings: MouseKeysSettingsState::default(),
             mouse_keys_window_open: false,
+            mouse_keys_window_nonce: 0,
             alt_repeat_entries: vec![],
             alt_repeat_window_open: false,
+            alt_repeat_window_nonce: 0,
             selected_alt_repeat: 0,
             alt_repeat_visible_count: 1,
             alt_repeat_pick_target: None,
@@ -1193,8 +1199,10 @@ impl EntropyApp {
             last_single_instance_signal: read_single_instance_signal(),
             rgb_settings: RgbSettingsState::default(),
             rgb_window_open: false,
+            rgb_window_nonce: 0,
             encoder_visibility: vec![],
             encoder_visibility_window_open: false,
+            encoder_visibility_window_nonce: 0,
             combo_term_dirty: false,
             combo_window_open: false,
             combo_window_nonce: 0,
@@ -2521,6 +2529,9 @@ impl EntropyApp {
                 self.write_alt_repeat_entry(idx);
                 if self.alt_repeat_reopen_after_pick {
                     self.request_modal_focus();
+                    if !self.alt_repeat_window_open {
+                        self.alt_repeat_window_nonce = self.alt_repeat_window_nonce.wrapping_add(1);
+                    }
                     self.alt_repeat_window_open = true;
                     self.alt_repeat_visible_count = self
                         .alt_repeat_visible_count
@@ -2733,6 +2744,9 @@ impl EntropyApp {
             return;
         }
         if is_mouse_keycode(kc) {
+            if !self.mouse_keys_window_open {
+                self.mouse_keys_window_nonce = self.mouse_keys_window_nonce.wrapping_add(1);
+            }
             self.mouse_keys_window_open = true;
             self.secondary_click_handled = true;
             return;
@@ -3625,6 +3639,9 @@ impl eframe::App for EntropyApp {
             self.alt_repeat_pick_target = None;
             if self.alt_repeat_reopen_after_pick {
                 self.request_modal_focus();
+                if !self.alt_repeat_window_open {
+                    self.alt_repeat_window_nonce = self.alt_repeat_window_nonce.wrapping_add(1);
+                }
                 self.alt_repeat_window_open = true;
                 self.alt_repeat_reopen_after_pick = false;
             }
@@ -3949,6 +3966,9 @@ impl EntropyApp {
         self.selected_alt_repeat = 0;
         self.alt_repeat_visible_count = 1;
         self.request_modal_focus();
+        if !self.alt_repeat_window_open {
+            self.alt_repeat_window_nonce = self.alt_repeat_window_nonce.wrapping_add(1);
+        }
         self.alt_repeat_window_open = true;
     }
 
@@ -4223,7 +4243,7 @@ impl EntropyApp {
         let frame = crate::ui_style::modal_window_frame(&style, dark);
 
         let shown = egui::Window::new("RGB")
-            .id(egui::Id::new("rgb_window"))
+            .id(egui::Id::new(("rgb_window", self.rgb_window_nonce)))
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
@@ -4556,6 +4576,7 @@ impl EntropyApp {
     fn show_encoder_visibility_window(&mut self, ctx: &egui::Context) {
         let mut open = self.encoder_visibility_window_open;
         let shown = egui::Window::new("Encoders")
+            .id(egui::Id::new(("encoder_visibility_window", self.encoder_visibility_window_nonce)))
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
@@ -4602,7 +4623,7 @@ impl EntropyApp {
         let dark = ctx.style().visuals.dark_mode;
         let mut open = self.alt_repeat_window_open;
         let shown = egui::Window::new("Alt Repeat")
-            .id(egui::Id::new("alt_repeat_window_v2"))
+            .id(egui::Id::new(("alt_repeat_window_v2", self.alt_repeat_window_nonce)))
             .order(egui::Order::Foreground)
             .open(&mut open)
             .collapsible(false)
@@ -4919,7 +4940,7 @@ impl EntropyApp {
         let frame = crate::ui_style::modal_window_frame(&style, dark);
 
         let shown = egui::Window::new("Mouse keys")
-            .id(egui::Id::new("mouse_keys_window"))
+            .id(egui::Id::new(("mouse_keys_window", self.mouse_keys_window_nonce)))
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
@@ -6356,6 +6377,9 @@ impl EntropyApp {
                                         if rgb_resp.clicked() && rgb_available {
                                             self.close_top_dropdowns(ui.ctx());
                                             self.request_modal_focus();
+                                            if !self.rgb_window_open {
+                                                self.rgb_window_nonce = self.rgb_window_nonce.wrapping_add(1);
+                                            }
                                             self.rgb_window_open = true;
                                         }
                                         if !rgb_available {
@@ -6366,6 +6390,9 @@ impl EntropyApp {
                                         if encoders_resp.clicked() {
                                             self.close_top_dropdowns(ui.ctx());
                                             self.request_modal_focus();
+                                            if !self.encoder_visibility_window_open {
+                                                self.encoder_visibility_window_nonce = self.encoder_visibility_window_nonce.wrapping_add(1);
+                                            }
                                             self.encoder_visibility_window_open = true;
                                         }
                                         (
@@ -7243,6 +7270,9 @@ impl EntropyApp {
                 // Mouse keys — RClick opens Mouse keys settings
                 if is_mouse_keycode(kc) {
                     self.request_modal_focus();
+                    if !self.mouse_keys_window_open {
+                        self.mouse_keys_window_nonce = self.mouse_keys_window_nonce.wrapping_add(1);
+                    }
                     self.mouse_keys_window_open = true;
                     self.secondary_click_handled = true;
                 }
