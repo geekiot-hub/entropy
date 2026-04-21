@@ -1095,6 +1095,7 @@ pub struct EntropyApp {
     encoder_visibility_window_open: bool,
     combo_term_dirty: bool,
     combo_window_open: bool,
+    combo_window_nonce: u64,
     combo_reopen_after_pick: bool,
     combo_visible_count: usize,
     combo_capture_open: bool,
@@ -1102,9 +1103,11 @@ pub struct EntropyApp {
     combo_undo_stack: Vec<(Vec<ComboEntry>, Vec<String>, Option<u16>, usize, usize)>,
     combo_pick_target: Option<(usize, ComboPickField)>,
     auto_shift_window_open: bool,
+    auto_shift_window_nonce: u64,
     key_override_entries: Vec<KeyOverrideEntry>,
     key_override_names: Vec<String>,
     key_override_window_open: bool,
+    key_override_window_nonce: u64,
     key_override_visible_count: usize,
     key_override_undo_stack: Vec<(Vec<KeyOverrideEntry>, Vec<String>, usize, usize)>,
     selected_key_override: usize,
@@ -1194,6 +1197,7 @@ impl EntropyApp {
             encoder_visibility_window_open: false,
             combo_term_dirty: false,
             combo_window_open: false,
+            combo_window_nonce: 0,
             combo_reopen_after_pick: false,
             combo_visible_count: 1,
             combo_capture_open: false,
@@ -1201,9 +1205,11 @@ impl EntropyApp {
             combo_undo_stack: Vec::new(),
             combo_pick_target: None,
             auto_shift_window_open: false,
+            auto_shift_window_nonce: 0,
             key_override_entries: Vec::new(),
             key_override_names: vec![],
             key_override_window_open: false,
+            key_override_window_nonce: 0,
             key_override_visible_count: 1,
             key_override_undo_stack: Vec::new(),
             selected_key_override: 0,
@@ -3592,6 +3598,9 @@ impl eframe::App for EntropyApp {
         {
             self.combo_pick_target = None;
             if self.combo_reopen_after_pick {
+                if !self.combo_window_open {
+                    self.combo_window_nonce = self.combo_window_nonce.wrapping_add(1);
+                }
                 self.combo_window_open = true;
                 self.combo_reopen_after_pick = false;
             }
@@ -3602,6 +3611,9 @@ impl eframe::App for EntropyApp {
         {
             self.key_override_pick_target = None;
             if self.key_override_reopen_after_pick {
+                if !self.key_override_window_open {
+                    self.key_override_window_nonce = self.key_override_window_nonce.wrapping_add(1);
+                }
                 self.key_override_window_open = true;
                 self.key_override_reopen_after_pick = false;
             }
@@ -4783,7 +4795,7 @@ impl EntropyApp {
         let frame = crate::ui_style::modal_window_frame(&style, dark);
 
         let shown = egui::Window::new("Auto Shift")
-            .id(egui::Id::new("auto_shift_window"))
+            .id(egui::Id::new(("auto_shift_window", self.auto_shift_window_nonce)))
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
@@ -5043,6 +5055,7 @@ impl EntropyApp {
         let dark = ctx.style().visuals.dark_mode;
         let mut open = self.key_override_window_open;
         let shown = egui::Window::new("Key Overrides")
+            .id(egui::Id::new(("key_override_window", self.key_override_window_nonce)))
             .order(egui::Order::Foreground)
             .open(&mut open)
             .collapsible(false)
@@ -5388,6 +5401,7 @@ impl EntropyApp {
 
         let mut open = self.combo_window_open;
         let shown = egui::Window::new("Combo")
+            .id(egui::Id::new(("combo_window", self.combo_window_nonce)))
             .order(egui::Order::Foreground)
             .open(&mut open)
             .collapsible(false)
@@ -6214,17 +6228,26 @@ impl EntropyApp {
                                     if combo_resp.clicked() {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.request_modal_focus();
+                                        if !self.combo_window_open {
+                                            self.combo_window_nonce = self.combo_window_nonce.wrapping_add(1);
+                                        }
                                         self.combo_window_open = true;
                                         if self.combo_visible_count == 0 { self.combo_visible_count = 1; }
                                     }
                                     if auto_shift_resp.clicked() && auto_shift_supported {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.request_modal_focus();
+                                        if !self.auto_shift_window_open {
+                                            self.auto_shift_window_nonce = self.auto_shift_window_nonce.wrapping_add(1);
+                                        }
                                         self.auto_shift_window_open = true;
                                     }
                                     if key_override_resp.clicked() {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.request_modal_focus();
+                                        if !self.key_override_window_open {
+                                            self.key_override_window_nonce = self.key_override_window_nonce.wrapping_add(1);
+                                        }
                                         self.key_override_window_open = true;
                                     }
                                     if !auto_shift_supported {
