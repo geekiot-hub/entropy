@@ -5086,34 +5086,77 @@ impl EntropyApp {
                         .min(self.key_override_entries.len().max(1));
                     self.selected_key_override = self.selected_key_override.min(self.key_override_visible_count.saturating_sub(1));
 
-                    ui.horizontal_wrapped(|ui| {
-                        for idx in 0..self.key_override_visible_count {
-                            let active = idx == self.selected_key_override;
-                            let label = key_override_display_name(&self.key_override_names, idx);
-                            let resp = ui.add(
-                                egui::Button::new(RichText::new(label).size(11.0))
-                                    .min_size(crate::ui_style::modal_tab_button_size())
-                                    .fill(if active { app_hover_fill(dark) } else { app_surface_fill(dark) })
-                                    .stroke(egui::Stroke::new(1.0, app_border_color(dark))),
-                            ).on_hover_cursor(egui::CursorIcon::PointingHand);
-                            if resp.clicked() {
-                                self.selected_key_override = idx;
-                            }
-                        }
+                    self.key_override_visible_count = self.key_override_entries.len().max(1);
+                    self.selected_key_override = self
+                        .selected_key_override
+                        .min(self.key_override_entries.len().saturating_sub(1));
 
-                        if self.key_override_visible_count < self.key_override_entries.len() {
-                            let add_resp = ui.add(
-                                egui::Button::new(RichText::new("+").size(14.0))
-                                    .min_size(crate::ui_style::modal_tab_add_button_size())
-                                    .fill(app_surface_fill(dark))
-                                    .stroke(egui::Stroke::new(1.0, app_border_color(dark))),
-                            ).on_hover_cursor(egui::CursorIcon::PointingHand);
-                            add_resp.clone().on_hover_text("Add Key Override");
-                            if add_resp.clicked() {
-                                self.key_override_visible_count += 1;
-                                self.selected_key_override = self.key_override_visible_count.saturating_sub(1);
-                            }
+                    let selected_override_empty = self
+                        .key_override_entries
+                        .get(self.selected_key_override)
+                        .map(|entry| !Self::key_override_entry_exists(entry))
+                        .unwrap_or(true)
+                        && self
+                            .key_override_names
+                            .get(self.selected_key_override)
+                            .map(|name| name.trim().is_empty())
+                            .unwrap_or(true);
+                    let selected_override_label = match self.key_override_names.get(self.selected_key_override) {
+                        Some(name) if !name.trim().is_empty() => {
+                            RichText::new(format!("KO{}: {}", self.selected_key_override, name.trim()))
+                                .color(if selected_override_empty {
+                                    app_muted_text(ui.visuals().dark_mode)
+                                } else {
+                                    ui.visuals().text_color()
+                                })
                         }
+                        _ => RichText::new(format!("KO{}", self.selected_key_override)).color(if selected_override_empty {
+                            app_muted_text(ui.visuals().dark_mode)
+                        } else {
+                            ui.visuals().text_color()
+                        }),
+                    };
+                    ui.horizontal_centered(|ui| {
+                        egui::ComboBox::from_id_salt("key_override_entry_select")
+                            .selected_text(selected_override_label)
+                            .width(180.0)
+                            .show_ui(ui, |ui| {
+                                for idx in 0..self.key_override_entries.len() {
+                                    let override_empty = self
+                                        .key_override_entries
+                                        .get(idx)
+                                        .map(|entry| !Self::key_override_entry_exists(entry))
+                                        .unwrap_or(true)
+                                        && self
+                                            .key_override_names
+                                            .get(idx)
+                                            .map(|name| name.trim().is_empty())
+                                            .unwrap_or(true);
+                                    let label = match self.key_override_names.get(idx) {
+                                        Some(name) if !name.trim().is_empty() => {
+                                            RichText::new(format!("KO{}: {}", idx, name.trim()))
+                                                .color(if override_empty {
+                                                    app_muted_text(ui.visuals().dark_mode)
+                                                } else {
+                                                    ui.visuals().text_color()
+                                                })
+                                        }
+                                        _ => RichText::new(format!("KO{}", idx)).color(if override_empty {
+                                            app_muted_text(ui.visuals().dark_mode)
+                                        } else {
+                                            ui.visuals().text_color()
+                                        }),
+                                    };
+                                    let resp = ui.selectable_value(
+                                        &mut self.selected_key_override,
+                                        idx,
+                                        label,
+                                    );
+                                    if resp.hovered() {
+                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                    }
+                                }
+                            });
                     });
 
                     ui.add_space(6.0);
@@ -5303,34 +5346,6 @@ impl EntropyApp {
                             }
                             save_key_override_names(&self.key_override_names, &self.current_device_name);
                             self.write_key_override(idx);
-                        }
-
-                        let delete_btn = egui::Button::new(RichText::new("Delete").size(13.0))
-                            .min_size(action_button_size)
-                            .frame(true)
-                            .stroke(combo_outline_stroke);
-                        let delete_enabled = self.key_override_visible_count > 1;
-                        let delete_resp = ui.add_enabled(delete_enabled, delete_btn);
-                        if delete_resp.hovered() && delete_enabled {
-                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                        }
-                        if delete_resp.clicked() {
-                            self.push_key_override_undo();
-                            for move_idx in idx..self.key_override_visible_count.saturating_sub(1) {
-                                self.key_override_entries[move_idx] = self.key_override_entries[move_idx + 1].clone();
-                                self.key_override_names[move_idx] = self.key_override_names.get(move_idx + 1).cloned().unwrap_or_default();
-                            }
-                            let last_idx = self.key_override_visible_count.saturating_sub(1);
-                            if last_idx < self.key_override_entries.len() {
-                                self.key_override_entries[last_idx] = KeyOverrideEntry::default();
-                            }
-                            if last_idx < self.key_override_names.len() {
-                                self.key_override_names[last_idx].clear();
-                            }
-                            self.key_override_visible_count = self.key_override_visible_count.saturating_sub(1).max(1);
-                            self.selected_key_override = idx.min(self.key_override_visible_count.saturating_sub(1));
-                            save_key_override_names(&self.key_override_names, &self.current_device_name);
-                            self.write_all_key_overrides();
                         }
 
                         let undo_btn = egui::Button::new(RichText::new("Undo").size(13.0))
