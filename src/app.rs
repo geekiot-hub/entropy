@@ -4522,31 +4522,12 @@ impl EntropyApp {
                     .selected_alt_repeat
                     .min(self.alt_repeat_entries.len().saturating_sub(1));
 
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("Entry").size(12.0));
-                    egui::ComboBox::from_id_salt("alt_repeat_entry_select")
-                        .selected_text(format!("AR{}", self.selected_alt_repeat))
-                        .width(120.0)
-                        .show_ui(ui, |ui| {
-                            for idx in 0..self.alt_repeat_entries.len() {
-                                let resp = ui.selectable_value(
-                                    &mut self.selected_alt_repeat,
-                                    idx,
-                                    format!("AR{}", idx),
-                                );
-                                if resp.hovered() {
-                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                }
-                            }
-                        });
-                });
-
                 ui.add_space(2.0);
                 let idx = self.selected_alt_repeat;
                 let current = self.alt_repeat_entries[idx].clone();
                 let mut edited = current.clone();
-                let content_width = 360.0_f32;
-                let field_width = 220.0_f32;
+                let content_width = 404.0_f32;
+                let field_width = content_width;
                 let custom = self
                     .layout
                     .as_ref()
@@ -4597,6 +4578,23 @@ impl EntropyApp {
                     ui.vertical(|ui| {
                         ui.set_width(content_width);
 
+                        egui::ComboBox::from_id_salt("alt_repeat_entry_select")
+                            .selected_text(format!("AR{}", self.selected_alt_repeat))
+                            .width(140.0)
+                            .show_ui(ui, |ui| {
+                                for idx in 0..self.alt_repeat_entries.len() {
+                                    let resp = ui.selectable_value(
+                                        &mut self.selected_alt_repeat,
+                                        idx,
+                                        format!("AR{}", idx),
+                                    );
+                                    if resp.hovered() {
+                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                    }
+                                }
+                            });
+
+                        ui.add_space(10.0);
                         ui.horizontal(|ui| {
                             ui.label(RichText::new("Enable").size(12.5));
                             let resp = ui.checkbox(&mut edited.options.enabled, "");
@@ -4605,39 +4603,35 @@ impl EntropyApp {
                             }
                         });
 
-                        ui.add_space(6.0);
+                        ui.add_space(8.0);
                         ui.label(RichText::new("Last key").size(12.0).strong());
                         ui.add_space(4.0);
-                        ui.horizontal_centered(|ui| {
-                            let resp = ui
-                                .add(
-                                    egui::Button::new(RichText::new(last_key_label).size(12.0))
-                                        .min_size(Vec2::new(field_width, 34.0)),
-                                )
-                                .on_hover_cursor(egui::CursorIcon::PointingHand);
-                            if resp.clicked() {
-                                self.open_alt_repeat_picker(AltRepeatPickField::LastKey);
-                            }
-                            resp.on_hover_text(last_key_tip);
-                        });
-
-                        ui.add_space(6.0);
-                        ui.label(RichText::new("Alt key").size(12.0).strong());
-                        ui.add_space(4.0);
-                        ui.horizontal_centered(|ui| {
-                            let resp = ui
-                                .add(
-                                    egui::Button::new(RichText::new(alt_key_label).size(12.0))
-                                        .min_size(Vec2::new(field_width, 34.0)),
-                                )
-                                .on_hover_cursor(egui::CursorIcon::PointingHand);
-                            if resp.clicked() {
-                                self.open_alt_repeat_picker(AltRepeatPickField::AltKey);
-                            }
-                            resp.on_hover_text(alt_key_tip);
-                        });
+                        let resp = ui
+                            .add_sized(
+                                [field_width, 34.0],
+                                egui::Button::new(RichText::new(last_key_label).size(12.0)),
+                            )
+                            .on_hover_cursor(egui::CursorIcon::PointingHand);
+                        if resp.clicked() {
+                            self.open_alt_repeat_picker(AltRepeatPickField::LastKey);
+                        }
+                        resp.on_hover_text(last_key_tip);
 
                         ui.add_space(8.0);
+                        ui.label(RichText::new("Alt key").size(12.0).strong());
+                        ui.add_space(4.0);
+                        let resp = ui
+                            .add_sized(
+                                [field_width, 34.0],
+                                egui::Button::new(RichText::new(alt_key_label).size(12.0)),
+                            )
+                            .on_hover_cursor(egui::CursorIcon::PointingHand);
+                        if resp.clicked() {
+                            self.open_alt_repeat_picker(AltRepeatPickField::AltKey);
+                        }
+                        resp.on_hover_text(alt_key_tip);
+
+                        ui.add_space(10.0);
                         ui.label(
                             RichText::new("Allowed mods")
                                 .size(11.0)
@@ -4650,7 +4644,7 @@ impl EntropyApp {
                             "alt_repeat_allowed_mods",
                         );
 
-                        ui.add_space(8.0);
+                        ui.add_space(10.0);
                         ui.label(
                             RichText::new("Options")
                                 .size(11.0)
