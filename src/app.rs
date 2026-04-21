@@ -5230,7 +5230,7 @@ impl EntropyApp {
                             ui.add_space(2.0);
                             ui.allocate_ui_with_layout(
                                 Vec2::new(content_width, 0.0),
-                                egui::Layout::left_to_right(egui::Align::Center),
+                                egui::Layout::left_to_right(egui::Align::Min),
                                 |ui| {
                                     let trigger_resp = ui.add(
                                         egui::Button::new(RichText::new(trigger_label).size(12.0))
@@ -5287,7 +5287,7 @@ impl EntropyApp {
                             ui.add_space(2.0);
                             ui.allocate_ui_with_layout(
                                 Vec2::new(content_width, 0.0),
-                                egui::Layout::left_to_right(egui::Align::Center),
+                                egui::Layout::left_to_right(egui::Align::Min),
                                 |ui| {
                                     let replacement_resp = ui.add(
                                         egui::Button::new(RichText::new(replacement_label).size(12.0))
@@ -5328,7 +5328,7 @@ impl EntropyApp {
                     ui.add_space(0.0);
                     ui.allocate_ui_with_layout(
                         Vec2::new(content_width, 0.0),
-                        egui::Layout::left_to_right(egui::Align::Center),
+                        egui::Layout::left_to_right(egui::Align::Min),
                         |ui| {
                             let clear_btn = egui::Button::new(RichText::new("Clear").size(13.0))
                                 .min_size(action_button_size)
