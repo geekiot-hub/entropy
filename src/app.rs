@@ -5169,15 +5169,11 @@ impl EntropyApp {
                     let action_button_size = crate::ui_style::modal_action_button_size();
                     let combo_outline_stroke = crate::ui_style::modal_outline_stroke(ui.visuals().dark_mode);
 
-                    ui.vertical_centered(|ui| {
-                        egui::ScrollArea::vertical()
-                            .max_height(344.0)
-                            .auto_shrink([false, true])
-                            .show(ui, |ui| {
-                                ui.allocate_ui_with_layout(
-                                    Vec2::new(content_width, 0.0),
-                                    egui::Layout::top_down(egui::Align::Min),
-                                    |ui| {
+                    ui.horizontal_centered(|ui| {
+                        ui.allocate_ui_with_layout(
+                            Vec2::new(content_width, 0.0),
+                            egui::Layout::top_down(egui::Align::Min),
+                            |ui| {
                                         if let Some(name) = self.key_override_names.get_mut(idx) {
                                             let resp = ui.add(
                                                 egui::TextEdit::singleline(name)
@@ -5323,7 +5319,6 @@ impl EntropyApp {
                                         ui.checkbox(&mut edited.options.no_unregister_on_other_key_down, "Keep the override active even if another key is pressed");
                                     },
                                 );
-                            });
                     });
 
                     ui.add_space(0.0);
