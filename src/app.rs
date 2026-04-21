@@ -5587,7 +5587,13 @@ impl EntropyApp {
 
                             ui.add_space(12.0);
                             ui.horizontal_centered(|ui| {
-                                crate::ui_style::modal_section_title(ui, "Input keys");
+                                ui.allocate_ui_with_layout(
+                                    Vec2::new(compact_field_width, 0.0),
+                                    egui::Layout::top_down(egui::Align::Center),
+                                    |ui| {
+                                        crate::ui_style::modal_section_title(ui, "Input keys");
+                                    },
+                                );
                             });
                             ui.add_space(6.0);
                             let input_summary = {
@@ -5671,7 +5677,13 @@ impl EntropyApp {
 
                             ui.add_space(10.0);
                             ui.horizontal_centered(|ui| {
-                                crate::ui_style::modal_section_title(ui, "Output key");
+                                ui.allocate_ui_with_layout(
+                                    Vec2::new(compact_field_width, 0.0),
+                                    egui::Layout::top_down(egui::Align::Center),
+                                    |ui| {
+                                        crate::ui_style::modal_section_title(ui, "Output key");
+                                    },
+                                );
                             });
                             ui.add_space(6.0);
                             let resp = ui
@@ -5698,35 +5710,47 @@ impl EntropyApp {
                             if let Some(current_combo_term) = self.combo_term {
                                 ui.add_space(12.0);
                                 ui.horizontal_centered(|ui| {
-                                    ui.label(
-                                        RichText::new("Time out period for combos")
-                                            .size(13.0)
-                                            .strong(),
+                                    ui.allocate_ui_with_layout(
+                                        Vec2::new(compact_field_width, 0.0),
+                                        egui::Layout::top_down(egui::Align::Center),
+                                        |ui| {
+                                            ui.label(
+                                                RichText::new("Time out period for combos")
+                                                    .size(13.0)
+                                                    .strong(),
+                                            );
+                                        },
                                     );
                                 });
                                 ui.add_space(4.0);
                                 let mut combo_term_text = current_combo_term.to_string();
                                 ui.horizontal_centered(|ui| {
-                                    let resp = ui.add(
-                                        egui::TextEdit::singleline(&mut combo_term_text)
-                                            .desired_width(45.0)
-                                            .hint_text("ms"),
+                                    ui.allocate_ui_with_layout(
+                                        Vec2::new(compact_field_width, 0.0),
+                                        egui::Layout::left_to_right(egui::Align::Center),
+                                        |ui| {
+                                            let resp = ui.add(
+                                                egui::TextEdit::singleline(&mut combo_term_text)
+                                                    .desired_width(45.0)
+                                                    .hint_text("ms"),
+                                            );
+                                            if resp.hovered() {
+                                                ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
+                                            }
+                                            ui.label("ms");
+                                            if resp.changed() {
+                                                let filtered: String = combo_term_text
+                                                    .chars()
+                                                    .filter(|c| c.is_ascii_digit())
+                                                    .collect();
+                                                if let Ok(parsed) = filtered.parse::<u16>() {
+                                                    self.combo_undo_stack.push(combo_undo_snapshot.clone());
+                                                    self.combo_term = Some(parsed.max(1));
+                                                    self.combo_term_dirty = true;
+                                                }
+                                            }
+                                        },
                                     );
-                                    if resp.hovered() {
-                                        ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
-                                    }
-                                    ui.label("ms");
-                                    if resp.changed() {
-                                        let filtered: String = combo_term_text
-                                            .chars()
-                                            .filter(|c| c.is_ascii_digit())
-                                            .collect();
-                                        if let Ok(parsed) = filtered.parse::<u16>() {
-                                            self.combo_undo_stack.push(combo_undo_snapshot.clone());
-                                            self.combo_term = Some(parsed.max(1));
-                                            self.combo_term_dirty = true;
-                                        }
-                                    }
                                 });
                             }
                             ui.add_space(12.0);
