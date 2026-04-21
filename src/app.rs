@@ -5410,7 +5410,7 @@ impl EntropyApp {
             "Combo",
             self.popup_state.id(PopupKey::ComboWindow),
             &mut open,
-            Vec2::new(316.0, 430.0),
+            Vec2::new(237.0, 430.0),
         )
             .show(ctx, |ui| {
                 ui.style_mut().visuals.button_frame = true;
