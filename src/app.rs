@@ -25,6 +25,21 @@ fn layer_names_path(device_name: &str) -> std::path::PathBuf {
     dir.join(format!("layer_names_{}.json", slug))
 }
 
+fn single_instance_signal_path() -> std::path::PathBuf {
+    let dir = dirs::config_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join("entropy");
+    std::fs::create_dir_all(&dir).ok();
+    dir.join("single_instance_signal")
+}
+
+fn read_single_instance_signal() -> String {
+    std::fs::read_to_string(single_instance_signal_path())
+        .unwrap_or_default()
+        .trim()
+        .to_string()
+}
+
 fn load_saved_layer_names(device_name: &str) -> Option<Vec<String>> {
     let path = layer_names_path(device_name);
     let data = std::fs::read_to_string(&path).ok()?;
@@ -1073,6 +1088,7 @@ pub struct EntropyApp {
     alt_repeat_reopen_after_pick: bool,
     modal_focus_pending: bool,
     prev_any_floating_window_open: bool,
+    last_single_instance_signal: String,
     rgb_settings: RgbSettingsState,
     rgb_window_open: bool,
     encoder_visibility: Vec<bool>,
@@ -1171,6 +1187,7 @@ impl EntropyApp {
             alt_repeat_reopen_after_pick: false,
             modal_focus_pending: false,
             prev_any_floating_window_open: false,
+            last_single_instance_signal: read_single_instance_signal(),
             rgb_settings: RgbSettingsState::default(),
             rgb_window_open: false,
             encoder_visibility: vec![],
@@ -3036,6 +3053,9 @@ impl eframe::App for EntropyApp {
             }
         }
 
+        #[cfg(not(target_arch = "wasm32"))]
+        self.poll_single_instance_signal(ctx);
+
         // Apply theme
         if self.dark_mode {
             let mut v = egui::Visuals::dark();
@@ -3922,6 +3942,23 @@ impl EntropyApp {
                 self.modal_focus_pending = false;
             }
         }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn poll_single_instance_signal(&mut self, ctx: &egui::Context) {
+        let signal = read_single_instance_signal();
+        if signal.is_empty() || signal == self.last_single_instance_signal {
+            return;
+        }
+        self.last_single_instance_signal = signal;
+        self.status_msg = "Entropy refreshed from a repeated launch".into();
+        self.device_manager.scan();
+        if let Some(device_idx) = self.selected_device {
+            if !matches!(self.connect_state, ConnectState::Loading(_)) {
+                self.start_connect(device_idx);
+            }
+        }
+        ctx.request_repaint();
     }
 
     fn write_auto_shift_flags(&mut self) {

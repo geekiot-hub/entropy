@@ -59,27 +59,17 @@ fn try_acquire_single_instance() -> bool {
     }
 }
 
-#[cfg(target_os = "windows")]
-fn show_already_running_message() {
-    use std::ffi::OsStr;
-    use std::os::windows::ffi::OsStrExt;
-    use std::ptr::null_mut;
-
-    const MB_OK: u32 = 0x00000000;
-    const MB_ICONINFORMATION: u32 = 0x00000040;
-
-    let text: Vec<u16> = OsStr::new("Entropy is already running.\n\nClose the existing window first if you want to relaunch it.")
-        .encode_wide()
-        .chain(std::iter::once(0))
-        .collect();
-    let title: Vec<u16> = OsStr::new("Entropy already running")
-        .encode_wide()
-        .chain(std::iter::once(0))
-        .collect();
-
-    unsafe {
-        MessageBoxW(null_mut(), text.as_ptr(), title.as_ptr(), MB_OK | MB_ICONINFORMATION);
-    }
+fn notify_existing_instance() {
+    let dir = dirs::config_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join("entropy");
+    let _ = std::fs::create_dir_all(&dir);
+    let signal_path = dir.join("single_instance_signal");
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis().to_string())
+        .unwrap_or_else(|_| "0".to_string());
+    let _ = std::fs::write(signal_path, now_ms);
 }
 
 #[cfg(target_os = "windows")]
@@ -94,30 +84,16 @@ extern "system" {
     fn CloseHandle(hObject: *mut core::ffi::c_void) -> i32;
 }
 
-#[cfg(target_os = "windows")]
-#[link(name = "user32")]
-extern "system" {
-    fn MessageBoxW(
-        hWnd: *mut core::ffi::c_void,
-        lpText: *const u16,
-        lpCaption: *const u16,
-        uType: u32,
-    ) -> i32;
-}
-
 #[cfg(not(target_os = "windows"))]
 fn try_acquire_single_instance() -> bool {
     true
 }
 
-#[cfg(not(target_os = "windows"))]
-fn show_already_running_message() {}
-
 fn main() -> eframe::Result<()> {
     env_logger::init();
 
     if !try_acquire_single_instance() {
-        show_already_running_message();
+        notify_existing_instance();
         return Ok(());
     }
 
