@@ -7,6 +7,7 @@ mod keyboard;
 mod keycode;
 mod keycode_picker;
 mod layouts;
+mod popup_state;
 mod ui_style;
 #[cfg(not(target_arch = "wasm32"))]
 mod hid;
