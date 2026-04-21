@@ -4506,7 +4506,7 @@ impl EntropyApp {
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
-            .fixed_size(Vec2::new(476.0, 560.0))
+            .fixed_size(Vec2::new(476.0, 500.0))
             .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
             .frame(crate::ui_style::modal_window_frame(ctx.style().as_ref(), dark))
             .show(ctx, |ui| {
@@ -4596,98 +4596,84 @@ impl EntropyApp {
                     ui.add_space(left_pad);
                     ui.vertical(|ui| {
                         ui.set_width(content_width);
-                        egui::ScrollArea::vertical()
-                            .max_height(452.0)
-                            .auto_shrink([false, true])
-                            .show(ui, |ui| {
-                                ui.set_width(content_width);
 
-                                ui.horizontal(|ui| {
-                                    ui.label(RichText::new("Enable").size(12.5));
-                                    let resp = ui.checkbox(&mut edited.options.enabled, "");
-                                    if resp.hovered() {
-                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                    }
-                                });
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new("Enable").size(12.5));
+                            let resp = ui.checkbox(&mut edited.options.enabled, "");
+                            if resp.hovered() {
+                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                            }
+                        });
 
-                                ui.add_space(6.0);
-                                ui.label(RichText::new("Last key").size(12.0).strong());
-                                ui.add_space(4.0);
-                                ui.horizontal_centered(|ui| {
-                                    let resp = ui
-                                        .add(
-                                            egui::Button::new(RichText::new(last_key_label).size(12.0))
-                                                .min_size(Vec2::new(field_width, 34.0)),
-                                        )
-                                        .on_hover_cursor(egui::CursorIcon::PointingHand);
-                                    if resp.clicked() {
-                                        self.open_alt_repeat_picker(AltRepeatPickField::LastKey);
-                                    }
-                                    resp.on_hover_text(last_key_tip);
-                                });
-
-                                ui.add_space(6.0);
-                                ui.label(RichText::new("Alt key").size(12.0).strong());
-                                ui.add_space(4.0);
-                                ui.horizontal_centered(|ui| {
-                                    let resp = ui
-                                        .add(
-                                            egui::Button::new(RichText::new(alt_key_label).size(12.0))
-                                                .min_size(Vec2::new(field_width, 34.0)),
-                                        )
-                                        .on_hover_cursor(egui::CursorIcon::PointingHand);
-                                    if resp.clicked() {
-                                        self.open_alt_repeat_picker(AltRepeatPickField::AltKey);
-                                    }
-                                    resp.on_hover_text(alt_key_tip);
-                                });
-
-                                ui.add_space(6.0);
-                                let mods_resp = egui::CollapsingHeader::new(
-                                    RichText::new("Allowed mods").size(11.0).color(app_muted_text(dark)),
+                        ui.add_space(6.0);
+                        ui.label(RichText::new("Last key").size(12.0).strong());
+                        ui.add_space(4.0);
+                        ui.horizontal_centered(|ui| {
+                            let resp = ui
+                                .add(
+                                    egui::Button::new(RichText::new(last_key_label).size(12.0))
+                                        .min_size(Vec2::new(field_width, 34.0)),
                                 )
-                                .default_open(false)
-                                .id_salt(format!("alt_repeat_allowed_mods_{}", idx))
-                                .show(ui, |ui| {
-                                    Self::draw_key_override_mod_mask(
-                                        ui,
-                                        &mut edited.allowed_mods,
-                                        "alt_repeat_allowed_mods",
-                                    );
-                                });
-                                if mods_resp.header_response.hovered() {
-                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                }
+                                .on_hover_cursor(egui::CursorIcon::PointingHand);
+                            if resp.clicked() {
+                                self.open_alt_repeat_picker(AltRepeatPickField::LastKey);
+                            }
+                            resp.on_hover_text(last_key_tip);
+                        });
 
-                                ui.add_space(4.0);
-                                let options_resp = egui::CollapsingHeader::new(
-                                    RichText::new("Options").size(11.0).color(app_muted_text(dark)),
+                        ui.add_space(6.0);
+                        ui.label(RichText::new("Alt key").size(12.0).strong());
+                        ui.add_space(4.0);
+                        ui.horizontal_centered(|ui| {
+                            let resp = ui
+                                .add(
+                                    egui::Button::new(RichText::new(alt_key_label).size(12.0))
+                                        .min_size(Vec2::new(field_width, 34.0)),
                                 )
-                                .default_open(false)
-                                .id_salt(format!("alt_repeat_options_{}", idx))
-                                .show(ui, |ui| {
-                                    let row = |ui: &mut egui::Ui, label: &str, value: &mut bool| {
-                                        let resp = ui.checkbox(value, label);
-                                        if resp.hovered() {
-                                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                        }
-                                    };
-                                    row(
-                                        ui,
-                                        "Default to this alt key",
-                                        &mut edited.options.default_to_this_alt_key,
-                                    );
-                                    row(ui, "Bidirectional", &mut edited.options.bidirectional);
-                                    row(
-                                        ui,
-                                        "Ignore mod handedness",
-                                        &mut edited.options.ignore_mod_handedness,
-                                    );
-                                });
-                                if options_resp.header_response.hovered() {
-                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                }
-                            });
+                                .on_hover_cursor(egui::CursorIcon::PointingHand);
+                            if resp.clicked() {
+                                self.open_alt_repeat_picker(AltRepeatPickField::AltKey);
+                            }
+                            resp.on_hover_text(alt_key_tip);
+                        });
+
+                        ui.add_space(8.0);
+                        ui.label(
+                            RichText::new("Allowed mods")
+                                .size(11.0)
+                                .color(app_muted_text(dark)),
+                        );
+                        ui.add_space(4.0);
+                        Self::draw_key_override_mod_mask(
+                            ui,
+                            &mut edited.allowed_mods,
+                            "alt_repeat_allowed_mods",
+                        );
+
+                        ui.add_space(8.0);
+                        ui.label(
+                            RichText::new("Options")
+                                .size(11.0)
+                                .color(app_muted_text(dark)),
+                        );
+                        ui.add_space(4.0);
+                        let row = |ui: &mut egui::Ui, label: &str, value: &mut bool| {
+                            let resp = ui.checkbox(value, label);
+                            if resp.hovered() {
+                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                            }
+                        };
+                        row(
+                            ui,
+                            "Default to this alt key",
+                            &mut edited.options.default_to_this_alt_key,
+                        );
+                        row(ui, "Bidirectional", &mut edited.options.bidirectional);
+                        row(
+                            ui,
+                            "Ignore mod handedness",
+                            &mut edited.options.ignore_mod_handedness,
+                        );
                     });
                 });
 
