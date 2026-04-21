@@ -5490,71 +5490,48 @@ impl EntropyApp {
                     self.combo_visible_count,
                 );
 
-                self.combo_visible_count = self
-                    .combo_visible_count
-                    .clamp(1, self.combo_entries.len().max(1));
+                self.combo_visible_count = self.combo_entries.len().max(1);
                 self.selected_combo = self
                     .selected_combo
-                    .min(self.combo_visible_count.saturating_sub(1));
+                    .min(self.combo_entries.len().saturating_sub(1));
 
-                let combo_outline_stroke = if ui.visuals().dark_mode {
-                    Stroke::new(1.0, Color32::from_gray(110))
-                } else {
-                    Stroke::new(1.0, Color32::from_gray(175))
-                };
+                let combo_outline_stroke = crate::ui_style::modal_outline_stroke(ui.visuals().dark_mode);
 
-                ui.horizontal_wrapped(|ui| {
-                    for idx in 0..self.combo_visible_count {
-                        let tab_stroke = if idx == self.selected_combo {
-                            Stroke::new(1.5, Color32::from_rgb(91, 104, 223))
-                        } else {
-                            combo_outline_stroke
+                crate::ui_style::modal_content(
+                    ui,
+                    crate::ui_style::ModalLayout::new(340.0).with_top_padding(0.0),
+                    |ui| {
+                        let selected_combo_label = match self.combo_names.get(self.selected_combo) {
+                            Some(name) if !name.trim().is_empty() => {
+                                format!("C{}: {}", self.selected_combo, name.trim())
+                            }
+                            _ => format!("C{}", self.selected_combo),
                         };
-                        let tab_label = match self.combo_names.get(idx) {
-                            Some(name) if !name.trim().is_empty() => name.trim().to_string(),
-                            _ => format!("C{}", idx),
-                        };
-                        let tab_text = if idx == self.selected_combo {
-                            RichText::new(tab_label)
-                                .size(12.5)
-                                .color(ui.visuals().widgets.inactive.fg_stroke.color)
-                        } else {
-                            RichText::new(tab_label).size(12.5)
-                        };
-                        let tab = egui::Button::new(tab_text)
-                            .frame(true)
-                            .stroke(tab_stroke)
-                            .min_size(crate::ui_style::modal_tab_button_size());
-                        let resp = ui.add(tab);
-                        if resp.hovered() {
-                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                        }
-                        if resp.clicked() {
-                            self.selected_combo = idx;
-                        }
-                    }
+                        egui::ComboBox::from_id_salt("combo_entry_select")
+                            .selected_text(selected_combo_label)
+                            .width(180.0)
+                            .show_ui(ui, |ui| {
+                                for idx in 0..self.combo_entries.len() {
+                                    let label = match self.combo_names.get(idx) {
+                                        Some(name) if !name.trim().is_empty() => {
+                                            format!("C{}: {}", idx, name.trim())
+                                        }
+                                        _ => format!("C{}", idx),
+                                    };
+                                    let resp = ui.selectable_value(
+                                        &mut self.selected_combo,
+                                        idx,
+                                        label,
+                                    );
+                                    if resp.hovered() {
+                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                    }
+                                }
+                            });
 
-                    let add_combo_btn = egui::Button::new(RichText::new("+").size(16.0))
-                        .frame(true)
-                        .stroke(combo_outline_stroke);
-                    let resp = ui.add_enabled(
-                        self.combo_visible_count < self.combo_entries.len(),
-                        add_combo_btn,
-                    );
-                    if resp.hovered() && self.combo_visible_count < self.combo_entries.len() {
-                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                    }
-                    if resp.clicked() {
-                        let next_idx = self
-                            .combo_visible_count
-                            .min(self.combo_entries.len().saturating_sub(1));
-                        self.combo_visible_count =
-                            (self.combo_visible_count + 1).min(self.combo_entries.len());
-                        self.selected_combo = next_idx;
-                    }
-                });
-
-                ui.add_space(12.0);
+                        ui.add_space(crate::ui_style::modal_space_md());
+                    },
+                );
                 let combo_idx = self.selected_combo;
                 let content_width = 340.0_f32;
                 let compact_field_width = ((content_width - 110.0) * 0.5).round();
