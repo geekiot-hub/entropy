@@ -3955,7 +3955,9 @@ impl EntropyApp {
     fn focus_modal_window<T>(&mut self, shown: &Option<egui::InnerResponse<T>>) {
         if self.modal_focus_frames > 0 {
             if let Some(shown) = shown {
+                shown.response.ctx.move_to_top(shown.response.layer_id);
                 shown.response.request_focus();
+                shown.response.ctx.request_repaint();
                 self.modal_focus_frames = self.modal_focus_frames.saturating_sub(1);
                 if shown.response.has_focus() {
                     self.modal_focus_frames = 0;
