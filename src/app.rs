@@ -4496,7 +4496,7 @@ impl EntropyApp {
             .resizable(false)
             .movable(true)
             .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
-            .fixed_size(Vec2::new(448.0, 344.0))
+            .fixed_size(Vec2::new(448.0, 372.0))
             .frame(frame)
             .order(egui::Order::Foreground)
             .show(ctx, |ui| {
@@ -4526,7 +4526,7 @@ impl EntropyApp {
                 let current = self.alt_repeat_entries[idx].clone();
                 let mut edited = current.clone();
                 let content_width = 360.0_f32;
-                let field_width = 188.0_f32;
+                let field_width = 236.0_f32;
                 let custom_keycodes = self
                     .layout
                     .as_ref()
@@ -4562,49 +4562,40 @@ impl EntropyApp {
 
                 ui.add_space(4.0);
                 ui.horizontal_centered(|ui| {
-                    let prev_enabled = idx > 0;
-                    let next_enabled = idx + 1 < self.alt_repeat_entries.len();
-                    let prev_resp = ui
-                        .add_enabled(
-                            prev_enabled,
-                            egui::Button::new(RichText::new("‹").size(16.0))
-                                .min_size(Vec2::new(30.0, 28.0)),
-                        )
-                        .on_hover_cursor(egui::CursorIcon::PointingHand);
-                    if prev_resp.clicked() {
-                        self.selected_alt_repeat -= 1;
-                    }
-
-                    ui.add_space(6.0);
-                    ui.label(
-                        RichText::new(format!("Entry {} of {}", idx + 1, self.alt_repeat_entries.len()))
-                            .size(11.5)
-                            .color(app_muted_text(dark)),
-                    );
-                    ui.add_space(6.0);
-
-                    let next_resp = ui
-                        .add_enabled(
-                            next_enabled,
-                            egui::Button::new(RichText::new("›").size(16.0))
-                                .min_size(Vec2::new(30.0, 28.0)),
-                        )
-                        .on_hover_cursor(egui::CursorIcon::PointingHand);
-                    if next_resp.clicked() {
-                        self.selected_alt_repeat += 1;
-                    }
+                    egui::ScrollArea::horizontal()
+                        .auto_shrink([false, false])
+                        .max_height(34.0)
+                        .show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                for entry_idx in 0..self.alt_repeat_entries.len() {
+                                    let selected = entry_idx == idx;
+                                    let resp = ui
+                                        .add(
+                                            egui::Button::new(
+                                                RichText::new(format!("AR{}", entry_idx)).size(12.0),
+                                            )
+                                            .min_size(Vec2::new(44.0, 28.0))
+                                            .selected(selected),
+                                        )
+                                        .on_hover_cursor(egui::CursorIcon::PointingHand);
+                                    if resp.clicked() {
+                                        self.selected_alt_repeat = entry_idx;
+                                    }
+                                }
+                            });
+                        });
                 });
 
                 ui.add_space(8.0);
-                ui.horizontal_centered(|ui| {
-                    ui.allocate_ui_with_layout(
-                        Vec2::new(content_width, 0.0),
-                        egui::Layout::top_down(egui::Align::Min),
-                        |ui| {
-                            egui::ScrollArea::vertical()
-                                .max_height(246.0)
-                                .auto_shrink([false, true])
-                                .show(ui, |ui| {
+                ui.vertical_centered(|ui| {
+                    egui::ScrollArea::vertical()
+                        .max_height(274.0)
+                        .auto_shrink([false, true])
+                        .show(ui, |ui| {
+                            ui.allocate_ui_with_layout(
+                                Vec2::new(content_width, 0.0),
+                                egui::Layout::top_down(egui::Align::Min),
+                                |ui| {
                                     ui.horizontal(|ui| {
                                         ui.label(RichText::new("Enable").size(12.5));
                                         let resp = ui.checkbox(&mut edited.options.enabled, "");
@@ -4701,9 +4692,9 @@ impl EntropyApp {
                                             .size(11.0)
                                             .color(app_muted_text(dark)),
                                     );
-                                });
-                        },
-                    );
+                                },
+                            );
+                        });
                 });
 
                 if edited != current {
