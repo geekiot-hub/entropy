@@ -4505,7 +4505,7 @@ impl EntropyApp {
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
-            .fixed_size(Vec2::new(448.0, 320.0))
+            .fixed_size(Vec2::new(476.0, 420.0))
             .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
             .frame(crate::ui_style::modal_window_frame(ctx.style().as_ref(), dark))
             .show(ctx, |ui| {
@@ -4544,8 +4544,8 @@ impl EntropyApp {
                 let idx = self.selected_alt_repeat;
                 let current = self.alt_repeat_entries[idx].clone();
                 let mut edited = current.clone();
-                let content_width = 320.0_f32;
-                let field_width = 180.0_f32;
+                let content_width = 360.0_f32;
+                let field_width = 220.0_f32;
                 let custom = self
                     .layout
                     .as_ref()
@@ -4596,7 +4596,7 @@ impl EntropyApp {
                     ui.vertical(|ui| {
                         ui.set_width(content_width);
                         egui::ScrollArea::vertical()
-                            .max_height(214.0)
+                            .max_height(314.0)
                             .auto_shrink([false, true])
                             .show(ui, |ui| {
                                 ui.set_width(content_width);
