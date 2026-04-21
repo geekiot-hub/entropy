@@ -5514,27 +5514,33 @@ impl EntropyApp {
                             _ => format!("C{}", self.selected_combo),
                         };
                         ui.horizontal_centered(|ui| {
-                            egui::ComboBox::from_id_salt("combo_entry_select")
-                                .selected_text(selected_combo_label)
-                                .width(compact_field_width)
-                                .show_ui(ui, |ui| {
-                                    for idx in 0..self.combo_entries.len() {
-                                        let label = match self.combo_names.get(idx) {
-                                            Some(name) if !name.trim().is_empty() => {
-                                                format!("C{}: {}", idx, name.trim())
+                            ui.allocate_ui_with_layout(
+                                Vec2::new(compact_field_width, 0.0),
+                                egui::Layout::top_down(egui::Align::Center),
+                                |ui| {
+                                    egui::ComboBox::from_id_salt("combo_entry_select")
+                                        .selected_text(selected_combo_label)
+                                        .width(compact_field_width)
+                                        .show_ui(ui, |ui| {
+                                            for idx in 0..self.combo_entries.len() {
+                                                let label = match self.combo_names.get(idx) {
+                                                    Some(name) if !name.trim().is_empty() => {
+                                                        format!("C{}: {}", idx, name.trim())
+                                                    }
+                                                    _ => format!("C{}", idx),
+                                                };
+                                                let resp = ui.selectable_value(
+                                                    &mut self.selected_combo,
+                                                    idx,
+                                                    label,
+                                                );
+                                                if resp.hovered() {
+                                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                                }
                                             }
-                                            _ => format!("C{}", idx),
-                                        };
-                                        let resp = ui.selectable_value(
-                                            &mut self.selected_combo,
-                                            idx,
-                                            label,
-                                        );
-                                        if resp.hovered() {
-                                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                        }
-                                    }
-                                });
+                                        });
+                                },
+                            );
                         });
 
                         ui.add_space(crate::ui_style::modal_space_md());
@@ -5550,12 +5556,19 @@ impl EntropyApp {
                             if let Some(name) = self.combo_names.get_mut(combo_idx) {
                                 let resp = ui
                                     .horizontal_centered(|ui| {
-                                        ui.add(
-                                            egui::TextEdit::singleline(name)
-                                                .desired_width(name_field_width)
-                                                .hint_text("Name")
-                                                .char_limit(12),
+                                        ui.allocate_ui_with_layout(
+                                            Vec2::new(name_field_width, 0.0),
+                                            egui::Layout::top_down(egui::Align::Center),
+                                            |ui| {
+                                                ui.add(
+                                                    egui::TextEdit::singleline(name)
+                                                        .desired_width(name_field_width)
+                                                        .hint_text("Name")
+                                                        .char_limit(12),
+                                                )
+                                            },
                                         )
+                                        .inner
                                     })
                                     .inner;
                                 combo_name_changed = resp.changed();
@@ -5648,11 +5661,22 @@ impl EntropyApp {
                             };
                             let field_resp = ui
                                 .horizontal_centered(|ui| {
-                                    let field_btn =
-                                        egui::Button::new(RichText::new(input_summary).size(13.0))
+                                    ui.allocate_ui_with_layout(
+                                        Vec2::new(compact_field_width, 0.0),
+                                        egui::Layout::top_down(egui::Align::Center),
+                                        |ui| {
+                                            let field_btn = egui::Button::new(
+                                                RichText::new(input_summary).size(13.0),
+                                            )
                                             .frame(true)
                                             .stroke(combo_outline_stroke);
-                                    ui.add_sized(crate::ui_style::modal_field_button_size(compact_field_width), field_btn)
+                                            ui.add_sized(
+                                                crate::ui_style::modal_field_button_size(compact_field_width),
+                                                field_btn,
+                                            )
+                                        },
+                                    )
+                                    .inner
                                 })
                                 .inner;
                             if field_resp.hovered() {
@@ -5688,11 +5712,22 @@ impl EntropyApp {
                             ui.add_space(6.0);
                             let resp = ui
                                 .horizontal_centered(|ui| {
-                                    let btn =
-                                        egui::Button::new(RichText::new(&output_label).size(13.0))
+                                    ui.allocate_ui_with_layout(
+                                        Vec2::new(compact_field_width, 0.0),
+                                        egui::Layout::top_down(egui::Align::Center),
+                                        |ui| {
+                                            let btn = egui::Button::new(
+                                                RichText::new(&output_label).size(13.0),
+                                            )
                                             .frame(true)
                                             .stroke(combo_outline_stroke);
-                                    ui.add_sized(crate::ui_style::modal_field_button_size(compact_field_width), btn)
+                                            ui.add_sized(
+                                                crate::ui_style::modal_field_button_size(compact_field_width),
+                                                btn,
+                                            )
+                                        },
+                                    )
+                                    .inner
                                 })
                                 .inner;
                             if resp.hovered() {
