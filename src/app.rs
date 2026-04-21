@@ -5410,7 +5410,7 @@ impl EntropyApp {
             "Combo",
             self.popup_state.id(PopupKey::ComboWindow),
             &mut open,
-            Vec2::new(316.0, 430.0),
+            Vec2::new(237.0, 430.0),
         )
             .show(ctx, |ui| {
                 ui.style_mut().visuals.button_frame = true;
@@ -5498,7 +5498,7 @@ impl EntropyApp {
                 let combo_outline_stroke = crate::ui_style::modal_outline_stroke(ui.visuals().dark_mode);
 
                 let combo_idx = self.selected_combo;
-                let content_width = 296.0_f32;
+                let content_width = 216.0_f32;
                 let compact_field_width = 148.0_f32;
                 let name_field_width = compact_field_width;
                 let action_button_size = crate::ui_style::modal_action_button_size();
