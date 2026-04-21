@@ -5125,6 +5125,7 @@ impl EntropyApp {
                     let action_button_size = crate::ui_style::modal_action_button_size();
                     let combo_outline_stroke = crate::ui_style::modal_outline_stroke(ui.visuals().dark_mode);
 
+                    ui.add_space(2.0);
                     ui.horizontal_centered(|ui| {
                         ui.allocate_ui_with_layout(
                             Vec2::new(content_width, 0.0),
