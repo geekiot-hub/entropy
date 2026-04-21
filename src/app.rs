@@ -5704,42 +5704,38 @@ impl EntropyApp {
 
                             if let Some(current_combo_term) = self.combo_term {
                                 ui.add_space(12.0);
+                                ui.horizontal_centered(|ui| {
+                                    ui.label(
+                                        RichText::new("Time out period for combos")
+                                            .size(13.0)
+                                            .strong(),
+                                    );
+                                });
+                                ui.add_space(4.0);
                                 let mut combo_term_text = current_combo_term.to_string();
                                 ui.horizontal_centered(|ui| {
-                                    ui.allocate_ui_with_layout(
-                                        Vec2::new(content_width, 0.0),
-                                        egui::Layout::left_to_right(egui::Align::Max),
-                                        |ui| {
-                                            ui.label(
-                                                RichText::new("Time out period for combos:")
-                                                    .size(13.0)
-                                                    .strong(),
-                                            );
-                                            ui.add_space(6.0);
-                                            let resp = ui.add_sized(
-                                                crate::ui_style::modal_small_button_size(36.0),
-                                                egui::TextEdit::singleline(&mut combo_term_text)
-                                                    .desired_width(20.0)
-                                                    .vertical_align(egui::Align::Max),
-                                            );
-                                            if resp.hovered() {
-                                                ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
-                                            }
-                                            ui.add_space(4.0);
-                                            ui.label(RichText::new("ms").size(13.0));
-                                            if resp.changed() {
-                                                let filtered: String = combo_term_text
-                                                    .chars()
-                                                    .filter(|c| c.is_ascii_digit())
-                                                    .collect();
-                                                if let Ok(parsed) = filtered.parse::<u16>() {
-                                                    self.combo_undo_stack.push(combo_undo_snapshot.clone());
-                                                    self.combo_term = Some(parsed.max(1));
-                                                    self.combo_term_dirty = true;
-                                                }
-                                            }
-                                        },
+                                    let resp = ui.add_sized(
+                                        crate::ui_style::modal_small_button_size(54.0),
+                                        egui::TextEdit::singleline(&mut combo_term_text)
+                                            .hint_text("ms")
+                                            .desired_width(30.0)
+                                            .vertical_align(egui::Align::Center),
                                     );
+                                    if resp.hovered() {
+                                        ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
+                                    }
+                                    ui.label("ms");
+                                    if resp.changed() {
+                                        let filtered: String = combo_term_text
+                                            .chars()
+                                            .filter(|c| c.is_ascii_digit())
+                                            .collect();
+                                        if let Ok(parsed) = filtered.parse::<u16>() {
+                                            self.combo_undo_stack.push(combo_undo_snapshot.clone());
+                                            self.combo_term = Some(parsed.max(1));
+                                            self.combo_term_dirty = true;
+                                        }
+                                    }
                                 });
                             }
                             ui.add_space(12.0);
