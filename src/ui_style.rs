@@ -80,6 +80,22 @@ pub fn modal_field_button_size(width: f32) -> Vec2 {
     Vec2::new(width, modal_field_button_height())
 }
 
+pub fn modal_small_button_size(width: f32) -> Vec2 {
+    Vec2::new(width, 32.0)
+}
+
+pub fn modal_space_xs() -> f32 {
+    4.0
+}
+
+pub fn modal_space_sm() -> f32 {
+    8.0
+}
+
+pub fn modal_space_md() -> f32 {
+    12.0
+}
+
 pub fn modal_window_frame(style: &egui::Style, dark: bool) -> egui::Frame {
     egui::Frame::window(style)
         .fill(window_fill(dark))

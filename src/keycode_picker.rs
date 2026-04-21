@@ -492,7 +492,7 @@ impl KeycodePicker {
                     apply_picker_button_visuals(ui);
                     crate::ui_style::modal_intro(ui, "Press a key on your keyboard, or click below");
                     crate::ui_style::modal_hint(ui, "Best for normal keys, navigation, media and special actions.");
-                    ui.add_space(4.0);
+                    ui.add_space(crate::ui_style::modal_space_xs());
                     // Physical key capture
                     ctx.input(|i| {
                         for event in &i.events {
@@ -518,7 +518,7 @@ impl KeycodePicker {
                         }
                     });
                     if ui.add(egui::Button::new(RichText::new("None (clear)").size(12.0))
-                        .min_size(Vec2::new(100.0, 28.0))).clicked() {
+                        .min_size(crate::ui_style::modal_action_button_size())).clicked() {
                         if let Some(action) = self.macro_actions.get_mut(macro_idx).and_then(|a| a.get_mut(action_idx)) {
                             match action {
                                 MacroAction::Tap(kc) => *kc = 0,
@@ -744,7 +744,7 @@ impl KeycodePicker {
                 .show(ctx, |ui| {
                     apply_picker_button_visuals(ui);
                     crate::ui_style::modal_intro(ui, "Choose which layer. Esc to cancel.");
-                    ui.add_space(6.0);
+                    ui.add_space(crate::ui_style::modal_space_sm());
                     ui.horizontal_wrapped(|ui| {
                         for n in 0u16..self.layer_names.len().max(4) as u16 {
                             let raw = self.layer_names.get(n as usize).cloned().unwrap_or(n.to_string());
@@ -762,7 +762,7 @@ impl KeycodePicker {
                                 Color32::from_gray(150)
                             };
                             let resp = ui.add(egui::Button::new(RichText::new(&label).size(11.0).color(text_color))
-                                .min_size(Vec2::new(70.0, 32.0)));
+                                .min_size(crate::ui_style::modal_small_button_size(84.0)));
                             if resp.clicked() {
                                 let value = if base == 0x4000 {
                                     // LT: layer in bits 8..11, tap kc in bits 0..7 (default 0)
@@ -825,7 +825,7 @@ impl KeycodePicker {
                 .show(ctx, |ui| {
                     apply_picker_button_visuals(ui);
                     crate::ui_style::modal_intro(ui, "Press a key on your keyboard, or click below. Esc to cancel.");
-                    ui.add_space(6.0);
+                    ui.add_space(crate::ui_style::modal_space_sm());
                     let key_choices: Vec<&'static crate::keycode::Keycode> = KEYCODES.iter()
                         .filter(|kc| matches!(kc.category, KeycodeCategory::Basic | KeycodeCategory::Function | KeycodeCategory::Navigation))
                         .filter(|kc| kc.value != 0 && kc.value < 0x0100)
@@ -1874,7 +1874,7 @@ impl KeycodePicker {
                             RichText::new(&label).size(14.0)
                                 .color(if is_active { Color32::WHITE } else { Color32::from_gray(100) })
                         ).fill(if is_active { Color32::from_rgb(91, 104, 223) } else { Color32::TRANSPARENT })
-                         .min_size(Vec2::new(42.0, 30.0));
+                         .min_size(crate::ui_style::modal_tab_button_size());
                         if ui.add(btn).clicked() {
                             self.tap_dance_editor_open = Some(n);
                         }
@@ -1922,7 +1922,7 @@ impl KeycodePicker {
                             crate::keycode::keycode_label_with_names(kc, &[], &self.layer_names)
                         };
                         if ui.add(egui::Button::new(RichText::new(&kc_label).size(16.0))
-                            .min_size(Vec2::new(120.0, 36.0)))
+                            .min_size(crate::ui_style::modal_field_button_size(132.0)))
                             .on_hover_text(if kc == 0 { "Click to assign a key".to_string() } else { keycode_tooltip(kc, &[], &self.layer_names) })
                             .clicked() {
                             self.td_key_pick = Some((n, *field_id));
@@ -1936,7 +1936,7 @@ impl KeycodePicker {
                         .on_hover_text("Time in ms to distinguish tap from hold (default: 200)");
                     let mut term_str = self.tap_dance_entries[n].tapping_term.to_string();
                     ui.horizontal(|ui| {
-                        if ui.add_sized(Vec2::new(80.0, 30.0),
+                        if ui.add_sized(crate::ui_style::modal_small_button_size(80.0),
                             egui::TextEdit::singleline(&mut term_str)
                             .font(egui::FontId::monospace(14.0))).changed() {
                             if let Ok(v) = term_str.parse::<u16>() {
@@ -2033,9 +2033,9 @@ impl KeycodePicker {
                 apply_picker_button_visuals(ui);
                 crate::ui_style::modal_intro(ui, "Press a key on your keyboard, or click below. Esc to cancel.");
                 crate::ui_style::modal_hint(ui, helper_text);
-                ui.add_space(4.0);
+                ui.add_space(crate::ui_style::modal_space_xs());
                 if ui.add(egui::Button::new(RichText::new("None (clear)").size(12.0))
-                    .min_size(Vec2::new(100.0, 28.0))).clicked() {
+                    .min_size(crate::ui_style::modal_action_button_size())).clicked() {
                     self.set_tap_dance_field(td_idx, field, 0);
                     self.td_key_pick = None;
                 }
