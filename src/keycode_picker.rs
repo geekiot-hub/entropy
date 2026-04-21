@@ -1,7 +1,7 @@
 /// Keycode picker modal — supports both Vial (QMK keycodes) and ZMK (behaviors).
 
 use crate::firmware::FirmwareProtocol;
-use crate::popup_state::PopupState;
+use crate::popup_state::{PopupKey, PopupState};
 use crate::keycode::{gui_label, gui_mod_name, gui_sym, key_label_font_sizes, keycode_label_with_names, keycode_tooltip, KeycodeCategory, KEYCODES};
 use crate::zmk::{BehaviorInfo, ZmkBinding};
 use egui::{Color32, Key, RichText, Vec2};
@@ -461,12 +461,12 @@ impl KeycodePicker {
         let tap_dance_editor_open = self.tap_dance_editor_open.is_some();
         let td_key_pick_open = self.td_key_pick.is_some();
 
-        self.popup_state.begin_frame("picker_window", self.open);
-        self.popup_state.begin_frame("macro_key_pick_window", macro_key_pick_open);
-        self.popup_state.begin_frame("pick_layer_window", layer_pick_open);
-        self.popup_state.begin_frame("pending_key_pick_window", pending_key_pick_open);
-        self.popup_state.begin_frame("tap_dance_editor_window", tap_dance_editor_open);
-        self.popup_state.begin_frame("td_key_pick_window", td_key_pick_open);
+        self.popup_state.begin_frame(PopupKey::PickerWindow, self.open);
+        self.popup_state.begin_frame(PopupKey::MacroKeyPickWindow, macro_key_pick_open);
+        self.popup_state.begin_frame(PopupKey::PickLayerWindow, layer_pick_open);
+        self.popup_state.begin_frame(PopupKey::PendingKeyPickWindow, pending_key_pick_open);
+        self.popup_state.begin_frame(PopupKey::TapDanceEditorWindow, tap_dance_editor_open);
+        self.popup_state.begin_frame(PopupKey::TdKeyPickWindow, td_key_pick_open);
 
         if !self.open { return; }
 
@@ -482,7 +482,7 @@ impl KeycodePicker {
         if let Some((macro_idx, action_idx)) = self.macro_key_pick {
             let mut pick_open = true;
             egui::Window::new("Pick key")
-                .id(self.popup_state.id("macro_key_pick_window"))
+                .id(self.popup_state.id(PopupKey::MacroKeyPickWindow))
                 .order(egui::Order::Foreground)
                 .open(&mut pick_open)
                 .collapsible(false)
@@ -641,7 +641,7 @@ impl KeycodePicker {
         let mut still_open = true;
         let picker_size = Vec2::new(920.0, 560.0);
         egui::Window::new("Key Editor")
-            .id(self.popup_state.id("picker_window"))
+            .id(self.popup_state.id(PopupKey::PickerWindow))
             .order(egui::Order::Foreground)
             .open(&mut still_open)
             .collapsible(false)
@@ -750,7 +750,7 @@ impl KeycodePicker {
             });
             let mut still_open = true;
             let resp_win = egui::Window::new("Pick layer")
-                .id(self.popup_state.id("pick_layer_window"))
+                .id(self.popup_state.id(PopupKey::PickLayerWindow))
                 .order(egui::Order::Foreground)
                 .open(&mut still_open)
                 .collapsible(false)
@@ -836,7 +836,7 @@ impl KeycodePicker {
             let title = if is_mt { "Pick tap key (hold = modifier)" } else { "Pick key for modifier combo" };
             let mut still_open = true;
             let resp_win = egui::Window::new(title)
-                .id(self.popup_state.id("pending_key_pick_window"))
+                .id(self.popup_state.id(PopupKey::PendingKeyPickWindow))
                 .order(egui::Order::Foreground)
                 .open(&mut still_open)
                 .collapsible(false)
@@ -1884,7 +1884,7 @@ impl KeycodePicker {
 
         let mut still_open = true;
         egui::Window::new("Tap Dance Editor")
-            .id(self.popup_state.id("tap_dance_editor_window"))
+            .id(self.popup_state.id(PopupKey::TapDanceEditorWindow))
             .open(&mut still_open)
             .collapsible(false)
             .resizable(true)

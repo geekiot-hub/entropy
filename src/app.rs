@@ -316,7 +316,7 @@ fn keycode_tooltip_with_macro_names(
 }
 use crate::keyboard::KeyboardLayout;
 use crate::keycode::{key_label_font_sizes, keycode_label_with_names, keycode_tooltip};
-use crate::popup_state::PopupState;
+use crate::popup_state::{PopupKey, PopupState};
 use crate::keycode_picker::{egui_key_to_qmk, KeycodePicker, KeycodeTab};
 use egui::{Color32, FontId, RichText, Sense, Stroke, Vec2};
 
@@ -2519,7 +2519,7 @@ impl EntropyApp {
                 if self.alt_repeat_reopen_after_pick {
                     self.request_modal_focus();
                     if !self.alt_repeat_window_open {
-                        self.popup_state.on_open("alt_repeat_window");
+                        self.popup_state.on_open(PopupKey::AltRepeatWindow);
                     }
                     self.alt_repeat_window_open = true;
                     self.alt_repeat_visible_count = self
@@ -2734,7 +2734,7 @@ impl EntropyApp {
         }
         if is_mouse_keycode(kc) {
             if !self.mouse_keys_window_open {
-                self.popup_state.on_open("mouse_keys_window");
+                self.popup_state.on_open(PopupKey::MouseKeysWindow);
             }
             self.mouse_keys_window_open = true;
             self.secondary_click_handled = true;
@@ -3602,7 +3602,7 @@ impl eframe::App for EntropyApp {
             self.combo_pick_target = None;
             if self.combo_reopen_after_pick {
                 if !self.combo_window_open {
-                    self.popup_state.on_open("combo_window");
+                    self.popup_state.on_open(PopupKey::ComboWindow);
                 }
                 self.combo_window_open = true;
                 self.combo_reopen_after_pick = false;
@@ -3615,7 +3615,7 @@ impl eframe::App for EntropyApp {
             self.key_override_pick_target = None;
             if self.key_override_reopen_after_pick {
                 if !self.key_override_window_open {
-                    self.popup_state.on_open("key_override_window");
+                    self.popup_state.on_open(PopupKey::KeyOverrideWindow);
                 }
                 self.key_override_window_open = true;
                 self.key_override_reopen_after_pick = false;
@@ -3629,7 +3629,7 @@ impl eframe::App for EntropyApp {
             if self.alt_repeat_reopen_after_pick {
                 self.request_modal_focus();
                 if !self.alt_repeat_window_open {
-                    self.popup_state.on_open("alt_repeat_window");
+                    self.popup_state.on_open(PopupKey::AltRepeatWindow);
                 }
                 self.alt_repeat_window_open = true;
                 self.alt_repeat_reopen_after_pick = false;
@@ -3956,7 +3956,7 @@ impl EntropyApp {
         self.alt_repeat_visible_count = 1;
         self.request_modal_focus();
         if !self.alt_repeat_window_open {
-            self.popup_state.on_open("alt_repeat_window");
+            self.popup_state.on_open(PopupKey::AltRepeatWindow);
         }
         self.alt_repeat_window_open = true;
     }
@@ -4232,7 +4232,7 @@ impl EntropyApp {
         let frame = crate::ui_style::modal_window_frame(&style, dark);
 
         let shown = egui::Window::new("RGB")
-            .id(self.popup_state.id("rgb_window"))
+            .id(self.popup_state.id(PopupKey::RgbWindow))
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
@@ -4560,13 +4560,13 @@ impl EntropyApp {
         }
         self.focus_modal_window(&shown);
         self.rgb_window_open = open;
-        self.popup_state.begin_frame("rgb_window", self.rgb_window_open);
+        self.popup_state.begin_frame(PopupKey::RgbWindow, self.rgb_window_open);
     }
 
     fn show_encoder_visibility_window(&mut self, ctx: &egui::Context) {
         let mut open = self.encoder_visibility_window_open;
         let shown = egui::Window::new("Encoders")
-            .id(self.popup_state.id("encoder_visibility_window"))
+            .id(self.popup_state.id(PopupKey::EncoderVisibilityWindow))
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
@@ -4602,7 +4602,7 @@ impl EntropyApp {
             });
         self.focus_modal_window(&shown);
         self.encoder_visibility_window_open = open;
-        self.popup_state.begin_frame("encoder_visibility_window", self.encoder_visibility_window_open);
+        self.popup_state.begin_frame(PopupKey::EncoderVisibilityWindow, self.encoder_visibility_window_open);
     }
 
     fn show_alt_repeat_window(&mut self, ctx: &egui::Context) {
@@ -4614,7 +4614,7 @@ impl EntropyApp {
         let dark = ctx.style().visuals.dark_mode;
         let mut open = self.alt_repeat_window_open;
         let shown = egui::Window::new("Alt Repeat")
-            .id(self.popup_state.id("alt_repeat_window"))
+            .id(self.popup_state.id(PopupKey::AltRepeatWindow))
             .order(egui::Order::Foreground)
             .open(&mut open)
             .collapsible(false)
@@ -4798,7 +4798,7 @@ impl EntropyApp {
 
         self.focus_modal_window(&shown);
         self.alt_repeat_window_open = open;
-        self.popup_state.begin_frame("alt_repeat_window", self.alt_repeat_window_open);
+        self.popup_state.begin_frame(PopupKey::AltRepeatWindow, self.alt_repeat_window_open);
     }
 
     fn show_auto_shift_window(&mut self, ctx: &egui::Context) {
@@ -4808,7 +4808,7 @@ impl EntropyApp {
         let frame = crate::ui_style::modal_window_frame(&style, dark);
 
         let shown = egui::Window::new("Auto Shift")
-            .id(self.popup_state.id("auto_shift_window"))
+            .id(self.popup_state.id(PopupKey::AutoShiftWindow))
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
@@ -4906,7 +4906,7 @@ impl EntropyApp {
 
         self.focus_modal_window(&shown);
         self.auto_shift_window_open = open;
-        self.popup_state.begin_frame("auto_shift_window", self.auto_shift_window_open);
+        self.popup_state.begin_frame(PopupKey::AutoShiftWindow, self.auto_shift_window_open);
     }
 
     /// Write a single mouse-keys QMK setting to device. In Vial qmk_settings these are width=1.
@@ -4933,7 +4933,7 @@ impl EntropyApp {
         let frame = crate::ui_style::modal_window_frame(&style, dark);
 
         let shown = egui::Window::new("Mouse keys")
-            .id(self.popup_state.id("mouse_keys_window"))
+            .id(self.popup_state.id(PopupKey::MouseKeysWindow))
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
@@ -5058,7 +5058,7 @@ impl EntropyApp {
 
         self.focus_modal_window(&shown);
         self.mouse_keys_window_open = open;
-        self.popup_state.begin_frame("mouse_keys_window", self.mouse_keys_window_open);
+        self.popup_state.begin_frame(PopupKey::MouseKeysWindow, self.mouse_keys_window_open);
     }
 
     fn show_key_override_window(&mut self, ctx: &egui::Context) {
@@ -5070,7 +5070,7 @@ impl EntropyApp {
         let dark = ctx.style().visuals.dark_mode;
         let mut open = self.key_override_window_open;
         let shown = egui::Window::new("Key Overrides")
-            .id(self.popup_state.id("key_override_window"))
+            .id(self.popup_state.id(PopupKey::KeyOverrideWindow))
             .order(egui::Order::Foreground)
             .open(&mut open)
             .collapsible(false)
@@ -5373,7 +5373,7 @@ impl EntropyApp {
             });
         self.focus_modal_window(&shown);
         self.key_override_window_open = open;
-        self.popup_state.begin_frame("key_override_window", self.key_override_window_open);
+        self.popup_state.begin_frame(PopupKey::KeyOverrideWindow, self.key_override_window_open);
     }
 
     fn show_combo_window(&mut self, ctx: &egui::Context) {
@@ -5417,7 +5417,7 @@ impl EntropyApp {
 
         let mut open = self.combo_window_open;
         let shown = egui::Window::new("Combo")
-            .id(self.popup_state.id("combo_window"))
+            .id(self.popup_state.id(PopupKey::ComboWindow))
             .order(egui::Order::Foreground)
             .open(&mut open)
             .collapsible(false)
@@ -5862,7 +5862,7 @@ impl EntropyApp {
             });
         self.focus_modal_window(&shown);
         self.combo_window_open = open;
-        self.popup_state.begin_frame("combo_window", self.combo_window_open);
+        self.popup_state.begin_frame(PopupKey::ComboWindow, self.combo_window_open);
         if !self.combo_window_open {
             self.combo_capture_open = false;
             self.combo_capture_keys.clear();
@@ -6246,7 +6246,7 @@ impl EntropyApp {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.request_modal_focus();
                                         if !self.combo_window_open {
-                                            self.popup_state.on_open("combo_window");
+                                            self.popup_state.on_open(PopupKey::ComboWindow);
                                         }
                                         self.combo_window_open = true;
                                         if self.combo_visible_count == 0 { self.combo_visible_count = 1; }
@@ -6255,7 +6255,7 @@ impl EntropyApp {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.request_modal_focus();
                                         if !self.auto_shift_window_open {
-                                            self.popup_state.on_open("auto_shift_window");
+                                            self.popup_state.on_open(PopupKey::AutoShiftWindow);
                                         }
                                         self.auto_shift_window_open = true;
                                     }
@@ -6263,7 +6263,7 @@ impl EntropyApp {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.request_modal_focus();
                                         if !self.key_override_window_open {
-                                            self.popup_state.on_open("key_override_window");
+                                            self.popup_state.on_open(PopupKey::KeyOverrideWindow);
                                         }
                                         self.key_override_window_open = true;
                                     }
@@ -6374,7 +6374,7 @@ impl EntropyApp {
                                             self.close_top_dropdowns(ui.ctx());
                                             self.request_modal_focus();
                                             if !self.rgb_window_open {
-                                                self.popup_state.on_open("rgb_window");
+                                                self.popup_state.on_open(PopupKey::RgbWindow);
                                             }
                                             self.rgb_window_open = true;
                                         }
@@ -6387,7 +6387,7 @@ impl EntropyApp {
                                             self.close_top_dropdowns(ui.ctx());
                                             self.request_modal_focus();
                                             if !self.encoder_visibility_window_open {
-                                                self.popup_state.on_open("encoder_visibility_window");
+                                                self.popup_state.on_open(PopupKey::EncoderVisibilityWindow);
                                             }
                                             self.encoder_visibility_window_open = true;
                                         }
@@ -7267,7 +7267,7 @@ impl EntropyApp {
                 if is_mouse_keycode(kc) {
                     self.request_modal_focus();
                     if !self.mouse_keys_window_open {
-                        self.popup_state.on_open("mouse_keys_window");
+                        self.popup_state.on_open(PopupKey::MouseKeysWindow);
                     }
                     self.mouse_keys_window_open = true;
                     self.secondary_click_handled = true;
