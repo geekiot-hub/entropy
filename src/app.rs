@@ -5497,6 +5497,12 @@ impl EntropyApp {
 
                 let combo_outline_stroke = crate::ui_style::modal_outline_stroke(ui.visuals().dark_mode);
 
+                let combo_idx = self.selected_combo;
+                let content_width = 340.0_f32;
+                let compact_field_width = ((content_width - 110.0) * 0.5).round();
+                let name_field_width = compact_field_width;
+                let action_button_size = crate::ui_style::modal_action_button_size();
+
                 crate::ui_style::modal_content(
                     ui,
                     crate::ui_style::ModalLayout::new(340.0).with_top_padding(0.0),
@@ -5507,36 +5513,33 @@ impl EntropyApp {
                             }
                             _ => format!("C{}", self.selected_combo),
                         };
-                        egui::ComboBox::from_id_salt("combo_entry_select")
-                            .selected_text(selected_combo_label)
-                            .width(180.0)
-                            .show_ui(ui, |ui| {
-                                for idx in 0..self.combo_entries.len() {
-                                    let label = match self.combo_names.get(idx) {
-                                        Some(name) if !name.trim().is_empty() => {
-                                            format!("C{}: {}", idx, name.trim())
+                        ui.horizontal_centered(|ui| {
+                            egui::ComboBox::from_id_salt("combo_entry_select")
+                                .selected_text(selected_combo_label)
+                                .width(compact_field_width)
+                                .show_ui(ui, |ui| {
+                                    for idx in 0..self.combo_entries.len() {
+                                        let label = match self.combo_names.get(idx) {
+                                            Some(name) if !name.trim().is_empty() => {
+                                                format!("C{}: {}", idx, name.trim())
+                                            }
+                                            _ => format!("C{}", idx),
+                                        };
+                                        let resp = ui.selectable_value(
+                                            &mut self.selected_combo,
+                                            idx,
+                                            label,
+                                        );
+                                        if resp.hovered() {
+                                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                         }
-                                        _ => format!("C{}", idx),
-                                    };
-                                    let resp = ui.selectable_value(
-                                        &mut self.selected_combo,
-                                        idx,
-                                        label,
-                                    );
-                                    if resp.hovered() {
-                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                     }
-                                }
-                            });
+                                });
+                        });
 
                         ui.add_space(crate::ui_style::modal_space_md());
                     },
                 );
-                let combo_idx = self.selected_combo;
-                let content_width = 340.0_f32;
-                let compact_field_width = ((content_width - 110.0) * 0.5).round();
-                let name_field_width = ((content_width * 0.66) * 0.5).round();
-                let action_button_size = crate::ui_style::modal_action_button_size();
 
                 ui.vertical_centered(|ui| {
                     ui.allocate_ui_with_layout(
@@ -5545,12 +5548,16 @@ impl EntropyApp {
                         |ui| {
                             let mut combo_name_changed = false;
                             if let Some(name) = self.combo_names.get_mut(combo_idx) {
-                                let resp = ui.add(
-                                    egui::TextEdit::singleline(name)
-                                        .desired_width(name_field_width)
-                                        .hint_text("Name")
-                                        .char_limit(9),
-                                );
+                                let resp = ui
+                                    .horizontal_centered(|ui| {
+                                        ui.add(
+                                            egui::TextEdit::singleline(name)
+                                                .desired_width(name_field_width)
+                                                .hint_text("Name")
+                                                .char_limit(12),
+                                        )
+                                    })
+                                    .inner;
                                 combo_name_changed = resp.changed();
                                 resp.clone().on_hover_text("Stored locally in Entropy.");
                                 if resp.hovered() {
@@ -5721,7 +5728,7 @@ impl EntropyApp {
                             ui.add_space(12.0);
                             ui.horizontal_centered(|ui| {
                                 let clear_btn =
-                                    egui::Button::new(RichText::new("Clear combo").size(13.0))
+                                    egui::Button::new(RichText::new("Clear").size(13.0))
                                         .min_size(action_button_size)
                                         .frame(true)
                                         .stroke(combo_outline_stroke);
@@ -5743,48 +5750,6 @@ impl EntropyApp {
                                     if let Some(name) = self.combo_names.get_mut(combo_idx) {
                                         name.clear();
                                     }
-                                    self.combo_dirty = true;
-                                    self.combo_names_dirty = true;
-                                }
-
-                                let delete_btn =
-                                    egui::Button::new(RichText::new("Delete combo").size(13.0))
-                                        .min_size(action_button_size)
-                                        .frame(true)
-                                        .stroke(combo_outline_stroke);
-                                let delete_resp = ui.add_enabled(
-                                    combo_idx > 0 && self.combo_visible_count > 1,
-                                    delete_btn,
-                                );
-                                if delete_resp.hovered()
-                                    && combo_idx > 0
-                                    && self.combo_visible_count > 1
-                                {
-                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                }
-                                if delete_resp.clicked() {
-                                    self.push_combo_undo();
-                                    for idx in combo_idx..self.combo_visible_count.saturating_sub(1)
-                                    {
-                                        self.combo_entries[idx] =
-                                            self.combo_entries[idx + 1].clone();
-                                        self.combo_names[idx] = self
-                                            .combo_names
-                                            .get(idx + 1)
-                                            .cloned()
-                                            .unwrap_or_default();
-                                    }
-                                    let last_idx = self.combo_visible_count.saturating_sub(1);
-                                    if last_idx < self.combo_entries.len() {
-                                        self.combo_entries[last_idx] = ComboEntry::default();
-                                    }
-                                    if last_idx < self.combo_names.len() {
-                                        self.combo_names[last_idx].clear();
-                                    }
-                                    self.combo_visible_count =
-                                        self.combo_visible_count.saturating_sub(1).max(1);
-                                    self.selected_combo =
-                                        combo_idx.min(self.combo_visible_count.saturating_sub(1));
                                     self.combo_dirty = true;
                                     self.combo_names_dirty = true;
                                 }
