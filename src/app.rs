@@ -3569,6 +3569,23 @@ impl eframe::App for EntropyApp {
                 });
         }
 
+        self.popup_state
+            .begin_frame(PopupKey::ComboWindow, self.combo_window_open);
+        self.popup_state
+            .begin_frame(PopupKey::AutoShiftWindow, self.auto_shift_window_open);
+        self.popup_state
+            .begin_frame(PopupKey::MouseKeysWindow, self.mouse_keys_window_open);
+        self.popup_state
+            .begin_frame(PopupKey::AltRepeatWindow, self.alt_repeat_window_open);
+        self.popup_state
+            .begin_frame(PopupKey::RgbWindow, self.rgb_window_open);
+        self.popup_state.begin_frame(
+            PopupKey::EncoderVisibilityWindow,
+            self.encoder_visibility_window_open,
+        );
+        self.popup_state
+            .begin_frame(PopupKey::KeyOverrideWindow, self.key_override_window_open);
+
         if self.combo_window_open {
             self.show_combo_window(ctx);
         }
@@ -4608,7 +4625,6 @@ impl EntropyApp {
         }
         self.focus_modal_window(&shown);
         self.rgb_window_open = open;
-        self.popup_state.begin_frame(PopupKey::RgbWindow, self.rgb_window_open);
     }
 
     fn show_encoder_visibility_window(&mut self, ctx: &egui::Context) {
@@ -4650,7 +4666,6 @@ impl EntropyApp {
             });
         self.focus_modal_window(&shown);
         self.encoder_visibility_window_open = open;
-        self.popup_state.begin_frame(PopupKey::EncoderVisibilityWindow, self.encoder_visibility_window_open);
     }
 
     fn show_alt_repeat_window(&mut self, ctx: &egui::Context) {
@@ -4846,7 +4861,6 @@ impl EntropyApp {
 
         self.focus_modal_window(&shown);
         self.alt_repeat_window_open = open;
-        self.popup_state.begin_frame(PopupKey::AltRepeatWindow, self.alt_repeat_window_open);
     }
 
     fn show_auto_shift_window(&mut self, ctx: &egui::Context) {
@@ -4954,7 +4968,6 @@ impl EntropyApp {
 
         self.focus_modal_window(&shown);
         self.auto_shift_window_open = open;
-        self.popup_state.begin_frame(PopupKey::AutoShiftWindow, self.auto_shift_window_open);
     }
 
     /// Write a single mouse-keys QMK setting to device. In Vial qmk_settings these are width=1.
@@ -5106,7 +5119,6 @@ impl EntropyApp {
 
         self.focus_modal_window(&shown);
         self.mouse_keys_window_open = open;
-        self.popup_state.begin_frame(PopupKey::MouseKeysWindow, self.mouse_keys_window_open);
     }
 
     fn show_key_override_window(&mut self, ctx: &egui::Context) {
@@ -5421,7 +5433,6 @@ impl EntropyApp {
             });
         self.focus_modal_window(&shown);
         self.key_override_window_open = open;
-        self.popup_state.begin_frame(PopupKey::KeyOverrideWindow, self.key_override_window_open);
     }
 
     fn show_combo_window(&mut self, ctx: &egui::Context) {
@@ -5910,7 +5921,6 @@ impl EntropyApp {
             });
         self.focus_modal_window(&shown);
         self.combo_window_open = open;
-        self.popup_state.begin_frame(PopupKey::ComboWindow, self.combo_window_open);
         if !self.combo_window_open {
             self.combo_capture_open = false;
             self.combo_capture_keys.clear();
