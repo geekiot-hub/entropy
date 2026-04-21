@@ -1068,6 +1068,7 @@ pub struct EntropyApp {
     alt_repeat_entries: Vec<AltRepeatKeyEntry>,
     alt_repeat_window_open: bool,
     selected_alt_repeat: usize,
+    alt_repeat_visible_count: usize,
     alt_repeat_pick_target: Option<AltRepeatPickField>,
     alt_repeat_reopen_after_pick: bool,
     rgb_settings: RgbSettingsState,
@@ -1163,6 +1164,7 @@ impl EntropyApp {
             alt_repeat_entries: vec![],
             alt_repeat_window_open: false,
             selected_alt_repeat: 0,
+            alt_repeat_visible_count: 1,
             alt_repeat_pick_target: None,
             alt_repeat_reopen_after_pick: false,
             rgb_settings: RgbSettingsState::default(),
@@ -1258,6 +1260,7 @@ impl EntropyApp {
         self.alt_repeat_entries.clear();
         self.alt_repeat_window_open = false;
         self.selected_alt_repeat = 0;
+        self.alt_repeat_visible_count = 1;
         self.alt_repeat_pick_target = None;
         self.alt_repeat_reopen_after_pick = false;
         self.rgb_settings = RgbSettingsState::default();
@@ -1785,6 +1788,7 @@ impl EntropyApp {
                 self.key_override_entries = r.key_override_entries.clone();
                 self.alt_repeat_entries = r.alt_repeat_entries.clone();
                 self.selected_alt_repeat = 0;
+                self.alt_repeat_visible_count = if self.alt_repeat_entries.is_empty() { 1 } else { 1.min(self.alt_repeat_entries.len()) };
                 self.key_override_names = load_key_override_names(&self.current_device_name);
                 self.key_override_names
                     .resize(self.key_override_entries.len(), String::new());
@@ -4496,7 +4500,7 @@ impl EntropyApp {
             .resizable(false)
             .movable(true)
             .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
-            .fixed_size(Vec2::new(448.0, 372.0))
+            .fixed_size(Vec2::new(448.0, 352.0))
             .frame(frame)
             .order(egui::Order::Foreground)
             .show(ctx, |ui| {
@@ -4520,6 +4524,12 @@ impl EntropyApp {
 
                 if self.selected_alt_repeat >= self.alt_repeat_entries.len() {
                     self.selected_alt_repeat = 0;
+                }
+                self.alt_repeat_visible_count = self
+                    .alt_repeat_visible_count
+                    .clamp(1, self.alt_repeat_entries.len().max(1));
+                if self.selected_alt_repeat >= self.alt_repeat_visible_count {
+                    self.selected_alt_repeat = self.alt_repeat_visible_count.saturating_sub(1);
                 }
 
                 let idx = self.selected_alt_repeat;
@@ -4562,40 +4572,47 @@ impl EntropyApp {
 
                 ui.add_space(4.0);
                 ui.horizontal_centered(|ui| {
-                    egui::ScrollArea::horizontal()
-                        .auto_shrink([false, false])
-                        .max_height(34.0)
-                        .show(ui, |ui| {
-                            ui.horizontal(|ui| {
-                                for entry_idx in 0..self.alt_repeat_entries.len() {
-                                    let selected = entry_idx == idx;
-                                    let resp = ui
-                                        .add(
-                                            egui::Button::new(
-                                                RichText::new(format!("AR{}", entry_idx)).size(12.0),
-                                            )
-                                            .min_size(Vec2::new(44.0, 28.0))
-                                            .selected(selected),
-                                        )
-                                        .on_hover_cursor(egui::CursorIcon::PointingHand);
-                                    if resp.clicked() {
-                                        self.selected_alt_repeat = entry_idx;
-                                    }
-                                }
-                            });
-                        });
+                    ui.spacing_mut().item_spacing.x = 6.0;
+                    for entry_idx in 0..self.alt_repeat_visible_count {
+                        let selected = entry_idx == idx;
+                        let resp = ui
+                            .add(
+                                egui::Button::new(
+                                    RichText::new(format!("AR{}", entry_idx)).size(12.0),
+                                )
+                                .min_size(Vec2::new(42.0, 28.0))
+                                .selected(selected),
+                            )
+                            .on_hover_cursor(egui::CursorIcon::PointingHand);
+                        if resp.clicked() {
+                            self.selected_alt_repeat = entry_idx;
+                        }
+                    }
+                    if self.alt_repeat_visible_count < self.alt_repeat_entries.len() {
+                        let add_resp = ui
+                            .add(
+                                egui::Button::new(RichText::new("+").size(14.0))
+                                    .min_size(Vec2::new(28.0, 28.0)),
+                            )
+                            .on_hover_cursor(egui::CursorIcon::PointingHand);
+                        if add_resp.clicked() {
+                            self.alt_repeat_visible_count =
+                                (self.alt_repeat_visible_count + 1).min(self.alt_repeat_entries.len());
+                            self.selected_alt_repeat = self.alt_repeat_visible_count.saturating_sub(1);
+                        }
+                    }
                 });
 
-                ui.add_space(8.0);
-                ui.vertical_centered(|ui| {
-                    egui::ScrollArea::vertical()
-                        .max_height(274.0)
-                        .auto_shrink([false, true])
-                        .show(ui, |ui| {
-                            ui.allocate_ui_with_layout(
-                                Vec2::new(content_width, 0.0),
-                                egui::Layout::top_down(egui::Align::Min),
-                                |ui| {
+                ui.add_space(10.0);
+                ui.horizontal_centered(|ui| {
+                    ui.allocate_ui_with_layout(
+                        Vec2::new(content_width, 0.0),
+                        egui::Layout::top_down(egui::Align::Min),
+                        |ui| {
+                            egui::ScrollArea::vertical()
+                                .max_height(238.0)
+                                .auto_shrink([false, true])
+                                .show(ui, |ui| {
                                     ui.horizontal(|ui| {
                                         ui.label(RichText::new("Enable").size(12.5));
                                         let resp = ui.checkbox(&mut edited.options.enabled, "");
@@ -4692,9 +4709,9 @@ impl EntropyApp {
                                             .size(11.0)
                                             .color(app_muted_text(dark)),
                                     );
-                                },
-                            );
-                        });
+                                });
+                        },
+                    );
                 });
 
                 if edited != current {
