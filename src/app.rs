@@ -5120,8 +5120,8 @@ impl EntropyApp {
                     let current = self.key_override_entries[idx].clone();
                     let mut edited = current.clone();
                     let content_width = 260.0_f32;
-                    let field_width = 180.0_f32;
-                    let name_field_width = 118.0_f32;
+                    let field_width = 148.0_f32;
+                    let name_field_width = 148.0_f32;
                     let action_button_size = crate::ui_style::modal_action_button_size();
                     let combo_outline_stroke = crate::ui_style::modal_outline_stroke(ui.visuals().dark_mode);
 
@@ -5131,7 +5131,7 @@ impl EntropyApp {
                             ui.set_width(content_width);
                             egui::ComboBox::from_id_salt("key_override_entry_select")
                                 .selected_text(selected_override_label)
-                                .width(180.0)
+                                .width(field_width)
                                 .show_ui(ui, |ui| {
                                     for idx in 0..self.key_override_entries.len() {
                                         let override_empty = self
@@ -5172,12 +5172,16 @@ impl EntropyApp {
 
                             ui.add_space(6.0);
                             if let Some(name) = self.key_override_names.get_mut(idx) {
-                                let resp = ui.add(
-                                    egui::TextEdit::singleline(name)
-                                        .desired_width(name_field_width)
-                                        .hint_text("Name")
-                                        .char_limit(9),
-                                );
+                                let resp = ui.horizontal_centered(|ui| {
+                                    ui.add(
+                                        egui::TextEdit::singleline(name)
+                                            .desired_width(name_field_width)
+                                            .hint_text("Name")
+                                            .char_limit(9)
+                                            .horizontal_align(egui::Align::Center)
+                                            .vertical_align(egui::Align::Center),
+                                    )
+                                }).inner;
                                 if resp.changed() {
                                     save_key_override_names(&self.key_override_names, &self.current_device_name);
                                 }
@@ -5230,7 +5234,7 @@ impl EntropyApp {
                             ui.add_space(2.0);
                             ui.allocate_ui_with_layout(
                                 Vec2::new(content_width, 0.0),
-                                egui::Layout::left_to_right(egui::Align::Min),
+                                egui::Layout::left_to_right(egui::Align::Center),
                                 |ui| {
                                     let trigger_resp = ui.add(
                                         egui::Button::new(RichText::new(trigger_label).size(12.0))
@@ -5244,6 +5248,10 @@ impl EntropyApp {
                             );
 
                             ui.add_space(0.0);
+                            egui::ScrollArea::vertical()
+                                .max_height(250.0)
+                                .auto_shrink([false, true])
+                                .show(ui, |ui| {
                             let suppressed_resp = egui::CollapsingHeader::new(
                                 RichText::new("Suppressed mods").size(11.0).color(app_muted_text(dark))
                             )
@@ -5287,7 +5295,7 @@ impl EntropyApp {
                             ui.add_space(2.0);
                             ui.allocate_ui_with_layout(
                                 Vec2::new(content_width, 0.0),
-                                egui::Layout::left_to_right(egui::Align::Min),
+                                egui::Layout::left_to_right(egui::Align::Center),
                                 |ui| {
                                     let replacement_resp = ui.add(
                                         egui::Button::new(RichText::new(replacement_label).size(12.0))
@@ -5314,22 +5322,20 @@ impl EntropyApp {
                             }
 
                             ui.add_space(2.0);
-                            ui.label(RichText::new("How this override behaves").size(11.0).color(app_muted_text(dark)));
+                            ui.label(RichText::new("How this override behaves").size(10.0).color(app_muted_text(dark)));
                             ui.add_space(2.0);
-                            ui.checkbox(&mut edited.options.activation_trigger_down, "Activate as soon as the trigger key is pressed");
-                            ui.checkbox(&mut edited.options.activation_required_mod_down, "Activate as soon as a required modifier is pressed");
-                            ui.checkbox(&mut edited.options.activation_negative_mod_up, "Activate when a blocked modifier is released");
-                            ui.checkbox(&mut edited.options.one_mod, "Any one trigger modifier is enough");
-                            ui.checkbox(&mut edited.options.no_reregister_trigger, "Do not send the original trigger key after the override ends");
-                            ui.checkbox(&mut edited.options.no_unregister_on_other_key_down, "Keep the override active even if another key is pressed");
+                            ui.checkbox(&mut edited.options.activation_trigger_down, RichText::new("Activate as soon as the trigger key is pressed").size(10.0));
+                            ui.checkbox(&mut edited.options.activation_required_mod_down, RichText::new("Activate as soon as a required modifier is pressed").size(10.0));
+                            ui.checkbox(&mut edited.options.activation_negative_mod_up, RichText::new("Activate when a blocked modifier is released").size(10.0));
+                            ui.checkbox(&mut edited.options.one_mod, RichText::new("Any one trigger modifier is enough").size(10.0));
+                            ui.checkbox(&mut edited.options.no_reregister_trigger, RichText::new("Do not send the original trigger key after the override ends").size(10.0));
+                            ui.checkbox(&mut edited.options.no_unregister_on_other_key_down, RichText::new("Keep the override active even if another key is pressed").size(10.0));
+                                });
                         });
                     });
 
                     ui.add_space(0.0);
-                    ui.allocate_ui_with_layout(
-                        Vec2::new(content_width, 0.0),
-                        egui::Layout::left_to_right(egui::Align::Min),
-                        |ui| {
+                    crate::ui_style::modal_action_row(ui, |ui| {
                             let clear_btn = egui::Button::new(RichText::new("Clear").size(13.0))
                                 .min_size(action_button_size)
                                 .frame(true)
@@ -5369,8 +5375,7 @@ impl EntropyApp {
                                     self.write_all_key_overrides();
                                 }
                             }
-                        },
-                    );
+                    });
 
                 Self::normalize_key_override_entry(&mut edited);
                 if edited != current {
@@ -5848,8 +5853,7 @@ impl EntropyApp {
                                     }
                                 }
                             });
-                        },
-                    );
+                    });
                 });
             });
         self.focus_modal_window(&shown);
