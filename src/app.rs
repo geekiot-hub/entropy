@@ -5068,7 +5068,7 @@ impl EntropyApp {
             "Key Overrides",
             self.popup_state.id(PopupKey::KeyOverrideWindow),
             &mut open,
-            Vec2::new(336.0, 468.0),
+            Vec2::new(448.0, 468.0),
         )
             .show(ctx, |ui| {
                 if self.key_override_entries.is_empty() {
@@ -5119,18 +5119,16 @@ impl EntropyApp {
                     let idx = self.selected_key_override;
                     let current = self.key_override_entries[idx].clone();
                     let mut edited = current.clone();
-                    let content_width = 252.0_f32;
+                    let content_width = 360.0_f32;
                     let field_width = 180.0_f32;
                     let name_field_width = 118.0_f32;
                     let action_button_size = crate::ui_style::modal_action_button_size();
                     let combo_outline_stroke = crate::ui_style::modal_outline_stroke(ui.visuals().dark_mode);
 
-                    ui.add_space(2.0);
-                    ui.horizontal_centered(|ui| {
-                        ui.allocate_ui_with_layout(
-                            Vec2::new(content_width, 0.0),
-                            egui::Layout::top_down(egui::Align::Center),
-                            |ui| {
+                    crate::ui_style::modal_content(
+                        ui,
+                        crate::ui_style::ModalLayout::new(content_width).with_top_padding(2.0),
+                        |ui| {
                             egui::ComboBox::from_id_salt("key_override_entry_select")
                                 .selected_text(selected_override_label)
                                 .width(180.0)
@@ -5316,9 +5314,8 @@ impl EntropyApp {
                             ui.checkbox(&mut edited.options.one_mod, "Any one trigger modifier is enough");
                             ui.checkbox(&mut edited.options.no_reregister_trigger, "Do not send the original trigger key after the override ends");
                             ui.checkbox(&mut edited.options.no_unregister_on_other_key_down, "Keep the override active even if another key is pressed");
-                            },
-                        );
-                    });
+                        },
+                    );
 
                     ui.add_space(0.0);
                     ui.horizontal_centered(|ui| {
