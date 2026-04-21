@@ -3156,8 +3156,8 @@ impl eframe::App for EntropyApp {
             self.status_msg = "Keyboard is locked, unlock it to edit macros".into();
         }
 
-        // Arrow keys Left/Right switch layers (when picker is closed)
-        if !self.keycode_picker.open {
+        // Arrow keys Left/Right switch layers (when picker is closed and no text field is focused)
+        if !self.keycode_picker.open && !ctx.wants_keyboard_input() {
             let layer_count = self.layer_count;
             ctx.input(|i| {
                 if i.key_pressed(egui::Key::ArrowLeft) && self.selected_layer > 0 {
@@ -5507,11 +5507,28 @@ impl EntropyApp {
                     ui,
                     crate::ui_style::ModalLayout::new(content_width).with_top_padding(0.0),
                     |ui| {
+                        let selected_combo_empty = self.combo_entries.get(self.selected_combo)
+                            .map(|entry| entry.keys.iter().all(|&k| k == 0) && entry.output == 0)
+                            .unwrap_or(true)
+                            && self
+                                .combo_names
+                                .get(self.selected_combo)
+                                .map(|name| name.trim().is_empty())
+                                .unwrap_or(true);
                         let selected_combo_label = match self.combo_names.get(self.selected_combo) {
                             Some(name) if !name.trim().is_empty() => {
-                                format!("C{}: {}", self.selected_combo, name.trim())
+                                RichText::new(format!("C{}: {}", self.selected_combo, name.trim()))
+                                    .color(if selected_combo_empty {
+                                        app_muted_text(ui.visuals().dark_mode)
+                                    } else {
+                                        ui.visuals().text_color()
+                                    })
                             }
-                            _ => format!("C{}", self.selected_combo),
+                            _ => RichText::new(format!("C{}", self.selected_combo)).color(if selected_combo_empty {
+                                app_muted_text(ui.visuals().dark_mode)
+                            } else {
+                                ui.visuals().text_color()
+                            }),
                         };
                         ui.horizontal_centered(|ui| {
                             ui.allocate_ui_with_layout(
@@ -5523,11 +5540,28 @@ impl EntropyApp {
                                         .width(compact_field_width)
                                         .show_ui(ui, |ui| {
                                             for idx in 0..self.combo_entries.len() {
+                                                let combo_empty = self.combo_entries.get(idx)
+                                                    .map(|entry| entry.keys.iter().all(|&k| k == 0) && entry.output == 0)
+                                                    .unwrap_or(true)
+                                                    && self
+                                                        .combo_names
+                                                        .get(idx)
+                                                        .map(|name| name.trim().is_empty())
+                                                        .unwrap_or(true);
                                                 let label = match self.combo_names.get(idx) {
                                                     Some(name) if !name.trim().is_empty() => {
-                                                        format!("C{}: {}", idx, name.trim())
+                                                        RichText::new(format!("C{}: {}", idx, name.trim()))
+                                                            .color(if combo_empty {
+                                                                app_muted_text(ui.visuals().dark_mode)
+                                                            } else {
+                                                                ui.visuals().text_color()
+                                                            })
                                                     }
-                                                    _ => format!("C{}", idx),
+                                                    _ => RichText::new(format!("C{}", idx)).color(if combo_empty {
+                                                        app_muted_text(ui.visuals().dark_mode)
+                                                    } else {
+                                                        ui.visuals().text_color()
+                                                    }),
                                                 };
                                                 let resp = ui.selectable_value(
                                                     &mut self.selected_combo,
@@ -5561,6 +5595,7 @@ impl EntropyApp {
                                             egui::TextEdit::singleline(name)
                                                 .hint_text("Name")
                                                 .char_limit(12)
+                                                .horizontal_align(egui::Align::Center)
                                                 .vertical_align(egui::Align::Center),
                                         )
                                     })
@@ -5719,6 +5754,7 @@ impl EntropyApp {
                                         egui::TextEdit::singleline(&mut combo_term_text)
                                             .hint_text("ms")
                                             .desired_width(30.0)
+                                            .char_limit(4)
                                             .vertical_align(egui::Align::Center),
                                     );
                                     if resp.hovered() {
@@ -5729,6 +5765,7 @@ impl EntropyApp {
                                         let filtered: String = combo_term_text
                                             .chars()
                                             .filter(|c| c.is_ascii_digit())
+                                            .take(4)
                                             .collect();
                                         if let Ok(parsed) = filtered.parse::<u16>() {
                                             self.combo_undo_stack.push(combo_undo_snapshot.clone());
