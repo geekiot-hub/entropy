@@ -4599,15 +4599,17 @@ impl EntropyApp {
                     &self.keycode_picker.tap_dance_names,
                 );
 
-                ui.vertical_centered(|ui| {
-                    egui::ScrollArea::vertical()
-                        .max_height(250.0)
-                        .auto_shrink([false, true])
-                        .show(ui, |ui| {
-                            ui.allocate_ui_with_layout(
-                                Vec2::new(content_width, 0.0),
-                                egui::Layout::top_down(egui::Align::Min),
-                                |ui| {
+                ui.horizontal_centered(|ui| {
+                    ui.allocate_ui_with_layout(
+                        Vec2::new(content_width, 250.0),
+                        egui::Layout::top_down(egui::Align::Min),
+                        |ui| {
+                            egui::ScrollArea::vertical()
+                                .max_height(250.0)
+                                .auto_shrink([false, true])
+                                .show(ui, |ui| {
+                                    ui.set_width(content_width);
+
                                     ui.horizontal(|ui| {
                                         ui.label(RichText::new("Enable").size(12.5));
                                         let resp = ui.checkbox(&mut edited.options.enabled, "");
@@ -4693,9 +4695,9 @@ impl EntropyApp {
                                     if options_resp.header_response.hovered() {
                                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                     }
-                                },
-                            );
-                        });
+                                });
+                        },
+                    );
                 });
 
                 if edited != current {
