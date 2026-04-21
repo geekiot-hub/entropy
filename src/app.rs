@@ -5410,7 +5410,7 @@ impl EntropyApp {
             "Combo",
             self.popup_state.id(PopupKey::ComboWindow),
             &mut open,
-            Vec2::new(360.0, 430.0),
+            Vec2::new(316.0, 430.0),
         )
             .show(ctx, |ui| {
                 ui.style_mut().visuals.button_frame = true;
@@ -5503,42 +5503,49 @@ impl EntropyApp {
                 let name_field_width = compact_field_width;
                 let action_button_size = crate::ui_style::modal_action_button_size();
 
-                ui.horizontal_centered(|ui| {
+                crate::ui_style::modal_content(
+                    ui,
+                    crate::ui_style::ModalLayout::new(content_width).with_top_padding(0.0),
+                    |ui| {
+                        let selected_combo_label = match self.combo_names.get(self.selected_combo) {
+                            Some(name) if !name.trim().is_empty() => {
+                                format!("C{}: {}", self.selected_combo, name.trim())
+                            }
+                            _ => format!("C{}", self.selected_combo),
+                        };
+                        ui.horizontal_centered(|ui| {
+                            egui::ComboBox::from_id_salt("combo_entry_select")
+                                .selected_text(selected_combo_label)
+                                .width(compact_field_width)
+                                .show_ui(ui, |ui| {
+                                    for idx in 0..self.combo_entries.len() {
+                                        let label = match self.combo_names.get(idx) {
+                                            Some(name) if !name.trim().is_empty() => {
+                                                format!("C{}: {}", idx, name.trim())
+                                            }
+                                            _ => format!("C{}", idx),
+                                        };
+                                        let resp = ui.selectable_value(
+                                            &mut self.selected_combo,
+                                            idx,
+                                            label,
+                                        );
+                                        if resp.hovered() {
+                                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                        }
+                                    }
+                                });
+                        });
+
+                        ui.add_space(crate::ui_style::modal_space_md());
+                    },
+                );
+
+                ui.vertical_centered(|ui| {
                     ui.allocate_ui_with_layout(
                         Vec2::new(content_width, 0.0),
                         egui::Layout::top_down(egui::Align::Center),
                         |ui| {
-                            let selected_combo_label = match self.combo_names.get(self.selected_combo) {
-                                Some(name) if !name.trim().is_empty() => {
-                                    format!("C{}: {}", self.selected_combo, name.trim())
-                                }
-                                _ => format!("C{}", self.selected_combo),
-                            };
-                            ui.horizontal_centered(|ui| {
-                                egui::ComboBox::from_id_salt("combo_entry_select")
-                                    .selected_text(selected_combo_label)
-                                    .width(compact_field_width)
-                                    .show_ui(ui, |ui| {
-                                        for idx in 0..self.combo_entries.len() {
-                                            let label = match self.combo_names.get(idx) {
-                                                Some(name) if !name.trim().is_empty() => {
-                                                    format!("C{}: {}", idx, name.trim())
-                                                }
-                                                _ => format!("C{}", idx),
-                                            };
-                                            let resp = ui.selectable_value(
-                                                &mut self.selected_combo,
-                                                idx,
-                                                label,
-                                            );
-                                            if resp.hovered() {
-                                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                            }
-                                        }
-                                    });
-                            });
-
-                            ui.add_space(crate::ui_style::modal_space_md());
                             let mut combo_name_changed = false;
                             if let Some(name) = self.combo_names.get_mut(combo_idx) {
                                 let resp = ui
