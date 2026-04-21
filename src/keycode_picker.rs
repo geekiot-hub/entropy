@@ -66,6 +66,18 @@ pub struct KeycodePicker {
     macro_undo_stack: Vec<(usize, Vec<MacroAction>)>,
     /// Macro key picker: (macro_idx, action_idx) being edited
     macro_key_pick: Option<(usize, usize)>,
+    picker_window_nonce: u64,
+    macro_key_pick_nonce: u64,
+    layer_pick_nonce: u64,
+    pending_key_pick_nonce: u64,
+    tap_dance_editor_nonce: u64,
+    td_key_pick_nonce: u64,
+    prev_open: bool,
+    prev_macro_key_pick_open: bool,
+    prev_layer_pick_open: bool,
+    prev_pending_key_pick_open: bool,
+    prev_tap_dance_editor_open: bool,
+    prev_td_key_pick_open: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -194,6 +206,18 @@ impl Default for KeycodePicker {
             macro_undo_stack: Vec::new(),
             macro_key_pick: None,
             macros_dirty: false,
+            picker_window_nonce: 0,
+            macro_key_pick_nonce: 0,
+            layer_pick_nonce: 0,
+            pending_key_pick_nonce: 0,
+            tap_dance_editor_nonce: 0,
+            td_key_pick_nonce: 0,
+            prev_open: false,
+            prev_macro_key_pick_open: false,
+            prev_layer_pick_open: false,
+            prev_pending_key_pick_open: false,
+            prev_tap_dance_editor_open: false,
+            prev_td_key_pick_open: false,
         }
     }
 }
@@ -451,6 +475,39 @@ impl KeycodePicker {
     }
 
     pub fn show(&mut self, ctx: &egui::Context) {
+        let macro_key_pick_open = self.macro_key_pick.is_some();
+        let layer_pick_open = self.vial_layer_pending.is_some();
+        let pending_key_pick_open =
+            self.vial_quantum_pending_mod.is_some() || self.vial_quantum_pending_mt.is_some();
+        let tap_dance_editor_open = self.tap_dance_editor_open.is_some();
+        let td_key_pick_open = self.td_key_pick.is_some();
+
+        if self.open && !self.prev_open {
+            self.picker_window_nonce = self.picker_window_nonce.wrapping_add(1);
+        }
+        if macro_key_pick_open && !self.prev_macro_key_pick_open {
+            self.macro_key_pick_nonce = self.macro_key_pick_nonce.wrapping_add(1);
+        }
+        if layer_pick_open && !self.prev_layer_pick_open {
+            self.layer_pick_nonce = self.layer_pick_nonce.wrapping_add(1);
+        }
+        if pending_key_pick_open && !self.prev_pending_key_pick_open {
+            self.pending_key_pick_nonce = self.pending_key_pick_nonce.wrapping_add(1);
+        }
+        if tap_dance_editor_open && !self.prev_tap_dance_editor_open {
+            self.tap_dance_editor_nonce = self.tap_dance_editor_nonce.wrapping_add(1);
+        }
+        if td_key_pick_open && !self.prev_td_key_pick_open {
+            self.td_key_pick_nonce = self.td_key_pick_nonce.wrapping_add(1);
+        }
+
+        self.prev_open = self.open;
+        self.prev_macro_key_pick_open = macro_key_pick_open;
+        self.prev_layer_pick_open = layer_pick_open;
+        self.prev_pending_key_pick_open = pending_key_pick_open;
+        self.prev_tap_dance_editor_open = tap_dance_editor_open;
+        self.prev_td_key_pick_open = td_key_pick_open;
+
         if !self.open { return; }
 
         // If pending mod/MT — show only the minimal second picker, not the full picker
@@ -465,6 +522,7 @@ impl KeycodePicker {
         if let Some((macro_idx, action_idx)) = self.macro_key_pick {
             let mut pick_open = true;
             egui::Window::new("Pick key")
+                .id(egui::Id::new(("macro_key_pick_window", self.macro_key_pick_nonce)))
                 .order(egui::Order::Foreground)
                 .open(&mut pick_open)
                 .collapsible(false)
@@ -623,6 +681,7 @@ impl KeycodePicker {
         let mut still_open = true;
         let picker_size = Vec2::new(920.0, 560.0);
         egui::Window::new("Key Editor")
+            .id(egui::Id::new(("key_editor_window", self.picker_window_nonce)))
             .order(egui::Order::Foreground)
             .open(&mut still_open)
             .collapsible(false)
@@ -731,6 +790,7 @@ impl KeycodePicker {
             });
             let mut still_open = true;
             let resp_win = egui::Window::new("Pick layer")
+                .id(egui::Id::new(("pick_layer_window", self.layer_pick_nonce)))
                 .order(egui::Order::Foreground)
                 .open(&mut still_open)
                 .collapsible(false)
@@ -816,6 +876,7 @@ impl KeycodePicker {
             let title = if is_mt { "Pick tap key (hold = modifier)" } else { "Pick key for modifier combo" };
             let mut still_open = true;
             let resp_win = egui::Window::new(title)
+                .id(egui::Id::new(("pending_key_pick_window", self.pending_key_pick_nonce)))
                 .order(egui::Order::Foreground)
                 .open(&mut still_open)
                 .collapsible(false)
@@ -1863,6 +1924,7 @@ impl KeycodePicker {
 
         let mut still_open = true;
         egui::Window::new("Tap Dance Editor")
+            .id(egui::Id::new(("tap_dance_editor_window", self.tap_dance_editor_nonce)))
             .open(&mut still_open)
             .collapsible(false)
             .resizable(true)
