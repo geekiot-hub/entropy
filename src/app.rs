@@ -5125,49 +5125,52 @@ impl EntropyApp {
                     ui.horizontal_centered(|ui| {
                         ui.vertical(|ui| {
                             ui.set_width(content_width);
-                            let combo_resp = egui::ComboBox::from_id_salt("key_override_entry_select")
-                                .selected_text("")
-                                .width(180.0)
-                                .show_ui(ui, |ui| {
-                                    for idx in 0..self.key_override_entries.len() {
-                                        let override_empty = self
-                                            .key_override_entries
-                                            .get(idx)
-                                            .map(|entry| !Self::key_override_entry_exists(entry))
-                                            .unwrap_or(true)
-                                            && self
-                                                .key_override_names
+                            let combo_resp = ui.scope(|ui| {
+                                ui.spacing_mut().interact_size.y = crate::ui_style::modal_field_button_height();
+                                egui::ComboBox::from_id_salt("key_override_entry_select")
+                                    .selected_text("")
+                                    .width(180.0)
+                                    .show_ui(ui, |ui| {
+                                        for idx in 0..self.key_override_entries.len() {
+                                            let override_empty = self
+                                                .key_override_entries
                                                 .get(idx)
-                                                .map(|name| name.trim().is_empty())
-                                                .unwrap_or(true);
-                                        let label = match self.key_override_names.get(idx) {
-                                            Some(name) if !name.trim().is_empty() => {
-                                                RichText::new(format!("KO{}: {}", idx, name.trim()))
-                                                    .color(if override_empty {
-                                                        app_muted_text(ui.visuals().dark_mode)
-                                                    } else {
-                                                        ui.visuals().text_color()
-                                                    })
+                                                .map(|entry| !Self::key_override_entry_exists(entry))
+                                                .unwrap_or(true)
+                                                && self
+                                                    .key_override_names
+                                                    .get(idx)
+                                                    .map(|name| name.trim().is_empty())
+                                                    .unwrap_or(true);
+                                            let label = match self.key_override_names.get(idx) {
+                                                Some(name) if !name.trim().is_empty() => {
+                                                    RichText::new(format!("KO{}: {}", idx, name.trim()))
+                                                        .color(if override_empty {
+                                                            app_muted_text(ui.visuals().dark_mode)
+                                                        } else {
+                                                            ui.visuals().text_color()
+                                                        })
+                                                }
+                                                _ => RichText::new(format!("KO{}", idx)).color(if override_empty {
+                                                    app_muted_text(ui.visuals().dark_mode)
+                                                } else {
+                                                    ui.visuals().text_color()
+                                                }),
+                                            };
+                                            let resp = ui.selectable_value(
+                                                &mut self.selected_key_override,
+                                                idx,
+                                                label,
+                                            );
+                                            if resp.hovered() {
+                                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                             }
-                                            _ => RichText::new(format!("KO{}", idx)).color(if override_empty {
-                                                app_muted_text(ui.visuals().dark_mode)
-                                            } else {
-                                                ui.visuals().text_color()
-                                            }),
-                                        };
-                                        let resp = ui.selectable_value(
-                                            &mut self.selected_key_override,
-                                            idx,
-                                            label,
-                                        );
-                                        if resp.hovered() {
-                                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                         }
-                                    }
-                                })
-                                .response;
+                                    })
+                                    .response
+                            }).inner;
                             ui.painter().text(
-                                combo_resp.rect.center() + egui::vec2(-ui.spacing().icon_width * 0.5, 0.0),
+                                combo_resp.rect.center() + egui::vec2(-ui.spacing().icon_width * 0.5, 1.0),
                                 egui::Align2::CENTER_CENTER,
                                 &selected_override_text,
                                 egui::TextStyle::Button.resolve(ui.style()),
@@ -5176,7 +5179,8 @@ impl EntropyApp {
 
                             ui.add_space(6.0);
                             if let Some(name) = self.key_override_names.get_mut(idx) {
-                                let resp = ui.add(
+                                let resp = ui.add_sized(
+                                    crate::ui_style::modal_field_button_size(name_field_width),
                                     egui::TextEdit::singleline(name)
                                         .desired_width(name_field_width)
                                         .hint_text("Name")
@@ -5236,7 +5240,7 @@ impl EntropyApp {
                             ui.add_space(2.0);
                             ui.allocate_ui_with_layout(
                                 Vec2::new(content_width, 0.0),
-                                egui::Layout::left_to_right(egui::Align::Min),
+                                egui::Layout::left_to_right(egui::Align::Center),
                                 |ui| {
                                     let trigger_resp = ui.add(
                                         egui::Button::new(RichText::new(trigger_label).size(12.0))
@@ -5293,7 +5297,7 @@ impl EntropyApp {
                             ui.add_space(2.0);
                             ui.allocate_ui_with_layout(
                                 Vec2::new(content_width, 0.0),
-                                egui::Layout::left_to_right(egui::Align::Min),
+                                egui::Layout::left_to_right(egui::Align::Center),
                                 |ui| {
                                     let replacement_resp = ui.add(
                                         egui::Button::new(RichText::new(replacement_label).size(12.0))
@@ -5334,7 +5338,7 @@ impl EntropyApp {
                     ui.add_space(0.0);
                     ui.allocate_ui_with_layout(
                         Vec2::new(content_width, 0.0),
-                        egui::Layout::left_to_right(egui::Align::Min),
+                        egui::Layout::left_to_right(egui::Align::Center),
                         |ui| {
                             let clear_btn = egui::Button::new(RichText::new("Clear").size(13.0))
                                 .min_size(action_button_size)
