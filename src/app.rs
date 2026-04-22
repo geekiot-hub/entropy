@@ -5116,9 +5116,9 @@ impl EntropyApp {
                     let current = self.key_override_entries[idx].clone();
                     let mut edited = current.clone();
                     let content_width = 260.0_f32;
-                    let field_width = 180.0_f32;
-                    let name_field_width = 118.0_f32;
                     let action_button_size = crate::ui_style::modal_action_button_size();
+                    let field_width = action_button_size.x * 2.0 + 8.0;
+                    let name_field_width = field_width;
                     let combo_outline_stroke = crate::ui_style::modal_outline_stroke(ui.visuals().dark_mode);
 
                     ui.add_space(2.0);
@@ -5129,7 +5129,7 @@ impl EntropyApp {
                                 ui.spacing_mut().interact_size.y = crate::ui_style::modal_field_button_height();
                                 egui::ComboBox::from_id_salt("key_override_entry_select")
                                     .selected_text("")
-                                    .width(180.0)
+                                    .width(field_width)
                                     .show_ui(ui, |ui| {
                                         for idx in 0..self.key_override_entries.len() {
                                             let override_empty = self
@@ -5242,9 +5242,11 @@ impl EntropyApp {
                                 Vec2::new(content_width, 0.0),
                                 egui::Layout::left_to_right(egui::Align::Center),
                                 |ui| {
-                                    let trigger_resp = ui.add(
-                                        egui::Button::new(RichText::new(trigger_label).size(12.0))
-                                            .min_size(crate::ui_style::modal_field_button_size(field_width)),
+                                    let trigger_resp = ui.add_sized(
+                                        crate::ui_style::modal_field_button_size(field_width),
+                                        egui::Button::new(RichText::new(trigger_label).size(13.0))
+                                            .frame(true)
+                                            .stroke(combo_outline_stroke),
                                     ).on_hover_cursor(egui::CursorIcon::PointingHand);
                                     if trigger_resp.clicked() {
                                         self.open_key_override_picker(KeyOverridePickField::Trigger);
@@ -5299,9 +5301,11 @@ impl EntropyApp {
                                 Vec2::new(content_width, 0.0),
                                 egui::Layout::left_to_right(egui::Align::Center),
                                 |ui| {
-                                    let replacement_resp = ui.add(
-                                        egui::Button::new(RichText::new(replacement_label).size(12.0))
-                                            .min_size(crate::ui_style::modal_field_button_size(field_width)),
+                                    let replacement_resp = ui.add_sized(
+                                        crate::ui_style::modal_field_button_size(field_width),
+                                        egui::Button::new(RichText::new(replacement_label).size(13.0))
+                                            .frame(true)
+                                            .stroke(combo_outline_stroke),
                                     ).on_hover_cursor(egui::CursorIcon::PointingHand);
                                     if replacement_resp.clicked() {
                                         self.open_key_override_picker(KeyOverridePickField::Replacement);
