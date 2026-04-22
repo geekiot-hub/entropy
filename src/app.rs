@@ -270,6 +270,13 @@ fn app_border_color(dark: bool) -> Color32 {
 fn app_muted_text(dark: bool) -> Color32 {
     crate::ui_style::muted_text(dark)
 }
+fn app_inactive_entry_text(dark: bool) -> Color32 {
+    if dark {
+        Color32::from_gray(105)
+    } else {
+        Color32::from_gray(165)
+    }
+}
 
 fn keycode_label_with_macro_names(
     value: u16,
@@ -5112,7 +5119,7 @@ impl EntropyApp {
                         _ => format!("KO{}", self.selected_key_override),
                     };
                     let selected_override_text_color = if selected_override_empty {
-                        app_muted_text(ui.visuals().dark_mode)
+                        app_inactive_entry_text(ui.visuals().dark_mode)
                     } else {
                         ui.visuals().text_color()
                     };
@@ -5151,13 +5158,13 @@ impl EntropyApp {
                                                 Some(name) if !name.trim().is_empty() => {
                                                     RichText::new(format!("KO{}: {}", idx, name.trim()))
                                                         .color(if override_empty {
-                                                            app_muted_text(ui.visuals().dark_mode)
+                                                            app_inactive_entry_text(ui.visuals().dark_mode)
                                                         } else {
                                                             ui.visuals().text_color()
                                                         })
                                                 }
                                                 _ => RichText::new(format!("KO{}", idx)).color(if override_empty {
-                                                    app_muted_text(ui.visuals().dark_mode)
+                                                    app_inactive_entry_text(ui.visuals().dark_mode)
                                                 } else {
                                                     ui.visuals().text_color()
                                                 }),
@@ -5579,13 +5586,13 @@ impl EntropyApp {
                             Some(name) if !name.trim().is_empty() => {
                                 RichText::new(format!("C{}: {}", self.selected_combo, name.trim()))
                                     .color(if selected_combo_empty {
-                                        app_muted_text(ui.visuals().dark_mode)
+                                        app_inactive_entry_text(ui.visuals().dark_mode)
                                     } else {
                                         ui.visuals().text_color()
                                     })
                             }
                             _ => RichText::new(format!("C{}", self.selected_combo)).color(if selected_combo_empty {
-                                app_muted_text(ui.visuals().dark_mode)
+                                app_inactive_entry_text(ui.visuals().dark_mode)
                             } else {
                                 ui.visuals().text_color()
                             }),
@@ -5612,13 +5619,13 @@ impl EntropyApp {
                                                     Some(name) if !name.trim().is_empty() => {
                                                         RichText::new(format!("C{}: {}", idx, name.trim()))
                                                             .color(if combo_empty {
-                                                                app_muted_text(ui.visuals().dark_mode)
+                                                                app_inactive_entry_text(ui.visuals().dark_mode)
                                                             } else {
                                                                 ui.visuals().text_color()
                                                             })
                                                     }
                                                     _ => RichText::new(format!("C{}", idx)).color(if combo_empty {
-                                                        app_muted_text(ui.visuals().dark_mode)
+                                                        app_inactive_entry_text(ui.visuals().dark_mode)
                                                     } else {
                                                         ui.visuals().text_color()
                                                     }),

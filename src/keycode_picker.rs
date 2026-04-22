@@ -1,5 +1,13 @@
 /// Keycode picker modal — supports both Vial (QMK keycodes) and ZMK (behaviors).
 
+fn inactive_picker_entry_text(dark: bool) -> egui::Color32 {
+    if dark {
+        egui::Color32::from_gray(55)
+    } else {
+        egui::Color32::from_gray(175)
+    }
+}
+
 use crate::firmware::FirmwareProtocol;
 use crate::popup_state::{PopupKey, PopupState};
 use crate::keycode::{gui_label, gui_mod_name, gui_sym, key_label_font_sizes, keycode_label_with_names, keycode_tooltip, KeycodeCategory, KEYCODES};
@@ -1390,10 +1398,8 @@ impl KeycodePicker {
                             ui.visuals().widgets.hovered.fg_stroke.color
                         } else if has_content {
                             ui.visuals().widgets.inactive.fg_stroke.color
-                        } else if ui.visuals().dark_mode {
-                            Color32::from_gray(70)
                         } else {
-                            Color32::from_gray(150)
+                            inactive_picker_entry_text(ui.visuals().dark_mode)
                         };
                         let id_text = format!("M{}", i);
                         if display_name != id_text {
@@ -1671,10 +1677,8 @@ impl KeycodePicker {
                             ui.visuals().widgets.hovered.fg_stroke.color
                         } else if has_content {
                             ui.visuals().widgets.inactive.fg_stroke.color
-                        } else if ui.visuals().dark_mode {
-                            Color32::from_gray(70)
                         } else {
-                            Color32::from_gray(150)
+                            inactive_picker_entry_text(ui.visuals().dark_mode)
                         };
                         if display_name != id_text {
                             painter.text(
