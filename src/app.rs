@@ -4310,7 +4310,7 @@ impl EntropyApp {
             "RGB",
             self.popup_state.id(PopupKey::RgbWindow),
             &mut open,
-            Vec2::new(500.0, 270.0),
+            Vec2::new(452.0, 270.0),
         )
             .show(ctx, |ui| {
                 if !self.rgb_settings.supported {
@@ -4349,11 +4349,11 @@ impl EntropyApp {
 
                 crate::ui_style::modal_content(
                     ui,
-                    crate::ui_style::ModalLayout::new(472.0).with_top_padding(4.0),
+                    crate::ui_style::ModalLayout::new(424.0).with_top_padding(4.0),
                     |ui| {
                         let label_width = 96.0_f32;
-                        let control_width = 348.0_f32;
-                        let content_width = 472.0_f32;
+                        let control_width = 300.0_f32;
+                        let content_width = 424.0_f32;
                         let row_width = label_width + control_width;
                         let row_inset = ((content_width - row_width) * 0.5).max(0.0);
 
@@ -4528,7 +4528,7 @@ impl EntropyApp {
                                 );
                                 ui.add_enabled_ui(speed_enabled, |ui| {
                                     ui.scope(|ui| {
-                                        ui.spacing_mut().slider_width = 280.0;
+                                        ui.spacing_mut().slider_width = 232.0;
                                         let slider = egui::Slider::new(
                                             &mut speed_percent,
                                             0.0..=100.0,
@@ -4576,7 +4576,7 @@ impl EntropyApp {
                                     egui::Label::new(RichText::new("Brightness").size(12.5)),
                                 );
                                 ui.scope(|ui| {
-                                    ui.spacing_mut().slider_width = 280.0;
+                                    ui.spacing_mut().slider_width = 232.0;
                                     let slider = egui::Slider::new(
                                         &mut brightness_percent,
                                         0.0..=100.0,
