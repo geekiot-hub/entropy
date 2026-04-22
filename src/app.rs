@@ -4676,7 +4676,7 @@ impl EntropyApp {
             "Encoders",
             self.popup_state.id(PopupKey::EncoderVisibilityWindow),
             &mut open,
-            Vec2::new(288.0, 252.0),
+            Vec2::new(272.0, 252.0),
         )
             .show(ctx, |ui| {
                 if self.encoder_visibility.is_empty() {
@@ -4684,9 +4684,10 @@ impl EntropyApp {
                     return;
                 }
 
-                crate::ui_style::modal_content(
-                    ui,
-                    crate::ui_style::ModalLayout::new(212.0).with_top_padding(2.0),
+                ui.add_space(2.0);
+                ui.allocate_ui_with_layout(
+                    egui::vec2(212.0, 0.0),
+                    egui::Layout::top_down(egui::Align::Min),
                     |ui| {
                         crate::ui_style::modal_hint(
                             ui,
