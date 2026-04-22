@@ -4310,7 +4310,7 @@ impl EntropyApp {
             "RGB",
             self.popup_state.id(PopupKey::RgbWindow),
             &mut open,
-            Vec2::new(290.0, 270.0),
+            Vec2::new(304.0, 270.0),
         )
             .show(ctx, |ui| {
                 if !self.rgb_settings.supported {
@@ -4349,11 +4349,11 @@ impl EntropyApp {
 
                 crate::ui_style::modal_content(
                     ui,
-                    crate::ui_style::ModalLayout::new(266.0).with_top_padding(4.0),
+                    crate::ui_style::ModalLayout::new(280.0).with_top_padding(4.0),
                     |ui| {
                         let label_width = 84.0_f32;
-                        let control_width = 182.0_f32;
-                        let content_width = 266.0_f32;
+                        let control_width = 196.0_f32;
+                        let content_width = 280.0_f32;
                         let row_width = label_width + control_width;
                         let row_inset = 0.0_f32;
 
@@ -4550,8 +4550,8 @@ impl EntropyApp {
                                     |ui| {
                                         ui.add_enabled_ui(speed_enabled, |ui| {
                                             ui.scope(|ui| {
-                                                const RGB_SLIDER_WIDTH: f32 = 174.0;
-                                                const RGB_SLIDER_SIZE: [f32; 2] = [182.0, 24.0];
+                                                const RGB_SLIDER_WIDTH: f32 = 188.0;
+                                                const RGB_SLIDER_SIZE: [f32; 2] = [196.0, 24.0];
                                                 ui.spacing_mut().slider_width = RGB_SLIDER_WIDTH;
                                                 let slider = egui::Slider::new(
                                                     &mut speed_percent,
@@ -4607,8 +4607,8 @@ impl EntropyApp {
                                     egui::Layout::left_to_right(egui::Align::Center),
                                     |ui| {
                                         ui.scope(|ui| {
-                                            const RGB_SLIDER_WIDTH: f32 = 174.0;
-                                            const RGB_SLIDER_SIZE: [f32; 2] = [182.0, 24.0];
+                                            const RGB_SLIDER_WIDTH: f32 = 188.0;
+                                            const RGB_SLIDER_SIZE: [f32; 2] = [196.0, 24.0];
                                             ui.spacing_mut().slider_width = RGB_SLIDER_WIDTH;
                                             let slider = egui::Slider::new(
                                                 &mut brightness_percent,
