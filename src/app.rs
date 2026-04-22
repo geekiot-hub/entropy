@@ -4684,9 +4684,10 @@ impl EntropyApp {
                     return;
                 }
 
-                crate::ui_style::modal_content(
-                    ui,
-                    crate::ui_style::ModalLayout::new(240.0).with_top_padding(2.0),
+                ui.add_space(2.0);
+                ui.allocate_ui_with_layout(
+                    egui::vec2(212.0, 0.0),
+                    egui::Layout::top_down(egui::Align::Min),
                     |ui| {
                         crate::ui_style::modal_hint(
                             ui,
