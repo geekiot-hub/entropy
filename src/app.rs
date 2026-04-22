@@ -5126,7 +5126,7 @@ impl EntropyApp {
                         ui.vertical(|ui| {
                             ui.set_width(content_width);
                             let combo_resp = ui.allocate_ui_with_layout(
-                                Vec2::new(content_width, 0.0),
+                                Vec2::new(field_width, 0.0),
                                 egui::Layout::left_to_right(egui::Align::Center),
                                 |ui| {
                                     egui::ComboBox::from_id_salt("key_override_entry_select")
@@ -5183,7 +5183,7 @@ impl EntropyApp {
                             ui.add_space(6.0);
                             if let Some(name) = self.key_override_names.get_mut(idx) {
                                 let resp = ui.allocate_ui_with_layout(
-                                    Vec2::new(content_width, 0.0),
+                                    Vec2::new(field_width, 0.0),
                                     egui::Layout::left_to_right(egui::Align::Center),
                                     |ui| {
                                         ui.add_sized(
@@ -5248,7 +5248,7 @@ impl EntropyApp {
                             ui.label(RichText::new("Trigger").size(12.0).strong());
                             ui.add_space(2.0);
                             ui.allocate_ui_with_layout(
-                                Vec2::new(content_width, 0.0),
+                                Vec2::new(field_width, 0.0),
                                 egui::Layout::left_to_right(egui::Align::Center),
                                 |ui| {
                                     let trigger_resp = ui.add_sized(
@@ -5307,7 +5307,7 @@ impl EntropyApp {
                             ui.label(RichText::new("Replacement").size(12.0).strong());
                             ui.add_space(2.0);
                             ui.allocate_ui_with_layout(
-                                Vec2::new(content_width, 0.0),
+                                Vec2::new(field_width, 0.0),
                                 egui::Layout::left_to_right(egui::Align::Center),
                                 |ui| {
                                     let replacement_resp = ui.add_sized(
@@ -5350,7 +5350,7 @@ impl EntropyApp {
 
                     ui.add_space(0.0);
                     ui.allocate_ui_with_layout(
-                        Vec2::new(content_width, 0.0),
+                        Vec2::new(field_width, 0.0),
                         egui::Layout::left_to_right(egui::Align::Center),
                         |ui| {
                             let clear_btn = egui::Button::new(RichText::new("Clear").size(13.0))
