@@ -4310,7 +4310,7 @@ impl EntropyApp {
             "RGB",
             self.popup_state.id(PopupKey::RgbWindow),
             &mut open,
-            Vec2::new(362.0, 270.0),
+            Vec2::new(290.0, 270.0),
         )
             .show(ctx, |ui| {
                 if !self.rgb_settings.supported {
@@ -4349,11 +4349,14 @@ impl EntropyApp {
 
                 crate::ui_style::modal_content(
                     ui,
-                    crate::ui_style::ModalLayout::new(333.0).with_top_padding(4.0),
+                    crate::ui_style::ModalLayout::new(266.0).with_top_padding(4.0),
                     |ui| {
-                        let label_width = 96.0_f32;
-                        let control_width = 202.0_f32;
-                        let content_width = 333.0_f32;
+                        let label_width = 84.0_f32;
+                        let field_width = 130.0_f32;
+                        let value_width = 40.0_f32;
+                        let control_gap = 6.0_f32;
+                        let control_width = field_width + control_gap + value_width;
+                        let content_width = 266.0_f32;
                         let row_width = label_width + control_width;
                         let row_inset = ((content_width - row_width) * 0.5).max(0.0);
 
@@ -4398,23 +4401,29 @@ impl EntropyApp {
                                         ui.add(egui::Label::new(RichText::new("Effect").size(12.5)));
                                     },
                                 );
-                                egui::ComboBox::from_id_salt("rgb_effect_combo")
-                                    .selected_text(selected_effect_name)
-                                    .width(control_width)
-                                    .show_ui(ui, |ui| {
-                                        for (id, label) in &options {
-                                            if ui
-                                                .selectable_value(
-                                                    &mut selected_effect,
-                                                    *id,
-                                                    *label,
-                                                )
-                                                .changed()
-                                            {
-                                                self.set_rgb_effect(selected_effect);
-                                            }
-                                        }
-                                    });
+                                ui.allocate_ui_with_layout(
+                                    egui::vec2(control_width, 28.0),
+                                    egui::Layout::left_to_right(egui::Align::Center),
+                                    |ui| {
+                                        egui::ComboBox::from_id_salt("rgb_effect_combo")
+                                            .selected_text(selected_effect_name)
+                                            .width(field_width)
+                                            .show_ui(ui, |ui| {
+                                                for (id, label) in &options {
+                                                    if ui
+                                                        .selectable_value(
+                                                            &mut selected_effect,
+                                                            *id,
+                                                            *label,
+                                                        )
+                                                        .changed()
+                                                    {
+                                                        self.set_rgb_effect(selected_effect);
+                                                    }
+                                                }
+                                            });
+                                    },
+                                );
                             });
 
                             ui.add_space(10.0);
@@ -4544,8 +4553,8 @@ impl EntropyApp {
                                     |ui| {
                                         ui.add_enabled_ui(speed_enabled, |ui| {
                                             ui.scope(|ui| {
-                                                const RGB_SLIDER_WIDTH: f32 = 134.0;
-                                                const RGB_SLIDER_SIZE: [f32; 2] = [142.0, 24.0];
+                                                const RGB_SLIDER_WIDTH: f32 = 122.0;
+                                                const RGB_SLIDER_SIZE: [f32; 2] = [130.0, 24.0];
                                                 ui.spacing_mut().slider_width = RGB_SLIDER_WIDTH;
                                                 let slider = egui::Slider::new(
                                                     &mut speed_percent,
@@ -4564,9 +4573,9 @@ impl EntropyApp {
                                                 }
                                             });
                                         });
-                                        ui.add_space(8.0);
+                                        ui.add_space(control_gap);
                                         ui.add_sized(
-                                            [52.0, 28.0],
+                                            [value_width, 28.0],
                                             egui::Label::new(
                                                 RichText::new(format!("{}%", speed_percent as u8))
                                                     .size(12.0)
@@ -4603,8 +4612,8 @@ impl EntropyApp {
                                     egui::Layout::left_to_right(egui::Align::Center),
                                     |ui| {
                                         ui.scope(|ui| {
-                                            const RGB_SLIDER_WIDTH: f32 = 134.0;
-                                            const RGB_SLIDER_SIZE: [f32; 2] = [142.0, 24.0];
+                                            const RGB_SLIDER_WIDTH: f32 = 122.0;
+                                            const RGB_SLIDER_SIZE: [f32; 2] = [130.0, 24.0];
                                             ui.spacing_mut().slider_width = RGB_SLIDER_WIDTH;
                                             let slider = egui::Slider::new(
                                                 &mut brightness_percent,
@@ -4623,9 +4632,9 @@ impl EntropyApp {
                                                 self.set_rgb_brightness(raw_value);
                                             }
                                         });
-                                        ui.add_space(8.0);
+                                        ui.add_space(control_gap);
                                         ui.add_sized(
-                                            [52.0, 28.0],
+                                            [value_width, 28.0],
                                             egui::Label::new(
                                                 RichText::new(format!("{}%", brightness_percent as u8))
                                                     .size(12.0)
@@ -4641,16 +4650,19 @@ impl EntropyApp {
                                 );
                             });
 
-                        ui.horizontal(|ui| {
-                            let save_size = crate::ui_style::modal_action_button_size();
-                            ui.add_space(((content_width - save_size.x) * 0.5).max(0.0));
-                            let btn = egui::Button::new(RichText::new("Save").size(13.0))
-                                .min_size(save_size);
-                            if ui.add(btn).clicked() {
-                                self.save_rgb_settings();
-                                close_after_save = true;
-                            }
-                        });
+                        let save_size = crate::ui_style::modal_action_button_size();
+                        ui.allocate_ui_with_layout(
+                            egui::vec2(content_width, save_size.y),
+                            egui::Layout::top_down(egui::Align::Center),
+                            |ui| {
+                                let btn = egui::Button::new(RichText::new("Save").size(13.0))
+                                    .min_size(save_size);
+                                if ui.add(btn).clicked() {
+                                    self.save_rgb_settings();
+                                    close_after_save = true;
+                                }
+                            },
+                        );
                     },
                 );
             });
