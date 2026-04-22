@@ -4698,13 +4698,15 @@ impl EntropyApp {
                         ui.scope(|ui| {
                             ui.spacing_mut().item_spacing.y = 8.0;
                             for (idx, visible) in self.encoder_visibility.iter_mut().enumerate() {
-                                let resp = ui.checkbox(visible, format!("Show Encoder {}", idx + 1));
-                                if resp.hovered() {
-                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                }
-                                if resp.changed() {
-                                    changed = true;
-                                }
+                                ui.horizontal_centered(|ui| {
+                                    let resp = ui.checkbox(visible, format!("Show Encoder {}", idx + 1));
+                                    if resp.hovered() {
+                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                    }
+                                    if resp.changed() {
+                                        changed = true;
+                                    }
+                                });
                             }
                         });
 
