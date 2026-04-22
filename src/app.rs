@@ -4353,9 +4353,13 @@ impl EntropyApp {
                     |ui| {
                         let label_width = 96.0_f32;
                         let control_width = 252.0_f32;
+                        let content_width = 416.0_f32;
+                        let row_width = label_width + control_width;
+                        let row_inset = ((content_width - row_width) * 0.5).max(0.0);
 
                             ui.horizontal(|ui| {
-                                ui.set_width(label_width + control_width);
+                                ui.add_space(row_inset);
+                                ui.set_width(row_width);
                                 ui.add_sized(
                                     [label_width, 24.0],
                                     egui::Label::new(RichText::new("Enable").size(12.5)),
@@ -4382,7 +4386,8 @@ impl EntropyApp {
                             ui.add_space(10.0);
 
                             ui.horizontal(|ui| {
-                                ui.set_width(label_width + control_width);
+                                ui.add_space(row_inset);
+                                ui.set_width(row_width);
                                 ui.add_sized(
                                     [label_width, 24.0],
                                     egui::Label::new(RichText::new("Effect").size(12.5)),
@@ -4410,7 +4415,8 @@ impl EntropyApp {
 
                             let color_enabled = rgb_effect_supports_color(self.rgb_settings.kind, selected_effect);
                             ui.horizontal(|ui| {
-                                ui.set_width(label_width + control_width);
+                                ui.add_space(row_inset);
+                                ui.set_width(row_width);
                                 ui.add_sized(
                                     [label_width, 24.0],
                                     egui::Label::new(
@@ -4506,7 +4512,8 @@ impl EntropyApp {
 
                             let speed_enabled = rgb_effect_supports_speed(self.rgb_settings.kind, selected_effect);
                             ui.horizontal(|ui| {
-                                ui.set_width(label_width + control_width);
+                                ui.add_space(row_inset);
+                                ui.set_width(row_width);
                                 ui.add_sized(
                                     [label_width, 24.0],
                                     egui::Label::new(
@@ -4562,7 +4569,8 @@ impl EntropyApp {
                             ui.add_space(10.0);
 
                             ui.horizontal(|ui| {
-                                ui.set_width(label_width + control_width);
+                                ui.add_space(row_inset);
+                                ui.set_width(row_width);
                                 ui.add_sized(
                                     [label_width, 24.0],
                                     egui::Label::new(RichText::new("Brightness").size(12.5)),
@@ -4602,9 +4610,11 @@ impl EntropyApp {
                                 );
                             });
 
-                        crate::ui_style::modal_action_row(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            let save_size = crate::ui_style::modal_action_button_size();
+                            ui.add_space(((content_width - save_size.x) * 0.5).max(0.0));
                             let btn = egui::Button::new(RichText::new("Save").size(13.0))
-                                .min_size(crate::ui_style::modal_action_button_size());
+                                .min_size(save_size);
                             if ui.add(btn).clicked() {
                                 self.save_rgb_settings();
                                 close_after_save = true;
