@@ -4550,8 +4550,10 @@ impl EntropyApp {
                                     |ui| {
                                         ui.add_enabled_ui(speed_enabled, |ui| {
                                             ui.scope(|ui| {
-                                                const RGB_SLIDER_WIDTH: f32 = 204.0;
-                                                const RGB_SLIDER_SIZE: [f32; 2] = [212.0, 24.0];
+                                                const RGB_SLIDER_LEFT_INSET: f32 = 14.0;
+                                                const RGB_SLIDER_WIDTH: f32 = 190.0;
+                                                const RGB_SLIDER_SIZE: [f32; 2] = [198.0, 24.0];
+                                                ui.add_space(RGB_SLIDER_LEFT_INSET);
                                                 ui.spacing_mut().slider_width = RGB_SLIDER_WIDTH;
                                                 let slider = egui::Slider::new(
                                                     &mut speed_percent,
