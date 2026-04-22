@@ -4540,7 +4540,9 @@ impl EntropyApp {
                                 );
                                 ui.add_enabled_ui(speed_enabled, |ui| {
                                     ui.scope(|ui| {
-                                        ui.spacing_mut().slider_width = 184.0;
+                                        const RGB_SLIDER_WIDTH: f32 = 184.0;
+                                        const RGB_SLIDER_SIZE: [f32; 2] = [192.0, 24.0];
+                                        ui.spacing_mut().slider_width = RGB_SLIDER_WIDTH;
                                         let slider = egui::Slider::new(
                                             &mut speed_percent,
                                             0.0..=100.0,
@@ -4548,7 +4550,7 @@ impl EntropyApp {
                                         .step_by(1.0)
                                         .show_value(false)
                                         .trailing_fill(true);
-                                        let resp = ui.add_sized([192.0, 24.0], slider);
+                                        let resp = ui.add_sized(RGB_SLIDER_SIZE, slider);
                                         if resp.changed() {
                                             let raw_value = ((speed_percent / 100.0) * speed_max)
                                                 .round()
@@ -4591,7 +4593,9 @@ impl EntropyApp {
                                     },
                                 );
                                 ui.scope(|ui| {
-                                    ui.spacing_mut().slider_width = 184.0;
+                                    const RGB_SLIDER_WIDTH: f32 = 184.0;
+                                    const RGB_SLIDER_SIZE: [f32; 2] = [192.0, 24.0];
+                                    ui.spacing_mut().slider_width = RGB_SLIDER_WIDTH;
                                     let slider = egui::Slider::new(
                                         &mut brightness_percent,
                                         0.0..=100.0,
@@ -4599,7 +4603,7 @@ impl EntropyApp {
                                     .step_by(1.0)
                                     .show_value(false)
                                     .trailing_fill(true);
-                                    let resp = ui.add_sized([192.0, 24.0], slider);
+                                    let resp = ui.add_sized(RGB_SLIDER_SIZE, slider);
                                     if resp.changed() {
                                         let raw_value =
                                             ((brightness_percent / 100.0) * brightness_max as f32)
