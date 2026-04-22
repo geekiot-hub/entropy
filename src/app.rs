@@ -4352,10 +4352,7 @@ impl EntropyApp {
                     crate::ui_style::ModalLayout::new(266.0).with_top_padding(4.0),
                     |ui| {
                         let label_width = 84.0_f32;
-                        let field_width = 130.0_f32;
-                        let value_width = 40.0_f32;
-                        let control_gap = 6.0_f32;
-                        let control_width = field_width + control_gap + value_width;
+                        let control_width = 176.0_f32;
                         let content_width = 266.0_f32;
                         let row_width = label_width + control_width;
                         let row_inset = ((content_width - row_width) * 0.5).max(0.0);
@@ -4407,7 +4404,7 @@ impl EntropyApp {
                                     |ui| {
                                         egui::ComboBox::from_id_salt("rgb_effect_combo")
                                             .selected_text(selected_effect_name)
-                                            .width(field_width)
+                                            .width(control_width)
                                             .show_ui(ui, |ui| {
                                                 for (id, label) in &options {
                                                     if ui
@@ -4553,8 +4550,8 @@ impl EntropyApp {
                                     |ui| {
                                         ui.add_enabled_ui(speed_enabled, |ui| {
                                             ui.scope(|ui| {
-                                                const RGB_SLIDER_WIDTH: f32 = 122.0;
-                                                const RGB_SLIDER_SIZE: [f32; 2] = [130.0, 24.0];
+                                                const RGB_SLIDER_WIDTH: f32 = 168.0;
+                                                const RGB_SLIDER_SIZE: [f32; 2] = [176.0, 24.0];
                                                 ui.spacing_mut().slider_width = RGB_SLIDER_WIDTH;
                                                 let slider = egui::Slider::new(
                                                     &mut speed_percent,
@@ -4571,26 +4568,24 @@ impl EntropyApp {
                                                         as u8;
                                                     self.set_rgb_speed(raw_value);
                                                 }
+                                                let value_color = if speed_enabled {
+                                                    if dark {
+                                                        Color32::from_gray(230)
+                                                    } else {
+                                                        Color32::from_gray(55)
+                                                    }
+                                                } else {
+                                                    app_muted_text(dark)
+                                                };
+                                                ui.painter().text(
+                                                    resp.rect.right_center() - egui::vec2(8.0, 0.0),
+                                                    egui::Align2::RIGHT_CENTER,
+                                                    format!("{}%", speed_percent as u8),
+                                                    egui::FontId::proportional(12.0),
+                                                    value_color,
+                                                );
                                             });
                                         });
-                                        ui.add_space(control_gap);
-                                        ui.add_sized(
-                                            [value_width, 28.0],
-                                            egui::Label::new(
-                                                RichText::new(format!("{}%", speed_percent as u8))
-                                                    .size(12.0)
-                                                    .color(if speed_enabled {
-                                                        if dark {
-                                                            Color32::from_gray(230)
-                                                        } else {
-                                                            Color32::from_gray(55)
-                                                        }
-                                                    } else {
-                                                        app_muted_text(dark)
-                                                    }),
-                                            )
-                                            .sense(egui::Sense::hover()),
-                                        );
                                     },
                                 );
                             });
@@ -4612,8 +4607,8 @@ impl EntropyApp {
                                     egui::Layout::left_to_right(egui::Align::Center),
                                     |ui| {
                                         ui.scope(|ui| {
-                                            const RGB_SLIDER_WIDTH: f32 = 122.0;
-                                            const RGB_SLIDER_SIZE: [f32; 2] = [130.0, 24.0];
+                                            const RGB_SLIDER_WIDTH: f32 = 168.0;
+                                            const RGB_SLIDER_SIZE: [f32; 2] = [176.0, 24.0];
                                             ui.spacing_mut().slider_width = RGB_SLIDER_WIDTH;
                                             let slider = egui::Slider::new(
                                                 &mut brightness_percent,
@@ -4631,21 +4626,19 @@ impl EntropyApp {
                                                         as u8;
                                                 self.set_rgb_brightness(raw_value);
                                             }
+                                            let value_color = if dark {
+                                                Color32::from_gray(230)
+                                            } else {
+                                                Color32::from_gray(55)
+                                            };
+                                            ui.painter().text(
+                                                resp.rect.right_center() - egui::vec2(8.0, 0.0),
+                                                egui::Align2::RIGHT_CENTER,
+                                                format!("{}%", brightness_percent as u8),
+                                                egui::FontId::proportional(12.0),
+                                                value_color,
+                                            );
                                         });
-                                        ui.add_space(control_gap);
-                                        ui.add_sized(
-                                            [value_width, 28.0],
-                                            egui::Label::new(
-                                                RichText::new(format!("{}%", brightness_percent as u8))
-                                                    .size(12.0)
-                                                    .color(if dark {
-                                                        Color32::from_gray(230)
-                                                    } else {
-                                                        Color32::from_gray(55)
-                                                    }),
-                                            )
-                                            .sense(egui::Sense::hover()),
-                                        );
                                     },
                                 );
                             });
