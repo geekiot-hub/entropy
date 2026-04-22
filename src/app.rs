@@ -5072,7 +5072,7 @@ impl EntropyApp {
             "Key Overrides",
             self.popup_state.id(PopupKey::KeyOverrideWindow),
             &mut open,
-            Vec2::new(336.0, 468.0),
+            Vec2::new(336.0, 560.0),
         )
             .show(ctx, |ui| {
                 if self.key_override_entries.is_empty() {
@@ -5246,7 +5246,7 @@ impl EntropyApp {
                             ui.add_space(4.0);
                             egui::ScrollArea::vertical()
                                 .id_salt(format!("ko_scroll_{}", idx))
-                                .max_height(260.0)
+                                .max_height(352.0)
                                 .auto_shrink([false, false])
                                 .show(ui, |ui| {
                                     ui.horizontal(|ui| {
