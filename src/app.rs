@@ -5240,7 +5240,10 @@ impl EntropyApp {
                             );
 
                             ui.add_space(4.0);
-                            ui.label(RichText::new("Trigger").size(12.0).strong());
+                            ui.horizontal(|ui| {
+                                ui.add_space(field_inset);
+                                ui.label(RichText::new("Trigger").size(12.0).strong());
+                            });
                             ui.add_space(2.0);
                             ui.horizontal(|ui| {
                                 ui.add_space(field_inset);
@@ -5257,46 +5260,58 @@ impl EntropyApp {
                             });
 
                             ui.add_space(0.0);
-                            let suppressed_resp = egui::CollapsingHeader::new(
-                                RichText::new("Suppressed mods").size(11.0).color(app_muted_text(dark))
-                            )
-                            .default_open(false)
-                            .id_salt(format!("ko_suppressed_mods_{}", idx))
-                            .show(ui, |ui| {
-                                Self::draw_key_override_mod_mask(ui, &mut edited.suppressed_mods, "ko_suppressed_mods");
-                            });
+                            let suppressed_resp = ui.horizontal(|ui| {
+                                ui.add_space(field_inset);
+                                egui::CollapsingHeader::new(
+                                    RichText::new("Suppressed mods").size(11.0).color(app_muted_text(dark))
+                                )
+                                .default_open(false)
+                                .id_salt(format!("ko_suppressed_mods_{}", idx))
+                                .show(ui, |ui| {
+                                    Self::draw_key_override_mod_mask(ui, &mut edited.suppressed_mods, "ko_suppressed_mods");
+                                })
+                            }).inner;
                             if suppressed_resp.header_response.hovered() {
                                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                             }
 
                             ui.add_space(4.0);
-                            let trigger_mods_resp = egui::CollapsingHeader::new(
-                                RichText::new("Trigger mods").size(11.0).color(app_muted_text(dark))
-                            )
-                            .default_open(false)
-                            .id_salt(format!("ko_trigger_mods_{}", idx))
-                            .show(ui, |ui| {
-                                Self::draw_key_override_mod_mask(ui, &mut edited.trigger_mods, "ko_trigger_mods");
-                            });
+                            let trigger_mods_resp = ui.horizontal(|ui| {
+                                ui.add_space(field_inset);
+                                egui::CollapsingHeader::new(
+                                    RichText::new("Trigger mods").size(11.0).color(app_muted_text(dark))
+                                )
+                                .default_open(false)
+                                .id_salt(format!("ko_trigger_mods_{}", idx))
+                                .show(ui, |ui| {
+                                    Self::draw_key_override_mod_mask(ui, &mut edited.trigger_mods, "ko_trigger_mods");
+                                })
+                            }).inner;
                             if trigger_mods_resp.header_response.hovered() {
                                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                             }
 
                             ui.add_space(4.0);
-                            let negative_mods_resp = egui::CollapsingHeader::new(
-                                RichText::new("Negative mods").size(11.0).color(app_muted_text(dark))
-                            )
-                            .default_open(false)
-                            .id_salt(format!("ko_negative_mods_{}", idx))
-                            .show(ui, |ui| {
-                                Self::draw_key_override_mod_mask(ui, &mut edited.negative_mod_mask, "ko_negative_mods");
-                            });
+                            let negative_mods_resp = ui.horizontal(|ui| {
+                                ui.add_space(field_inset);
+                                egui::CollapsingHeader::new(
+                                    RichText::new("Negative mods").size(11.0).color(app_muted_text(dark))
+                                )
+                                .default_open(false)
+                                .id_salt(format!("ko_negative_mods_{}", idx))
+                                .show(ui, |ui| {
+                                    Self::draw_key_override_mod_mask(ui, &mut edited.negative_mod_mask, "ko_negative_mods");
+                                })
+                            }).inner;
                             if negative_mods_resp.header_response.hovered() {
                                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                             }
 
                             ui.add_space(4.0);
-                            ui.label(RichText::new("Replacement").size(12.0).strong());
+                            ui.horizontal(|ui| {
+                                ui.add_space(field_inset);
+                                ui.label(RichText::new("Replacement").size(12.0).strong());
+                            });
                             ui.add_space(2.0);
                             ui.horizontal(|ui| {
                                 ui.add_space(field_inset);
@@ -5313,27 +5328,35 @@ impl EntropyApp {
                             });
 
                             ui.add_space(0.0);
-                            let layers_resp = egui::CollapsingHeader::new(
-                                RichText::new("Enable on layers").size(11.0).color(app_muted_text(dark))
-                            )
-                            .default_open(false)
-                            .id_salt(format!("ko_layers_{}", idx))
-                            .show(ui, |ui| {
-                                Self::draw_key_override_layers(ui, &mut edited.layers);
-                            });
+                            let layers_resp = ui.horizontal(|ui| {
+                                ui.add_space(field_inset);
+                                egui::CollapsingHeader::new(
+                                    RichText::new("Enable on layers").size(11.0).color(app_muted_text(dark))
+                                )
+                                .default_open(false)
+                                .id_salt(format!("ko_layers_{}", idx))
+                                .show(ui, |ui| {
+                                    Self::draw_key_override_layers(ui, &mut edited.layers);
+                                })
+                            }).inner;
                             if layers_resp.header_response.hovered() {
                                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                             }
 
                             ui.add_space(2.0);
-                            ui.label(RichText::new("How this override behaves").size(11.0).color(app_muted_text(dark)));
-                            ui.add_space(2.0);
-                            ui.checkbox(&mut edited.options.activation_trigger_down, "Activate as soon as the trigger key is pressed");
-                            ui.checkbox(&mut edited.options.activation_required_mod_down, "Activate as soon as a required modifier is pressed");
-                            ui.checkbox(&mut edited.options.activation_negative_mod_up, "Activate when a blocked modifier is released");
-                            ui.checkbox(&mut edited.options.one_mod, "Any one trigger modifier is enough");
-                            ui.checkbox(&mut edited.options.no_reregister_trigger, "Do not send the original trigger key after the override ends");
-                            ui.checkbox(&mut edited.options.no_unregister_on_other_key_down, "Keep the override active even if another key is pressed");
+                            ui.horizontal(|ui| {
+                                ui.add_space(field_inset);
+                                ui.vertical(|ui| {
+                                    ui.label(RichText::new("How this override behaves").size(11.0).color(app_muted_text(dark)));
+                                    ui.add_space(2.0);
+                                    ui.checkbox(&mut edited.options.activation_trigger_down, "Activate as soon as the trigger key is pressed");
+                                    ui.checkbox(&mut edited.options.activation_required_mod_down, "Activate as soon as a required modifier is pressed");
+                                    ui.checkbox(&mut edited.options.activation_negative_mod_up, "Activate when a blocked modifier is released");
+                                    ui.checkbox(&mut edited.options.one_mod, "Any one trigger modifier is enough");
+                                    ui.checkbox(&mut edited.options.no_reregister_trigger, "Do not send the original trigger key after the override ends");
+                                    ui.checkbox(&mut edited.options.no_unregister_on_other_key_down, "Keep the override active even if another key is pressed");
+                                });
+                            });
                         });
                     });
 
