@@ -4550,10 +4550,9 @@ impl EntropyApp {
                                     |ui| {
                                         ui.add_enabled_ui(speed_enabled, |ui| {
                                             ui.scope(|ui| {
-                                                const RGB_SLIDER_LEFT_INSET: f32 = 30.0;
-                                                const RGB_SLIDER_WIDTH: f32 = 174.0;
-                                                const RGB_SLIDER_SIZE: [f32; 2] = [182.0, 24.0];
-                                                ui.add_space(RGB_SLIDER_LEFT_INSET);
+                                                const RGB_VALUE_WIDTH: f32 = 44.0;
+                                                const RGB_SLIDER_WIDTH: f32 = 160.0;
+                                                const RGB_SLIDER_SIZE: [f32; 2] = [168.0, 24.0];
                                                 ui.spacing_mut().slider_width = RGB_SLIDER_WIDTH;
                                                 let slider = egui::Slider::new(
                                                     &mut speed_percent,
@@ -4580,7 +4579,7 @@ impl EntropyApp {
                                                     app_muted_text(dark)
                                                 };
                                                 ui.painter().text(
-                                                    resp.rect.right_center() - egui::vec2(8.0, 0.0),
+                                                    egui::pos2(resp.rect.right() + RGB_VALUE_WIDTH - 8.0, resp.rect.center().y),
                                                     egui::Align2::RIGHT_CENTER,
                                                     format!("{}%", speed_percent as u8),
                                                     egui::FontId::proportional(12.0),
@@ -4609,8 +4608,9 @@ impl EntropyApp {
                                     egui::Layout::left_to_right(egui::Align::Center),
                                     |ui| {
                                         ui.scope(|ui| {
-                                            const RGB_SLIDER_WIDTH: f32 = 204.0;
-                                            const RGB_SLIDER_SIZE: [f32; 2] = [212.0, 24.0];
+                                            const RGB_VALUE_WIDTH: f32 = 44.0;
+                                            const RGB_SLIDER_WIDTH: f32 = 160.0;
+                                            const RGB_SLIDER_SIZE: [f32; 2] = [168.0, 24.0];
                                             ui.spacing_mut().slider_width = RGB_SLIDER_WIDTH;
                                             let slider = egui::Slider::new(
                                                 &mut brightness_percent,
@@ -4634,7 +4634,7 @@ impl EntropyApp {
                                                 Color32::from_gray(55)
                                             };
                                             ui.painter().text(
-                                                resp.rect.right_center() - egui::vec2(8.0, 0.0),
+                                                egui::pos2(resp.rect.right() + RGB_VALUE_WIDTH - 8.0, resp.rect.center().y),
                                                 egui::Align2::RIGHT_CENTER,
                                                 format!("{}%", brightness_percent as u8),
                                                 egui::FontId::proportional(12.0),
