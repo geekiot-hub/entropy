@@ -4684,40 +4684,37 @@ impl EntropyApp {
                     return;
                 }
 
-                ui.add_space(2.0);
-                ui.horizontal_centered(|ui| {
-                    ui.allocate_ui_with_layout(
-                        egui::vec2(212.0, 0.0),
-                        egui::Layout::top_down(egui::Align::Min),
-                        |ui| {
-                            crate::ui_style::modal_hint(
-                                ui,
-                                "Choose which encoders are visible in the main layout",
-                            );
-                            ui.add_space(14.0);
+                crate::ui_style::modal_content(
+                    ui,
+                    crate::ui_style::ModalLayout::new(240.0).with_top_padding(2.0),
+                    |ui| {
+                        crate::ui_style::modal_hint(
+                            ui,
+                            "Choose which encoders are visible in the main layout",
+                        );
+                        ui.add_space(14.0);
 
-                            let mut changed = false;
-                            ui.scope(|ui| {
-                                ui.spacing_mut().item_spacing.y = 8.0;
-                                for (idx, visible) in self.encoder_visibility.iter_mut().enumerate() {
-                                    ui.horizontal_centered(|ui| {
-                                        let resp = ui.checkbox(visible, format!("Show Encoder {}", idx + 1));
-                                        if resp.hovered() {
-                                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                        }
-                                        if resp.changed() {
-                                            changed = true;
-                                        }
-                                    });
-                                }
-                            });
-
-                            if changed && !self.current_device_name.is_empty() {
-                                save_encoder_visibility(&self.encoder_visibility, &self.current_device_name);
+                        let mut changed = false;
+                        ui.scope(|ui| {
+                            ui.spacing_mut().item_spacing.y = 8.0;
+                            for (idx, visible) in self.encoder_visibility.iter_mut().enumerate() {
+                                ui.horizontal_centered(|ui| {
+                                    let resp = ui.checkbox(visible, format!("Show Encoder {}", idx + 1));
+                                    if resp.hovered() {
+                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                    }
+                                    if resp.changed() {
+                                        changed = true;
+                                    }
+                                });
                             }
-                        },
-                    );
-                });
+                        });
+
+                        if changed && !self.current_device_name.is_empty() {
+                            save_encoder_visibility(&self.encoder_visibility, &self.current_device_name);
+                        }
+                    },
+                );
             });
         self.focus_modal_window(&shown);
         self.encoder_visibility_window_open = open;
