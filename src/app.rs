@@ -4094,13 +4094,16 @@ impl EntropyApp {
 
     fn draw_key_override_layers(ui: &mut egui::Ui, layers: &mut u16) -> bool {
         let mut changed = false;
+        const KO_LAYER_COLUMNS: usize = 4;
+        const KO_LAYER_ROWS: usize = 4;
+
         egui::Grid::new(ui.id().with("ko_layers_grid"))
-            .num_columns(6)
-            .spacing([10.0, 6.0])
+            .num_columns(KO_LAYER_COLUMNS)
+            .spacing([8.0, 6.0])
             .show(ui, |ui| {
-                for row in 0..3 {
-                    for col in 0..6 {
-                        let idx = row * 6 + col;
+                for row in 0..KO_LAYER_ROWS {
+                    for col in 0..KO_LAYER_COLUMNS {
+                        let idx = row * KO_LAYER_COLUMNS + col;
                         if idx >= 16 {
                             ui.label("");
                             continue;
@@ -4118,14 +4121,15 @@ impl EntropyApp {
                     ui.end_row();
                 }
             });
+
         ui.horizontal(|ui| {
-            if ui.button("Enable all").clicked() {
+            if ui.small_button("Enable all").clicked() {
                 if *layers != u16::MAX {
                     *layers = u16::MAX;
                     changed = true;
                 }
             }
-            if ui.button("Disable all").clicked() {
+            if ui.small_button("Disable all").clicked() {
                 if *layers != 0 {
                     *layers = 0;
                     changed = true;
