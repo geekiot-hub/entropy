@@ -4360,9 +4360,12 @@ impl EntropyApp {
                             ui.horizontal(|ui| {
                                 ui.add_space(row_inset);
                                 ui.set_width(row_width);
-                                ui.add_sized(
-                                    [label_width, 24.0],
-                                    egui::Label::new(RichText::new("Enable").size(12.5)),
+                                ui.allocate_ui_with_layout(
+                                    egui::vec2(label_width, 28.0),
+                                    egui::Layout::left_to_right(egui::Align::Center),
+                                    |ui| {
+                                        ui.add(egui::Label::new(RichText::new("Enable").size(12.5)));
+                                    },
                                 );
                                 let enable_resp = ui.checkbox(&mut enabled, "");
                                 if enable_resp.hovered() {
@@ -4388,9 +4391,12 @@ impl EntropyApp {
                             ui.horizontal(|ui| {
                                 ui.add_space(row_inset);
                                 ui.set_width(row_width);
-                                ui.add_sized(
-                                    [label_width, 24.0],
-                                    egui::Label::new(RichText::new("Effect").size(12.5)),
+                                ui.allocate_ui_with_layout(
+                                    egui::vec2(label_width, 28.0),
+                                    egui::Layout::left_to_right(egui::Align::Center),
+                                    |ui| {
+                                        ui.add(egui::Label::new(RichText::new("Effect").size(12.5)));
+                                    },
                                 );
                                 egui::ComboBox::from_id_salt("rgb_effect_combo")
                                     .selected_text(selected_effect_name)
@@ -4417,17 +4423,20 @@ impl EntropyApp {
                             ui.horizontal(|ui| {
                                 ui.add_space(row_inset);
                                 ui.set_width(row_width);
-                                ui.add_sized(
-                                    [label_width, 24.0],
-                                    egui::Label::new(
-                                        RichText::new("Color")
-                                            .size(12.5)
-                                            .color(if color_enabled {
-                                                ui.visuals().text_color()
-                                            } else {
-                                                app_muted_text(dark)
-                                            }),
-                                    ),
+                                ui.allocate_ui_with_layout(
+                                    egui::vec2(label_width, 44.0),
+                                    egui::Layout::left_to_right(egui::Align::Center),
+                                    |ui| {
+                                        ui.add(egui::Label::new(
+                                            RichText::new("Color")
+                                                .size(12.5)
+                                                .color(if color_enabled {
+                                                    ui.visuals().text_color()
+                                                } else {
+                                                    app_muted_text(dark)
+                                                }),
+                                        ));
+                                    },
                                 );
 
                                 let popup_id = ui.make_persistent_id("rgb_color_popup");
@@ -4514,17 +4523,20 @@ impl EntropyApp {
                             ui.horizontal(|ui| {
                                 ui.add_space(row_inset);
                                 ui.set_width(row_width);
-                                ui.add_sized(
-                                    [label_width, 24.0],
-                                    egui::Label::new(
-                                        RichText::new("Speed")
-                                            .size(12.5)
-                                            .color(if speed_enabled {
-                                                ui.visuals().text_color()
-                                            } else {
-                                                app_muted_text(dark)
-                                            }),
-                                    ),
+                                ui.allocate_ui_with_layout(
+                                    egui::vec2(label_width, 28.0),
+                                    egui::Layout::left_to_right(egui::Align::Center),
+                                    |ui| {
+                                        ui.add(egui::Label::new(
+                                            RichText::new("Speed")
+                                                .size(12.5)
+                                                .color(if speed_enabled {
+                                                    ui.visuals().text_color()
+                                                } else {
+                                                    app_muted_text(dark)
+                                                }),
+                                        ));
+                                    },
                                 );
                                 ui.add_enabled_ui(speed_enabled, |ui| {
                                     ui.scope(|ui| {
@@ -4571,9 +4583,12 @@ impl EntropyApp {
                             ui.horizontal(|ui| {
                                 ui.add_space(row_inset);
                                 ui.set_width(row_width);
-                                ui.add_sized(
-                                    [label_width, 24.0],
-                                    egui::Label::new(RichText::new("Brightness").size(12.5)),
+                                ui.allocate_ui_with_layout(
+                                    egui::vec2(label_width, 28.0),
+                                    egui::Layout::left_to_right(egui::Align::Center),
+                                    |ui| {
+                                        ui.add(egui::Label::new(RichText::new("Brightness").size(12.5)));
+                                    },
                                 );
                                 ui.scope(|ui| {
                                     ui.spacing_mut().slider_width = 184.0;
