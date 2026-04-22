@@ -4349,7 +4349,7 @@ impl EntropyApp {
 
                 crate::ui_style::modal_content(
                     ui,
-                    crate::ui_style::ModalLayout::new(480.0).with_top_padding(4.0),
+                    crate::ui_style::ModalLayout::new(416.0).with_top_padding(4.0),
                     |ui| {
                         let label_width = 96.0_f32;
                         let control_width = 252.0_f32;
