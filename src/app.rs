@@ -4561,20 +4561,6 @@ impl EntropyApp {
                                                 .show_value(false)
                                                 .trailing_fill(true);
                                                 let resp = ui.add_sized(RGB_SLIDER_SIZE, slider);
-                                                if !speed_enabled {
-                                                    let track_color = if dark {
-                                                        Color32::from_gray(88)
-                                                    } else {
-                                                        Color32::from_gray(225)
-                                                    };
-                                                    ui.painter().line_segment(
-                                                        [
-                                                            egui::pos2(resp.rect.left() + 26.0, resp.rect.center().y),
-                                                            egui::pos2(resp.rect.right() - 44.0, resp.rect.center().y),
-                                                        ],
-                                                        Stroke::new(6.0, track_color),
-                                                    );
-                                                }
                                                 if resp.changed() {
                                                     let raw_value = ((speed_percent / 100.0) * speed_max)
                                                         .round()
