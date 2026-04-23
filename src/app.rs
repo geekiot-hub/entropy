@@ -1110,6 +1110,7 @@ enum ComboPickField {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum SettingsTab {
     MatrixTester,
+    AutoShift,
 }
 
 pub struct EntropyApp {
@@ -2355,7 +2356,9 @@ impl EntropyApp {
         content_top: f32,
     ) {
         #[cfg(not(target_arch = "wasm32"))]
-        self.poll_matrix_tester(ctx, layout);
+        if self.settings_tab == SettingsTab::MatrixTester {
+            self.poll_matrix_tester(ctx, layout);
+        }
 
         if let Some(id) = ctx.memory(|m| m.focused()) {
             ctx.memory_mut(|m| m.surrender_focus(id));
@@ -2367,6 +2370,23 @@ impl EntropyApp {
             egui::pos2(ui.min_rect().right() - 20.0, ui.max_rect().bottom() - 76.0),
         );
 
+        match self.settings_tab {
+            SettingsTab::MatrixTester => {
+                self.draw_matrix_tester_settings(ui, layout, content_rect, dark);
+            }
+            SettingsTab::AutoShift => {
+                self.draw_auto_shift_settings_page(ui, content_rect, dark);
+            }
+        }
+    }
+
+    fn draw_matrix_tester_settings(
+        &mut self,
+        ui: &mut egui::Ui,
+        layout: &KeyboardLayout,
+        content_rect: egui::Rect,
+        dark: bool,
+    ) {
         let top_line_y = content_rect.top() + 18.0;
         let supported = self.firmware == FirmwareProtocol::Vial;
         let hid_ready = {
@@ -2554,6 +2574,147 @@ impl EntropyApp {
                 egui::StrokeKind::Inside,
             );
         }
+    }
+
+    fn draw_auto_shift_settings_page(
+        &mut self,
+        ui: &mut egui::Ui,
+        content_rect: egui::Rect,
+        dark: bool,
+    ) {
+        let hid_ready = {
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                self.hid_device.is_some()
+            }
+            #[cfg(target_arch = "wasm32")]
+            {
+                false
+            }
+        };
+
+        ui.allocate_ui_at_rect(content_rect, |ui| {
+            ui.vertical_centered(|ui| {
+                ui.add_space(18.0);
+                ui.label(RichText::new("Auto Shift").size(18.0).strong());
+                ui.add_space(6.0);
+                ui.label(
+                    RichText::new("Adjust hold threshold and typing behavior")
+                        .size(13.0)
+                        .color(app_muted_text(dark)),
+                );
+                ui.add_space(24.0);
+
+                if self.auto_shift_timeout.is_none() {
+                    crate::ui_style::modal_empty_state(
+                        ui,
+                        "Auto Shift is not enabled in this firmware",
+                        Some(
+                            "Enable AUTO_SHIFT_ENABLE in the keyboard rules.mk to use this page",
+                        ),
+                    );
+                    return;
+                }
+
+                if !hid_ready {
+                    crate::ui_style::modal_empty_state(
+                        ui,
+                        "Connect a Vial keyboard to edit Auto Shift settings",
+                        None,
+                    );
+                    return;
+                }
+
+                if self.is_vial_locked() {
+                    crate::ui_style::modal_centered_text_block(ui, 360.0, |ui| {
+                        ui.vertical_centered(|ui| {
+                            ui.label(RichText::new("Keyboard is locked").size(14.0));
+                            ui.add_space(6.0);
+                            ui.label(
+                                RichText::new(
+                                    "Unlock it from the Device menu to edit Auto Shift settings",
+                                )
+                                .size(12.5)
+                                .color(app_muted_text(dark)),
+                            );
+                        });
+                    });
+                    ui.add_space(18.0);
+                }
+
+                self.draw_auto_shift_editor_content(ui, dark, 360.0);
+            });
+        });
+    }
+
+    fn draw_auto_shift_editor_content(
+        &mut self,
+        ui: &mut egui::Ui,
+        dark: bool,
+        content_width: f32,
+    ) {
+        let mut timeout_value = self.auto_shift_timeout.unwrap_or(175);
+        let mut timeout_text = timeout_value.to_string();
+        let row_height = 28.0_f32;
+
+        crate::ui_style::modal_content(
+            ui,
+            crate::ui_style::ModalLayout::new(content_width).with_top_padding(8.0),
+            |ui| {
+                egui::Grid::new(ui.id().with("auto_shift_grid"))
+                    .num_columns(2)
+                    .spacing([18.0, 10.0])
+                    .show(ui, |ui| {
+                        let checkbox_row =
+                            |ui: &mut egui::Ui, label: &str, value: &mut bool| -> bool {
+                                ui.label(RichText::new(label).size(12.5));
+                                let resp = ui.checkbox(value, "");
+                                if resp.hovered() {
+                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                }
+                                ui.end_row();
+                                resp.changed()
+                            };
+
+                        let mut options_changed = false;
+                        options_changed |= checkbox_row(ui, "Enable", &mut self.auto_shift_options.enabled);
+                        options_changed |= checkbox_row(ui, "Enable for modifiers", &mut self.auto_shift_options.enable_for_modifiers);
+                        options_changed |= checkbox_row(ui, "Do not Auto Shift special keys", &mut self.auto_shift_options.no_special);
+                        options_changed |= checkbox_row(ui, "Do not Auto Shift numeric keys", &mut self.auto_shift_options.no_numeric);
+                        options_changed |= checkbox_row(ui, "Do not Auto Shift alpha characters", &mut self.auto_shift_options.no_alpha);
+                        options_changed |= checkbox_row(ui, "Enable keyrepeat", &mut self.auto_shift_options.enable_keyrepeat);
+                        options_changed |= checkbox_row(ui, "Disable keyrepeat when timeout is exceeded", &mut self.auto_shift_options.disable_keyrepeat_timeout);
+
+                        if options_changed {
+                            self.write_auto_shift_flags();
+                        }
+                    });
+
+                ui.add_space(10.0);
+                ui.horizontal(|ui| {
+                    ui.add_sized(
+                        [150.0, row_height],
+                        egui::Label::new(RichText::new("Timeout").size(12.5)),
+                    );
+                    let resp = ui.add(egui::TextEdit::singleline(&mut timeout_text).desired_width(52.0));
+                    if resp.hovered() {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
+                    }
+                    ui.label(RichText::new("ms").size(11.5).color(app_muted_text(dark)));
+                    if resp.changed() {
+                        let filtered: String = timeout_text
+                            .chars()
+                            .filter(|c: &char| c.is_ascii_digit())
+                            .collect();
+                        if let Ok(parsed) = filtered.parse::<u16>() {
+                            timeout_value = parsed.max(1);
+                            self.auto_shift_timeout = Some(timeout_value);
+                            self.write_auto_shift_timeout();
+                        }
+                    }
+                });
+            },
+        );
     }
 
     fn apply_picker_results(&mut self) {
@@ -4965,84 +5126,18 @@ impl EntropyApp {
             &mut open,
             Vec2::new(440.0, 280.0),
         )
-            .show(ctx, |ui| {
-                if self.auto_shift_timeout.is_none() {
-                    crate::ui_style::modal_empty_state(
-                        ui,
-                        "Auto Shift is not enabled in this firmware",
-                        Some("Enable AUTO_SHIFT_ENABLE in the keyboard rules.mk to use this window"),
-                    );
-                    return;
-                }
-
-                let mut timeout_value = self.auto_shift_timeout.unwrap_or(175);
-                let mut timeout_text = timeout_value.to_string();
-                let content_width = 360.0_f32;
-                let label_width = 248.0_f32;
-                let row_height = 28.0_f32;
-                let checkbox_slot_width = 24.0_f32;
-                let timeout_group_width = 84.0_f32;
-                let control_width = (content_width - label_width).max(0.0);
-
-                crate::ui_style::modal_content(
+        .show(ctx, |ui| {
+            if self.auto_shift_timeout.is_none() {
+                crate::ui_style::modal_empty_state(
                     ui,
-                    crate::ui_style::ModalLayout::new(content_width).with_top_padding(8.0),
-                    |ui| {
-                        egui::Grid::new(ui.id().with("auto_shift_grid"))
-                                .num_columns(2)
-                                .spacing([18.0, 10.0])
-                                .show(ui, |ui| {
-                                    let mut checkbox_row = |ui: &mut egui::Ui, label: &str, value: &mut bool| -> bool {
-                                        ui.label(RichText::new(label).size(12.5));
-                                        let resp = ui.checkbox(value, "");
-                                        if resp.hovered() {
-                                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                        }
-                                        ui.end_row();
-                                        resp.changed()
-                                    };
-
-                                    let mut options_changed = false;
-                                    options_changed |= checkbox_row(ui, "Enable", &mut self.auto_shift_options.enabled);
-                                    options_changed |= checkbox_row(ui, "Enable for modifiers", &mut self.auto_shift_options.enable_for_modifiers);
-                                    options_changed |= checkbox_row(ui, "Do not Auto Shift special keys", &mut self.auto_shift_options.no_special);
-                                    options_changed |= checkbox_row(ui, "Do not Auto Shift numeric keys", &mut self.auto_shift_options.no_numeric);
-                                    options_changed |= checkbox_row(ui, "Do not Auto Shift alpha characters", &mut self.auto_shift_options.no_alpha);
-                                    options_changed |= checkbox_row(ui, "Enable keyrepeat", &mut self.auto_shift_options.enable_keyrepeat);
-                                    options_changed |= checkbox_row(ui, "Disable keyrepeat when timeout is exceeded", &mut self.auto_shift_options.disable_keyrepeat_timeout);
-
-                                    if options_changed {
-                                        self.write_auto_shift_flags();
-                                    }
-                                });
-
-                        ui.add_space(10.0);
-                        let timeout_label_width = 150.0_f32;
-                        ui.horizontal(|ui| {
-                            ui.add_sized(
-                                [timeout_label_width, row_height],
-                                egui::Label::new(RichText::new("Timeout").size(12.5)),
-                            );
-                            let resp = ui.add(
-                                egui::TextEdit::singleline(&mut timeout_text)
-                                    .desired_width(52.0)
-                            );
-                            if resp.hovered() {
-                                ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
-                            }
-                            ui.label(RichText::new("ms").size(11.5).color(app_muted_text(dark)));
-                            if resp.changed() {
-                                let filtered: String = timeout_text.chars().filter(|c: &char| c.is_ascii_digit()).collect();
-                                if let Ok(parsed) = filtered.parse::<u16>() {
-                                    timeout_value = parsed.max(1);
-                                    self.auto_shift_timeout = Some(timeout_value);
-                                    self.write_auto_shift_timeout();
-                                }
-                            }
-                                });
-                    },
+                    "Auto Shift is not enabled in this firmware",
+                    Some("Enable AUTO_SHIFT_ENABLE in the keyboard rules.mk to use this window"),
                 );
-            });
+                return;
+            }
+
+            self.draw_auto_shift_editor_content(ui, dark, 360.0);
+        });
 
         self.focus_modal_window(&shown);
         self.auto_shift_window_open = open;
@@ -6402,7 +6497,8 @@ impl EntropyApp {
                                     }
                                     if auto_shift_resp.clicked() && auto_shift_supported {
                                         self.close_top_dropdowns(ui.ctx());
-                                        self.queue_popup_open(PendingPopupOpen::AutoShift);
+                                        self.settings_tab = SettingsTab::AutoShift;
+                                        self.main_menu_tab = MainMenuTab::Settings;
                                     }
                                     if key_override_resp.clicked() {
                                         self.close_top_dropdowns(ui.ctx());
