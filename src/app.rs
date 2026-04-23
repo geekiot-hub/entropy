@@ -4980,6 +4980,7 @@ impl EntropyApp {
                 let content_width = 360.0_f32;
                 let label_width = 248.0_f32;
                 let row_height = 28.0_f32;
+                let edge_padding = 12.0_f32;
                 let checkbox_slot_width = 24.0_f32;
                 let timeout_group_width = 84.0_f32;
                 let control_width = (content_width - label_width).max(0.0);
@@ -4994,6 +4995,7 @@ impl EntropyApp {
                                 egui::vec2(label_width, row_height),
                                 egui::Layout::left_to_right(egui::Align::Center),
                                 |ui| {
+                                    ui.add_space(edge_padding);
                                     ui.label(RichText::new(label).size(12.5));
                                 },
                             );
@@ -5001,6 +5003,7 @@ impl EntropyApp {
                                 egui::vec2(control_width, row_height),
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
+                                    ui.add_space(edge_padding);
                                     let resp = ui.add(egui::Checkbox::without_text(value));
                                     if resp.hovered() {
                                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
@@ -5026,6 +5029,7 @@ impl EntropyApp {
                                     egui::vec2(label_width, row_height),
                                     egui::Layout::left_to_right(egui::Align::Center),
                                     |ui| {
+                                        ui.add_space(edge_padding);
                                         ui.label(RichText::new("Timeout").size(12.5));
                                     },
                                 );
@@ -5033,7 +5037,7 @@ impl EntropyApp {
                                     egui::vec2(control_width, row_height),
                                     egui::Layout::left_to_right(egui::Align::Center),
                                     |ui| {
-                                        ui.add_space((control_width - checkbox_slot_width - timeout_group_width).max(0.0));
+                                        ui.add_space((control_width - edge_padding - timeout_group_width).max(0.0));
                                         ui.allocate_ui_with_layout(
                                             egui::vec2(timeout_group_width, row_height),
                                             egui::Layout::left_to_right(egui::Align::Center),
