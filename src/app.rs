@@ -4729,9 +4729,7 @@ impl EntropyApp {
                                             egui::vec2(label_width, 28.0),
                                             egui::Layout::left_to_right(egui::Align::Center),
                                             |ui| {
-                                                ui.centered_and_justified(|ui| {
-                                                    ui.label(format!("Show Encoder {}", idx + 1));
-                                                });
+                                                ui.label(format!("Show Encoder {}", idx + 1));
                                             },
                                         );
                                     },
