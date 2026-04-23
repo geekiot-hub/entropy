@@ -2407,7 +2407,7 @@ impl EntropyApp {
         ui.painter().text(
             egui::pos2(content_rect.left() + 4.0, top_line_y),
             egui::Align2::LEFT_CENTER,
-            "Press switches on the keyboard to verify every matrix position.",
+            "Press switches on the keyboard to verify every matrix position",
             FontId::proportional(13.0),
             app_muted_text(dark),
         );
@@ -2459,7 +2459,7 @@ impl EntropyApp {
             painter.text(
                 board_rect.center(),
                 egui::Align2::CENTER_CENTER,
-                "Matrix Tester is currently available only for Vial keyboards.",
+                "Matrix Tester is currently available only for Vial keyboards",
                 FontId::proportional(15.0),
                 app_muted_text(dark),
             );
@@ -2470,7 +2470,7 @@ impl EntropyApp {
             painter.text(
                 board_rect.center(),
                 egui::Align2::CENTER_CENTER,
-                "Connect a Vial keyboard to start live switch testing.",
+                "Connect a Vial keyboard to start live switch testing",
                 FontId::proportional(15.0),
                 app_muted_text(dark),
             );
@@ -3869,14 +3869,14 @@ impl EntropyApp {
                     if has_unlock_key {
                         ui.label(
                             RichText::new(
-                                "Press the unlock key on your keyboard to allow editing.",
+                                "Press the unlock key on your keyboard to allow editing",
                             )
                             .size(14.0),
                         );
                     } else {
                         ui.label(
                             RichText::new(
-                                "Hold the unlock combo on your keyboard to allow editing.",
+                                "Hold the unlock combo on your keyboard to allow editing",
                             )
                             .size(14.0),
                         );
@@ -4381,7 +4381,7 @@ impl EntropyApp {
                 if !self.rgb_settings.supported {
                     crate::ui_style::modal_empty_state(
                         ui,
-                        "RGB settings are not available on this firmware.",
+                        "RGB settings are not available on this firmware",
                         None,
                     );
                     return;
@@ -4725,7 +4725,7 @@ impl EntropyApp {
         )
             .show(ctx, |ui| {
                 if self.encoder_visibility.is_empty() {
-                    crate::ui_style::modal_empty_state(ui, "No encoders found for this device.", None);
+                    crate::ui_style::modal_empty_state(ui, "No encoders found for this device", None);
                     return;
                 }
 
@@ -4779,7 +4779,7 @@ impl EntropyApp {
         )
             .show(ctx, |ui| {
                 if self.alt_repeat_entries.is_empty() {
-                    ui.label("Alt Repeat is not supported by this keyboard.");
+                    ui.label("Alt Repeat is not supported by this keyboard");
                     return;
                 }
 
@@ -4969,8 +4969,8 @@ impl EntropyApp {
                 if self.auto_shift_timeout.is_none() {
                     crate::ui_style::modal_empty_state(
                         ui,
-                        "Auto Shift is not enabled in this firmware.",
-                        Some("Enable AUTO_SHIFT_ENABLE in the keyboard rules.mk to use this window."),
+                        "Auto Shift is not enabled in this firmware",
+                        Some("Enable AUTO_SHIFT_ENABLE in the keyboard rules.mk to use this window"),
                     );
                     return;
                 }
@@ -5071,8 +5071,8 @@ impl EntropyApp {
                 if !self.mouse_keys_settings.supported {
                     crate::ui_style::modal_empty_state(
                         ui,
-                        "Mouse keys settings are not available on this firmware.",
-                        Some("Enable MOUSEKEY_ENABLE and QMK_SETTINGS in the keyboard rules.mk to use this window."),
+                        "Mouse keys settings are not available on this firmware",
+                        Some("Enable MOUSEKEY_ENABLE and QMK_SETTINGS in the keyboard rules.mk to use this window"),
                     );
                     return;
                 }
@@ -5161,7 +5161,7 @@ impl EntropyApp {
                         ui.add_space(10.0);
                         crate::ui_style::modal_hint(
                             ui,
-                            "Changes are written to the keyboard immediately.",
+                            "Changes are written to the keyboard immediately",
                         );
                     },
                 );
@@ -5188,7 +5188,7 @@ impl EntropyApp {
         )
             .show(ctx, |ui| {
                 if self.key_override_entries.is_empty() {
-                    ui.label("Key Overrides are not supported by this keyboard.");
+                    ui.label("Key Overrides are not supported by this keyboard");
                     return;
                 }
 
@@ -5311,7 +5311,7 @@ impl EntropyApp {
                                 if resp.changed() {
                                     save_key_override_names(&self.key_override_names, &self.current_device_name);
                                 }
-                                resp.clone().on_hover_text("Stored locally in Entropy.");
+                                resp.clone().on_hover_text("Stored locally in Entropy");
                                 if resp.hovered() {
                                     ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
                                 }
@@ -5626,14 +5626,14 @@ impl EntropyApp {
                 ui.vertical_centered(|ui| {
                     crate::ui_style::modal_hint(
                         ui,
-                        "Press multiple keys together to send a separate keycode.",
+                        "Press multiple keys together to send a separate keycode",
                     );
                 });
 
                 if self.firmware != FirmwareProtocol::Vial {
                     crate::ui_style::modal_empty_state(
                         ui,
-                        "Dynamic combos are not supported for this firmware.",
+                        "Dynamic combos are not supported for this firmware",
                         None,
                     );
                     return;
@@ -5642,7 +5642,7 @@ impl EntropyApp {
                 if self.combo_entries.is_empty() {
                     crate::ui_style::modal_empty_state(
                         ui,
-                        "This keyboard does not report any dynamic combo slots.",
+                        "This keyboard does not report any dynamic combo slots",
                         None,
                     );
                     return;
@@ -5773,7 +5773,7 @@ impl EntropyApp {
                                     })
                                     .inner;
                                 combo_name_changed = resp.changed();
-                                resp.clone().on_hover_text("Stored locally in Entropy.");
+                                resp.clone().on_hover_text("Stored locally in Entropy");
                                 if resp.hovered() {
                                     ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
                                 }

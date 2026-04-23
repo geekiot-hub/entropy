@@ -499,7 +499,7 @@ impl KeycodePicker {
                 .show(ctx, |ui| {
                     apply_picker_button_visuals(ui);
                     crate::ui_style::modal_intro(ui, "Press a key on your keyboard, or click below");
-                    crate::ui_style::modal_hint(ui, "Best for normal keys, navigation, media and special actions.");
+                    crate::ui_style::modal_hint(ui, "Best for normal keys, navigation, media and special actions");
                     ui.add_space(crate::ui_style::modal_space_xs());
                     // Physical key capture
                     ctx.input(|i| {
@@ -751,7 +751,7 @@ impl KeycodePicker {
             )
                 .show(ctx, |ui| {
                     apply_picker_button_visuals(ui);
-                    crate::ui_style::modal_intro(ui, "Choose which layer. Esc to cancel.");
+                    crate::ui_style::modal_intro(ui, "Choose which layer (Esc to cancel)");
                     ui.add_space(crate::ui_style::modal_space_sm());
                     ui.horizontal_wrapped(|ui| {
                         for n in 0u16..self.layer_names.len().max(4) as u16 {
@@ -832,7 +832,7 @@ impl KeycodePicker {
             )
                 .show(ctx, |ui| {
                     apply_picker_button_visuals(ui);
-                    crate::ui_style::modal_intro(ui, "Press a key on your keyboard, or click below. Esc to cancel.");
+                    crate::ui_style::modal_intro(ui, "Press a key on your keyboard, or click below (Esc to cancel)");
                     ui.add_space(crate::ui_style::modal_space_sm());
                     let key_choices: Vec<&'static crate::keycode::Keycode> = KEYCODES.iter()
                         .filter(|kc| matches!(kc.category, KeycodeCategory::Basic | KeycodeCategory::Function | KeycodeCategory::Navigation))
@@ -1268,7 +1268,7 @@ impl KeycodePicker {
         // Pending mod+key selection
         if let Some(base) = self.vial_quantum_pending_mod {
             ui.label(RichText::new("Now pick the KEY to add the modifier to:").size(11.5).strong());
-            ui.label(RichText::new("Click any key below to create the combo, or Escape to cancel.").size(10.5).color(Color32::from_gray(150)));
+            ui.label(RichText::new("Click any key below to create the combo, or Escape to cancel").size(10.5).color(Color32::from_gray(150)));
             ui.add_space(4.0);
             if ui.button("✕ Cancel").clicked() { self.vial_quantum_pending_mod = None; }
             ui.add_space(4.0);
@@ -1501,7 +1501,7 @@ impl KeycodePicker {
                             let text_w = (avail_w - 220.0).max(150.0);
                             ui.add_sized(Vec2::new(text_w, 30.0),
                                 egui::TextEdit::singleline(text)
-                                .hint_text("Type text here...")
+                                .hint_text("Type text here")
                                 .font(egui::FontId::proportional(macro_font_size))
                                 .horizontal_align(egui::Align::Min)
                                 .vertical_align(egui::Align::Center))
@@ -1986,11 +1986,11 @@ impl KeycodePicker {
             0 => "On Tap", 1 => "On Hold", 2 => "On Double Tap", 3 => "On Tap+Hold", _ => "?"
         };
         let helper_text = match field {
-            0 => "Best for normal keys, navigation, media and special actions.",
-            1 => "Hold actions are limited to left/right modifiers and layers.",
-            2 => "Best for a second tap action, usually another normal key or command.",
-            3 => "Tap-then-hold actions are limited to left/right modifiers and layers.",
-            _ => "Press a key on your keyboard, or click below. Esc to cancel.",
+            0 => "Best for normal keys, navigation, media and special actions",
+            1 => "Hold actions are limited to left/right modifiers and layers",
+            2 => "Best for a second tap action, usually another normal key or command",
+            3 => "Tap-then-hold actions are limited to left/right modifiers and layers",
+            _ => "Press a key on your keyboard, or click below (Esc to cancel)",
         };
         let td_choices: Vec<(u16, String, String)> = if matches!(field, 1 | 3) {
             let gui = gui_label(false).to_string();
@@ -2035,7 +2035,7 @@ impl KeycodePicker {
         )
             .show(ctx, |ui| {
                 apply_picker_button_visuals(ui);
-                crate::ui_style::modal_intro(ui, "Press a key on your keyboard, or click below. Esc to cancel.");
+                crate::ui_style::modal_intro(ui, "Press a key on your keyboard, or click below (Esc to cancel)");
                 crate::ui_style::modal_hint(ui, helper_text);
                 ui.add_space(crate::ui_style::modal_space_xs());
                 if ui.add(egui::Button::new(RichText::new("None (clear)").size(12.0))
@@ -2899,7 +2899,7 @@ fn show_zmk(&mut self, ctx: &egui::Context) {
         let beh_id = match self.zmk_find_behavior("Key Press") {
             Some(b) => b.id,
             None => {
-                ui.label("Key Press behavior not found on device.");
+                ui.label("Key Press behavior not found on device");
                 return;
             }
         };
@@ -3187,7 +3187,7 @@ fn show_zmk(&mut self, ctx: &egui::Context) {
             .collect();
 
         if behaviors.is_empty() {
-            ui.label(RichText::new("No additional behaviors found on this device.")
+            ui.label(RichText::new("No additional behaviors found on this device")
                 .size(11.0).color(Color32::from_gray(150)));
             return;
         }
