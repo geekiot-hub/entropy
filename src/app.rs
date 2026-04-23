@@ -4987,32 +4987,43 @@ impl EntropyApp {
                         let row_height = 28.0_f32;
                         let control_slot_width = (content_width - label_width).max(0.0);
 
-                        let mut checkbox_row = |ui: &mut egui::Ui, label: &str, value: &mut bool| -> bool {
-                            let mut changed = false;
-                            crate::ui_style::modal_labeled_row(
-                                ui,
-                                content_width,
-                                label_width,
-                                row_height,
+                        let mut labeled_control_row = |
+                            ui: &mut egui::Ui,
+                            label: &str,
+                            add_control: &mut dyn FnMut(&mut egui::Ui),
+                        | {
+                            ui.allocate_ui_with_layout(
+                                egui::vec2(content_width, row_height),
+                                egui::Layout::left_to_right(egui::Align::Center),
                                 |ui| {
-                                    ui.label(RichText::new(label).size(12.5));
-                                },
-                                |ui| {
+                                    ui.allocate_ui_with_layout(
+                                        egui::vec2(label_width, row_height),
+                                        egui::Layout::left_to_right(egui::Align::Center),
+                                        |ui| {
+                                            ui.label(RichText::new(label).size(12.5));
+                                        },
+                                    );
                                     ui.allocate_ui_with_layout(
                                         egui::vec2(control_slot_width, row_height),
                                         egui::Layout::right_to_left(egui::Align::Center),
-                                        |ui| {
-                                            let resp = ui.add(egui::Checkbox::without_text(value));
-                                            if resp.hovered() {
-                                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                            }
-                                            if resp.changed() {
-                                                changed = true;
-                                            }
-                                        },
+                                        |ui| add_control(ui),
                                     );
                                 },
                             );
+                        };
+
+                        let mut checkbox_row = |ui: &mut egui::Ui, label: &str, value: &mut bool| -> bool {
+                            let mut changed = false;
+                            let mut add_control = |ui: &mut egui::Ui| {
+                                let resp = ui.add(egui::Checkbox::without_text(value));
+                                if resp.hovered() {
+                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                }
+                                if resp.changed() {
+                                    changed = true;
+                                }
+                            };
+                            labeled_control_row(ui, label, &mut add_control);
                             changed
                         };
 
@@ -5022,39 +5033,25 @@ impl EntropyApp {
                         options_changed |= checkbox_row(ui, "Enable for modifiers", &mut self.auto_shift_options.enable_for_modifiers);
                         ui.add_space(10.0);
 
-                        crate::ui_style::modal_labeled_row(
-                            ui,
-                            content_width,
-                            label_width,
-                            row_height,
-                            |ui| {
-                                ui.label(RichText::new("Timeout").size(12.5));
-                            },
-                            |ui| {
-                                ui.allocate_ui_with_layout(
-                                    egui::vec2(control_slot_width, row_height),
-                                    egui::Layout::right_to_left(egui::Align::Center),
-                                    |ui| {
-                                        ui.label(RichText::new("ms").size(11.5).color(app_muted_text(dark)));
-                                        let resp = ui.add(
-                                            egui::TextEdit::singleline(&mut timeout_text)
-                                                .desired_width(52.0)
-                                        );
-                                        if resp.hovered() {
-                                            ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
-                                        }
-                                        if resp.changed() {
-                                            let filtered: String = timeout_text.chars().filter(|c: &char| c.is_ascii_digit()).collect();
-                                            if let Ok(parsed) = filtered.parse::<u16>() {
-                                                timeout_value = parsed.max(1);
-                                                self.auto_shift_timeout = Some(timeout_value);
-                                                self.write_auto_shift_timeout();
-                                            }
-                                        }
-                                    },
-                                );
-                            },
-                        );
+                        let mut add_timeout_control = |ui: &mut egui::Ui| {
+                            ui.label(RichText::new("ms").size(11.5).color(app_muted_text(dark)));
+                            let resp = ui.add(
+                                egui::TextEdit::singleline(&mut timeout_text)
+                                    .desired_width(52.0)
+                            );
+                            if resp.hovered() {
+                                ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
+                            }
+                            if resp.changed() {
+                                let filtered: String = timeout_text.chars().filter(|c: &char| c.is_ascii_digit()).collect();
+                                if let Ok(parsed) = filtered.parse::<u16>() {
+                                    timeout_value = parsed.max(1);
+                                    self.auto_shift_timeout = Some(timeout_value);
+                                    self.write_auto_shift_timeout();
+                                }
+                            }
+                        };
+                        labeled_control_row(ui, "Timeout", &mut add_timeout_control);
 
                         ui.add_space(10.0);
                         options_changed |= checkbox_row(ui, "Do not Auto Shift special keys", &mut self.auto_shift_options.no_special);
