@@ -4704,7 +4704,7 @@ impl EntropyApp {
 
                         let mut changed = false;
                         ui.scope(|ui| {
-                            ui.spacing_mut().item_spacing.y = 8.0;
+                            ui.spacing_mut().item_spacing = egui::vec2(0.0, 8.0);
                             for (idx, visible) in self.encoder_visibility.iter_mut().enumerate() {
                                 ui.horizontal_centered(|ui| {
                                     let resp = ui.add(egui::Checkbox::without_text(visible));
@@ -4714,7 +4714,6 @@ impl EntropyApp {
                                     if resp.changed() {
                                         changed = true;
                                     }
-                                    ui.add_space(1.0);
                                     ui.label(format!("Show Encoder {}", idx + 1));
                                 });
                             }
