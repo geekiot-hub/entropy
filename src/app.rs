@@ -121,7 +121,7 @@ impl EncoderVisibilityModalLayout {
         Self {
             window_size: Vec2::new(216.0, 252.0),
             content_width: 148.0,
-            hint_width: 160.0,
+            hint_width: 280.0,
             top_padding: 2.0,
             hint_bottom_spacing: 8.0,
             row_spacing: 4.0,
@@ -5062,14 +5062,31 @@ impl EntropyApp {
             for visual_idx in 0..visible_count {
                 let is_visible = self.encoder_visibility[visual_idx];
                 let mut toggled = is_visible;
-                crate::ui_style::modal_checkbox_label_row(
-                    ui,
-                    layout.content_width,
-                    layout.row_height,
-                    &mut toggled,
-                    &format!("Encoder {}", visual_idx + 1),
-                    layout.checkbox_label_gap,
-                );
+                ui.horizontal_centered(|ui| {
+                    let (row_rect, _) = ui.allocate_exact_size(
+                        egui::vec2(layout.content_width, layout.row_height),
+                        egui::Sense::hover(),
+                    );
+                    let checkbox_rect = egui::Rect::from_min_size(
+                        egui::pos2(row_rect.left(), row_rect.top()),
+                        egui::vec2(18.0, layout.row_height),
+                    );
+                    let label_rect = egui::Rect::from_min_size(
+                        egui::pos2(row_rect.left() + 24.0, row_rect.top()),
+                        egui::vec2(layout.content_width - 24.0, layout.row_height),
+                    );
+                    let resp = ui.put(checkbox_rect, egui::Checkbox::without_text(&mut toggled));
+                    if resp.hovered() {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                    }
+                    ui.painter().text(
+                        egui::pos2(label_rect.left(), label_rect.center().y),
+                        egui::Align2::LEFT_CENTER,
+                        format!("Encoder {}", visual_idx + 1),
+                        FontId::proportional(13.0),
+                        ui.visuals().text_color(),
+                    );
+                });
                 if toggled != is_visible {
                     self.encoder_visibility[visual_idx] = toggled;
                 }
