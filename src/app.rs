@@ -5017,12 +5017,12 @@ impl EntropyApp {
                                 });
 
                         ui.add_space(10.0);
+                        let timeout_label_width = 170.0_f32;
                         ui.horizontal(|ui| {
                             ui.add_sized(
-                                [label_width, row_height],
+                                [timeout_label_width, row_height],
                                 egui::Label::new(RichText::new("Timeout").size(12.5)),
                             );
-                            ui.add_space(-120.0);
                             let resp = ui.add(
                                 egui::TextEdit::singleline(&mut timeout_text)
                                     .desired_width(52.0)
