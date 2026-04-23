@@ -4707,14 +4707,14 @@ impl EntropyApp {
                             ui.spacing_mut().item_spacing.y = 8.0;
                             for (idx, visible) in self.encoder_visibility.iter_mut().enumerate() {
                                 ui.horizontal_centered(|ui| {
-                                    let resp = ui.checkbox(visible, "");
+                                    let resp = ui.add(egui::Checkbox::without_text(visible));
                                     if resp.hovered() {
                                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                     }
                                     if resp.changed() {
                                         changed = true;
                                     }
-                                    ui.add_space(2.0);
+                                    ui.add_space(1.0);
                                     ui.label(format!("Show Encoder {}", idx + 1));
                                 });
                             }
