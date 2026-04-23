@@ -2656,12 +2656,9 @@ impl EntropyApp {
         let mut timeout_value = self.auto_shift_timeout.unwrap_or(175);
         let mut timeout_text = timeout_value.to_string();
         let row_height = 28.0_f32;
-        let control_gap = 18.0_f32;
         let checkbox_slot_width = 24.0_f32;
-        let label_width = content_width - control_gap - checkbox_slot_width;
         let timeout_label_width = 150.0_f32;
         let timeout_input_width = 52.0_f32;
-        let timeout_unit_width = 28.0_f32;
 
         crate::ui_style::modal_content(
             ui,
@@ -2670,25 +2667,26 @@ impl EntropyApp {
                 let checkbox_row = |ui: &mut egui::Ui, label: &str, value: &mut bool| -> bool {
                     let mut changed = false;
                     ui.horizontal_centered(|ui| {
-                        ui.allocate_ui_with_layout(
+                        let (row_rect, _) = ui.allocate_exact_size(
                             egui::vec2(content_width, row_height),
-                            egui::Layout::left_to_right(egui::Align::Center),
-                            |ui| {
-                                ui.add_sized(
-                                    [label_width, row_height],
-                                    egui::Label::new(RichText::new(label).size(12.5)),
-                                );
-                                ui.add_space(control_gap);
-                                let resp = ui.add_sized(
-                                    [checkbox_slot_width, row_height],
-                                    egui::Checkbox::without_text(value),
-                                );
-                                if resp.hovered() {
-                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                }
-                                changed = resp.changed();
-                            },
+                            egui::Sense::hover(),
                         );
+                        let checkbox_rect = egui::Rect::from_min_size(
+                            egui::pos2(row_rect.right() - checkbox_slot_width, row_rect.top()),
+                            egui::vec2(checkbox_slot_width, row_height),
+                        );
+                        ui.painter().text(
+                            egui::pos2(row_rect.left(), row_rect.center().y),
+                            egui::Align2::LEFT_CENTER,
+                            label,
+                            FontId::proportional(12.5),
+                            ui.visuals().widgets.inactive.fg_stroke.color,
+                        );
+                        let resp = ui.put(checkbox_rect, egui::Checkbox::without_text(value));
+                        if resp.hovered() {
+                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                        }
+                        changed = resp.changed();
                     });
                     changed
                 };
@@ -2708,43 +2706,47 @@ impl EntropyApp {
 
                 ui.add_space(10.0);
                 ui.horizontal_centered(|ui| {
-                    ui.allocate_ui_with_layout(
+                    let (row_rect, _) = ui.allocate_exact_size(
                         egui::vec2(content_width, row_height),
-                        egui::Layout::left_to_right(egui::Align::Center),
-                        |ui| {
-                            ui.allocate_ui_with_layout(
-                                egui::vec2(timeout_label_width, row_height),
-                                egui::Layout::left_to_right(egui::Align::Center),
-                                |ui| {
-                                    ui.label(RichText::new("Timeout").size(12.5));
-                                },
-                            );
-                            let resp = ui.add(
-                                egui::TextEdit::singleline(&mut timeout_text)
-                                    .desired_width(timeout_input_width),
-                            );
-                            if resp.hovered() {
-                                ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
-                            }
-                            ui.add_sized(
-                                [timeout_unit_width, row_height],
-                                egui::Label::new(
-                                    RichText::new("ms").size(11.5).color(app_muted_text(dark)),
-                                ),
-                            );
-                            if resp.changed() {
-                                let filtered: String = timeout_text
-                                    .chars()
-                                    .filter(|c: &char| c.is_ascii_digit())
-                                    .collect();
-                                if let Ok(parsed) = filtered.parse::<u16>() {
-                                    timeout_value = parsed.max(1);
-                                    self.auto_shift_timeout = Some(timeout_value);
-                                    self.write_auto_shift_timeout();
-                                }
-                            }
-                        },
+                        egui::Sense::hover(),
                     );
+                    let input_rect = egui::Rect::from_min_size(
+                        egui::pos2(row_rect.left() + timeout_label_width, row_rect.top()),
+                        egui::vec2(timeout_input_width, row_height),
+                    );
+                    ui.painter().text(
+                        egui::pos2(row_rect.left(), row_rect.center().y),
+                        egui::Align2::LEFT_CENTER,
+                        "Timeout",
+                        FontId::proportional(12.5),
+                        ui.visuals().widgets.inactive.fg_stroke.color,
+                    );
+                    let resp = ui.put(
+                        input_rect,
+                        egui::TextEdit::singleline(&mut timeout_text)
+                            .desired_width(timeout_input_width),
+                    );
+                    if resp.hovered() {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
+                    }
+                    ui.painter().text(
+                        egui::pos2(input_rect.right() + 12.0, row_rect.center().y),
+                        egui::Align2::LEFT_CENTER,
+                        "ms",
+                        FontId::proportional(11.5),
+                        app_muted_text(dark),
+                    );
+                    if resp.changed() {
+                        let filtered: String = timeout_text
+                            .chars()
+                            .filter(|c: &char| c.is_ascii_digit())
+                            .collect();
+                        if let Ok(parsed) = filtered.parse::<u16>() {
+                            timeout_value = parsed.max(1);
+                            self.auto_shift_timeout = Some(timeout_value);
+                            self.write_auto_shift_timeout();
+                        }
+                    }
                 });
             },
         );
