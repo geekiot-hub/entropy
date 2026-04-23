@@ -2674,9 +2674,12 @@ impl EntropyApp {
                             egui::vec2(content_width, row_height),
                             egui::Layout::left_to_right(egui::Align::Center),
                             |ui| {
-                                ui.add_sized(
-                                    [label_width, row_height],
-                                    egui::Label::new(RichText::new(label).size(12.5)),
+                                ui.allocate_ui_with_layout(
+                                    egui::vec2(label_width, row_height),
+                                    egui::Layout::left_to_right(egui::Align::Center),
+                                    |ui| {
+                                        ui.label(RichText::new(label).size(12.5));
+                                    },
                                 );
                                 ui.add_space(control_gap);
                                 let resp = ui.add_sized(
@@ -2712,9 +2715,12 @@ impl EntropyApp {
                         egui::vec2(content_width, row_height),
                         egui::Layout::left_to_right(egui::Align::Center),
                         |ui| {
-                            ui.add_sized(
-                                [timeout_label_width, row_height],
-                                egui::Label::new(RichText::new("Timeout").size(12.5)),
+                            ui.allocate_ui_with_layout(
+                                egui::vec2(timeout_label_width, row_height),
+                                egui::Layout::left_to_right(egui::Align::Center),
+                                |ui| {
+                                    ui.label(RichText::new("Timeout").size(12.5));
+                                },
                             );
                             let resp = ui.add(
                                 egui::TextEdit::singleline(&mut timeout_text)
