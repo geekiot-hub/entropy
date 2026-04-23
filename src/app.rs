@@ -4990,15 +4990,17 @@ impl EntropyApp {
                     |ui| {
                         let mut checkbox_row = |ui: &mut egui::Ui, label: &str, value: &mut bool| -> bool {
                             let mut changed = false;
-                            crate::ui_style::modal_labeled_row(
-                                ui,
-                                content_width,
-                                label_width,
-                                row_height,
+                            ui.allocate_ui_with_layout(
+                                egui::vec2(content_width, row_height),
+                                egui::Layout::left_to_right(egui::Align::Center),
                                 |ui| {
-                                    ui.label(RichText::new(label).size(12.5));
-                                },
-                                |ui| {
+                                    ui.allocate_ui_with_layout(
+                                        egui::vec2(label_width, row_height),
+                                        egui::Layout::left_to_right(egui::Align::Center),
+                                        |ui| {
+                                            ui.label(RichText::new(label).size(12.5));
+                                        },
+                                    );
                                     ui.allocate_ui_with_layout(
                                         egui::vec2(control_width, row_height),
                                         egui::Layout::right_to_left(egui::Align::Center),
@@ -5023,15 +5025,17 @@ impl EntropyApp {
                         options_changed |= checkbox_row(ui, "Enable for modifiers", &mut self.auto_shift_options.enable_for_modifiers);
                         ui.add_space(10.0);
 
-                        crate::ui_style::modal_labeled_row(
-                            ui,
-                            content_width,
-                            label_width,
-                            row_height,
+                        ui.allocate_ui_with_layout(
+                            egui::vec2(content_width, row_height),
+                            egui::Layout::left_to_right(egui::Align::Center),
                             |ui| {
-                                ui.label(RichText::new("Timeout").size(12.5));
-                            },
-                            |ui| {
+                                ui.allocate_ui_with_layout(
+                                    egui::vec2(label_width, row_height),
+                                    egui::Layout::left_to_right(egui::Align::Center),
+                                    |ui| {
+                                        ui.label(RichText::new("Timeout").size(12.5));
+                                    },
+                                );
                                 ui.allocate_ui_with_layout(
                                     egui::vec2(control_width, row_height),
                                     egui::Layout::left_to_right(egui::Align::Center),
