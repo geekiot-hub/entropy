@@ -2656,62 +2656,92 @@ impl EntropyApp {
         let mut timeout_value = self.auto_shift_timeout.unwrap_or(175);
         let mut timeout_text = timeout_value.to_string();
         let row_height = 28.0_f32;
+        let label_width = 270.0_f32;
+        let control_gap = 18.0_f32;
+        let checkbox_slot_width = 24.0_f32;
+        let timeout_label_width = 150.0_f32;
+        let timeout_input_width = 52.0_f32;
+        let timeout_unit_width = 28.0_f32;
 
         crate::ui_style::modal_content(
             ui,
             crate::ui_style::ModalLayout::new(content_width).with_top_padding(8.0),
             |ui| {
-                egui::Grid::new(ui.id().with("auto_shift_grid"))
-                    .num_columns(2)
-                    .spacing([18.0, 10.0])
-                    .show(ui, |ui| {
-                        let checkbox_row =
-                            |ui: &mut egui::Ui, label: &str, value: &mut bool| -> bool {
-                                ui.label(RichText::new(label).size(12.5));
-                                let resp = ui.checkbox(value, "");
+                let checkbox_row = |ui: &mut egui::Ui, label: &str, value: &mut bool| -> bool {
+                    let mut changed = false;
+                    ui.horizontal_centered(|ui| {
+                        ui.allocate_ui_with_layout(
+                            egui::vec2(content_width, row_height),
+                            egui::Layout::left_to_right(egui::Align::Center),
+                            |ui| {
+                                ui.add_sized(
+                                    [label_width, row_height],
+                                    egui::Label::new(RichText::new(label).size(12.5)),
+                                );
+                                ui.add_space(control_gap);
+                                let resp = ui.add_sized(
+                                    [checkbox_slot_width, row_height],
+                                    egui::Checkbox::without_text(value),
+                                );
                                 if resp.hovered() {
                                     ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                 }
-                                ui.end_row();
-                                resp.changed()
-                            };
-
-                        let mut options_changed = false;
-                        options_changed |= checkbox_row(ui, "Enable", &mut self.auto_shift_options.enabled);
-                        options_changed |= checkbox_row(ui, "Enable for modifiers", &mut self.auto_shift_options.enable_for_modifiers);
-                        options_changed |= checkbox_row(ui, "Do not Auto Shift special keys", &mut self.auto_shift_options.no_special);
-                        options_changed |= checkbox_row(ui, "Do not Auto Shift numeric keys", &mut self.auto_shift_options.no_numeric);
-                        options_changed |= checkbox_row(ui, "Do not Auto Shift alpha characters", &mut self.auto_shift_options.no_alpha);
-                        options_changed |= checkbox_row(ui, "Enable keyrepeat", &mut self.auto_shift_options.enable_keyrepeat);
-                        options_changed |= checkbox_row(ui, "Disable keyrepeat when timeout is exceeded", &mut self.auto_shift_options.disable_keyrepeat_timeout);
-
-                        if options_changed {
-                            self.write_auto_shift_flags();
-                        }
+                                changed = resp.changed();
+                            },
+                        );
                     });
+                    changed
+                };
+
+                let mut options_changed = false;
+                options_changed |= checkbox_row(ui, "Enable", &mut self.auto_shift_options.enabled);
+                options_changed |= checkbox_row(ui, "Enable for modifiers", &mut self.auto_shift_options.enable_for_modifiers);
+                options_changed |= checkbox_row(ui, "Do not Auto Shift special keys", &mut self.auto_shift_options.no_special);
+                options_changed |= checkbox_row(ui, "Do not Auto Shift numeric keys", &mut self.auto_shift_options.no_numeric);
+                options_changed |= checkbox_row(ui, "Do not Auto Shift alpha characters", &mut self.auto_shift_options.no_alpha);
+                options_changed |= checkbox_row(ui, "Enable keyrepeat", &mut self.auto_shift_options.enable_keyrepeat);
+                options_changed |= checkbox_row(ui, "Disable keyrepeat when timeout is exceeded", &mut self.auto_shift_options.disable_keyrepeat_timeout);
+
+                if options_changed {
+                    self.write_auto_shift_flags();
+                }
 
                 ui.add_space(10.0);
-                ui.horizontal(|ui| {
-                    ui.add_sized(
-                        [150.0, row_height],
-                        egui::Label::new(RichText::new("Timeout").size(12.5)),
+                ui.horizontal_centered(|ui| {
+                    ui.allocate_ui_with_layout(
+                        egui::vec2(content_width, row_height),
+                        egui::Layout::left_to_right(egui::Align::Center),
+                        |ui| {
+                            ui.add_sized(
+                                [timeout_label_width, row_height],
+                                egui::Label::new(RichText::new("Timeout").size(12.5)),
+                            );
+                            let resp = ui.add(
+                                egui::TextEdit::singleline(&mut timeout_text)
+                                    .desired_width(timeout_input_width),
+                            );
+                            if resp.hovered() {
+                                ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
+                            }
+                            ui.add_sized(
+                                [timeout_unit_width, row_height],
+                                egui::Label::new(
+                                    RichText::new("ms").size(11.5).color(app_muted_text(dark)),
+                                ),
+                            );
+                            if resp.changed() {
+                                let filtered: String = timeout_text
+                                    .chars()
+                                    .filter(|c: &char| c.is_ascii_digit())
+                                    .collect();
+                                if let Ok(parsed) = filtered.parse::<u16>() {
+                                    timeout_value = parsed.max(1);
+                                    self.auto_shift_timeout = Some(timeout_value);
+                                    self.write_auto_shift_timeout();
+                                }
+                            }
+                        },
                     );
-                    let resp = ui.add(egui::TextEdit::singleline(&mut timeout_text).desired_width(52.0));
-                    if resp.hovered() {
-                        ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
-                    }
-                    ui.label(RichText::new("ms").size(11.5).color(app_muted_text(dark)));
-                    if resp.changed() {
-                        let filtered: String = timeout_text
-                            .chars()
-                            .filter(|c: &char| c.is_ascii_digit())
-                            .collect();
-                        if let Ok(parsed) = filtered.parse::<u16>() {
-                            timeout_value = parsed.max(1);
-                            self.auto_shift_timeout = Some(timeout_value);
-                            self.write_auto_shift_timeout();
-                        }
-                    }
                 });
             },
         );
