@@ -203,3 +203,48 @@ pub fn modal_action_row(ui: &mut Ui, add_contents: impl FnOnce(&mut Ui)) {
     ui.add_space(18.0);
     ui.horizontal_centered(add_contents);
 }
+
+pub fn modal_centered_text_block(
+    ui: &mut Ui,
+    width: f32,
+    add_contents: impl FnOnce(&mut Ui),
+) {
+    ui.horizontal_centered(|ui| {
+        ui.allocate_ui_with_layout(
+            egui::vec2(width, 0.0),
+            egui::Layout::top_down(egui::Align::Min),
+            add_contents,
+        );
+    });
+}
+
+pub fn modal_checkbox_label_row(
+    ui: &mut Ui,
+    content_width: f32,
+    row_height: f32,
+    checked: &mut bool,
+    label: &str,
+    checkbox_label_gap: f32,
+) -> bool {
+    let mut changed = false;
+    ui.allocate_ui_with_layout(
+        egui::vec2(content_width, row_height),
+        egui::Layout::left_to_right(egui::Align::Center),
+        |ui| {
+            ui.horizontal_centered(|ui| {
+                let resp = ui.add(egui::Checkbox::without_text(checked));
+                if resp.hovered() {
+                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                }
+                if resp.changed() {
+                    changed = true;
+                }
+                if checkbox_label_gap > 0.0 {
+                    ui.add_space(checkbox_label_gap);
+                }
+                ui.label(label);
+            });
+        },
+    );
+    changed
+}

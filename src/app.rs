@@ -135,35 +135,6 @@ impl EncoderVisibilityModalLayout {
     }
 }
 
-fn draw_encoder_visibility_row(
-    ui: &mut egui::Ui,
-    visible: &mut bool,
-    label: &str,
-    layout: EncoderVisibilityModalLayout,
-) -> bool {
-    let mut changed = false;
-    ui.allocate_ui_with_layout(
-        egui::vec2(layout.content_width, layout.row_height),
-        egui::Layout::left_to_right(egui::Align::Center),
-        |ui| {
-            ui.horizontal_centered(|ui| {
-                let resp = ui.add(egui::Checkbox::without_text(visible));
-                if resp.hovered() {
-                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                }
-                if resp.changed() {
-                    changed = true;
-                }
-                if layout.checkbox_label_gap > 0.0 {
-                    ui.add_space(layout.checkbox_label_gap);
-                }
-                ui.label(label);
-            });
-        },
-    );
-    changed
-}
-
 fn save_layer_names(names: &[String], device_name: &str) {
     // Always save at least 16 slots so load_layer_names can detect a valid file
     let mut full = names.to_vec();
@@ -4746,16 +4717,10 @@ impl EntropyApp {
                 }
 
                 crate::ui_style::modal_content(ui, layout.modal_layout(), |ui| {
-                    ui.horizontal_centered(|ui| {
-                        ui.allocate_ui_with_layout(
-                            egui::vec2(layout.hint_width, 0.0),
-                            egui::Layout::top_down(egui::Align::Min),
-                            |ui| {
-                                crate::ui_style::modal_hint(
-                                    ui,
-                                    "Choose which encoders are visible in the main layout",
-                                );
-                            },
+                    crate::ui_style::modal_centered_text_block(ui, layout.hint_width, |ui| {
+                        crate::ui_style::modal_hint(
+                            ui,
+                            "Choose which encoders are visible in the main layout",
                         );
                     });
                     ui.add_space(layout.hint_bottom_spacing);
@@ -4764,11 +4729,13 @@ impl EntropyApp {
                     ui.scope(|ui| {
                         ui.spacing_mut().item_spacing = egui::vec2(0.0, layout.row_spacing);
                         for (idx, visible) in self.encoder_visibility.iter_mut().enumerate() {
-                            changed |= draw_encoder_visibility_row(
+                            changed |= crate::ui_style::modal_checkbox_label_row(
                                 ui,
+                                layout.content_width,
+                                layout.row_height,
                                 visible,
                                 &format!("Show Encoder {}", idx + 1),
-                                layout,
+                                layout.checkbox_label_gap,
                             );
                         }
                     });
