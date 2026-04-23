@@ -4697,16 +4697,45 @@ impl EntropyApp {
                         let mut changed = false;
                         ui.scope(|ui| {
                             ui.spacing_mut().item_spacing.y = 8.0;
+                            let row_width = 184.0_f32;
+                            let checkbox_slot_width = 24.0_f32;
+                            let gap_width = 8.0_f32;
+                            let label_width = row_width - checkbox_slot_width - gap_width;
+
                             for (idx, visible) in self.encoder_visibility.iter_mut().enumerate() {
-                                ui.horizontal_centered(|ui| {
-                                    let resp = ui.checkbox(visible, format!("Show Encoder {}", idx + 1));
-                                    if resp.hovered() {
-                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                    }
-                                    if resp.changed() {
-                                        changed = true;
-                                    }
-                                });
+                                ui.allocate_ui_with_layout(
+                                    egui::vec2(240.0, 28.0),
+                                    egui::Layout::left_to_right(egui::Align::Center),
+                                    |ui| {
+                                        ui.add_space(((240.0 - row_width) * 0.5).max(0.0));
+
+                                        ui.allocate_ui_with_layout(
+                                            egui::vec2(checkbox_slot_width, 28.0),
+                                            egui::Layout::left_to_right(egui::Align::Center),
+                                            |ui| {
+                                                let resp = ui.checkbox(visible, "");
+                                                if resp.hovered() {
+                                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                                }
+                                                if resp.changed() {
+                                                    changed = true;
+                                                }
+                                            },
+                                        );
+
+                                        ui.add_space(gap_width);
+
+                                        ui.allocate_ui_with_layout(
+                                            egui::vec2(label_width, 28.0),
+                                            egui::Layout::left_to_right(egui::Align::Center),
+                                            |ui| {
+                                                ui.centered_and_justified(|ui| {
+                                                    ui.label(format!("Show Encoder {}", idx + 1));
+                                                });
+                                            },
+                                        );
+                                    },
+                                );
                             }
                         });
 
