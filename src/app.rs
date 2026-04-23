@@ -4699,7 +4699,7 @@ impl EntropyApp {
                             ui.spacing_mut().item_spacing.y = 8.0;
                             let row_width = 184.0_f32;
                             let checkbox_slot_width = 24.0_f32;
-                            let gap_width = 8.0_f32;
+                            let gap_width = 2.0_f32;
                             let label_width = row_width - checkbox_slot_width - gap_width;
 
                             for (idx, visible) in self.encoder_visibility.iter_mut().enumerate() {
