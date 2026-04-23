@@ -1163,6 +1163,7 @@ pub struct EntropyApp {
     combo_term: Option<u16>,
     auto_shift_options: AutoShiftOptionsState,
     auto_shift_timeout: Option<u16>,
+    auto_shift_timeout_text: String,
     mouse_keys_settings: MouseKeysSettingsState,
     mouse_keys_window_open: bool,
     alt_repeat_entries: Vec<AltRepeatKeyEntry>,
@@ -1264,6 +1265,7 @@ impl EntropyApp {
             combo_term: None,
             auto_shift_options: AutoShiftOptionsState::default(),
             auto_shift_timeout: None,
+            auto_shift_timeout_text: String::new(),
             mouse_keys_settings: MouseKeysSettingsState::default(),
             mouse_keys_window_open: false,
             alt_repeat_entries: vec![],
@@ -1364,6 +1366,7 @@ impl EntropyApp {
         self.combo_term_dirty = false;
         self.auto_shift_options = AutoShiftOptionsState::default();
         self.auto_shift_timeout = None;
+        self.auto_shift_timeout_text.clear();
         self.auto_shift_window_open = false;
         self.mouse_keys_settings = MouseKeysSettingsState::default();
         self.mouse_keys_window_open = false;
@@ -1911,6 +1914,10 @@ impl EntropyApp {
                 self.combo_term = r.combo_term.or(Some(50));
                 self.auto_shift_options = r.auto_shift_options;
                 self.auto_shift_timeout = r.auto_shift_timeout;
+                self.auto_shift_timeout_text = r
+                    .auto_shift_timeout
+                    .map(|timeout| timeout.to_string())
+                    .unwrap_or_default();
                 self.mouse_keys_settings = r.mouse_keys_settings;
                 self.rgb_settings = r.rgb_settings;
                 let highest_used_combo = self
@@ -2653,8 +2660,10 @@ impl EntropyApp {
         dark: bool,
         content_width: f32,
     ) {
-        let mut timeout_value = self.auto_shift_timeout.unwrap_or(175);
-        let mut timeout_text = timeout_value.to_string();
+        let timeout_value = self.auto_shift_timeout.unwrap_or(175);
+        if self.auto_shift_timeout_text.is_empty() {
+            self.auto_shift_timeout_text = timeout_value.to_string();
+        }
         let row_height = 28.0_f32;
         let checkbox_slot_width = 24.0_f32;
         let timeout_label_width = 150.0_f32;
@@ -2723,8 +2732,10 @@ impl EntropyApp {
                     );
                     let resp = ui.put(
                         input_rect,
-                        egui::TextEdit::singleline(&mut timeout_text)
-                            .desired_width(timeout_input_width),
+                        egui::TextEdit::singleline(&mut self.auto_shift_timeout_text)
+                            .desired_width(timeout_input_width)
+                            .horizontal_align(egui::Align::Center)
+                            .vertical_align(egui::Align::Center),
                     );
                     if resp.hovered() {
                         ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
@@ -2737,13 +2748,18 @@ impl EntropyApp {
                         app_muted_text(dark),
                     );
                     if resp.changed() {
-                        let filtered: String = timeout_text
+                        let filtered: String = self
+                            .auto_shift_timeout_text
                             .chars()
                             .filter(|c: &char| c.is_ascii_digit())
                             .collect();
+                        if filtered != self.auto_shift_timeout_text {
+                            self.auto_shift_timeout_text = filtered.clone();
+                        }
                         if let Ok(parsed) = filtered.parse::<u16>() {
-                            timeout_value = parsed.max(1);
+                            let timeout_value = parsed.max(1);
                             self.auto_shift_timeout = Some(timeout_value);
+                            self.auto_shift_timeout_text = timeout_value.to_string();
                             self.write_auto_shift_timeout();
                         }
                     }
