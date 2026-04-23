@@ -2656,9 +2656,9 @@ impl EntropyApp {
         let mut timeout_value = self.auto_shift_timeout.unwrap_or(175);
         let mut timeout_text = timeout_value.to_string();
         let row_height = 28.0_f32;
-        let label_width = 270.0_f32;
         let control_gap = 18.0_f32;
         let checkbox_slot_width = 24.0_f32;
+        let label_width = content_width - control_gap - checkbox_slot_width;
         let timeout_label_width = 150.0_f32;
         let timeout_input_width = 52.0_f32;
         let timeout_unit_width = 28.0_f32;
@@ -2674,12 +2674,9 @@ impl EntropyApp {
                             egui::vec2(content_width, row_height),
                             egui::Layout::left_to_right(egui::Align::Center),
                             |ui| {
-                                ui.allocate_ui_with_layout(
-                                    egui::vec2(label_width, row_height),
-                                    egui::Layout::left_to_right(egui::Align::Center),
-                                    |ui| {
-                                        ui.label(RichText::new(label).size(12.5));
-                                    },
+                                ui.add_sized(
+                                    [label_width, row_height],
+                                    egui::Label::new(RichText::new(label).size(12.5)),
                                 );
                                 ui.add_space(control_gap);
                                 let resp = ui.add_sized(
