@@ -4688,18 +4688,10 @@ impl EntropyApp {
                     ui,
                     crate::ui_style::ModalLayout::new(180.0).with_top_padding(2.0),
                     |ui| {
-                        ui.horizontal_centered(|ui| {
-                            ui.allocate_ui_with_layout(
-                                egui::vec2(160.0, 0.0),
-                                egui::Layout::top_down(egui::Align::Min),
-                                |ui| {
-                                    crate::ui_style::modal_hint(
-                                        ui,
-                                        "Choose which encoders are visible in the main layout",
-                                    );
-                                },
-                            );
-                        });
+                        crate::ui_style::modal_hint(
+                            ui,
+                            "Choose which encoders are visible in the main layout",
+                        );
                         ui.add_space(14.0);
 
                         let mut changed = false;
