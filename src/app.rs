@@ -4831,129 +4831,122 @@ impl EntropyApp {
             ui.add_space(layout.row_spacing);
 
             let speed_enabled = rgb_effect_supports_speed(self.rgb_settings.kind, selected_effect);
-            crate::ui_style::modal_labeled_row(
-                ui,
-                content_width,
-                label_width,
-                layout.row_height,
-                |ui| {
-                    ui.add(egui::Label::new(
-                        RichText::new("Speed").size(12.5).color(if speed_enabled {
-                            ui.visuals().text_color()
-                        } else {
-                            app_muted_text(dark)
-                        }),
-                    ));
-                },
-                |ui| {
-                    let value_color = if speed_enabled {
-                        if dark {
-                            Color32::from_gray(230)
-                        } else {
-                            Color32::from_gray(55)
-                        }
-                    } else {
-                        app_muted_text(dark)
-                    };
-
-                    ui.allocate_ui_with_layout(
-                        egui::vec2(control_width, layout.row_height),
-                        egui::Layout::left_to_right(egui::Align::Center),
-                        |ui| {
-                            ui.add_space(RGB_CONTROL_LEFT_PAD);
-                            ui.add_enabled_ui(speed_enabled, |ui| {
-                                ui.allocate_ui_with_layout(
-                                    egui::vec2(RGB_CONTROL_WIDTH, layout.row_height),
-                                    egui::Layout::left_to_right(egui::Align::Center),
-                                    |ui| {
-                                        ui.spacing_mut().slider_width = RGB_SLIDER_WIDTH;
-                                        let slider = egui::Slider::new(&mut speed_percent, 0.0..=100.0)
-                                            .step_by(1.0)
-                                            .show_value(false)
-                                            .trailing_fill(true);
-                                        let resp = ui.add_sized(RGB_SLIDER_SIZE, slider);
-                                        if resp.changed() {
-                                            let raw_value = ((speed_percent / 100.0) * speed_max)
-                                                .round()
-                                                .clamp(0.0, speed_max) as u8;
-                                            self.set_rgb_speed(raw_value);
-                                        }
-                                        ui.allocate_ui_with_layout(
-                                            egui::vec2(RGB_VALUE_WIDTH, layout.row_height),
-                                            egui::Layout::right_to_left(egui::Align::Center),
-                                            |ui| {
-                                                ui.label(
-                                                    RichText::new(format!("{}%", speed_percent as u8))
-                                                        .size(12.0)
-                                                        .color(value_color),
-                                                );
-                                            },
-                                        );
-                                    },
-                                );
-                            });
-                        },
-                    );
-                },
-            );
-
-            ui.add_space(layout.row_spacing);
-
-            crate::ui_style::modal_labeled_row(
-                ui,
-                content_width,
-                label_width,
-                layout.row_height,
-                |ui| {
-                    ui.add(egui::Label::new(RichText::new("Brightness").size(12.5)));
-                },
-                |ui| {
-                    let value_color = if dark {
+            ui.horizontal_centered(|ui| {
+                let (row_rect, _) = ui.allocate_exact_size(
+                    egui::vec2(content_width, layout.row_height),
+                    egui::Sense::hover(),
+                );
+                let control_rect = egui::Rect::from_min_size(
+                    egui::pos2(row_rect.right() - (RGB_CONTROL_WIDTH + RGB_CONTROL_LEFT_PAD), row_rect.top()),
+                    egui::vec2(RGB_CONTROL_WIDTH + RGB_CONTROL_LEFT_PAD, layout.row_height),
+                );
+                let slider_rect = egui::Rect::from_min_size(
+                    egui::pos2(control_rect.left() + RGB_CONTROL_LEFT_PAD, row_rect.top()),
+                    egui::vec2(RGB_SLIDER_SIZE[0], layout.row_height),
+                );
+                let value_rect = egui::Rect::from_min_size(
+                    egui::pos2(slider_rect.right(), row_rect.top()),
+                    egui::vec2(RGB_VALUE_WIDTH, layout.row_height),
+                );
+                let value_color = if speed_enabled {
+                    if dark {
                         Color32::from_gray(230)
                     } else {
                         Color32::from_gray(55)
-                    };
+                    }
+                } else {
+                    app_muted_text(dark)
+                };
+                ui.painter().text(
+                    egui::pos2(row_rect.left(), row_rect.center().y),
+                    egui::Align2::LEFT_CENTER,
+                    "Speed",
+                    FontId::proportional(12.5),
+                    if speed_enabled {
+                        ui.visuals().text_color()
+                    } else {
+                        app_muted_text(dark)
+                    },
+                );
+                ui.allocate_ui_at_rect(slider_rect, |ui| {
+                    ui.add_enabled_ui(speed_enabled, |ui| {
+                        ui.spacing_mut().slider_width = RGB_SLIDER_WIDTH;
+                        let slider = egui::Slider::new(&mut speed_percent, 0.0..=100.0)
+                            .step_by(1.0)
+                            .show_value(false)
+                            .trailing_fill(true);
+                        let resp = ui.add_sized(RGB_SLIDER_SIZE, slider);
+                        if resp.changed() {
+                            let raw_value = ((speed_percent / 100.0) * speed_max)
+                                .round()
+                                .clamp(0.0, speed_max) as u8;
+                            self.set_rgb_speed(raw_value);
+                        }
+                    });
+                });
+                ui.painter().text(
+                    egui::pos2(value_rect.right(), value_rect.center().y),
+                    egui::Align2::RIGHT_CENTER,
+                    format!("{}%", speed_percent as u8),
+                    FontId::proportional(12.0),
+                    value_color,
+                );
+            });
 
-                    ui.allocate_ui_with_layout(
-                        egui::vec2(control_width, layout.row_height),
-                        egui::Layout::left_to_right(egui::Align::Center),
-                        |ui| {
-                            ui.add_space(RGB_CONTROL_LEFT_PAD);
-                            ui.allocate_ui_with_layout(
-                                egui::vec2(RGB_CONTROL_WIDTH, layout.row_height),
-                                egui::Layout::left_to_right(egui::Align::Center),
-                                |ui| {
-                                    ui.spacing_mut().slider_width = RGB_SLIDER_WIDTH;
-                                    let slider = egui::Slider::new(&mut brightness_percent, 0.0..=100.0)
-                                        .step_by(1.0)
-                                        .show_value(false)
-                                        .trailing_fill(true);
-                                    let resp = ui.add_sized(RGB_SLIDER_SIZE, slider);
-                                    if resp.changed() {
-                                        let raw_value = ((brightness_percent / 100.0)
-                                            * brightness_max as f32)
-                                            .round()
-                                            .clamp(0.0, brightness_max as f32)
-                                            as u8;
-                                        self.set_rgb_brightness(raw_value);
-                                    }
-                                    ui.allocate_ui_with_layout(
-                                        egui::vec2(RGB_VALUE_WIDTH, layout.row_height),
-                                        egui::Layout::right_to_left(egui::Align::Center),
-                                        |ui| {
-                                            ui.label(
-                                                RichText::new(format!("{}%", brightness_percent as u8))
-                                                    .size(12.0)
-                                                    .color(value_color),
-                                            );
-                                        },
-                                    );
-                                },
-                            );
-                        },
-                    );
-                },
-            );
+            ui.add_space(layout.row_spacing);
+
+            ui.horizontal_centered(|ui| {
+                let (row_rect, _) = ui.allocate_exact_size(
+                    egui::vec2(content_width, layout.row_height),
+                    egui::Sense::hover(),
+                );
+                let control_rect = egui::Rect::from_min_size(
+                    egui::pos2(row_rect.right() - (RGB_CONTROL_WIDTH + RGB_CONTROL_LEFT_PAD), row_rect.top()),
+                    egui::vec2(RGB_CONTROL_WIDTH + RGB_CONTROL_LEFT_PAD, layout.row_height),
+                );
+                let slider_rect = egui::Rect::from_min_size(
+                    egui::pos2(control_rect.left() + RGB_CONTROL_LEFT_PAD, row_rect.top()),
+                    egui::vec2(RGB_SLIDER_SIZE[0], layout.row_height),
+                );
+                let value_rect = egui::Rect::from_min_size(
+                    egui::pos2(slider_rect.right(), row_rect.top()),
+                    egui::vec2(RGB_VALUE_WIDTH, layout.row_height),
+                );
+                let value_color = if dark {
+                    Color32::from_gray(230)
+                } else {
+                    Color32::from_gray(55)
+                };
+                ui.painter().text(
+                    egui::pos2(row_rect.left(), row_rect.center().y),
+                    egui::Align2::LEFT_CENTER,
+                    "Brightness",
+                    FontId::proportional(12.5),
+                    ui.visuals().text_color(),
+                );
+                ui.allocate_ui_at_rect(slider_rect, |ui| {
+                    ui.spacing_mut().slider_width = RGB_SLIDER_WIDTH;
+                    let slider = egui::Slider::new(&mut brightness_percent, 0.0..=100.0)
+                        .step_by(1.0)
+                        .show_value(false)
+                        .trailing_fill(true);
+                    let resp = ui.add_sized(RGB_SLIDER_SIZE, slider);
+                    if resp.changed() {
+                        let raw_value = ((brightness_percent / 100.0) * brightness_max as f32)
+                            .round()
+                            .clamp(0.0, brightness_max as f32)
+                            as u8;
+                        self.set_rgb_brightness(raw_value);
+                    }
+                });
+                ui.painter().text(
+                    egui::pos2(value_rect.right(), value_rect.center().y),
+                    egui::Align2::RIGHT_CENTER,
+                    format!("{}%", brightness_percent as u8),
+                    FontId::proportional(12.0),
+                    value_color,
+                );
+            });
 
             let save_size = crate::ui_style::modal_action_button_size();
             ui.allocate_ui_with_layout(
