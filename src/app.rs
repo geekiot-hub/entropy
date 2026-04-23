@@ -4963,7 +4963,7 @@ impl EntropyApp {
             "Auto Shift",
             self.popup_state.id(PopupKey::AutoShiftWindow),
             &mut open,
-            Vec2::new(440.0, 280.0),
+            Vec2::new(330.0, 280.0),
         )
             .show(ctx, |ui| {
                 if self.auto_shift_timeout.is_none() {
@@ -4977,8 +4977,8 @@ impl EntropyApp {
 
                 let mut timeout_value = self.auto_shift_timeout.unwrap_or(175);
                 let mut timeout_text = timeout_value.to_string();
-                let content_width = 360.0_f32;
-                let label_width = 248.0_f32;
+                let content_width = 270.0_f32;
+                let label_width = 186.0_f32;
                 let row_height = 28.0_f32;
                 let edge_padding = 12.0_f32;
                 let checkbox_slot_width = 24.0_f32;
