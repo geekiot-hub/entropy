@@ -2367,8 +2367,10 @@ impl EntropyApp {
             self.poll_matrix_tester(ctx, layout);
         }
 
-        if let Some(id) = ctx.memory(|m| m.focused()) {
-            ctx.memory_mut(|m| m.surrender_focus(id));
+        if self.settings_tab == SettingsTab::MatrixTester {
+            if let Some(id) = ctx.memory(|m| m.focused()) {
+                ctx.memory_mut(|m| m.surrender_focus(id));
+            }
         }
 
         let dark = ui.visuals().dark_mode;
