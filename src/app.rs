@@ -135,6 +135,39 @@ impl EncoderVisibilityModalLayout {
     }
 }
 
+#[derive(Clone, Copy)]
+struct RgbModalLayout {
+    window_size: Vec2,
+    content_width: f32,
+    label_width: f32,
+    top_padding: f32,
+    row_spacing: f32,
+    row_height: f32,
+    color_row_height: f32,
+}
+
+impl RgbModalLayout {
+    fn new() -> Self {
+        Self {
+            window_size: Vec2::new(304.0, 270.0),
+            content_width: 280.0,
+            label_width: 68.0,
+            top_padding: 4.0,
+            row_spacing: 10.0,
+            row_height: 28.0,
+            color_row_height: 44.0,
+        }
+    }
+
+    fn modal_layout(self) -> crate::ui_style::ModalLayout {
+        crate::ui_style::ModalLayout::new(self.content_width).with_top_padding(self.top_padding)
+    }
+
+    fn control_width(self) -> f32 {
+        self.content_width - self.label_width
+    }
+}
+
 fn save_layer_names(names: &[String], device_name: &str) {
     // Always save at least 16 slots so load_layer_names can detect a valid file
     let mut full = names.to_vec();
@@ -4332,6 +4365,7 @@ impl EntropyApp {
     }
 
     fn show_rgb_window(&mut self, ctx: &egui::Context) {
+        let layout = RgbModalLayout::new();
         let mut open = self.rgb_window_open;
         let mut close_after_save = false;
         let dark = ctx.style().visuals.dark_mode;
@@ -4341,7 +4375,7 @@ impl EntropyApp {
             "RGB",
             self.popup_state.id(PopupKey::RgbWindow),
             &mut open,
-            Vec2::new(304.0, 270.0),
+            layout.window_size,
         )
             .show(ctx, |ui| {
                 if !self.rgb_settings.supported {
@@ -4380,271 +4414,199 @@ impl EntropyApp {
 
                 crate::ui_style::modal_content(
                     ui,
-                    crate::ui_style::ModalLayout::new(280.0).with_top_padding(4.0),
+                    layout.modal_layout(),
                     |ui| {
-                        let label_width = 68.0_f32;
-                        let control_width = 212.0_f32;
-                        let content_width = 280.0_f32;
-                        let row_width = label_width + control_width;
-                        let row_inset = 0.0_f32;
+                        let label_width = layout.label_width;
+                        let control_width = layout.control_width();
+                        let content_width = layout.content_width;
 
-                            ui.horizontal(|ui| {
-                                ui.add_space(row_inset);
-                                ui.set_width(row_width);
-                                ui.allocate_ui_with_layout(
-                                    egui::vec2(label_width, 28.0),
-                                    egui::Layout::left_to_right(egui::Align::Center),
-                                    |ui| {
-                                        ui.add(egui::Label::new(RichText::new("Enable").size(12.5)));
-                                    },
-                                );
-                                let enable_resp = ui.checkbox(&mut enabled, "");
-                                if enable_resp.hovered() {
-                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                }
-                                if enable_resp.changed() {
-                                    let next_effect = if enabled {
-                                        self.rgb_settings.effect_or_default()
-                                    } else {
-                                        if self.rgb_settings.effect != 0 {
-                                            self.rgb_settings.last_enabled_effect =
-                                                self.rgb_settings.effect;
-                                        }
-                                        0
-                                    };
-                                    self.set_rgb_effect(next_effect);
-                                    selected_effect = self.rgb_settings.effect;
-                                }
-                            });
+                            crate::ui_style::modal_labeled_row(
+                                ui,
+                                content_width,
+                                label_width,
+                                layout.row_height,
+                                |ui| {
+                                    ui.add(egui::Label::new(RichText::new("Enable").size(12.5)));
+                                },
+                                |ui| {
+                                    let enable_resp = ui.checkbox(&mut enabled, "");
+                                    if enable_resp.hovered() {
+                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                    }
+                                    if enable_resp.changed() {
+                                        let next_effect = if enabled {
+                                            self.rgb_settings.effect_or_default()
+                                        } else {
+                                            if self.rgb_settings.effect != 0 {
+                                                self.rgb_settings.last_enabled_effect =
+                                                    self.rgb_settings.effect;
+                                            }
+                                            0
+                                        };
+                                        self.set_rgb_effect(next_effect);
+                                        selected_effect = self.rgb_settings.effect;
+                                    }
+                                },
+                            );
 
-                            ui.add_space(10.0);
+                            ui.add_space(layout.row_spacing);
 
-                            ui.horizontal(|ui| {
-                                ui.add_space(row_inset);
-                                ui.set_width(row_width);
-                                ui.allocate_ui_with_layout(
-                                    egui::vec2(label_width, 28.0),
-                                    egui::Layout::left_to_right(egui::Align::Center),
-                                    |ui| {
-                                        ui.add(egui::Label::new(RichText::new("Effect").size(12.5)));
-                                    },
-                                );
-                                ui.allocate_ui_with_layout(
-                                    egui::vec2(control_width, 28.0),
-                                    egui::Layout::left_to_right(egui::Align::Center),
-                                    |ui| {
-                                        egui::ComboBox::from_id_salt("rgb_effect_combo")
-                                            .selected_text(selected_effect_name)
-                                            .width(control_width)
-                                            .show_ui(ui, |ui| {
-                                                for (id, label) in &options {
-                                                    if ui
-                                                        .selectable_value(
-                                                            &mut selected_effect,
-                                                            *id,
-                                                            *label,
-                                                        )
-                                                        .changed()
-                                                    {
-                                                        self.set_rgb_effect(selected_effect);
-                                                    }
+                            crate::ui_style::modal_labeled_row(
+                                ui,
+                                content_width,
+                                label_width,
+                                layout.row_height,
+                                |ui| {
+                                    ui.add(egui::Label::new(RichText::new("Effect").size(12.5)));
+                                },
+                                |ui| {
+                                    egui::ComboBox::from_id_salt("rgb_effect_combo")
+                                        .selected_text(selected_effect_name)
+                                        .width(control_width)
+                                        .show_ui(ui, |ui| {
+                                            for (id, label) in &options {
+                                                if ui
+                                                    .selectable_value(
+                                                        &mut selected_effect,
+                                                        *id,
+                                                        *label,
+                                                    )
+                                                    .changed()
+                                                {
+                                                    self.set_rgb_effect(selected_effect);
                                                 }
-                                            });
-                                    },
-                                );
-                            });
+                                            }
+                                        });
+                                },
+                            );
 
-                            ui.add_space(10.0);
+                            ui.add_space(layout.row_spacing);
 
                             let color_enabled = rgb_effect_supports_color(self.rgb_settings.kind, selected_effect);
-                            ui.horizontal(|ui| {
-                                ui.add_space(row_inset);
-                                ui.set_width(row_width);
-                                ui.allocate_ui_with_layout(
-                                    egui::vec2(label_width, 44.0),
-                                    egui::Layout::left_to_right(egui::Align::Center),
-                                    |ui| {
-                                        ui.add(egui::Label::new(
-                                            RichText::new("Color")
-                                                .size(12.5)
-                                                .color(if color_enabled {
-                                                    ui.visuals().text_color()
-                                                } else {
-                                                    app_muted_text(dark)
-                                                }),
-                                        ));
-                                    },
-                                );
-
-                                let popup_id = ui.make_persistent_id("rgb_color_popup");
-                                let popup_hsva_id = popup_id.with("hsva");
-                                let popup_open = ui.memory(|m| m.is_popup_open(popup_id));
-                                let border = if dark {
-                                    Color32::from_gray(95)
-                                } else {
-                                    Color32::from_gray(185)
-                                };
-                                let swatch_border = if color_enabled && popup_open {
-                                    app_accent()
-                                } else {
-                                    border
-                                };
-                                let swatch_color: Color32 = color_hsva.into();
-                                let swatch_sense = if color_enabled { Sense::click() } else { Sense::hover() };
-                                let (swatch_rect, swatch_resp) = ui.allocate_exact_size(
-                                    Vec2::new(56.0, 32.0),
-                                    swatch_sense,
-                                );
-                                if color_enabled && swatch_resp.hovered() {
-                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                }
-                                if color_enabled && swatch_resp.clicked() {
-                                    ui.ctx().data_mut(|d| d.insert_temp(popup_hsva_id, color_hsva));
-                                    ui.memory_mut(|m| m.toggle_popup(popup_id));
-                                }
-                                ui.painter().rect(
-                                    swatch_rect,
-                                    8.0,
-                                    app_surface_fill(dark),
-                                    Stroke::new(1.0, swatch_border),
-                                    egui::StrokeKind::Inside,
-                                );
-                                ui.painter().rect(
-                                    swatch_rect.shrink(5.0),
-                                    5.0,
-                                    if color_enabled {
-                                        swatch_color
+                            crate::ui_style::modal_labeled_row(
+                                ui,
+                                content_width,
+                                label_width,
+                                layout.color_row_height,
+                                |ui| {
+                                    ui.add(egui::Label::new(
+                                        RichText::new("Color")
+                                            .size(12.5)
+                                            .color(if color_enabled {
+                                                ui.visuals().text_color()
+                                            } else {
+                                                app_muted_text(dark)
+                                            }),
+                                    ));
+                                },
+                                |ui| {
+                                    let popup_id = ui.make_persistent_id("rgb_color_popup");
+                                    let popup_hsva_id = popup_id.with("hsva");
+                                    let popup_open = ui.memory(|m| m.is_popup_open(popup_id));
+                                    let border = if dark {
+                                        Color32::from_gray(95)
                                     } else {
-                                        swatch_color.gamma_multiply(0.45)
-                                    },
-                                    Stroke::new(1.0, swatch_border.gamma_multiply(0.85)),
-                                    egui::StrokeKind::Inside,
-                                );
-
-                                if color_enabled {
-                                    let mut picked_hsva = ui
-                                        .ctx()
-                                        .data(|d| d.get_temp::<egui::ecolor::Hsva>(popup_hsva_id))
-                                        .unwrap_or(color_hsva);
-                                    egui::popup_below_widget(
-                                        ui,
-                                        popup_id,
-                                        &swatch_resp,
-                                        egui::PopupCloseBehavior::CloseOnClickOutside,
-                                        |ui| {
-                                            ui.spacing_mut().slider_width = 136.0;
-                                            if compact_rgb_color_picker(ui, &mut picked_hsva) {
-                                                let hue = (picked_hsva.h.rem_euclid(1.0) * 255.0)
-                                                    .round()
-                                                    .clamp(0.0, 255.0)
-                                                    as u8;
-                                                let saturation = (picked_hsva
-                                                    .s
-                                                    .clamp(0.0, 1.0)
-                                                    * 255.0)
-                                                    .round()
-                                                    .clamp(0.0, 255.0)
-                                                    as u8;
-                                                self.set_rgb_color(hue, saturation);
-                                                color_hsva = picked_hsva;
-                                                ui.ctx().data_mut(|d| d.insert_temp(popup_hsva_id, picked_hsva));
-                                            }
-                                        },
+                                        Color32::from_gray(185)
+                                    };
+                                    let swatch_border = if color_enabled && popup_open {
+                                        app_accent()
+                                    } else {
+                                        border
+                                    };
+                                    let swatch_color: Color32 = color_hsva.into();
+                                    let swatch_sense = if color_enabled { Sense::click() } else { Sense::hover() };
+                                    let (swatch_rect, swatch_resp) = ui.allocate_exact_size(
+                                        Vec2::new(56.0, 32.0),
+                                        swatch_sense,
                                     );
-                                }
-                            });
+                                    if color_enabled && swatch_resp.hovered() {
+                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                    }
+                                    if color_enabled && swatch_resp.clicked() {
+                                        ui.ctx().data_mut(|d| d.insert_temp(popup_hsva_id, color_hsva));
+                                        ui.memory_mut(|m| m.toggle_popup(popup_id));
+                                    }
+                                    ui.painter().rect(
+                                        swatch_rect,
+                                        8.0,
+                                        app_surface_fill(dark),
+                                        Stroke::new(1.0, swatch_border),
+                                        egui::StrokeKind::Inside,
+                                    );
+                                    ui.painter().rect(
+                                        swatch_rect.shrink(5.0),
+                                        5.0,
+                                        if color_enabled {
+                                            swatch_color
+                                        } else {
+                                            swatch_color.gamma_multiply(0.45)
+                                        },
+                                        Stroke::new(1.0, swatch_border.gamma_multiply(0.85)),
+                                        egui::StrokeKind::Inside,
+                                    );
 
-                            ui.add_space(10.0);
+                                    if color_enabled {
+                                        let mut picked_hsva = ui
+                                            .ctx()
+                                            .data(|d| d.get_temp::<egui::ecolor::Hsva>(popup_hsva_id))
+                                            .unwrap_or(color_hsva);
+                                        egui::popup_below_widget(
+                                            ui,
+                                            popup_id,
+                                            &swatch_resp,
+                                            egui::PopupCloseBehavior::CloseOnClickOutside,
+                                            |ui| {
+                                                ui.spacing_mut().slider_width = 136.0;
+                                                if compact_rgb_color_picker(ui, &mut picked_hsva) {
+                                                    let hue = (picked_hsva.h.rem_euclid(1.0) * 255.0)
+                                                        .round()
+                                                        .clamp(0.0, 255.0)
+                                                        as u8;
+                                                    let saturation = (picked_hsva
+                                                        .s
+                                                        .clamp(0.0, 1.0)
+                                                        * 255.0)
+                                                        .round()
+                                                        .clamp(0.0, 255.0)
+                                                        as u8;
+                                                    self.set_rgb_color(hue, saturation);
+                                                    color_hsva = picked_hsva;
+                                                    ui.ctx().data_mut(|d| d.insert_temp(popup_hsva_id, picked_hsva));
+                                                }
+                                            },
+                                        );
+                                    }
+                                },
+                            );
+
+                            ui.add_space(layout.row_spacing);
 
                             let speed_enabled = rgb_effect_supports_speed(self.rgb_settings.kind, selected_effect);
-                            ui.horizontal(|ui| {
-                                ui.add_space(row_inset);
-                                ui.set_width(row_width);
-                                ui.allocate_ui_with_layout(
-                                    egui::vec2(label_width, 28.0),
-                                    egui::Layout::left_to_right(egui::Align::Center),
-                                    |ui| {
-                                        ui.add(egui::Label::new(
-                                            RichText::new("Speed")
-                                                .size(12.5)
-                                                .color(if speed_enabled {
-                                                    ui.visuals().text_color()
-                                                } else {
-                                                    app_muted_text(dark)
-                                                }),
-                                        ));
-                                    },
-                                );
-                                ui.allocate_ui_with_layout(
-                                    egui::vec2(control_width, 28.0),
-                                    egui::Layout::left_to_right(egui::Align::Center),
-                                    |ui| {
-                                        ui.add_enabled_ui(speed_enabled, |ui| {
-                                            ui.scope(|ui| {
-                                                const RGB_VALUE_WIDTH: f32 = 44.0;
-                                                const RGB_SLIDER_WIDTH: f32 = 160.0;
-                                                const RGB_SLIDER_SIZE: [f32; 2] = [168.0, 24.0];
-                                                ui.spacing_mut().slider_width = RGB_SLIDER_WIDTH;
-                                                let slider = egui::Slider::new(
-                                                    &mut speed_percent,
-                                                    0.0..=100.0,
-                                                )
-                                                .step_by(1.0)
-                                                .show_value(false)
-                                                .trailing_fill(true);
-                                                let resp = ui.add_sized(RGB_SLIDER_SIZE, slider);
-                                                if resp.changed() {
-                                                    let raw_value = ((speed_percent / 100.0) * speed_max)
-                                                        .round()
-                                                        .clamp(0.0, speed_max)
-                                                        as u8;
-                                                    self.set_rgb_speed(raw_value);
-                                                }
-                                                let value_color = if speed_enabled {
-                                                    if dark {
-                                                        Color32::from_gray(230)
-                                                    } else {
-                                                        Color32::from_gray(55)
-                                                    }
-                                                } else {
-                                                    app_muted_text(dark)
-                                                };
-                                                ui.painter().text(
-                                                    egui::pos2(resp.rect.right() + RGB_VALUE_WIDTH - 8.0, resp.rect.center().y),
-                                                    egui::Align2::RIGHT_CENTER,
-                                                    format!("{}%", speed_percent as u8),
-                                                    egui::FontId::proportional(12.0),
-                                                    value_color,
-                                                );
-                                            });
-                                        });
-                                    },
-                                );
-                            });
-
-                            ui.add_space(10.0);
-
-                            ui.horizontal(|ui| {
-                                ui.add_space(row_inset);
-                                ui.set_width(row_width);
-                                ui.allocate_ui_with_layout(
-                                    egui::vec2(label_width, 28.0),
-                                    egui::Layout::left_to_right(egui::Align::Center),
-                                    |ui| {
-                                        ui.add(egui::Label::new(RichText::new("Brightness").size(12.5)));
-                                    },
-                                );
-                                ui.allocate_ui_with_layout(
-                                    egui::vec2(control_width, 28.0),
-                                    egui::Layout::left_to_right(egui::Align::Center),
-                                    |ui| {
+                            crate::ui_style::modal_labeled_row(
+                                ui,
+                                content_width,
+                                label_width,
+                                layout.row_height,
+                                |ui| {
+                                    ui.add(egui::Label::new(
+                                        RichText::new("Speed")
+                                            .size(12.5)
+                                            .color(if speed_enabled {
+                                                ui.visuals().text_color()
+                                            } else {
+                                                app_muted_text(dark)
+                                            }),
+                                    ));
+                                },
+                                |ui| {
+                                    ui.add_enabled_ui(speed_enabled, |ui| {
                                         ui.scope(|ui| {
                                             const RGB_VALUE_WIDTH: f32 = 44.0;
                                             const RGB_SLIDER_WIDTH: f32 = 160.0;
                                             const RGB_SLIDER_SIZE: [f32; 2] = [168.0, 24.0];
                                             ui.spacing_mut().slider_width = RGB_SLIDER_WIDTH;
                                             let slider = egui::Slider::new(
-                                                &mut brightness_percent,
+                                                &mut speed_percent,
                                                 0.0..=100.0,
                                             )
                                             .step_by(1.0)
@@ -4652,29 +4614,80 @@ impl EntropyApp {
                                             .trailing_fill(true);
                                             let resp = ui.add_sized(RGB_SLIDER_SIZE, slider);
                                             if resp.changed() {
-                                                let raw_value =
-                                                    ((brightness_percent / 100.0) * brightness_max as f32)
-                                                        .round()
-                                                        .clamp(0.0, brightness_max as f32)
-                                                        as u8;
-                                                self.set_rgb_brightness(raw_value);
+                                                let raw_value = ((speed_percent / 100.0) * speed_max)
+                                                    .round()
+                                                    .clamp(0.0, speed_max)
+                                                    as u8;
+                                                self.set_rgb_speed(raw_value);
                                             }
-                                            let value_color = if dark {
-                                                Color32::from_gray(230)
+                                            let value_color = if speed_enabled {
+                                                if dark {
+                                                    Color32::from_gray(230)
+                                                } else {
+                                                    Color32::from_gray(55)
+                                                }
                                             } else {
-                                                Color32::from_gray(55)
+                                                app_muted_text(dark)
                                             };
                                             ui.painter().text(
                                                 egui::pos2(resp.rect.right() + RGB_VALUE_WIDTH - 8.0, resp.rect.center().y),
                                                 egui::Align2::RIGHT_CENTER,
-                                                format!("{}%", brightness_percent as u8),
+                                                format!("{}%", speed_percent as u8),
                                                 egui::FontId::proportional(12.0),
                                                 value_color,
                                             );
                                         });
-                                    },
-                                );
-                            });
+                                    });
+                                },
+                            );
+
+                            ui.add_space(layout.row_spacing);
+
+                            crate::ui_style::modal_labeled_row(
+                                ui,
+                                content_width,
+                                label_width,
+                                layout.row_height,
+                                |ui| {
+                                    ui.add(egui::Label::new(RichText::new("Brightness").size(12.5)));
+                                },
+                                |ui| {
+                                    ui.scope(|ui| {
+                                        const RGB_VALUE_WIDTH: f32 = 44.0;
+                                        const RGB_SLIDER_WIDTH: f32 = 160.0;
+                                        const RGB_SLIDER_SIZE: [f32; 2] = [168.0, 24.0];
+                                        ui.spacing_mut().slider_width = RGB_SLIDER_WIDTH;
+                                        let slider = egui::Slider::new(
+                                            &mut brightness_percent,
+                                            0.0..=100.0,
+                                        )
+                                        .step_by(1.0)
+                                        .show_value(false)
+                                        .trailing_fill(true);
+                                        let resp = ui.add_sized(RGB_SLIDER_SIZE, slider);
+                                        if resp.changed() {
+                                            let raw_value =
+                                                ((brightness_percent / 100.0) * brightness_max as f32)
+                                                    .round()
+                                                    .clamp(0.0, brightness_max as f32)
+                                                    as u8;
+                                            self.set_rgb_brightness(raw_value);
+                                        }
+                                        let value_color = if dark {
+                                            Color32::from_gray(230)
+                                        } else {
+                                            Color32::from_gray(55)
+                                        };
+                                        ui.painter().text(
+                                            egui::pos2(resp.rect.right() + RGB_VALUE_WIDTH - 8.0, resp.rect.center().y),
+                                            egui::Align2::RIGHT_CENTER,
+                                            format!("{}%", brightness_percent as u8),
+                                            egui::FontId::proportional(12.0),
+                                            value_color,
+                                        );
+                                    });
+                                },
+                            );
 
                         let save_size = crate::ui_style::modal_action_button_size();
                         ui.allocate_ui_with_layout(

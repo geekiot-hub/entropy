@@ -248,3 +248,30 @@ pub fn modal_checkbox_label_row(
     );
     changed
 }
+
+pub fn modal_labeled_row(
+    ui: &mut Ui,
+    content_width: f32,
+    label_width: f32,
+    row_height: f32,
+    add_label: impl FnOnce(&mut Ui),
+    add_control: impl FnOnce(&mut Ui),
+) {
+    let control_width = (content_width - label_width).max(0.0);
+    ui.allocate_ui_with_layout(
+        egui::vec2(content_width, row_height),
+        egui::Layout::left_to_right(egui::Align::Center),
+        |ui| {
+            ui.allocate_ui_with_layout(
+                egui::vec2(label_width, row_height),
+                egui::Layout::left_to_right(egui::Align::Center),
+                add_label,
+            );
+            ui.allocate_ui_with_layout(
+                egui::vec2(control_width, row_height),
+                egui::Layout::left_to_right(egui::Align::Center),
+                add_control,
+            );
+        },
+    );
+}
