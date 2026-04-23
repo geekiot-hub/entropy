@@ -1112,6 +1112,7 @@ enum SettingsTab {
     MatrixTester,
     AutoShift,
     Rgb,
+    Encoders,
 }
 
 pub struct EntropyApp {
@@ -2390,6 +2391,9 @@ impl EntropyApp {
             SettingsTab::Rgb => {
                 self.draw_rgb_settings_page(ui, content_rect, dark);
             }
+            SettingsTab::Encoders => {
+                self.draw_encoder_visibility_settings_page(ui, content_rect, dark);
+            }
         }
     }
 
@@ -2638,6 +2642,28 @@ impl EntropyApp {
 
                 let mut close_after_save = false;
                 self.draw_rgb_editor_content(ui, dark, &RgbModalLayout::new(), false, &mut close_after_save);
+            });
+        });
+    }
+
+    fn draw_encoder_visibility_settings_page(
+        &mut self,
+        ui: &mut egui::Ui,
+        content_rect: egui::Rect,
+        dark: bool,
+    ) {
+        ui.allocate_ui_at_rect(content_rect, |ui| {
+            ui.vertical_centered(|ui| {
+                ui.add_space(18.0);
+                ui.label(RichText::new("Encoders").size(18.0).strong());
+                ui.add_space(6.0);
+                ui.label(
+                    RichText::new("Show or hide encoder controls for this device")
+                        .size(13.0)
+                        .color(app_muted_text(dark)),
+                );
+                ui.add_space(24.0);
+                self.draw_encoder_visibility_editor_content(ui, &EncoderVisibilityModalLayout::new());
             });
         });
     }
@@ -4999,9 +5025,55 @@ impl EntropyApp {
         self.rgb_window_open = open;
     }
 
+    fn draw_encoder_visibility_editor_content(
+        &mut self,
+        ui: &mut egui::Ui,
+        layout: &EncoderVisibilityModalLayout,
+    ) {
+        crate::ui_style::modal_content(ui, layout.modal_layout(), |ui| {
+            crate::ui_style::modal_centered_text_block(ui, layout.content_width, |ui| {
+                ui.label(
+                    RichText::new("Show or hide encoder controls for this device")
+                        .size(13.0)
+                        .color(app_muted_text(ui.visuals().dark_mode)),
+                );
+            });
+            ui.add_space(layout.hint_bottom_spacing);
+
+            let visible_count = self
+                .layout
+                .as_ref()
+                .map(|layout| layout.encoders.len())
+                .unwrap_or(0);
+            if self.encoder_visibility.len() < visible_count {
+                self.encoder_visibility.resize(visible_count, true);
+            }
+
+            for visual_idx in 0..visible_count {
+                let is_visible = self.encoder_visibility[visual_idx];
+                let mut toggled = is_visible;
+                crate::ui_style::modal_checkbox_label_row(
+                    ui,
+                    layout.content_width,
+                    layout.row_height,
+                    &mut toggled,
+                    &format!("Encoder {}", visual_idx + 1),
+                    layout.checkbox_label_gap,
+                );
+                if toggled != is_visible {
+                    self.encoder_visibility[visual_idx] = toggled;
+                }
+                if visual_idx + 1 < visible_count {
+                    ui.add_space(layout.row_spacing);
+                }
+            }
+        });
+    }
+
     fn show_encoder_visibility_window(&mut self, ctx: &egui::Context) {
         let layout = EncoderVisibilityModalLayout::new();
         let mut open = self.encoder_visibility_window_open;
+
         let shown = crate::ui_style::centered_modal_window(
             ctx,
             "Encoders",
@@ -5010,40 +5082,9 @@ impl EntropyApp {
             layout.window_size,
         )
             .show(ctx, |ui| {
-                if self.encoder_visibility.is_empty() {
-                    crate::ui_style::modal_empty_state(ui, "No encoders found for this device", None);
-                    return;
-                }
-
-                crate::ui_style::modal_content(ui, layout.modal_layout(), |ui| {
-                    crate::ui_style::modal_centered_text_block(ui, layout.hint_width, |ui| {
-                        crate::ui_style::modal_hint(
-                            ui,
-                            "Choose which encoders are visible in the main layout",
-                        );
-                    });
-                    ui.add_space(layout.hint_bottom_spacing);
-
-                    let mut changed = false;
-                    ui.scope(|ui| {
-                        ui.spacing_mut().item_spacing = egui::vec2(0.0, layout.row_spacing);
-                        for (idx, visible) in self.encoder_visibility.iter_mut().enumerate() {
-                            changed |= crate::ui_style::modal_checkbox_label_row(
-                                ui,
-                                layout.content_width,
-                                layout.row_height,
-                                visible,
-                                &format!("Show Encoder {}", idx + 1),
-                                layout.checkbox_label_gap,
-                            );
-                        }
-                    });
-
-                    if changed && !self.current_device_name.is_empty() {
-                        save_encoder_visibility(&self.encoder_visibility, &self.current_device_name);
-                    }
-                });
+                self.draw_encoder_visibility_editor_content(ui, &layout);
             });
+
         self.focus_modal_window(&shown);
         self.encoder_visibility_window_open = open;
     }
@@ -6744,7 +6785,8 @@ impl EntropyApp {
                                         }
                                         if encoders_resp.clicked() {
                                             self.close_top_dropdowns(ui.ctx());
-                                            self.queue_popup_open(PendingPopupOpen::EncoderVisibility);
+                                            self.settings_tab = SettingsTab::Encoders;
+                                            self.main_menu_tab = MainMenuTab::Settings;
                                         }
                                         (
                                             matrix_resp.hovered(),
