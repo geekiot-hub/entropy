@@ -123,8 +123,8 @@ impl EncoderVisibilityModalLayout {
             content_width: 180.0,
             hint_width: 160.0,
             top_padding: 2.0,
-            hint_bottom_spacing: 14.0,
-            row_spacing: 8.0,
+            hint_bottom_spacing: 8.0,
+            row_spacing: 4.0,
             row_height: 28.0,
             checkbox_label_gap: 0.0,
         }
@@ -2657,13 +2657,12 @@ impl EntropyApp {
                 ui.add_space(18.0);
                 ui.label(RichText::new("Encoders").size(18.0).strong());
                 ui.add_space(6.0);
-                ui.label(
-                    RichText::new("Show or hide encoder controls for this device")
-                        .size(13.0)
-                        .color(app_muted_text(dark)),
+                ui.add_space(8.0);
+                self.draw_encoder_visibility_editor_content(
+                    ui,
+                    &EncoderVisibilityModalLayout::new(),
+                    false,
                 );
-                ui.add_space(24.0);
-                self.draw_encoder_visibility_editor_content(ui, &EncoderVisibilityModalLayout::new());
             });
         });
     }
@@ -5029,25 +5028,36 @@ impl EntropyApp {
         &mut self,
         ui: &mut egui::Ui,
         layout: &EncoderVisibilityModalLayout,
+        show_intro: bool,
     ) {
         crate::ui_style::modal_content(ui, layout.modal_layout(), |ui| {
-            crate::ui_style::modal_centered_text_block(ui, layout.content_width, |ui| {
-                ui.label(
-                    RichText::new("Show or hide encoder controls for this device")
-                        .size(13.0)
-                        .color(app_muted_text(ui.visuals().dark_mode)),
-                );
-            });
-            ui.add_space(layout.hint_bottom_spacing);
+            if show_intro {
+                crate::ui_style::modal_centered_text_block(ui, layout.hint_width, |ui| {
+                    ui.label(
+                        RichText::new("Show or hide encoder controls for this device")
+                            .size(13.0)
+                            .color(app_muted_text(ui.visuals().dark_mode)),
+                    );
+                });
+                ui.add_space(layout.hint_bottom_spacing);
+            }
 
             let visible_count = self
                 .layout
                 .as_ref()
-                .map(|layout| layout.encoders.len())
+                .map(|layout| {
+                    let mut seen = std::collections::BTreeSet::new();
+                    layout
+                        .encoders
+                        .iter()
+                        .filter(|encoder| seen.insert(encoder.encoder_idx))
+                        .count()
+                })
                 .unwrap_or(0);
             if self.encoder_visibility.len() < visible_count {
                 self.encoder_visibility.resize(visible_count, true);
             }
+            self.encoder_visibility.truncate(visible_count);
 
             for visual_idx in 0..visible_count {
                 let is_visible = self.encoder_visibility[visual_idx];
@@ -5082,7 +5092,7 @@ impl EntropyApp {
             layout.window_size,
         )
             .show(ctx, |ui| {
-                self.draw_encoder_visibility_editor_content(ui, &layout);
+                self.draw_encoder_visibility_editor_content(ui, &layout, true);
             });
 
         self.focus_modal_window(&shown);
