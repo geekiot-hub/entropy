@@ -5017,7 +5017,7 @@ impl EntropyApp {
                                 });
 
                         ui.add_space(10.0);
-                        let timeout_label_width = 170.0_f32;
+                        let timeout_label_width = 150.0_f32;
                         ui.horizontal(|ui| {
                             ui.add_sized(
                                 [timeout_label_width, row_height],
