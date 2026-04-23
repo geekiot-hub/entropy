@@ -4978,6 +4978,11 @@ impl EntropyApp {
                 let mut timeout_value = self.auto_shift_timeout.unwrap_or(175);
                 let mut timeout_text = timeout_value.to_string();
                 let content_width = 360.0_f32;
+                let label_width = 248.0_f32;
+                let row_height = 28.0_f32;
+                let checkbox_slot_width = 24.0_f32;
+                let timeout_group_width = 84.0_f32;
+                let control_width = (content_width - label_width).max(0.0);
 
                 crate::ui_style::modal_content(
                     ui,
@@ -5006,31 +5011,34 @@ impl EntropyApp {
                                     options_changed |= checkbox_row(ui, "Enable keyrepeat", &mut self.auto_shift_options.enable_keyrepeat);
                                     options_changed |= checkbox_row(ui, "Disable keyrepeat when timeout is exceeded", &mut self.auto_shift_options.disable_keyrepeat_timeout);
 
-                                    ui.label(RichText::new("Timeout").size(12.5));
-                                    ui.horizontal(|ui| {
-                                        ui.add_space(-22.0);
-                                        let resp = ui.add(
-                                            egui::TextEdit::singleline(&mut timeout_text)
-                                                .desired_width(52.0)
-                                        );
-                                        if resp.hovered() {
-                                            ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
-                                        }
-                                        ui.label(RichText::new("ms").size(11.5).color(app_muted_text(dark)));
-                                        if resp.changed() {
-                                            let filtered: String = timeout_text.chars().filter(|c: &char| c.is_ascii_digit()).collect();
-                                            if let Ok(parsed) = filtered.parse::<u16>() {
-                                                timeout_value = parsed.max(1);
-                                                self.auto_shift_timeout = Some(timeout_value);
-                                                self.write_auto_shift_timeout();
-                                            }
-                                        }
-                                    });
-                                    ui.end_row();
-
                                     if options_changed {
                                         self.write_auto_shift_flags();
                                     }
+                                });
+
+                        ui.add_space(10.0);
+                        ui.horizontal(|ui| {
+                            ui.add_sized(
+                                [label_width, row_height],
+                                egui::Label::new(RichText::new("Timeout").size(12.5)),
+                            );
+                            ui.add_space((control_width - checkbox_slot_width - timeout_group_width - 22.0).max(0.0));
+                            let resp = ui.add(
+                                egui::TextEdit::singleline(&mut timeout_text)
+                                    .desired_width(52.0)
+                            );
+                            if resp.hovered() {
+                                ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
+                            }
+                            ui.label(RichText::new("ms").size(11.5).color(app_muted_text(dark)));
+                            if resp.changed() {
+                                let filtered: String = timeout_text.chars().filter(|c: &char| c.is_ascii_digit()).collect();
+                                if let Ok(parsed) = filtered.parse::<u16>() {
+                                    timeout_value = parsed.max(1);
+                                    self.auto_shift_timeout = Some(timeout_value);
+                                    self.write_auto_shift_timeout();
+                                }
+                            }
                                 });
                     },
                 );
