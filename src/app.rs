@@ -104,6 +104,66 @@ fn save_encoder_visibility(visibility: &[bool], device_name: &str) {
     }
 }
 
+#[derive(Clone, Copy)]
+struct EncoderVisibilityModalLayout {
+    window_size: Vec2,
+    content_width: f32,
+    hint_width: f32,
+    top_padding: f32,
+    hint_bottom_spacing: f32,
+    row_spacing: f32,
+    row_height: f32,
+    checkbox_label_gap: f32,
+}
+
+impl EncoderVisibilityModalLayout {
+    fn new() -> Self {
+        Self {
+            window_size: Vec2::new(216.0, 252.0),
+            content_width: 180.0,
+            hint_width: 160.0,
+            top_padding: 2.0,
+            hint_bottom_spacing: 14.0,
+            row_spacing: 8.0,
+            row_height: 28.0,
+            checkbox_label_gap: 0.0,
+        }
+    }
+
+    fn modal_layout(self) -> crate::ui_style::ModalLayout {
+        crate::ui_style::ModalLayout::new(self.content_width).with_top_padding(self.top_padding)
+    }
+}
+
+fn draw_encoder_visibility_row(
+    ui: &mut egui::Ui,
+    visible: &mut bool,
+    label: &str,
+    layout: EncoderVisibilityModalLayout,
+) -> bool {
+    let mut changed = false;
+    ui.allocate_ui_with_layout(
+        egui::vec2(layout.content_width, layout.row_height),
+        egui::Layout::left_to_right(egui::Align::Center),
+        |ui| {
+            ui.horizontal_centered(|ui| {
+                let resp = ui.add(egui::Checkbox::without_text(visible));
+                if resp.hovered() {
+                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                }
+                if resp.changed() {
+                    changed = true;
+                }
+                if layout.checkbox_label_gap > 0.0 {
+                    ui.add_space(layout.checkbox_label_gap);
+                }
+                ui.label(label);
+            });
+        },
+    );
+    changed
+}
+
 fn save_layer_names(names: &[String], device_name: &str) {
     // Always save at least 16 slots so load_layer_names can detect a valid file
     let mut full = names.to_vec();
@@ -4670,13 +4730,14 @@ impl EntropyApp {
     }
 
     fn show_encoder_visibility_window(&mut self, ctx: &egui::Context) {
+        let layout = EncoderVisibilityModalLayout::new();
         let mut open = self.encoder_visibility_window_open;
         let shown = crate::ui_style::centered_modal_window(
             ctx,
             "Encoders",
             self.popup_state.id(PopupKey::EncoderVisibilityWindow),
             &mut open,
-            Vec2::new(216.0, 252.0),
+            layout.window_size,
         )
             .show(ctx, |ui| {
                 if self.encoder_visibility.is_empty() {
@@ -4684,46 +4745,38 @@ impl EntropyApp {
                     return;
                 }
 
-                crate::ui_style::modal_content(
-                    ui,
-                    crate::ui_style::ModalLayout::new(180.0).with_top_padding(2.0),
-                    |ui| {
-                        ui.horizontal_centered(|ui| {
-                            ui.allocate_ui_with_layout(
-                                egui::vec2(160.0, 0.0),
-                                egui::Layout::top_down(egui::Align::Min),
-                                |ui| {
-                                    crate::ui_style::modal_hint(
-                                        ui,
-                                        "Choose which encoders are visible in the main layout",
-                                    );
-                                },
+                crate::ui_style::modal_content(ui, layout.modal_layout(), |ui| {
+                    ui.horizontal_centered(|ui| {
+                        ui.allocate_ui_with_layout(
+                            egui::vec2(layout.hint_width, 0.0),
+                            egui::Layout::top_down(egui::Align::Min),
+                            |ui| {
+                                crate::ui_style::modal_hint(
+                                    ui,
+                                    "Choose which encoders are visible in the main layout",
+                                );
+                            },
+                        );
+                    });
+                    ui.add_space(layout.hint_bottom_spacing);
+
+                    let mut changed = false;
+                    ui.scope(|ui| {
+                        ui.spacing_mut().item_spacing = egui::vec2(0.0, layout.row_spacing);
+                        for (idx, visible) in self.encoder_visibility.iter_mut().enumerate() {
+                            changed |= draw_encoder_visibility_row(
+                                ui,
+                                visible,
+                                &format!("Show Encoder {}", idx + 1),
+                                layout,
                             );
-                        });
-                        ui.add_space(14.0);
-
-                        let mut changed = false;
-                        ui.scope(|ui| {
-                            ui.spacing_mut().item_spacing = egui::vec2(0.0, 8.0);
-                            for (idx, visible) in self.encoder_visibility.iter_mut().enumerate() {
-                                ui.horizontal_centered(|ui| {
-                                    let resp = ui.add(egui::Checkbox::without_text(visible));
-                                    if resp.hovered() {
-                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                    }
-                                    if resp.changed() {
-                                        changed = true;
-                                    }
-                                    ui.label(format!("Show Encoder {}", idx + 1));
-                                });
-                            }
-                        });
-
-                        if changed && !self.current_device_name.is_empty() {
-                            save_encoder_visibility(&self.encoder_visibility, &self.current_device_name);
                         }
-                    },
-                );
+                    });
+
+                    if changed && !self.current_device_name.is_empty() {
+                        save_encoder_visibility(&self.encoder_visibility, &self.current_device_name);
+                    }
+                });
             });
         self.focus_modal_window(&shown);
         self.encoder_visibility_window_open = open;
