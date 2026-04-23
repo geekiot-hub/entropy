@@ -120,7 +120,7 @@ impl EncoderVisibilityModalLayout {
     fn new() -> Self {
         Self {
             window_size: Vec2::new(216.0, 252.0),
-            content_width: 180.0,
+            content_width: 148.0,
             hint_width: 160.0,
             top_padding: 2.0,
             hint_bottom_spacing: 8.0,
@@ -2661,7 +2661,7 @@ impl EntropyApp {
                 self.draw_encoder_visibility_editor_content(
                     ui,
                     &EncoderVisibilityModalLayout::new(),
-                    false,
+                    true,
                 );
             });
         });
