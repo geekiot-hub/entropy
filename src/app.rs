@@ -2668,8 +2668,9 @@ impl EntropyApp {
         }
         let row_height = 28.0_f32;
         let checkbox_slot_width = 24.0_f32;
-        let timeout_label_width = 150.0_f32;
         let timeout_input_width = 52.0_f32;
+        let timeout_unit_gap = 12.0_f32;
+        let timeout_group_width = timeout_input_width + timeout_unit_gap + 18.0;
 
         crate::ui_style::modal_content(
             ui,
@@ -2722,7 +2723,7 @@ impl EntropyApp {
                         egui::Sense::hover(),
                     );
                     let input_rect = egui::Rect::from_min_size(
-                        egui::pos2(row_rect.left() + timeout_label_width, row_rect.top()),
+                        egui::pos2(row_rect.right() - timeout_group_width, row_rect.top()),
                         egui::vec2(timeout_input_width, row_height),
                     );
                     ui.painter().text(
@@ -2743,7 +2744,7 @@ impl EntropyApp {
                         ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
                     }
                     ui.painter().text(
-                        egui::pos2(input_rect.right() + 12.0, row_rect.center().y),
+                        egui::pos2(input_rect.right() + timeout_unit_gap, row_rect.center().y),
                         egui::Align2::LEFT_CENTER,
                         "ms",
                         FontId::proportional(11.5),
