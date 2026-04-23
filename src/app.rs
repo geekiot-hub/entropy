@@ -4990,9 +4990,12 @@ impl EntropyApp {
                     |ui| {
                         let mut checkbox_row = |ui: &mut egui::Ui, label: &str, value: &mut bool| -> bool {
                             let mut changed = false;
-                            ui.add_sized(
-                                [label_width, row_height],
-                                egui::Label::new(RichText::new(label).size(12.5)),
+                            ui.allocate_ui_with_layout(
+                                egui::vec2(label_width, row_height),
+                                egui::Layout::left_to_right(egui::Align::Center),
+                                |ui| {
+                                    ui.label(RichText::new(label).size(12.5));
+                                },
                             );
                             ui.allocate_ui_with_layout(
                                 egui::vec2(control_width, row_height),
@@ -5019,9 +5022,12 @@ impl EntropyApp {
                                 options_changed |= checkbox_row(ui, "Enable", &mut self.auto_shift_options.enabled);
                                 options_changed |= checkbox_row(ui, "Enable for modifiers", &mut self.auto_shift_options.enable_for_modifiers);
 
-                                ui.add_sized(
-                                    [label_width, row_height],
-                                    egui::Label::new(RichText::new("Timeout").size(12.5)),
+                                ui.allocate_ui_with_layout(
+                                    egui::vec2(label_width, row_height),
+                                    egui::Layout::left_to_right(egui::Align::Center),
+                                    |ui| {
+                                        ui.label(RichText::new("Timeout").size(12.5));
+                                    },
                                 );
                                 ui.allocate_ui_with_layout(
                                     egui::vec2(control_width, row_height),
