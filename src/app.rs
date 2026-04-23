@@ -4688,52 +4688,35 @@ impl EntropyApp {
                     ui,
                     crate::ui_style::ModalLayout::new(180.0).with_top_padding(2.0),
                     |ui| {
-                        crate::ui_style::modal_hint(
-                            ui,
-                            "Choose which encoders are visible in the main layout",
-                        );
+                        ui.horizontal_centered(|ui| {
+                            ui.allocate_ui_with_layout(
+                                egui::vec2(160.0, 0.0),
+                                egui::Layout::top_down(egui::Align::Min),
+                                |ui| {
+                                    crate::ui_style::modal_hint(
+                                        ui,
+                                        "Choose which encoders are visible in the main layout",
+                                    );
+                                },
+                            );
+                        });
                         ui.add_space(14.0);
 
                         let mut changed = false;
                         ui.scope(|ui| {
                             ui.spacing_mut().item_spacing.y = 8.0;
-                            let row_width = 156.0_f32;
-                            let checkbox_slot_width = 20.0_f32;
-                            let gap_width = 0.0_f32;
-                            let label_width = row_width - checkbox_slot_width - gap_width;
-
                             for (idx, visible) in self.encoder_visibility.iter_mut().enumerate() {
-                                ui.allocate_ui_with_layout(
-                                    egui::vec2(180.0, 28.0),
-                                    egui::Layout::left_to_right(egui::Align::Center),
-                                    |ui| {
-                                        ui.add_space(((180.0 - row_width) * 0.5).max(0.0));
-
-                                        ui.allocate_ui_with_layout(
-                                            egui::vec2(checkbox_slot_width, 28.0),
-                                            egui::Layout::left_to_right(egui::Align::Center),
-                                            |ui| {
-                                                let resp = ui.checkbox(visible, "");
-                                                if resp.hovered() {
-                                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                                }
-                                                if resp.changed() {
-                                                    changed = true;
-                                                }
-                                            },
-                                        );
-
-                                        ui.add_space(gap_width);
-
-                                        ui.allocate_ui_with_layout(
-                                            egui::vec2(label_width, 28.0),
-                                            egui::Layout::left_to_right(egui::Align::Center),
-                                            |ui| {
-                                                ui.label(format!("Show Encoder {}", idx + 1));
-                                            },
-                                        );
-                                    },
-                                );
+                                ui.horizontal_centered(|ui| {
+                                    let resp = ui.checkbox(visible, "");
+                                    if resp.hovered() {
+                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                    }
+                                    if resp.changed() {
+                                        changed = true;
+                                    }
+                                    ui.add_space(2.0);
+                                    ui.label(format!("Show Encoder {}", idx + 1));
+                                });
                             }
                         });
 
