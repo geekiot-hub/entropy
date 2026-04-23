@@ -4676,7 +4676,7 @@ impl EntropyApp {
             "Encoders",
             self.popup_state.id(PopupKey::EncoderVisibilityWindow),
             &mut open,
-            Vec2::new(288.0, 252.0),
+            Vec2::new(216.0, 252.0),
         )
             .show(ctx, |ui| {
                 if self.encoder_visibility.is_empty() {
@@ -4686,7 +4686,7 @@ impl EntropyApp {
 
                 crate::ui_style::modal_content(
                     ui,
-                    crate::ui_style::ModalLayout::new(240.0).with_top_padding(2.0),
+                    crate::ui_style::ModalLayout::new(180.0).with_top_padding(2.0),
                     |ui| {
                         crate::ui_style::modal_hint(
                             ui,
@@ -4697,17 +4697,17 @@ impl EntropyApp {
                         let mut changed = false;
                         ui.scope(|ui| {
                             ui.spacing_mut().item_spacing.y = 8.0;
-                            let row_width = 184.0_f32;
-                            let checkbox_slot_width = 24.0_f32;
-                            let gap_width = 2.0_f32;
+                            let row_width = 156.0_f32;
+                            let checkbox_slot_width = 20.0_f32;
+                            let gap_width = 0.0_f32;
                             let label_width = row_width - checkbox_slot_width - gap_width;
 
                             for (idx, visible) in self.encoder_visibility.iter_mut().enumerate() {
                                 ui.allocate_ui_with_layout(
-                                    egui::vec2(240.0, 28.0),
+                                    egui::vec2(180.0, 28.0),
                                     egui::Layout::left_to_right(egui::Align::Center),
                                     |ui| {
-                                        ui.add_space(((240.0 - row_width) * 0.5).max(0.0));
+                                        ui.add_space(((180.0 - row_width) * 0.5).max(0.0));
 
                                         ui.allocate_ui_with_layout(
                                             egui::vec2(checkbox_slot_width, 28.0),
