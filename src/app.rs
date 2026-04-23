@@ -5000,6 +5000,11 @@ impl EntropyApp {
                                     let mut options_changed = false;
                                     options_changed |= checkbox_row(ui, "Enable", &mut self.auto_shift_options.enabled);
                                     options_changed |= checkbox_row(ui, "Enable for modifiers", &mut self.auto_shift_options.enable_for_modifiers);
+                                    options_changed |= checkbox_row(ui, "Do not Auto Shift special keys", &mut self.auto_shift_options.no_special);
+                                    options_changed |= checkbox_row(ui, "Do not Auto Shift numeric keys", &mut self.auto_shift_options.no_numeric);
+                                    options_changed |= checkbox_row(ui, "Do not Auto Shift alpha characters", &mut self.auto_shift_options.no_alpha);
+                                    options_changed |= checkbox_row(ui, "Enable keyrepeat", &mut self.auto_shift_options.enable_keyrepeat);
+                                    options_changed |= checkbox_row(ui, "Disable keyrepeat when timeout is exceeded", &mut self.auto_shift_options.disable_keyrepeat_timeout);
 
                                     ui.label(RichText::new("Timeout").size(12.5));
                                     ui.horizontal(|ui| {
@@ -5021,12 +5026,6 @@ impl EntropyApp {
                                         }
                                     });
                                     ui.end_row();
-
-                                    options_changed |= checkbox_row(ui, "Do not Auto Shift special keys", &mut self.auto_shift_options.no_special);
-                                    options_changed |= checkbox_row(ui, "Do not Auto Shift numeric keys", &mut self.auto_shift_options.no_numeric);
-                                    options_changed |= checkbox_row(ui, "Do not Auto Shift alpha characters", &mut self.auto_shift_options.no_alpha);
-                                    options_changed |= checkbox_row(ui, "Enable keyrepeat", &mut self.auto_shift_options.enable_keyrepeat);
-                                    options_changed |= checkbox_row(ui, "Disable keyrepeat when timeout is exceeded", &mut self.auto_shift_options.disable_keyrepeat_timeout);
 
                                     if options_changed {
                                         self.write_auto_shift_flags();
