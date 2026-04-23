@@ -4697,15 +4697,41 @@ impl EntropyApp {
                         let mut changed = false;
                         ui.scope(|ui| {
                             ui.spacing_mut().item_spacing.y = 8.0;
+                            let side_slot_width = 26.0_f32;
                             for (idx, visible) in self.encoder_visibility.iter_mut().enumerate() {
-                                ui.horizontal_centered(|ui| {
-                                    let resp = ui.checkbox(visible, format!("Show Encoder {}", idx + 1));
-                                    if resp.hovered() {
-                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                    }
-                                    if resp.changed() {
-                                        changed = true;
-                                    }
+                                ui.horizontal(|ui| {
+                                    let row_width = ui.available_width();
+                                    let label_width = (row_width - side_slot_width * 2.0).max(0.0);
+
+                                    ui.allocate_ui_with_layout(
+                                        egui::vec2(side_slot_width, 28.0),
+                                        egui::Layout::left_to_right(egui::Align::Center),
+                                        |ui| {
+                                            let resp = ui.checkbox(visible, "");
+                                            if resp.hovered() {
+                                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                            }
+                                            if resp.changed() {
+                                                changed = true;
+                                            }
+                                        },
+                                    );
+
+                                    ui.allocate_ui_with_layout(
+                                        egui::vec2(label_width, 28.0),
+                                        egui::Layout::left_to_right(egui::Align::Center),
+                                        |ui| {
+                                            ui.centered_and_justified(|ui| {
+                                                ui.label(format!("Show Encoder {}", idx + 1));
+                                            });
+                                        },
+                                    );
+
+                                    ui.allocate_ui_with_layout(
+                                        egui::vec2(side_slot_width, 28.0),
+                                        egui::Layout::left_to_right(egui::Align::Center),
+                                        |_ui| {},
+                                    );
                                 });
                             }
                         });
