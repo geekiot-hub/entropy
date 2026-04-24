@@ -5705,8 +5705,8 @@ impl EntropyApp {
                                     .response
                             }).inner;
                             ui.painter().text(
-                                combo_resp.rect.center() + egui::vec2(-ui.spacing().icon_width * 0.5, 1.0),
-                                egui::Align2::CENTER_CENTER,
+                                egui::pos2(combo_resp.rect.left() + 12.0, combo_resp.rect.center().y + 1.0),
+                                egui::Align2::LEFT_CENTER,
                                 &selected_override_text,
                                 egui::TextStyle::Button.resolve(ui.style()),
                                 selected_override_text_color,
