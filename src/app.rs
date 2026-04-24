@@ -2659,7 +2659,7 @@ impl EntropyApp {
         ui: &mut egui::Ui,
         content_rect: egui::Rect,
     ) {
-        const KEY_OVERRIDE_PAGE_WIDTH: f32 = 260.0;
+        const KEY_OVERRIDE_PAGE_WIDTH: f32 = 548.0;
         const KEY_OVERRIDE_TITLE_Y_OFFSET: f32 = 18.0;
         const KEY_OVERRIDE_DESC_GAP: f32 = 6.0;
         const KEY_OVERRIDE_BLOCK_TOP_GAP: f32 = 18.0;
@@ -2681,7 +2681,7 @@ impl EntropyApp {
                     egui::vec2(KEY_OVERRIDE_PAGE_WIDTH, 0.0),
                     egui::Layout::top_down(egui::Align::Min),
                     |ui| {
-                        self.draw_key_override_editor_content(ui);
+                        self.draw_key_override_editor_content(ui, true);
                     },
                 );
             });
@@ -5590,7 +5590,7 @@ impl EntropyApp {
         self.mouse_keys_window_open = open;
     }
 
-    fn draw_key_override_editor_content(&mut self, ui: &mut egui::Ui) {
+    fn draw_key_override_editor_content(&mut self, ui: &mut egui::Ui, two_column: bool) {
                 let dark = ui.visuals().dark_mode;
                 if self.key_override_entries.is_empty() {
                     ui.label("Key Overrides are not supported by this keyboard");
@@ -5636,11 +5636,18 @@ impl EntropyApp {
                     let idx = self.selected_key_override;
                     let current = self.key_override_entries[idx].clone();
                     let mut edited = current.clone();
-                    let content_width = 260.0_f32;
+                    let column_width = 260.0_f32;
+                    let column_gap = 28.0_f32;
+                    let content_width = if two_column {
+                        column_width * 2.0 + column_gap
+                    } else {
+                        column_width
+                    };
                     let action_button_size = crate::ui_style::modal_action_button_size();
                     let field_width = action_button_size.x * 2.0 + 8.0;
                     let name_field_width = field_width;
-                    let field_inset = ((content_width - field_width) * 0.5).max(0.0);
+                    let top_field_inset = ((content_width - field_width) * 0.5).max(0.0);
+                    let field_inset = ((column_width - field_width) * 0.5).max(0.0);
                     let combo_outline_stroke = crate::ui_style::modal_outline_stroke(ui.visuals().dark_mode);
 
                     ui.add_space(2.0);
@@ -5648,7 +5655,7 @@ impl EntropyApp {
                         ui.vertical(|ui| {
                             ui.set_width(content_width);
                             let combo_resp = ui.horizontal(|ui| {
-                                ui.add_space(field_inset);
+                                ui.add_space(top_field_inset);
                                 egui::ComboBox::from_id_salt("key_override_entry_select")
                                     .selected_text("")
                                     .width(field_width)
@@ -5702,7 +5709,7 @@ impl EntropyApp {
                             ui.add_space(6.0);
                             if let Some(name) = self.key_override_names.get_mut(idx) {
                                 let resp = ui.horizontal(|ui| {
-                                    ui.add_space(field_inset);
+                                    ui.add_space(top_field_inset);
                                     ui.add_sized(
                                         crate::ui_style::modal_field_button_size(name_field_width),
                                         egui::TextEdit::singleline(name)
@@ -5761,7 +5768,9 @@ impl EntropyApp {
                             );
 
                             ui.add_space(4.0);
-                            ui.vertical(|ui| {
+                            ui.horizontal(|ui| {
+                                ui.vertical(|ui| {
+                                    ui.set_width(column_width);
                                     ui.horizontal(|ui| {
                                         ui.add_space(field_inset);
                                         ui.label(RichText::new("Trigger").size(12.0).strong());
@@ -5828,8 +5837,10 @@ impl EntropyApp {
                                     if negative_mods_resp.header_response.hovered() {
                                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                     }
-
-                                    ui.add_space(4.0);
+                                });
+                                ui.add_space(column_gap);
+                                ui.vertical(|ui| {
+                                    ui.set_width(column_width);
                                     ui.horizontal(|ui| {
                                         ui.add_space(field_inset);
                                         ui.label(RichText::new("Replacement").size(12.0).strong());
@@ -5880,12 +5891,11 @@ impl EntropyApp {
                                         });
                                     });
                                 });
-                        });
-                    });
+                            });
 
                     ui.add_space(0.0);
                     ui.horizontal(|ui| {
-                        ui.add_space(field_inset);
+                        ui.add_space(top_field_inset);
                         let clear_btn = egui::Button::new(RichText::new("Clear").size(13.0))
                             .min_size(action_button_size)
                             .frame(true)
@@ -5933,6 +5943,8 @@ impl EntropyApp {
                     self.key_override_entries[idx] = edited;
                     self.write_key_override(idx);
                 }
+            });
+        });
     }
 
     fn show_key_override_window(&mut self, ctx: &egui::Context) {
@@ -5950,7 +5962,7 @@ impl EntropyApp {
             Vec2::new(336.0, 584.0),
         )
             .show(ctx, |ui| {
-                self.draw_key_override_editor_content(ui);
+                self.draw_key_override_editor_content(ui, false);
             });
         self.focus_modal_window(&shown);
         self.key_override_window_open = open;
