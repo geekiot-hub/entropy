@@ -2659,28 +2659,32 @@ impl EntropyApp {
         ui: &mut egui::Ui,
         content_rect: egui::Rect,
     ) {
-        const KEY_OVERRIDE_PAGE_WIDTH: f32 = 336.0;
-        const KEY_OVERRIDE_TITLE_Y_OFFSET: f32 = 30.0;
-        const KEY_OVERRIDE_BLOCK_TOP_GAP: f32 = 42.0;
+        const KEY_OVERRIDE_PAGE_WIDTH: f32 = 260.0;
+        const KEY_OVERRIDE_TITLE_Y_OFFSET: f32 = 18.0;
+        const KEY_OVERRIDE_DESC_GAP: f32 = 6.0;
+        const KEY_OVERRIDE_BLOCK_TOP_GAP: f32 = 18.0;
 
-        let center_x = content_rect.center().x;
-        let title_y = content_rect.top() + KEY_OVERRIDE_TITLE_Y_OFFSET;
-        let block_top = title_y + KEY_OVERRIDE_BLOCK_TOP_GAP;
-        let block_rect = egui::Rect::from_min_max(
-            egui::pos2(center_x - KEY_OVERRIDE_PAGE_WIDTH / 2.0, block_top),
-            egui::pos2(center_x + KEY_OVERRIDE_PAGE_WIDTH / 2.0, content_rect.bottom()),
-        );
+        let dark = ui.visuals().dark_mode;
 
-        ui.painter().text(
-            egui::pos2(center_x, title_y),
-            egui::Align2::CENTER_CENTER,
-            "Key Overrides",
-            FontId::proportional(18.0),
-            ui.visuals().text_color(),
-        );
-
-        ui.allocate_ui_at_rect(block_rect, |ui| {
-            self.draw_key_override_editor_content(ui);
+        ui.allocate_ui_at_rect(content_rect, |ui| {
+            ui.vertical_centered(|ui| {
+                ui.add_space(KEY_OVERRIDE_TITLE_Y_OFFSET);
+                ui.label(RichText::new("Key Overrides").size(18.0).strong());
+                ui.add_space(KEY_OVERRIDE_DESC_GAP);
+                ui.label(
+                    RichText::new("Override one key with custom modifier rules")
+                        .size(13.0)
+                        .color(app_muted_text(dark)),
+                );
+                ui.add_space(KEY_OVERRIDE_BLOCK_TOP_GAP);
+                ui.allocate_ui_with_layout(
+                    egui::vec2(KEY_OVERRIDE_PAGE_WIDTH, 0.0),
+                    egui::Layout::top_down(egui::Align::Min),
+                    |ui| {
+                        self.draw_key_override_editor_content(ui);
+                    },
+                );
+            });
         });
     }
 
