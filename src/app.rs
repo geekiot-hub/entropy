@@ -2659,12 +2659,22 @@ impl EntropyApp {
         ui: &mut egui::Ui,
         content_rect: egui::Rect,
     ) {
+        const KEY_OVERRIDE_PAGE_WIDTH: f32 = 336.0;
+
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(18.0);
                 ui.label(RichText::new("Key Overrides").size(18.0).strong());
                 ui.add_space(18.0);
-                self.draw_key_override_editor_content(ui);
+                ui.horizontal_centered(|ui| {
+                    ui.allocate_ui_with_layout(
+                        egui::vec2(KEY_OVERRIDE_PAGE_WIDTH, 0.0),
+                        egui::Layout::top_down(egui::Align::Min),
+                        |ui| {
+                            self.draw_key_override_editor_content(ui);
+                        },
+                    );
+                });
             });
         });
     }
