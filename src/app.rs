@@ -2652,19 +2652,76 @@ impl EntropyApp {
         content_rect: egui::Rect,
         dark: bool,
     ) {
-        ui.allocate_ui_at_rect(content_rect, |ui| {
-            ui.vertical_centered(|ui| {
-                ui.add_space(18.0);
-                ui.label(RichText::new("Encoders").size(18.0).strong());
-                ui.add_space(6.0);
-                ui.add_space(8.0);
-                self.draw_encoder_visibility_editor_content(
-                    ui,
-                    &EncoderVisibilityModalLayout::new(),
-                    true,
-                );
-            });
-        });
+        let center_x = content_rect.center().x;
+        let title_y = content_rect.top() + 30.0;
+        let intro_y = title_y + 44.0;
+        let row_start_y = intro_y + 34.0;
+        let row_height = 28.0_f32;
+        let row_spacing = 8.0_f32;
+        let row_width = 168.0_f32;
+        let checkbox_width = 18.0_f32;
+        let checkbox_gap = 16.0_f32;
+
+        ui.painter().text(
+            egui::pos2(center_x, title_y),
+            egui::Align2::CENTER_CENTER,
+            "Encoders",
+            FontId::proportional(18.0),
+            ui.visuals().text_color(),
+        );
+        ui.painter().text(
+            egui::pos2(center_x, intro_y),
+            egui::Align2::CENTER_CENTER,
+            "Show or hide encoder controls for this device",
+            FontId::proportional(13.0),
+            app_muted_text(dark),
+        );
+
+        let visible_count = self
+            .layout
+            .as_ref()
+            .map(|layout| {
+                let mut seen = std::collections::BTreeSet::new();
+                layout
+                    .encoders
+                    .iter()
+                    .filter(|encoder| seen.insert(encoder.encoder_idx))
+                    .count()
+            })
+            .unwrap_or(0);
+        if self.encoder_visibility.len() < visible_count {
+            self.encoder_visibility.resize(visible_count, true);
+        }
+        self.encoder_visibility.truncate(visible_count);
+
+        for visual_idx in 0..visible_count {
+            let y = row_start_y + visual_idx as f32 * (row_height + row_spacing);
+            let row_rect = egui::Rect::from_min_size(
+                egui::pos2(center_x - row_width / 2.0, y),
+                egui::vec2(row_width, row_height),
+            );
+            let checkbox_rect = egui::Rect::from_min_size(
+                row_rect.left_top(),
+                egui::vec2(checkbox_width, row_height),
+            );
+            let label_x = checkbox_rect.right() + checkbox_gap;
+            let is_visible = self.encoder_visibility[visual_idx];
+            let mut toggled = is_visible;
+            let resp = ui.put(checkbox_rect, egui::Checkbox::without_text(&mut toggled));
+            if resp.hovered() {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+            }
+            if toggled != is_visible {
+                self.encoder_visibility[visual_idx] = toggled;
+            }
+            ui.painter().text(
+                egui::pos2(label_x, row_rect.center().y),
+                egui::Align2::LEFT_CENTER,
+                format!("Encoder {}", visual_idx + 1),
+                FontId::proportional(13.0),
+                ui.visuals().text_color(),
+            );
+        }
     }
 
     fn draw_auto_shift_settings_page(
