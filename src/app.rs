@@ -2657,13 +2657,20 @@ impl EntropyApp {
         content_rect: egui::Rect,
     ) {
         self.handle_combo_editor_input(ctx, false);
+        let dark = ui.visuals().dark_mode;
 
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(18.0);
                 ui.label(RichText::new("Combo").size(18.0).strong());
+                ui.add_space(6.0);
+                ui.label(
+                    RichText::new("Press multiple keys together to send a separate keycode")
+                        .size(13.0)
+                        .color(app_muted_text(dark)),
+                );
                 ui.add_space(18.0);
-                self.draw_combo_editor_content(ui);
+                self.draw_combo_editor_content(ui, false);
             });
         });
     }
@@ -5953,7 +5960,7 @@ impl EntropyApp {
         false
     }
 
-    fn draw_combo_editor_content(&mut self, ui: &mut egui::Ui) {
+    fn draw_combo_editor_content(&mut self, ui: &mut egui::Ui, show_intro: bool) {
                 ui.style_mut().visuals.button_frame = true;
                 if ui.visuals().dark_mode {
                     ui.style_mut().visuals.widgets.inactive.bg_fill = Color32::from_rgb(48, 48, 58);
@@ -5993,10 +6000,12 @@ impl EntropyApp {
                 }
 
                 ui.vertical_centered(|ui| {
-                    crate::ui_style::modal_hint(
-                        ui,
-                        "Press multiple keys together to send a separate keycode",
-                    );
+                    if show_intro {
+                        crate::ui_style::modal_hint(
+                            ui,
+                            "Press multiple keys together to send a separate keycode",
+                        );
+                    }
                 });
 
                 if self.firmware != FirmwareProtocol::Vial {
@@ -6390,7 +6399,7 @@ impl EntropyApp {
             Vec2::new(360.0, 420.0),
         )
             .show(ctx, |ui| {
-                self.draw_combo_editor_content(ui);
+                self.draw_combo_editor_content(ui, true);
             });
         self.focus_modal_window(&shown);
         self.combo_window_open = open;
