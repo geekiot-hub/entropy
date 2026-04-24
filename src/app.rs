@@ -289,6 +289,36 @@ fn key_override_display_name(key_override_names: &[String], idx: usize) -> Strin
     }
 }
 
+fn alt_repeat_names_path(device_name: &str) -> std::path::PathBuf {
+    let dir = dirs::config_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join("entropy");
+    std::fs::create_dir_all(&dir).ok();
+    let slug = device_id_slug(device_name);
+    dir.join(format!("alt_repeat_names_{}.json", slug))
+}
+
+fn load_alt_repeat_names(device_name: &str) -> Vec<String> {
+    let path = alt_repeat_names_path(device_name);
+    if let Ok(data) = std::fs::read_to_string(&path) {
+        if let Ok(v) = serde_json::from_str::<Vec<String>>(&data) {
+            return v;
+        }
+    }
+    vec![]
+}
+
+fn save_alt_repeat_names(names: &[String], device_name: &str) {
+    if let Ok(data) = serde_json::to_string(names) {
+        let path = alt_repeat_names_path(device_name);
+        if let Err(e) = std::fs::write(&path, &data) {
+            log::warn!("save_alt_repeat_names failed at {:?}: {e}", path);
+        } else {
+            log::info!("save_alt_repeat_names ok → {:?}", path);
+        }
+    }
+}
+
 fn macro_custom_name(macro_names: &[String], idx: usize) -> Option<String> {
     macro_names
         .get(idx)
@@ -1172,6 +1202,7 @@ pub struct EntropyApp {
     mouse_keys_settings: MouseKeysSettingsState,
     mouse_keys_window_open: bool,
     alt_repeat_entries: Vec<AltRepeatKeyEntry>,
+    alt_repeat_names: Vec<String>,
     alt_repeat_window_open: bool,
     selected_alt_repeat: usize,
     alt_repeat_visible_count: usize,
@@ -1274,6 +1305,7 @@ impl EntropyApp {
             mouse_keys_settings: MouseKeysSettingsState::default(),
             mouse_keys_window_open: false,
             alt_repeat_entries: vec![],
+            alt_repeat_names: vec![],
             alt_repeat_window_open: false,
             selected_alt_repeat: 0,
             alt_repeat_visible_count: 1,
@@ -1376,6 +1408,7 @@ impl EntropyApp {
         self.mouse_keys_settings = MouseKeysSettingsState::default();
         self.mouse_keys_window_open = false;
         self.alt_repeat_entries.clear();
+        self.alt_repeat_names.clear();
         self.alt_repeat_window_open = false;
         self.selected_alt_repeat = 0;
         self.alt_repeat_visible_count = 1;
@@ -1905,6 +1938,8 @@ impl EntropyApp {
                 self.combo_entries = r.combo_entries.clone();
                 self.key_override_entries = r.key_override_entries.clone();
                 self.alt_repeat_entries = r.alt_repeat_entries.clone();
+                self.alt_repeat_names = load_alt_repeat_names(&self.current_device_name);
+                self.alt_repeat_names.resize(self.alt_repeat_entries.len(), String::new());
                 self.selected_alt_repeat = 0;
                 self.alt_repeat_visible_count = if self.alt_repeat_entries.is_empty() { 1 } else { 1.min(self.alt_repeat_entries.len()) };
                 self.key_override_names = load_key_override_names(&self.current_device_name);
@@ -4468,10 +4503,20 @@ impl EntropyApp {
         self.keycode_picker.open = true;
     }
 
+    fn alt_repeat_entry_exists(entry: &AltRepeatKeyEntry) -> bool {
+        entry.keycode != 0 || entry.alt_keycode != 0 || entry.allowed_mods != 0
+    }
+
+    fn normalize_alt_repeat_entry(entry: &mut AltRepeatKeyEntry) {
+        entry.options.enabled = Self::alt_repeat_entry_exists(entry);
+    }
+
     fn write_alt_repeat_entry(&mut self, idx: usize) {
-        let Some(entry) = self.alt_repeat_entries.get(idx).cloned() else {
+        let Some(entry) = self.alt_repeat_entries.get_mut(idx) else {
             return;
         };
+        Self::normalize_alt_repeat_entry(entry);
+        let entry = entry.clone();
         let Some(hid) = &self.hid_device else {
             return;
         };
@@ -5277,131 +5322,188 @@ impl EntropyApp {
 
     fn draw_alt_repeat_editor_content(&mut self, ui: &mut egui::Ui) {
         let dark = ui.visuals().dark_mode;
-                if self.alt_repeat_entries.is_empty() {
-                    ui.label("Alt Repeat is not supported by this keyboard");
-                    return;
-                }
+        if self.alt_repeat_entries.is_empty() {
+            ui.label("Alt Repeat is not supported by this keyboard");
+            return;
+        }
 
-                if self.selected_alt_repeat >= self.alt_repeat_entries.len() {
-                    self.selected_alt_repeat = 0;
-                }
-                self.selected_alt_repeat = self
-                    .selected_alt_repeat
-                    .min(self.alt_repeat_entries.len().saturating_sub(1));
+        if self.selected_alt_repeat >= self.alt_repeat_entries.len() {
+            self.selected_alt_repeat = 0;
+        }
+        self.selected_alt_repeat = self
+            .selected_alt_repeat
+            .min(self.alt_repeat_entries.len().saturating_sub(1));
+        self.alt_repeat_names
+            .resize(self.alt_repeat_entries.len(), String::new());
 
-                ui.add_space(2.0);
-                let idx = self.selected_alt_repeat;
-                let current = self.alt_repeat_entries[idx].clone();
-                let mut edited = current.clone();
-                let content_width = 360.0_f32;
-                let field_width = 220.0_f32;
-                let custom = self
-                    .layout
-                    .as_ref()
-                    .map(|l| l.custom_keycodes.as_slice())
-                    .unwrap_or(&[]);
-                let last_key_label = if edited.keycode == 0 {
-                    "Pick key".to_string()
-                } else {
-                    keycode_label_with_macro_names(
-                        edited.keycode,
-                        custom,
-                        &self.layer_names,
-                        &self.keycode_picker.macro_names,
-                        &self.keycode_picker.tap_dance_names,
-                    )
-                    .replace("\n", " ")
-                };
-                let alt_key_label = if edited.alt_keycode == 0 {
-                    "Pick key".to_string()
-                } else {
-                    keycode_label_with_macro_names(
-                        edited.alt_keycode,
-                        custom,
-                        &self.layer_names,
-                        &self.keycode_picker.macro_names,
-                        &self.keycode_picker.tap_dance_names,
-                    )
-                    .replace("\n", " ")
-                };
-                let last_key_tip = keycode_tooltip_with_macro_names(
-                    edited.keycode,
-                    custom,
-                    &self.layer_names,
-                    &self.keycode_picker.macro_names,
-                    &self.keycode_picker.tap_dance_names,
-                );
-                let alt_key_tip = keycode_tooltip_with_macro_names(
-                    edited.alt_keycode,
-                    custom,
-                    &self.layer_names,
-                    &self.keycode_picker.macro_names,
-                    &self.keycode_picker.tap_dance_names,
-                );
+        let idx = self.selected_alt_repeat;
+        let current = self.alt_repeat_entries[idx].clone();
+        let mut edited = current.clone();
+        let content_width = 360.0_f32;
+        let field_width = 220.0_f32;
+        let custom = self
+            .layout
+            .as_ref()
+            .map(|l| l.custom_keycodes.as_slice())
+            .unwrap_or(&[]);
+        let last_key_label = if edited.keycode == 0 {
+            "Pick key".to_string()
+        } else {
+            keycode_label_with_macro_names(
+                edited.keycode,
+                custom,
+                &self.layer_names,
+                &self.keycode_picker.macro_names,
+                &self.keycode_picker.tap_dance_names,
+            )
+            .replace("\n", " ")
+        };
+        let alt_key_label = if edited.alt_keycode == 0 {
+            "Pick key".to_string()
+        } else {
+            keycode_label_with_macro_names(
+                edited.alt_keycode,
+                custom,
+                &self.layer_names,
+                &self.keycode_picker.macro_names,
+                &self.keycode_picker.tap_dance_names,
+            )
+            .replace("\n", " ")
+        };
+        let last_key_tip = keycode_tooltip_with_macro_names(
+            edited.keycode,
+            custom,
+            &self.layer_names,
+            &self.keycode_picker.macro_names,
+            &self.keycode_picker.tap_dance_names,
+        );
+        let alt_key_tip = keycode_tooltip_with_macro_names(
+            edited.alt_keycode,
+            custom,
+            &self.layer_names,
+            &self.keycode_picker.macro_names,
+            &self.keycode_picker.tap_dance_names,
+        );
+        let selected_empty = !Self::alt_repeat_entry_exists(&edited)
+            && self
+                .alt_repeat_names
+                .get(idx)
+                .map(|name| name.trim().is_empty())
+                .unwrap_or(true);
+        let selected_text = match self.alt_repeat_names.get(idx) {
+            Some(name) if !name.trim().is_empty() => format!("AR{}: {}", idx, name.trim()),
+            _ => format!("AR{}", idx),
+        };
+        let selected_text_color = if selected_empty {
+            app_inactive_entry_text(dark)
+        } else {
+            ui.visuals().text_color()
+        };
 
-                crate::ui_style::modal_content(
-                    ui,
-                    crate::ui_style::ModalLayout::new(content_width).with_top_padding(2.0),
-                    |ui| {
-
-                        egui::ComboBox::from_id_salt("alt_repeat_entry_select")
-                            .selected_text(format!("AR{}", self.selected_alt_repeat))
-                            .width(140.0)
-                            .show_ui(ui, |ui| {
-                                for idx in 0..self.alt_repeat_entries.len() {
-                                    let resp = ui.selectable_value(
-                                        &mut self.selected_alt_repeat,
-                                        idx,
-                                        format!("AR{}", idx),
-                                    );
-                                    if resp.hovered() {
-                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+        crate::ui_style::modal_content(
+            ui,
+            crate::ui_style::ModalLayout::new(content_width).with_top_padding(2.0),
+            |ui| {
+                ui.horizontal_centered(|ui| {
+                    egui::ComboBox::from_id_salt("alt_repeat_entry_select")
+                        .selected_text(RichText::new(selected_text).color(selected_text_color))
+                        .width(field_width)
+                        .show_ui(ui, |ui| {
+                            for idx in 0..self.alt_repeat_entries.len() {
+                                let empty = self
+                                    .alt_repeat_entries
+                                    .get(idx)
+                                    .map(|entry| !Self::alt_repeat_entry_exists(entry))
+                                    .unwrap_or(true)
+                                    && self
+                                        .alt_repeat_names
+                                        .get(idx)
+                                        .map(|name| name.trim().is_empty())
+                                        .unwrap_or(true);
+                                let label = match self.alt_repeat_names.get(idx) {
+                                    Some(name) if !name.trim().is_empty() => {
+                                        RichText::new(format!("AR{}: {}", idx, name.trim())).color(
+                                            if empty {
+                                                app_inactive_entry_text(ui.visuals().dark_mode)
+                                            } else {
+                                                ui.visuals().text_color()
+                                            },
+                                        )
                                     }
+                                    _ => RichText::new(format!("AR{}", idx)).color(if empty {
+                                        app_inactive_entry_text(ui.visuals().dark_mode)
+                                    } else {
+                                        ui.visuals().text_color()
+                                    }),
+                                };
+                                let resp = ui.selectable_value(&mut self.selected_alt_repeat, idx, label);
+                                if resp.hovered() {
+                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                 }
-                            });
-
-                        ui.add_space(10.0);
-                        ui.horizontal(|ui| {
-                            ui.label(RichText::new("Enable").size(12.5));
-                            let resp = ui.checkbox(&mut edited.options.enabled, "");
-                            if resp.hovered() {
-                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                             }
                         });
+                });
 
-                        ui.add_space(8.0);
-                        crate::ui_style::modal_section_title(ui, "Last key");
-                        ui.add_space(4.0);
-                        ui.horizontal_centered(|ui| {
-                            let resp = ui
-                                .add_sized(
-                                    [field_width, 34.0],
-                                    egui::Button::new(RichText::new(last_key_label).size(12.0)),
-                                )
-                                .on_hover_cursor(egui::CursorIcon::PointingHand);
-                            if resp.clicked() {
-                                self.open_alt_repeat_picker(AltRepeatPickField::LastKey);
-                            }
-                            resp.on_hover_text(last_key_tip);
-                        });
+                ui.add_space(6.0);
+                let mut name_changed = false;
+                if let Some(name) = self.alt_repeat_names.get_mut(idx) {
+                    ui.horizontal_centered(|ui| {
+                        let resp = ui.add_sized(
+                            crate::ui_style::modal_field_button_size(field_width),
+                            egui::TextEdit::singleline(name)
+                                .desired_width(field_width)
+                                .hint_text("Name")
+                                .char_limit(12)
+                                .horizontal_align(egui::Align::Center)
+                                .vertical_align(egui::Align::Center),
+                        );
+                        name_changed = resp.changed();
+                        resp.clone().on_hover_text("Stored locally in Entropy");
+                        if resp.hovered() {
+                            ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
+                        }
+                    });
+                }
+                if name_changed {
+                    save_alt_repeat_names(&self.alt_repeat_names, &self.current_device_name);
+                }
 
-                        ui.add_space(8.0);
-                        crate::ui_style::modal_section_title(ui, "Alt key");
-                        ui.add_space(4.0);
-                        ui.horizontal_centered(|ui| {
-                            let resp = ui
-                                .add_sized(
-                                    [field_width, 34.0],
-                                    egui::Button::new(RichText::new(alt_key_label).size(12.0)),
-                                )
-                                .on_hover_cursor(egui::CursorIcon::PointingHand);
-                            if resp.clicked() {
-                                self.open_alt_repeat_picker(AltRepeatPickField::AltKey);
-                            }
-                            resp.on_hover_text(alt_key_tip);
-                        });
+                ui.add_space(8.0);
+                crate::ui_style::modal_section_title(ui, "Last key");
+                ui.add_space(4.0);
+                ui.horizontal_centered(|ui| {
+                    let resp = ui
+                        .add_sized(
+                            [field_width, 34.0],
+                            egui::Button::new(RichText::new(last_key_label).size(12.0)),
+                        )
+                        .on_hover_cursor(egui::CursorIcon::PointingHand);
+                    if resp.clicked() {
+                        self.open_alt_repeat_picker(AltRepeatPickField::LastKey);
+                    }
+                    resp.on_hover_text(last_key_tip);
+                });
 
-                        ui.add_space(10.0);
+                ui.add_space(8.0);
+                crate::ui_style::modal_section_title(ui, "Alt key");
+                ui.add_space(4.0);
+                ui.horizontal_centered(|ui| {
+                    let resp = ui
+                        .add_sized(
+                            [field_width, 34.0],
+                            egui::Button::new(RichText::new(alt_key_label).size(12.0)),
+                        )
+                        .on_hover_cursor(egui::CursorIcon::PointingHand);
+                    if resp.clicked() {
+                        self.open_alt_repeat_picker(AltRepeatPickField::AltKey);
+                    }
+                    resp.on_hover_text(alt_key_tip);
+                });
+
+                ui.add_space(10.0);
+                ui.horizontal_centered(|ui| {
+                    ui.vertical(|ui| {
+                        ui.set_width(field_width);
                         ui.label(
                             RichText::new("Allowed mods")
                                 .size(11.0)
@@ -5413,8 +5515,13 @@ impl EntropyApp {
                             &mut edited.allowed_mods,
                             "alt_repeat_allowed_mods",
                         );
+                    });
+                });
 
-                        ui.add_space(10.0);
+                ui.add_space(10.0);
+                ui.horizontal_centered(|ui| {
+                    ui.vertical(|ui| {
+                        ui.set_width(field_width);
                         ui.label(
                             RichText::new("Options")
                                 .size(11.0)
@@ -5438,15 +5545,18 @@ impl EntropyApp {
                             "Ignore mod handedness",
                             &mut edited.options.ignore_mod_handedness,
                         );
-                    },
-                );
+                    });
+                });
+            },
+        );
 
-                if edited != current {
-                    if let Some(slot) = self.alt_repeat_entries.get_mut(idx) {
-                        *slot = edited;
-                    }
-                    self.write_alt_repeat_entry(idx);
-                }
+        Self::normalize_alt_repeat_entry(&mut edited);
+        if edited != current {
+            if let Some(slot) = self.alt_repeat_entries.get_mut(idx) {
+                *slot = edited;
+            }
+            self.write_alt_repeat_entry(idx);
+        }
     }
 
     fn show_alt_repeat_window(&mut self, ctx: &egui::Context) {
