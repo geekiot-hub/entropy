@@ -1115,6 +1115,7 @@ enum SettingsTab {
     Encoders,
     Combo,
     KeyOverrides,
+    AltRepeat,
 }
 
 pub struct EntropyApp {
@@ -2402,6 +2403,9 @@ impl EntropyApp {
             SettingsTab::KeyOverrides => {
                 self.draw_key_override_settings_page(ui, content_rect);
             }
+            SettingsTab::AltRepeat => {
+                self.draw_alt_repeat_settings_page(ui, content_rect);
+            }
         }
     }
 
@@ -2650,6 +2654,29 @@ impl EntropyApp {
 
                 let mut close_after_save = false;
                 self.draw_rgb_editor_content(ui, dark, &RgbModalLayout::new(), false, &mut close_after_save);
+            });
+        });
+    }
+
+    fn draw_alt_repeat_settings_page(
+        &mut self,
+        ui: &mut egui::Ui,
+        content_rect: egui::Rect,
+    ) {
+        let dark = ui.visuals().dark_mode;
+
+        ui.allocate_ui_at_rect(content_rect, |ui| {
+            ui.vertical_centered(|ui| {
+                ui.add_space(18.0);
+                ui.label(RichText::new("Alt Repeat").size(18.0).strong());
+                ui.add_space(6.0);
+                ui.label(
+                    RichText::new("Configure alternate repeat keys and modifier behavior")
+                        .size(13.0)
+                        .color(app_muted_text(dark)),
+                );
+                ui.add_space(18.0);
+                self.draw_alt_repeat_editor_content(ui);
             });
         });
     }
@@ -5245,22 +5272,8 @@ impl EntropyApp {
         self.encoder_visibility_window_open = open;
     }
 
-    fn show_alt_repeat_window(&mut self, ctx: &egui::Context) {
-        if !self.keycode_picker.open && ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-            self.alt_repeat_window_open = false;
-            return;
-        }
-
-        let dark = ctx.style().visuals.dark_mode;
-        let mut open = self.alt_repeat_window_open;
-        let shown = crate::ui_style::centered_modal_window(
-            ctx,
-            "Alt Repeat",
-            self.popup_state.id(PopupKey::AltRepeatWindow),
-            &mut open,
-            Vec2::new(444.0, 500.0),
-        )
-            .show(ctx, |ui| {
+    fn draw_alt_repeat_editor_content(&mut self, ui: &mut egui::Ui) {
+        let dark = ui.visuals().dark_mode;
                 if self.alt_repeat_entries.is_empty() {
                     ui.label("Alt Repeat is not supported by this keyboard");
                     return;
@@ -5431,6 +5444,24 @@ impl EntropyApp {
                     }
                     self.write_alt_repeat_entry(idx);
                 }
+    }
+
+    fn show_alt_repeat_window(&mut self, ctx: &egui::Context) {
+        if !self.keycode_picker.open && ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            self.alt_repeat_window_open = false;
+            return;
+        }
+
+        let mut open = self.alt_repeat_window_open;
+        let shown = crate::ui_style::centered_modal_window(
+            ctx,
+            "Alt Repeat",
+            self.popup_state.id(PopupKey::AltRepeatWindow),
+            &mut open,
+            Vec2::new(444.0, 500.0),
+        )
+            .show(ctx, |ui| {
+                self.draw_alt_repeat_editor_content(ui);
             });
 
         self.focus_modal_window(&shown);
@@ -6827,7 +6858,7 @@ impl EntropyApp {
                         Color32::from_gray(248)
                     };
                     let auto_shift_supported = self.auto_shift_timeout.is_some();
-                    let (combo_hovered, auto_shift_hovered, key_override_hovered) = egui::Area::new(egui::Id::new("advanced_dropdown_area"))
+                    let (combo_hovered, auto_shift_hovered, key_override_hovered, alt_repeat_hovered) = egui::Area::new(egui::Id::new("advanced_dropdown_area"))
                         .order(egui::Order::Foreground)
                         .fixed_pos(dropdown_rect.min)
                         .show(ui.ctx(), |ui| {
@@ -6841,7 +6872,8 @@ impl EntropyApp {
                                     let auto_shift_color = if auto_shift_supported { ui.visuals().widgets.inactive.fg_stroke.color } else { app_muted_text(dark) };
                                     let auto_shift_resp = ui.add_sized([dropdown_rect.width() - 12.0, 30.0], egui::Button::new(RichText::new("Auto Shift").color(auto_shift_color)).frame(false));
                                     let key_override_resp = ui.add_sized([dropdown_rect.width() - 12.0, 30.0], egui::Button::new("Key Overrides").frame(false));
-                                    if combo_resp.hovered() || auto_shift_resp.hovered() || key_override_resp.hovered() {
+                                    let alt_repeat_resp = ui.add_sized([dropdown_rect.width() - 12.0, 30.0], egui::Button::new("Alt Repeat").frame(false));
+                                    if combo_resp.hovered() || auto_shift_resp.hovered() || key_override_resp.hovered() || alt_repeat_resp.hovered() {
                                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                     }
                                     if combo_resp.clicked() {
@@ -6860,10 +6892,15 @@ impl EntropyApp {
                                         self.settings_tab = SettingsTab::KeyOverrides;
                                         self.main_menu_tab = MainMenuTab::Settings;
                                     }
+                                    if alt_repeat_resp.clicked() {
+                                        self.close_top_dropdowns(ui.ctx());
+                                        self.settings_tab = SettingsTab::AltRepeat;
+                                        self.main_menu_tab = MainMenuTab::Settings;
+                                    }
                                     if !auto_shift_supported {
                                         let _ = auto_shift_resp.clone().on_hover_text("Auto Shift is not enabled in this keyboard firmware");
                                     }
-                                    (combo_resp.hovered(), auto_shift_resp.hovered(), key_override_resp.hovered())
+                                    (combo_resp.hovered(), auto_shift_resp.hovered(), key_override_resp.hovered(), alt_repeat_resp.hovered())
                                 })
                                 .inner
                         })
@@ -6875,6 +6912,7 @@ impl EntropyApp {
                                 || combo_hovered
                                 || auto_shift_hovered
                                 || key_override_hovered
+                                || alt_repeat_hovered
                                 || pointer_over_bridge,
                         )
                     });
