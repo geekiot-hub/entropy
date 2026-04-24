@@ -5768,9 +5768,19 @@ impl EntropyApp {
                             );
 
                             ui.add_space(4.0);
-                            ui.horizontal(|ui| {
-                                ui.vertical(|ui| {
-                                    ui.set_width(column_width);
+                            let scroll_height = if two_column {
+                                (ui.available_height() - action_button_size.y - 18.0).max(250.0)
+                            } else {
+                                376.0
+                            };
+                            egui::ScrollArea::vertical()
+                                .id_salt(format!("ko_page_scroll_{}", idx))
+                                .max_height(scroll_height)
+                                .auto_shrink([false, false])
+                                .show(ui, |ui| {
+                                    ui.horizontal(|ui| {
+                                        ui.vertical(|ui| {
+                                            ui.set_width(column_width);
                                     ui.horizontal(|ui| {
                                         ui.add_space(field_inset);
                                         ui.label(RichText::new("Trigger").size(12.0).strong());
@@ -5880,20 +5890,21 @@ impl EntropyApp {
                                     ui.horizontal(|ui| {
                                         ui.add_space(field_inset);
                                         ui.vertical(|ui| {
-                                            ui.label(RichText::new("How this override behaves").size(10.0).color(app_muted_text(dark)));
-                                            ui.add_space(2.0);
-                                            ui.checkbox(&mut edited.options.activation_trigger_down, RichText::new("Activate on trigger press").size(10.0));
-                                            ui.checkbox(&mut edited.options.activation_required_mod_down, RichText::new("Activate on required mod press").size(10.0));
-                                            ui.checkbox(&mut edited.options.activation_negative_mod_up, RichText::new("Activate on blocked mod release").size(10.0));
-                                            ui.checkbox(&mut edited.options.one_mod, RichText::new("Any one trigger mod is enough").size(10.0));
-                                            ui.checkbox(&mut edited.options.no_reregister_trigger, RichText::new("Do not resend trigger after override ends").size(10.0));
-                                            ui.checkbox(&mut edited.options.no_unregister_on_other_key_down, RichText::new("Stay active when another key is pressed").size(10.0));
+                                            ui.label(RichText::new("How this override behaves").size(12.0).color(app_muted_text(dark)));
+                                            ui.add_space(3.0);
+                                            ui.checkbox(&mut edited.options.activation_trigger_down, RichText::new("Activate on trigger press").size(11.5));
+                                            ui.checkbox(&mut edited.options.activation_required_mod_down, RichText::new("Activate on required mod press").size(11.5));
+                                            ui.checkbox(&mut edited.options.activation_negative_mod_up, RichText::new("Activate on blocked mod release").size(11.5));
+                                            ui.checkbox(&mut edited.options.one_mod, RichText::new("Any one trigger mod is enough").size(11.5));
+                                            ui.checkbox(&mut edited.options.no_reregister_trigger, RichText::new("Do not resend trigger after override ends").size(11.5));
+                                            ui.checkbox(&mut edited.options.no_unregister_on_other_key_down, RichText::new("Stay active when another key is pressed").size(11.5));
                                         });
                                     });
                                 });
                             });
+                        });
 
-                    ui.add_space(0.0);
+                    ui.add_space(8.0);
                     ui.horizontal(|ui| {
                         ui.add_space(top_field_inset);
                         let clear_btn = egui::Button::new(RichText::new("Clear").size(13.0))
