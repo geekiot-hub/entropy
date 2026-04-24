@@ -2702,7 +2702,7 @@ impl EntropyApp {
         ui: &mut egui::Ui,
         content_rect: egui::Rect,
     ) {
-        const ALT_REPEAT_PAGE_WIDTH: f32 = 240.0;
+        const ALT_REPEAT_PAGE_WIDTH: f32 = 520.0;
         const ALT_REPEAT_TITLE_Y_OFFSET: f32 = 30.0;
         const ALT_REPEAT_DESC_GAP: f32 = 28.0;
         const ALT_REPEAT_BLOCK_TOP_GAP: f32 = 34.0;
@@ -5372,7 +5372,7 @@ impl EntropyApp {
         let current = self.alt_repeat_entries[idx].clone();
         let mut edited = current.clone();
         let field_width = 220.0_f32;
-        let content_width = field_width;
+        let content_width = 520.0_f32;
         let double_page_width = 520.0_f32;
         let custom = self
             .layout
@@ -5503,35 +5503,41 @@ impl EntropyApp {
                 }
 
                 ui.add_space(8.0);
-                crate::ui_style::modal_section_title(ui, "Last key");
-                ui.add_space(4.0);
                 ui.horizontal_centered(|ui| {
-                    let resp = ui
-                        .add_sized(
-                            [field_width, 34.0],
-                            egui::Button::new(RichText::new(last_key_label).size(12.0)),
-                        )
-                        .on_hover_cursor(egui::CursorIcon::PointingHand);
-                    if resp.clicked() {
-                        self.open_alt_repeat_picker(AltRepeatPickField::LastKey);
-                    }
-                    resp.on_hover_text(last_key_tip);
+                    ui.vertical(|ui| {
+                        ui.set_width(field_width);
+                        crate::ui_style::modal_section_title(ui, "Last key");
+                        ui.add_space(4.0);
+                        let resp = ui
+                            .add_sized(
+                                [field_width, 34.0],
+                                egui::Button::new(RichText::new(last_key_label).size(12.0)),
+                            )
+                            .on_hover_cursor(egui::CursorIcon::PointingHand);
+                        if resp.clicked() {
+                            self.open_alt_repeat_picker(AltRepeatPickField::LastKey);
+                        }
+                        resp.on_hover_text(last_key_tip);
+                    });
                 });
 
                 ui.add_space(8.0);
-                crate::ui_style::modal_section_title(ui, "Alt key");
-                ui.add_space(4.0);
                 ui.horizontal_centered(|ui| {
-                    let resp = ui
-                        .add_sized(
-                            [field_width, 34.0],
-                            egui::Button::new(RichText::new(alt_key_label).size(12.0)),
-                        )
-                        .on_hover_cursor(egui::CursorIcon::PointingHand);
-                    if resp.clicked() {
-                        self.open_alt_repeat_picker(AltRepeatPickField::AltKey);
-                    }
-                    resp.on_hover_text(alt_key_tip);
+                    ui.vertical(|ui| {
+                        ui.set_width(field_width);
+                        crate::ui_style::modal_section_title(ui, "Alt key");
+                        ui.add_space(4.0);
+                        let resp = ui
+                            .add_sized(
+                                [field_width, 34.0],
+                                egui::Button::new(RichText::new(alt_key_label).size(12.0)),
+                            )
+                            .on_hover_cursor(egui::CursorIcon::PointingHand);
+                        if resp.clicked() {
+                            self.open_alt_repeat_picker(AltRepeatPickField::AltKey);
+                        }
+                        resp.on_hover_text(alt_key_tip);
+                    });
                 });
 
                 ui.add_space(10.0);
