@@ -1203,6 +1203,7 @@ pub struct EntropyApp {
     mouse_keys_window_open: bool,
     alt_repeat_entries: Vec<AltRepeatKeyEntry>,
     alt_repeat_names: Vec<String>,
+    alt_repeat_undo_stack: Vec<(Vec<AltRepeatKeyEntry>, Vec<String>, usize)>,
     alt_repeat_window_open: bool,
     selected_alt_repeat: usize,
     alt_repeat_visible_count: usize,
@@ -1306,6 +1307,7 @@ impl EntropyApp {
             mouse_keys_window_open: false,
             alt_repeat_entries: vec![],
             alt_repeat_names: vec![],
+            alt_repeat_undo_stack: Vec::new(),
             alt_repeat_window_open: false,
             selected_alt_repeat: 0,
             alt_repeat_visible_count: 1,
@@ -1409,6 +1411,7 @@ impl EntropyApp {
         self.mouse_keys_window_open = false;
         self.alt_repeat_entries.clear();
         self.alt_repeat_names.clear();
+        self.alt_repeat_undo_stack.clear();
         self.alt_repeat_window_open = false;
         self.selected_alt_repeat = 0;
         self.alt_repeat_visible_count = 1;
@@ -1940,6 +1943,7 @@ impl EntropyApp {
                 self.alt_repeat_entries = r.alt_repeat_entries.clone();
                 self.alt_repeat_names = load_alt_repeat_names(&self.current_device_name);
                 self.alt_repeat_names.resize(self.alt_repeat_entries.len(), String::new());
+                self.alt_repeat_undo_stack.clear();
                 self.selected_alt_repeat = 0;
                 self.alt_repeat_visible_count = if self.alt_repeat_entries.is_empty() { 1 } else { 1.min(self.alt_repeat_entries.len()) };
                 self.key_override_names = load_key_override_names(&self.current_device_name);
@@ -2711,7 +2715,13 @@ impl EntropyApp {
                         .color(app_muted_text(dark)),
                 );
                 ui.add_space(18.0);
-                self.draw_alt_repeat_editor_content(ui);
+                ui.allocate_ui_with_layout(
+                    egui::vec2(360.0, 0.0),
+                    egui::Layout::top_down(egui::Align::Min),
+                    |ui| {
+                        self.draw_alt_repeat_editor_content(ui);
+                    },
+                );
             });
         });
     }
@@ -4503,6 +4513,17 @@ impl EntropyApp {
         self.keycode_picker.open = true;
     }
 
+    fn push_alt_repeat_undo(&mut self) {
+        self.alt_repeat_undo_stack.push((
+            self.alt_repeat_entries.clone(),
+            self.alt_repeat_names.clone(),
+            self.selected_alt_repeat,
+        ));
+        if self.alt_repeat_undo_stack.len() > 64 {
+            self.alt_repeat_undo_stack.remove(0);
+        }
+    }
+
     fn alt_repeat_entry_exists(entry: &AltRepeatKeyEntry) -> bool {
         entry.keycode != 0 || entry.alt_keycode != 0 || entry.allowed_mods != 0
     }
@@ -5338,6 +5359,7 @@ impl EntropyApp {
 
         let idx = self.selected_alt_repeat;
         let current = self.alt_repeat_entries[idx].clone();
+        let current_name = self.alt_repeat_names.get(idx).cloned().unwrap_or_default();
         let mut edited = current.clone();
         let content_width = 360.0_f32;
         let field_width = 220.0_f32;
@@ -5465,6 +5487,7 @@ impl EntropyApp {
                     });
                 }
                 if name_changed {
+                    self.push_alt_repeat_undo();
                     save_alt_repeat_names(&self.alt_repeat_names, &self.current_device_name);
                 }
 
@@ -5550,8 +5573,55 @@ impl EntropyApp {
             },
         );
 
+        ui.add_space(10.0);
+        ui.horizontal_centered(|ui| {
+            let clear_enabled = Self::alt_repeat_entry_exists(&self.alt_repeat_entries[idx])
+                || self
+                    .alt_repeat_names
+                    .get(idx)
+                    .map(|s| !s.trim().is_empty())
+                    .unwrap_or(false);
+            let clear_btn = egui::Button::new(RichText::new("Clear").size(13.0))
+                .min_size(crate::ui_style::modal_action_button_size());
+            let clear_resp = ui.add_enabled(clear_enabled, clear_btn);
+            if clear_resp.hovered() && clear_enabled {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+            }
+            if clear_resp.clicked() {
+                self.push_alt_repeat_undo();
+                self.alt_repeat_entries[idx] = AltRepeatKeyEntry::default();
+                if let Some(name) = self.alt_repeat_names.get_mut(idx) {
+                    name.clear();
+                }
+                save_alt_repeat_names(&self.alt_repeat_names, &self.current_device_name);
+                self.write_alt_repeat_entry(idx);
+                edited = self.alt_repeat_entries[idx].clone();
+            }
+
+            let undo_enabled = !self.alt_repeat_undo_stack.is_empty();
+            let undo_btn = egui::Button::new(RichText::new("Undo").size(13.0))
+                .min_size(crate::ui_style::modal_action_button_size());
+            let undo_resp = ui.add_enabled(undo_enabled, undo_btn);
+            if undo_resp.hovered() && undo_enabled {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+            }
+            if undo_resp.clicked() {
+                if let Some((entries, names, selected)) = self.alt_repeat_undo_stack.pop() {
+                    self.alt_repeat_entries = entries;
+                    self.alt_repeat_names = names;
+                    self.selected_alt_repeat = selected.min(self.alt_repeat_entries.len().saturating_sub(1));
+                    save_alt_repeat_names(&self.alt_repeat_names, &self.current_device_name);
+                    for idx in 0..self.alt_repeat_entries.len() {
+                        self.write_alt_repeat_entry(idx);
+                    }
+                    return;
+                }
+            }
+        });
+
         Self::normalize_alt_repeat_entry(&mut edited);
         if edited != current {
+            self.push_alt_repeat_undo();
             if let Some(slot) = self.alt_repeat_entries.get_mut(idx) {
                 *slot = edited;
             }
