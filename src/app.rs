@@ -2702,7 +2702,7 @@ impl EntropyApp {
         ui: &mut egui::Ui,
         content_rect: egui::Rect,
     ) {
-        const ALT_REPEAT_PAGE_WIDTH: f32 = 360.0;
+        const ALT_REPEAT_PAGE_WIDTH: f32 = 240.0;
         const ALT_REPEAT_TITLE_Y_OFFSET: f32 = 30.0;
         const ALT_REPEAT_DESC_GAP: f32 = 28.0;
         const ALT_REPEAT_BLOCK_TOP_GAP: f32 = 34.0;
@@ -5371,8 +5371,8 @@ impl EntropyApp {
         let idx = self.selected_alt_repeat;
         let current = self.alt_repeat_entries[idx].clone();
         let mut edited = current.clone();
-        let content_width = 360.0_f32;
         let field_width = 220.0_f32;
+        let content_width = field_width;
         let custom = self
             .layout
             .as_ref()
