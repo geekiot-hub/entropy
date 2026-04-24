@@ -1114,6 +1114,7 @@ enum SettingsTab {
     Rgb,
     Encoders,
     Combo,
+    KeyOverrides,
 }
 
 pub struct EntropyApp {
@@ -2398,6 +2399,9 @@ impl EntropyApp {
             SettingsTab::Combo => {
                 self.draw_combo_settings_page(ui, ctx, content_rect);
             }
+            SettingsTab::KeyOverrides => {
+                self.draw_key_override_settings_page(ui, content_rect);
+            }
         }
     }
 
@@ -2646,6 +2650,21 @@ impl EntropyApp {
 
                 let mut close_after_save = false;
                 self.draw_rgb_editor_content(ui, dark, &RgbModalLayout::new(), false, &mut close_after_save);
+            });
+        });
+    }
+
+    fn draw_key_override_settings_page(
+        &mut self,
+        ui: &mut egui::Ui,
+        content_rect: egui::Rect,
+    ) {
+        ui.allocate_ui_at_rect(content_rect, |ui| {
+            ui.vertical_centered(|ui| {
+                ui.add_space(18.0);
+                ui.label(RichText::new("Key Overrides").size(18.0).strong());
+                ui.add_space(18.0);
+                self.draw_key_override_editor_content(ui);
             });
         });
     }
@@ -5552,22 +5571,8 @@ impl EntropyApp {
         self.mouse_keys_window_open = open;
     }
 
-    fn show_key_override_window(&mut self, ctx: &egui::Context) {
-        if !self.keycode_picker.open && ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-            self.key_override_window_open = false;
-            return;
-        }
-
-        let dark = ctx.style().visuals.dark_mode;
-        let mut open = self.key_override_window_open;
-        let shown = crate::ui_style::centered_modal_window(
-            ctx,
-            "Key Overrides",
-            self.popup_state.id(PopupKey::KeyOverrideWindow),
-            &mut open,
-            Vec2::new(336.0, 584.0),
-        )
-            .show(ctx, |ui| {
+    fn draw_key_override_editor_content(&mut self, ui: &mut egui::Ui) {
+                let dark = ui.visuals().dark_mode;
                 if self.key_override_entries.is_empty() {
                     ui.label("Key Overrides are not supported by this keyboard");
                     return;
@@ -5913,6 +5918,24 @@ impl EntropyApp {
                     self.key_override_entries[idx] = edited;
                     self.write_key_override(idx);
                 }
+    }
+
+    fn show_key_override_window(&mut self, ctx: &egui::Context) {
+        if !self.keycode_picker.open && ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            self.key_override_window_open = false;
+            return;
+        }
+
+        let mut open = self.key_override_window_open;
+        let shown = crate::ui_style::centered_modal_window(
+            ctx,
+            "Key Overrides",
+            self.popup_state.id(PopupKey::KeyOverrideWindow),
+            &mut open,
+            Vec2::new(336.0, 584.0),
+        )
+            .show(ctx, |ui| {
+                self.draw_key_override_editor_content(ui);
             });
         self.focus_modal_window(&shown);
         self.key_override_window_open = open;
@@ -6795,7 +6818,8 @@ impl EntropyApp {
                                     }
                                     if key_override_resp.clicked() {
                                         self.close_top_dropdowns(ui.ctx());
-                                        self.queue_popup_open(PendingPopupOpen::KeyOverrides);
+                                        self.settings_tab = SettingsTab::KeyOverrides;
+                                        self.main_menu_tab = MainMenuTab::Settings;
                                     }
                                     if !auto_shift_supported {
                                         let _ = auto_shift_resp.clone().on_hover_text("Auto Shift is not enabled in this keyboard firmware");
