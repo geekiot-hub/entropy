@@ -2653,29 +2653,25 @@ impl EntropyApp {
         dark: bool,
     ) {
         let center_x = content_rect.center().x;
-        let title_y = content_rect.top() + 30.0;
-        let intro_y = title_y + 44.0;
-        let row_start_y = intro_y + 34.0;
+        let row_start_y = content_rect.top() + 108.0;
         let row_height = 28.0_f32;
         let row_spacing = 8.0_f32;
         let row_width = 168.0_f32;
         let checkbox_width = 18.0_f32;
         let checkbox_gap = 16.0_f32;
 
-        ui.painter().text(
-            egui::pos2(center_x, title_y),
-            egui::Align2::CENTER_CENTER,
-            "Encoders",
-            FontId::proportional(18.0),
-            ui.visuals().text_color(),
-        );
-        ui.painter().text(
-            egui::pos2(center_x, intro_y),
-            egui::Align2::CENTER_CENTER,
-            "Show or hide encoder controls for this device",
-            FontId::proportional(13.0),
-            app_muted_text(dark),
-        );
+        ui.allocate_ui_at_rect(content_rect, |ui| {
+            ui.vertical_centered(|ui| {
+                ui.add_space(18.0);
+                ui.label(RichText::new("Encoders").size(18.0).strong());
+                ui.add_space(6.0);
+                ui.label(
+                    RichText::new("Show or hide encoder controls for this device")
+                        .size(13.0)
+                        .color(app_muted_text(dark)),
+                );
+            });
+        });
 
         let visible_count = self
             .layout
