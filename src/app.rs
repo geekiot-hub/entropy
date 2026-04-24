@@ -5761,11 +5761,7 @@ impl EntropyApp {
                             );
 
                             ui.add_space(4.0);
-                            egui::ScrollArea::vertical()
-                                .id_salt(format!("ko_scroll_{}", idx))
-                                .max_height(376.0)
-                                .auto_shrink([false, false])
-                                .show(ui, |ui| {
+                            ui.vertical(|ui| {
                                     ui.horizontal(|ui| {
                                         ui.add_space(field_inset);
                                         ui.label(RichText::new("Trigger").size(12.0).strong());
