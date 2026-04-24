@@ -5660,10 +5660,13 @@ impl EntropyApp {
                     ui.horizontal_centered(|ui| {
                         ui.vertical(|ui| {
                             ui.set_width(content_width);
-                            let combo_resp = ui.horizontal(|ui| {
+                            ui.horizontal(|ui| {
                                 ui.add_space(top_field_inset);
                                 egui::ComboBox::from_id_salt("key_override_entry_select")
-                                    .selected_text("")
+                                    .selected_text(
+                                        RichText::new(selected_override_text.clone())
+                                            .color(selected_override_text_color),
+                                    )
                                     .width(field_width)
                                     .show_ui(ui, |ui| {
                                         for idx in 0..self.key_override_entries.len() {
@@ -5701,16 +5704,8 @@ impl EntropyApp {
                                                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                             }
                                         }
-                                    })
-                                    .response
-                            }).inner;
-                            ui.painter().text(
-                                egui::pos2(combo_resp.rect.left() + 12.0, combo_resp.rect.center().y + 1.0),
-                                egui::Align2::LEFT_CENTER,
-                                &selected_override_text,
-                                egui::TextStyle::Button.resolve(ui.style()),
-                                selected_override_text_color,
-                            );
+                                    });
+                            });
 
                             ui.add_space(6.0);
                             if let Some(name) = self.key_override_names.get_mut(idx) {
