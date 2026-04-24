@@ -4496,7 +4496,10 @@ impl EntropyApp {
     }
 
     fn open_alt_repeat_window_compact(&mut self) {
-        self.queue_popup_open(PendingPopupOpen::AltRepeatCompact);
+        self.selected_alt_repeat = 0;
+        self.alt_repeat_visible_count = 1;
+        self.settings_tab = SettingsTab::AltRepeat;
+        self.main_menu_tab = MainMenuTab::Settings;
     }
 
     fn close_top_dropdowns(&self, ctx: &egui::Context) {
@@ -6858,7 +6861,7 @@ impl EntropyApp {
                         Color32::from_gray(248)
                     };
                     let auto_shift_supported = self.auto_shift_timeout.is_some();
-                    let (combo_hovered, auto_shift_hovered, key_override_hovered, alt_repeat_hovered) = egui::Area::new(egui::Id::new("advanced_dropdown_area"))
+                    let (combo_hovered, auto_shift_hovered, key_override_hovered) = egui::Area::new(egui::Id::new("advanced_dropdown_area"))
                         .order(egui::Order::Foreground)
                         .fixed_pos(dropdown_rect.min)
                         .show(ui.ctx(), |ui| {
@@ -6872,8 +6875,7 @@ impl EntropyApp {
                                     let auto_shift_color = if auto_shift_supported { ui.visuals().widgets.inactive.fg_stroke.color } else { app_muted_text(dark) };
                                     let auto_shift_resp = ui.add_sized([dropdown_rect.width() - 12.0, 30.0], egui::Button::new(RichText::new("Auto Shift").color(auto_shift_color)).frame(false));
                                     let key_override_resp = ui.add_sized([dropdown_rect.width() - 12.0, 30.0], egui::Button::new("Key Overrides").frame(false));
-                                    let alt_repeat_resp = ui.add_sized([dropdown_rect.width() - 12.0, 30.0], egui::Button::new("Alt Repeat").frame(false));
-                                    if combo_resp.hovered() || auto_shift_resp.hovered() || key_override_resp.hovered() || alt_repeat_resp.hovered() {
+                                    if combo_resp.hovered() || auto_shift_resp.hovered() || key_override_resp.hovered() {
                                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                     }
                                     if combo_resp.clicked() {
@@ -6892,15 +6894,10 @@ impl EntropyApp {
                                         self.settings_tab = SettingsTab::KeyOverrides;
                                         self.main_menu_tab = MainMenuTab::Settings;
                                     }
-                                    if alt_repeat_resp.clicked() {
-                                        self.close_top_dropdowns(ui.ctx());
-                                        self.settings_tab = SettingsTab::AltRepeat;
-                                        self.main_menu_tab = MainMenuTab::Settings;
-                                    }
                                     if !auto_shift_supported {
                                         let _ = auto_shift_resp.clone().on_hover_text("Auto Shift is not enabled in this keyboard firmware");
                                     }
-                                    (combo_resp.hovered(), auto_shift_resp.hovered(), key_override_resp.hovered(), alt_repeat_resp.hovered())
+                                    (combo_resp.hovered(), auto_shift_resp.hovered(), key_override_resp.hovered())
                                 })
                                 .inner
                         })
@@ -6912,7 +6909,6 @@ impl EntropyApp {
                                 || combo_hovered
                                 || auto_shift_hovered
                                 || key_override_hovered
-                                || alt_repeat_hovered
                                 || pointer_over_bridge,
                         )
                     });
