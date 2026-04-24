@@ -2677,8 +2677,14 @@ impl EntropyApp {
                         .color(app_muted_text(dark)),
                 );
                 ui.add_space(KEY_OVERRIDE_BLOCK_TOP_GAP);
+                let editor_height = (content_rect.height()
+                    - KEY_OVERRIDE_TITLE_Y_OFFSET
+                    - KEY_OVERRIDE_DESC_GAP
+                    - KEY_OVERRIDE_BLOCK_TOP_GAP
+                    - 64.0)
+                    .max(360.0);
                 ui.allocate_ui_with_layout(
-                    egui::vec2(KEY_OVERRIDE_PAGE_WIDTH, 0.0),
+                    egui::vec2(KEY_OVERRIDE_PAGE_WIDTH, editor_height),
                     egui::Layout::top_down(egui::Align::Min),
                     |ui| {
                         self.draw_key_override_editor_content(ui, true);
