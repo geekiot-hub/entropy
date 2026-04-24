@@ -2702,27 +2702,38 @@ impl EntropyApp {
         ui: &mut egui::Ui,
         content_rect: egui::Rect,
     ) {
-        let dark = ui.visuals().dark_mode;
+        const ALT_REPEAT_PAGE_WIDTH: f32 = 360.0;
+        const ALT_REPEAT_TITLE_Y_OFFSET: f32 = 30.0;
+        const ALT_REPEAT_DESC_GAP: f32 = 28.0;
+        const ALT_REPEAT_BLOCK_TOP_GAP: f32 = 34.0;
 
-        ui.allocate_ui_at_rect(content_rect, |ui| {
-            ui.vertical_centered(|ui| {
-                ui.add_space(18.0);
-                ui.label(RichText::new("Alt Repeat").size(18.0).strong());
-                ui.add_space(6.0);
-                ui.label(
-                    RichText::new("Configure alternate repeat keys and modifier behavior")
-                        .size(13.0)
-                        .color(app_muted_text(dark)),
-                );
-                ui.add_space(18.0);
-                ui.allocate_ui_with_layout(
-                    egui::vec2(360.0, 0.0),
-                    egui::Layout::top_down(egui::Align::Min),
-                    |ui| {
-                        self.draw_alt_repeat_editor_content(ui);
-                    },
-                );
-            });
+        let dark = ui.visuals().dark_mode;
+        let center_x = content_rect.center().x;
+        let title_y = content_rect.top() + ALT_REPEAT_TITLE_Y_OFFSET;
+        let desc_y = title_y + ALT_REPEAT_DESC_GAP;
+        let block_top = desc_y + ALT_REPEAT_BLOCK_TOP_GAP;
+        let block_rect = egui::Rect::from_min_max(
+            egui::pos2(center_x - ALT_REPEAT_PAGE_WIDTH / 2.0, block_top),
+            egui::pos2(center_x + ALT_REPEAT_PAGE_WIDTH / 2.0, content_rect.bottom()),
+        );
+
+        ui.painter().text(
+            egui::pos2(center_x, title_y),
+            egui::Align2::CENTER_CENTER,
+            "Alt Repeat",
+            FontId::proportional(18.0),
+            ui.visuals().text_color(),
+        );
+        ui.painter().text(
+            egui::pos2(center_x, desc_y),
+            egui::Align2::CENTER_CENTER,
+            "Configure alternate repeat keys and modifier behavior",
+            FontId::proportional(13.0),
+            app_muted_text(dark),
+        );
+
+        ui.allocate_ui_at_rect(block_rect, |ui| {
+            self.draw_alt_repeat_editor_content(ui);
         });
     }
 
@@ -5359,7 +5370,6 @@ impl EntropyApp {
 
         let idx = self.selected_alt_repeat;
         let current = self.alt_repeat_entries[idx].clone();
-        let current_name = self.alt_repeat_names.get(idx).cloned().unwrap_or_default();
         let mut edited = current.clone();
         let content_width = 360.0_f32;
         let field_width = 220.0_f32;
