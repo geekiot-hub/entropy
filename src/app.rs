@@ -1113,6 +1113,7 @@ enum SettingsTab {
     AutoShift,
     Rgb,
     Encoders,
+    Combo,
 }
 
 pub struct EntropyApp {
@@ -2394,6 +2395,9 @@ impl EntropyApp {
             SettingsTab::Encoders => {
                 self.draw_encoder_visibility_settings_page(ui, content_rect, dark);
             }
+            SettingsTab::Combo => {
+                self.draw_combo_settings_page(ui, ctx, content_rect);
+            }
         }
     }
 
@@ -2642,6 +2646,24 @@ impl EntropyApp {
 
                 let mut close_after_save = false;
                 self.draw_rgb_editor_content(ui, dark, &RgbModalLayout::new(), false, &mut close_after_save);
+            });
+        });
+    }
+
+    fn draw_combo_settings_page(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        content_rect: egui::Rect,
+    ) {
+        self.handle_combo_editor_input(ctx, false);
+
+        ui.allocate_ui_at_rect(content_rect, |ui| {
+            ui.vertical_centered(|ui| {
+                ui.add_space(18.0);
+                ui.label(RichText::new("Combo").size(18.0).strong());
+                ui.add_space(18.0);
+                self.draw_combo_editor_content(ui);
             });
         });
     }
@@ -5889,15 +5911,15 @@ impl EntropyApp {
         self.key_override_window_open = open;
     }
 
-    fn show_combo_window(&mut self, ctx: &egui::Context) {
+    fn handle_combo_editor_input(&mut self, ctx: &egui::Context, allow_close: bool) -> bool {
         if !self.keycode_picker.open && ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
             if self.combo_capture_open {
                 self.cancel_combo_capture();
-            } else {
+            } else if allow_close {
                 self.combo_window_open = false;
                 self.combo_capture_open = false;
                 self.combo_capture_keys.clear();
-                return;
+                return true;
             }
         }
 
@@ -5928,15 +5950,10 @@ impl EntropyApp {
             }
         }
 
-        let mut open = self.combo_window_open;
-        let shown = crate::ui_style::centered_modal_window(
-            ctx,
-            "Combo",
-            self.popup_state.id(PopupKey::ComboWindow),
-            &mut open,
-            Vec2::new(237.0, 430.0),
-        )
-            .show(ctx, |ui| {
+        false
+    }
+
+    fn draw_combo_editor_content(&mut self, ui: &mut egui::Ui) {
                 ui.style_mut().visuals.button_frame = true;
                 if ui.visuals().dark_mode {
                     ui.style_mut().visuals.widgets.inactive.bg_fill = Color32::from_rgb(48, 48, 58);
@@ -6223,7 +6240,7 @@ impl EntropyApp {
                                 self.combo_capture_open = true;
                             }
                             if self.combo_capture_open {
-                                let clicked_outside_input = ctx.input(|i| {
+                                let clicked_outside_input = ui.ctx().input(|i| {
                                     i.pointer.any_pressed()
                                         && i.pointer
                                             .interact_pos()
@@ -6357,6 +6374,23 @@ impl EntropyApp {
                         },
                     );
                 });
+    }
+
+    fn show_combo_window(&mut self, ctx: &egui::Context) {
+        if self.handle_combo_editor_input(ctx, true) {
+            return;
+        }
+        let mut open = self.combo_window_open;
+
+        let shown = crate::ui_style::centered_modal_window(
+            ctx,
+            "Combo",
+            self.popup_state.id(PopupKey::ComboWindow),
+            &mut open,
+            Vec2::new(360.0, 420.0),
+        )
+            .show(ctx, |ui| {
+                self.draw_combo_editor_content(ui);
             });
         self.focus_modal_window(&shown);
         self.combo_window_open = open;
@@ -6741,7 +6775,8 @@ impl EntropyApp {
                                     }
                                     if combo_resp.clicked() {
                                         self.close_top_dropdowns(ui.ctx());
-                                        self.queue_popup_open(PendingPopupOpen::Combo);
+                                        self.settings_tab = SettingsTab::Combo;
+                                        self.main_menu_tab = MainMenuTab::Settings;
                                         if self.combo_visible_count == 0 { self.combo_visible_count = 1; }
                                     }
                                     if auto_shift_resp.clicked() && auto_shift_supported {
