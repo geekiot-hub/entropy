@@ -2653,12 +2653,12 @@ impl EntropyApp {
         dark: bool,
     ) {
         let center_x = content_rect.center().x;
-        let row_start_y = content_rect.top() + 108.0;
+        let row_start_y = content_rect.top() + 106.0;
         let row_height = 28.0_f32;
-        let row_spacing = 8.0_f32;
-        let row_width = 168.0_f32;
+        let row_spacing = 4.0_f32;
+        let row_width = 156.0_f32;
         let checkbox_width = 18.0_f32;
-        let checkbox_gap = 16.0_f32;
+        let checkbox_gap = 12.0_f32;
 
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
@@ -2697,10 +2697,13 @@ impl EntropyApp {
                 egui::vec2(row_width, row_height),
             );
             let checkbox_rect = egui::Rect::from_min_size(
-                row_rect.left_top(),
+                egui::pos2(row_rect.right() - checkbox_width, row_rect.top()),
                 egui::vec2(checkbox_width, row_height),
             );
-            let label_x = checkbox_rect.right() + checkbox_gap;
+            let label_rect = egui::Rect::from_min_size(
+                row_rect.left_top(),
+                egui::vec2(row_width - checkbox_width - checkbox_gap, row_height),
+            );
             let is_visible = self.encoder_visibility[visual_idx];
             let mut toggled = is_visible;
             let resp = ui.put(checkbox_rect, egui::Checkbox::without_text(&mut toggled));
@@ -2711,7 +2714,7 @@ impl EntropyApp {
                 self.encoder_visibility[visual_idx] = toggled;
             }
             ui.painter().text(
-                egui::pos2(label_x, row_rect.center().y),
+                egui::pos2(label_rect.left(), row_rect.center().y),
                 egui::Align2::LEFT_CENTER,
                 format!("Encoder {}", visual_idx + 1),
                 FontId::proportional(13.0),
