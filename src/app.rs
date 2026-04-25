@@ -2414,10 +2414,30 @@ impl EntropyApp {
                     |ui| {
                         ui.set_min_size(egui::vec2(content_width, list_height));
                         ui.spacing_mut().scroll.floating = false;
-                        ui.spacing_mut().scroll.bar_width = 7.0;
+                        ui.spacing_mut().scroll.bar_width = 6.0;
                         ui.spacing_mut().scroll.bar_inner_margin = 8.0;
                         ui.spacing_mut().scroll.bar_outer_margin = 0.0;
-                        ui.spacing_mut().scroll.handle_min_length = 32.0;
+                        ui.spacing_mut().scroll.handle_min_length = 36.0;
+                        ui.visuals_mut().extreme_bg_color = if dark {
+                            Color32::from_rgb(34, 34, 36)
+                        } else {
+                            Color32::from_rgb(236, 236, 238)
+                        };
+                        ui.visuals_mut().widgets.inactive.bg_fill = if dark {
+                            Color32::from_rgb(72, 72, 76)
+                        } else {
+                            Color32::from_rgb(184, 184, 188)
+                        };
+                        ui.visuals_mut().widgets.hovered.bg_fill = if dark {
+                            Color32::from_rgb(92, 92, 96)
+                        } else {
+                            Color32::from_rgb(164, 164, 168)
+                        };
+                        ui.visuals_mut().widgets.active.bg_fill = if dark {
+                            Color32::from_rgb(108, 108, 112)
+                        } else {
+                            Color32::from_rgb(144, 144, 148)
+                        };
                         egui::ScrollArea::vertical()
                             .id_salt("mouse_keys_settings_scroll")
                             .max_height(list_height)
@@ -5526,46 +5546,16 @@ impl EntropyApp {
         const FIELD_WIDTH: f32 = 86.0;
 
         for (qsid, label, tooltip, max) in rows.iter().copied() {
-            let (current, write_back): (
-                u16,
-                Box<dyn FnOnce(&mut MouseKeysSettingsState, u16)>,
-            ) = match qsid {
-                9 => (
-                    self.mouse_keys_settings.delay,
-                    Box::new(|s: &mut MouseKeysSettingsState, v| s.delay = v),
-                ),
-                10 => (
-                    self.mouse_keys_settings.interval,
-                    Box::new(|s: &mut MouseKeysSettingsState, v| s.interval = v),
-                ),
-                11 => (
-                    self.mouse_keys_settings.move_delta,
-                    Box::new(|s: &mut MouseKeysSettingsState, v| s.move_delta = v),
-                ),
-                12 => (
-                    self.mouse_keys_settings.max_speed,
-                    Box::new(|s: &mut MouseKeysSettingsState, v| s.max_speed = v),
-                ),
-                13 => (
-                    self.mouse_keys_settings.time_to_max,
-                    Box::new(|s: &mut MouseKeysSettingsState, v| s.time_to_max = v),
-                ),
-                14 => (
-                    self.mouse_keys_settings.wheel_delay,
-                    Box::new(|s: &mut MouseKeysSettingsState, v| s.wheel_delay = v),
-                ),
-                15 => (
-                    self.mouse_keys_settings.wheel_interval,
-                    Box::new(|s: &mut MouseKeysSettingsState, v| s.wheel_interval = v),
-                ),
-                16 => (
-                    self.mouse_keys_settings.wheel_max_speed,
-                    Box::new(|s: &mut MouseKeysSettingsState, v| s.wheel_max_speed = v),
-                ),
-                17 => (
-                    self.mouse_keys_settings.wheel_time_to_max,
-                    Box::new(|s: &mut MouseKeysSettingsState, v| s.wheel_time_to_max = v),
-                ),
+            let current = match qsid {
+                9 => self.mouse_keys_settings.delay,
+                10 => self.mouse_keys_settings.interval,
+                11 => self.mouse_keys_settings.move_delta,
+                12 => self.mouse_keys_settings.max_speed,
+                13 => self.mouse_keys_settings.time_to_max,
+                14 => self.mouse_keys_settings.wheel_delay,
+                15 => self.mouse_keys_settings.wheel_interval,
+                16 => self.mouse_keys_settings.wheel_max_speed,
+                17 => self.mouse_keys_settings.wheel_time_to_max,
                 _ => continue,
             };
 
@@ -5649,7 +5639,18 @@ impl EntropyApp {
                         let parsed = filtered.parse::<u32>().unwrap_or(0).min(max);
                         let new_value = parsed as u16;
                         if new_value != current {
-                            write_back(&mut self.mouse_keys_settings, new_value);
+                            match qsid {
+                                9 => self.mouse_keys_settings.delay = new_value,
+                                10 => self.mouse_keys_settings.interval = new_value,
+                                11 => self.mouse_keys_settings.move_delta = new_value,
+                                12 => self.mouse_keys_settings.max_speed = new_value,
+                                13 => self.mouse_keys_settings.time_to_max = new_value,
+                                14 => self.mouse_keys_settings.wheel_delay = new_value,
+                                15 => self.mouse_keys_settings.wheel_interval = new_value,
+                                16 => self.mouse_keys_settings.wheel_max_speed = new_value,
+                                17 => self.mouse_keys_settings.wheel_time_to_max = new_value,
+                                _ => {}
+                            }
                             self.write_mouse_keys_setting(qsid, new_value);
                         }
                         text = filtered;

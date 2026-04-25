@@ -333,9 +333,11 @@ pub fn settings_list_row_with_tooltip(
     );
 
     if let Some(tooltip) = tooltip {
-        let label_rect = egui::Rect::from_min_max(
-            row_rect.left_top(),
-            egui::pos2(row_rect.right() - control_width - 14.0, row_rect.bottom()),
+        let text_width = (label.chars().count() as f32 * 7.4 + 8.0)
+            .min((content_width - control_width - 20.0).max(0.0));
+        let label_rect = egui::Rect::from_center_size(
+            egui::pos2(row_rect.left() + 2.0 + text_width / 2.0, row_rect.center().y),
+            egui::vec2(text_width, 22.0),
         );
         let label_resp = ui.interact(
             label_rect,
