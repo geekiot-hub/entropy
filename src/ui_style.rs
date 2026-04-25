@@ -1,7 +1,7 @@
 use egui::{Color32, RichText, Stroke, Ui, Vec2};
 
 pub fn accent() -> Color32 {
-    Color32::from_rgb(91, 104, 223)
+    Color32::from_rgb(184, 92, 112)
 }
 
 pub fn panel_fill(dark: bool) -> Color32 {

@@ -291,13 +291,13 @@ fn apply_picker_button_visuals(ui: &mut egui::Ui) {
     if dark_mode {
         visuals.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(55, 55, 60));
         visuals.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(55, 55, 60));
-        visuals.widgets.active.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(91, 104, 223));
-        visuals.widgets.open.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(91, 104, 223));
+        visuals.widgets.active.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(184, 92, 112));
+        visuals.widgets.open.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(184, 92, 112));
     } else {
         visuals.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(210, 210, 218));
         visuals.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(210, 210, 218));
-        visuals.widgets.active.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(91, 104, 223));
-        visuals.widgets.open.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(91, 104, 223));
+        visuals.widgets.active.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(184, 92, 112));
+        visuals.widgets.open.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(184, 92, 112));
     }
 }
 
@@ -671,7 +671,7 @@ impl KeycodePicker {
                             RichText::new(tab.label()).size(12.0)
                         };
                         let btn = egui::Button::new(text)
-                            .fill(if active { Color32::from_rgb(91, 104, 223) } else { Color32::TRANSPARENT });
+                            .fill(if active { Color32::from_rgb(184, 92, 112) } else { Color32::TRANSPARENT });
                         if ui.add(btn).clicked() {
                             self.selected_tab = *tab;
                             self.vial_quantum_pending_mod = None;
@@ -1374,7 +1374,7 @@ impl KeycodePicker {
                         let has_content = self.macro_has_content(i as usize);
                         let display_name = self.macro_display_name(i as usize);
                         let fill = if is_active {
-                            Color32::from_rgb(91, 104, 223)
+                            Color32::from_rgb(184, 92, 112)
                         } else {
                             Color32::TRANSPARENT
                         };
@@ -1484,8 +1484,8 @@ impl KeycodePicker {
                     if ui.add(down_btn).on_hover_text("Move down").clicked() && i + 1 < action_count { move_down = Some(i); }
 
                     let (type_label, type_color, tooltip) = match action {
-                        MacroAction::Text(_) => ("Text", Color32::from_rgb(91, 104, 223), "Types text characters one by one"),
-                        MacroAction::Tap(_) => ("Tap", Color32::from_rgb(91, 104, 223), "Press and release a key"),
+                        MacroAction::Text(_) => ("Text", Color32::from_rgb(184, 92, 112), "Types text characters one by one"),
+                        MacroAction::Tap(_) => ("Tap", Color32::from_rgb(184, 92, 112), "Press and release a key"),
                         MacroAction::Down(_) => ("Down", Color32::from_rgb(200, 150, 50), "Press a key (hold until Up)"),
                         MacroAction::Up(_) => ("Up", Color32::from_rgb(150, 200, 50), "Release a previously pressed key"),
                         MacroAction::Delay(_) => ("Delay", Color32::from_gray(150), "Wait before next action"),
@@ -1652,7 +1652,7 @@ impl KeycodePicker {
                         let is_active = n == selected;
                         let display_name = self.tap_dance_display_name(n as usize);
                         let id_text = format!("TD{}", n);
-                        let fill = if is_active { Color32::from_rgb(91, 104, 223) } else { Color32::TRANSPARENT };
+                        let fill = if is_active { Color32::from_rgb(184, 92, 112) } else { Color32::TRANSPARENT };
                         let mut resp = ui.add_sized(Vec2::new(48.0, 28.0), egui::Button::new("").fill(fill));
                         let rect = resp.rect;
                         let painter = ui.painter();
@@ -1877,7 +1877,7 @@ impl KeycodePicker {
                         let btn = egui::Button::new(
                             RichText::new(&label).size(14.0)
                                 .color(if is_active { Color32::WHITE } else { Color32::from_gray(100) })
-                        ).fill(if is_active { Color32::from_rgb(91, 104, 223) } else { Color32::TRANSPARENT })
+                        ).fill(if is_active { Color32::from_rgb(184, 92, 112) } else { Color32::TRANSPARENT })
                          .min_size(crate::ui_style::modal_tab_button_size());
                         if ui.add(btn).clicked() {
                             self.tap_dance_editor_open = Some(n);
@@ -2875,7 +2875,7 @@ fn show_zmk(&mut self, ctx: &egui::Context) {
                             RichText::new(tab.label()).size(12.0)
                         };
                         let btn = egui::Button::new(text)
-                            .fill(if active { Color32::from_rgb(91, 104, 223) } else { Color32::TRANSPARENT });
+                            .fill(if active { Color32::from_rgb(184, 92, 112) } else { Color32::TRANSPARENT });
                         if ui.add(btn).clicked() { self.selected_tab = *tab; }
                     }
                 });
@@ -2950,7 +2950,7 @@ fn show_zmk(&mut self, ctx: &egui::Context) {
                     else    { Color32::from_rgba_premultiplied(0,0,0,8) }
                 } else { Color32::TRANSPARENT };
                 let label_color = if is_named {
-                    Color32::from_rgb(91, 104, 223)
+                    Color32::from_rgb(184, 92, 112)
                 } else if dark { Color32::from_gray(110) } else { Color32::from_gray(160) };
                 ui.label(RichText::new(if is_named { raw } else { format!("Layer {}", n) })
                     .size(11.5).color(label_color).strong());
