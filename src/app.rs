@@ -2483,7 +2483,7 @@ impl EntropyApp {
             format!("Tested: {tested_count}/{total_keys}"),
             FontId::proportional(14.0),
             if tested_count == total_keys && total_keys > 0 {
-                Color32::from_rgb(72, 168, 110)
+                app_accent()
             } else {
                 app_muted_text(dark)
             },
@@ -2510,9 +2510,9 @@ impl EntropyApp {
             Color32::from_rgb(252, 252, 254)
         };
         let tested_fill = if dark {
-            Color32::from_rgb(42, 68, 52)
+            Color32::from_rgb(74, 58, 62)
         } else {
-            Color32::from_rgb(232, 245, 236)
+            Color32::from_rgb(242, 230, 232)
         };
 
         let board_top = content_rect.top() + 52.0;
@@ -2608,7 +2608,11 @@ impl EntropyApp {
             let stroke = if is_pressed {
                 Color32::from_rgb(218, 164, 174)
             } else if was_pressed {
-                Color32::from_rgb(104, 152, 120)
+                if dark {
+                    Color32::from_rgb(118, 86, 94)
+                } else {
+                    Color32::from_rgb(210, 176, 184)
+                }
             } else {
                 app_border_color(dark)
             };
