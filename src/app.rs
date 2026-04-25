@@ -5506,9 +5506,9 @@ impl EntropyApp {
                     save_alt_repeat_names(&self.alt_repeat_names, &self.current_device_name);
                 }
 
-                ui.add_space(8.0);
+                ui.add_space(10.0);
                 ui.horizontal(|ui| {
-                    ui.add_space(centered_field_offset);
+                    ui.add_space((content_width - double_page_width) / 2.0);
                     ui.vertical(|ui| {
                         ui.set_width(field_width);
                         crate::ui_style::modal_section_title(ui, "Last key");
@@ -5524,11 +5524,9 @@ impl EntropyApp {
                         }
                         resp.on_hover_text(last_key_tip);
                     });
-                });
 
-                ui.add_space(8.0);
-                ui.horizontal(|ui| {
-                    ui.add_space(centered_field_offset);
+                    ui.add_space(double_page_gap);
+
                     ui.vertical(|ui| {
                         ui.set_width(field_width);
                         crate::ui_style::modal_section_title(ui, "Alt key");
@@ -5546,9 +5544,9 @@ impl EntropyApp {
                     });
                 });
 
-                ui.add_space(10.0);
+                ui.add_space(12.0);
                 ui.horizontal(|ui| {
-                    ui.add_space((content_width - double_page_width) / 2.0 + 32.0);
+                    ui.add_space((content_width - double_page_width) / 2.0);
                     ui.vertical(|ui| {
                         ui.set_width(field_width);
                         ui.label(
