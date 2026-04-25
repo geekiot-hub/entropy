@@ -2375,6 +2375,23 @@ impl EntropyApp {
                 self.draw_alt_repeat_settings_page(ui, content_rect);
             }
         }
+
+        self.draw_settings_navigation_hint(ui);
+    }
+
+    fn draw_settings_navigation_hint(&self, ui: &mut egui::Ui) {
+        let hint_color = if ui.visuals().dark_mode {
+            Color32::from_gray(100)
+        } else {
+            Color32::from_gray(160)
+        };
+        ui.painter().text(
+            egui::pos2(ui.max_rect().center().x, ui.max_rect().bottom() - 36.0),
+            egui::Align2::CENTER_CENTER,
+            "Right-click or Esc to return to layout",
+            FontId::proportional(11.0),
+            hint_color,
+        );
     }
 
     fn draw_matrix_tester_settings(
@@ -3539,6 +3556,15 @@ impl eframe::App for EntropyApp {
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        let combo_capture_open_at_frame_start = self.combo_capture_open;
+        let keyboard_input_wanted_at_frame_start = ctx.wants_keyboard_input();
+        let modal_or_popup_open_at_frame_start = self.keycode_picker.open
+            || self.mouse_keys_window_open
+            || self.unlock_open
+            || self.vial_unlock_polling
+            || self.top_dropdown_open(ctx)
+            || ctx.memory(|m| m.any_popup_open());
+
         // Auto-scan for new devices every ~2 seconds (120 frames at 60fps)
         self.secondary_click_handled = false;
         if let Some((layer, ki, kc)) = self.pending_handed_swap {
@@ -4193,8 +4219,25 @@ impl eframe::App for EntropyApp {
             }
         }
 
+        let mut settings_page_navigation_handled = false;
+        if self.can_return_from_settings_page(
+            ctx,
+            modal_or_popup_open_at_frame_start,
+            combo_capture_open_at_frame_start,
+            keyboard_input_wanted_at_frame_start,
+        ) {
+            let esc_pressed = ctx.input(|i| i.key_pressed(egui::Key::Escape));
+            let rclick = ctx.input(|i| i.pointer.secondary_clicked());
+            if esc_pressed || rclick {
+                self.close_top_dropdowns(ctx);
+                self.main_menu_tab = MainMenuTab::Keyboard;
+                settings_page_navigation_handled = true;
+            }
+        }
+
         // Right-click anywhere = pop back one step (only if NOT hovering a layer key and not handled by key)
-        if !self.jump_back_stack.is_empty()
+        if !settings_page_navigation_handled
+            && !self.jump_back_stack.is_empty()
             && !self.keycode_picker.open
             && !self.secondary_click_handled
         {
@@ -4440,6 +4483,38 @@ impl EntropyApp {
             d.insert_temp(egui::Id::new("advanced_dropdown_open"), false);
             d.insert_temp(egui::Id::new("settings_dropdown_open"), false);
         });
+    }
+
+    fn top_dropdown_open(&self, ctx: &egui::Context) -> bool {
+        ctx.data(|d| {
+            d.get_temp::<bool>(egui::Id::new("device_dropdown_open"))
+                .unwrap_or(false)
+                || d.get_temp::<bool>(egui::Id::new("advanced_dropdown_open"))
+                    .unwrap_or(false)
+                || d.get_temp::<bool>(egui::Id::new("settings_dropdown_open"))
+                    .unwrap_or(false)
+        })
+    }
+
+    fn can_return_from_settings_page(
+        &self,
+        ctx: &egui::Context,
+        modal_or_popup_open_at_frame_start: bool,
+        combo_capture_open_at_frame_start: bool,
+        keyboard_input_wanted_at_frame_start: bool,
+    ) -> bool {
+        matches!(self.main_menu_tab, MainMenuTab::Settings | MainMenuTab::Advanced)
+            && !self.keycode_picker.open
+            && !self.mouse_keys_window_open
+            && !self.unlock_open
+            && !self.vial_unlock_polling
+            && !self.combo_capture_open
+            && !modal_or_popup_open_at_frame_start
+            && !combo_capture_open_at_frame_start
+            && !keyboard_input_wanted_at_frame_start
+            && !ctx.wants_keyboard_input()
+            && !ctx.memory(|m| m.any_popup_open())
+            && !self.top_dropdown_open(ctx)
     }
 
     fn request_modal_focus(&mut self) {
