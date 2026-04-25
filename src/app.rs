@@ -6624,7 +6624,7 @@ impl EntropyApp {
                         Color32::from_gray(248)
                     };
                     let auto_shift_supported = self.auto_shift_timeout.is_some();
-                    let (combo_hovered, auto_shift_hovered, key_override_hovered) = egui::Area::new(egui::Id::new("advanced_dropdown_area"))
+                    let (combo_hovered, auto_shift_hovered, key_override_hovered, advanced_clicked) = egui::Area::new(egui::Id::new("advanced_dropdown_area"))
                         .order(egui::Order::Foreground)
                         .fixed_pos(dropdown_rect.min)
                         .show(ui.ctx(), |ui| {
@@ -6660,7 +6660,14 @@ impl EntropyApp {
                                     if !auto_shift_supported {
                                         let _ = auto_shift_resp.clone().on_hover_text("Auto Shift is not enabled in this keyboard firmware");
                                     }
-                                    (combo_resp.hovered(), auto_shift_resp.hovered(), key_override_resp.hovered())
+                                    (
+                                        combo_resp.hovered(),
+                                        auto_shift_resp.hovered(),
+                                        key_override_resp.hovered(),
+                                        combo_resp.clicked()
+                                            || (auto_shift_resp.clicked() && auto_shift_supported)
+                                            || key_override_resp.clicked(),
+                                    )
                                 })
                                 .inner
                         })
@@ -6672,7 +6679,7 @@ impl EntropyApp {
                                 || combo_hovered
                                 || auto_shift_hovered
                                 || key_override_hovered
-                                || pointer_over_bridge,
+                                || (pointer_over_bridge && !advanced_clicked),
                         )
                     });
                 } else {
@@ -6716,7 +6723,7 @@ impl EntropyApp {
                             .as_ref()
                             .map(|l| l.supports_rgb)
                             .unwrap_or(false);
-                    let (matrix_hovered, rgb_hovered, encoders_hovered) =
+                    let (matrix_hovered, rgb_hovered, encoders_hovered, settings_clicked) =
                         egui::Area::new(egui::Id::new("settings_dropdown_area"))
                             .order(egui::Order::Foreground)
                             .fixed_pos(dropdown_rect.min)
@@ -6779,6 +6786,9 @@ impl EntropyApp {
                                             matrix_resp.hovered(),
                                             rgb_resp.hovered(),
                                             encoders_resp.hovered(),
+                                            matrix_resp.clicked()
+                                                || (rgb_resp.clicked() && rgb_available)
+                                                || encoders_resp.clicked(),
                                         )
                                     })
                                     .inner
@@ -6791,7 +6801,7 @@ impl EntropyApp {
                                 || matrix_hovered
                                 || rgb_hovered
                                 || encoders_hovered
-                                || pointer_over_bridge,
+                                || (pointer_over_bridge && !settings_clicked),
                         )
                     });
                 } else {
