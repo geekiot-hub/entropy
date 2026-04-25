@@ -5373,7 +5373,8 @@ impl EntropyApp {
         let mut edited = current.clone();
         let field_width = 220.0_f32;
         let content_width = field_width;
-        let double_page_width = 520.0_f32;
+        let double_page_gap = 28.0_f32;
+        let double_page_width = field_width * 2.0 + double_page_gap;
         let custom = self
             .layout
             .as_ref()
@@ -5543,55 +5544,49 @@ impl EntropyApp {
                 ui.add_space(10.0);
                 ui.horizontal(|ui| {
                     ui.add_space(-((double_page_width - field_width) / 2.0));
-                    ui.allocate_ui_with_layout(
-                        egui::vec2(double_page_width, 0.0),
-                        egui::Layout::left_to_right(egui::Align::TOP),
-                        |ui| {
-                            ui.vertical(|ui| {
-                                ui.set_width(field_width);
-                                ui.label(
-                                    RichText::new("Allowed mods")
-                                        .size(11.0)
-                                        .color(app_muted_text(dark)),
-                                );
-                                ui.add_space(4.0);
-                                Self::draw_key_override_mod_mask(
-                                    ui,
-                                    &mut edited.allowed_mods,
-                                    "alt_repeat_allowed_mods",
-                                );
-                            });
+                    ui.vertical(|ui| {
+                        ui.set_width(field_width);
+                        ui.label(
+                            RichText::new("Allowed mods")
+                                .size(11.0)
+                                .color(app_muted_text(dark)),
+                        );
+                        ui.add_space(4.0);
+                        Self::draw_key_override_mod_mask(
+                            ui,
+                            &mut edited.allowed_mods,
+                            "alt_repeat_allowed_mods",
+                        );
+                    });
 
-                            ui.add_space(28.0);
+                    ui.add_space(double_page_gap);
 
-                            ui.vertical(|ui| {
-                                ui.set_width(field_width);
-                                ui.label(
-                                    RichText::new("Options")
-                                        .size(11.0)
-                                        .color(app_muted_text(dark)),
-                                );
-                                ui.add_space(4.0);
-                                let row = |ui: &mut egui::Ui, label: &str, value: &mut bool| {
-                                    let resp = ui.checkbox(value, label);
-                                    if resp.hovered() {
-                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                    }
-                                };
-                                row(
-                                    ui,
-                                    "Default to this alt key",
-                                    &mut edited.options.default_to_this_alt_key,
-                                );
-                                row(ui, "Bidirectional", &mut edited.options.bidirectional);
-                                row(
-                                    ui,
-                                    "Ignore mod handedness",
-                                    &mut edited.options.ignore_mod_handedness,
-                                );
-                            });
-                        },
-                    );
+                    ui.vertical(|ui| {
+                        ui.set_width(field_width);
+                        ui.label(
+                            RichText::new("Options")
+                                .size(11.0)
+                                .color(app_muted_text(dark)),
+                        );
+                        ui.add_space(4.0);
+                        let row = |ui: &mut egui::Ui, label: &str, value: &mut bool| {
+                            let resp = ui.checkbox(value, label);
+                            if resp.hovered() {
+                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                            }
+                        };
+                        row(
+                            ui,
+                            "Default to this alt key",
+                            &mut edited.options.default_to_this_alt_key,
+                        );
+                        row(ui, "Bidirectional", &mut edited.options.bidirectional);
+                        row(
+                            ui,
+                            "Ignore mod handedness",
+                            &mut edited.options.ignore_mod_handedness,
+                        );
+                    });
                 });
             },
         );
