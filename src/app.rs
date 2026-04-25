@@ -3780,7 +3780,7 @@ impl eframe::App for EntropyApp {
 
                     let light_resp = ui.add(
                         egui::Label::new(
-                            RichText::new("Light")
+                            RichText::new("☀ Light")
                                 .size(11.0)
                                 .color(if self.dark_mode { inactive } else { active })
                                 .strong(),
@@ -3794,11 +3794,11 @@ impl eframe::App for EntropyApp {
                         self.dark_mode = false;
                     }
 
-                    ui.label(RichText::new("·").size(11.0).color(inactive));
+                    ui.label(RichText::new("|").size(11.0).color(inactive));
 
                     let dark_resp = ui.add(
                         egui::Label::new(
-                            RichText::new("Dark")
+                            RichText::new("🌙 Dark")
                                 .size(11.0)
                                 .color(if self.dark_mode { active } else { inactive })
                                 .strong(),
