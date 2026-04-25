@@ -286,6 +286,28 @@ pub fn settings_list_row(
     control_width: f32,
     add_control: impl FnOnce(&mut Ui),
 ) {
+    settings_list_row_with_tooltip(
+        ui,
+        content_width,
+        row_height,
+        label,
+        label_enabled,
+        None,
+        control_width,
+        add_control,
+    );
+}
+
+pub fn settings_list_row_with_tooltip(
+    ui: &mut Ui,
+    content_width: f32,
+    row_height: f32,
+    label: &str,
+    label_enabled: bool,
+    tooltip: Option<&str>,
+    control_width: f32,
+    add_control: impl FnOnce(&mut Ui),
+) {
     let dark = ui.visuals().dark_mode;
     let (row_rect, _) = ui.allocate_exact_size(
         egui::vec2(content_width, row_height),
@@ -296,17 +318,35 @@ pub fn settings_list_row(
         [row_rect.left_bottom(), row_rect.right_bottom()],
         Stroke::new(1.0, separator),
     );
+
+    let label_color = if label_enabled {
+        ui.visuals().text_color()
+    } else {
+        muted_text(dark)
+    };
     ui.painter().text(
         egui::pos2(row_rect.left() + 2.0, row_rect.center().y),
         egui::Align2::LEFT_CENTER,
         label,
         egui::FontId::proportional(13.0),
-        if label_enabled {
-            ui.visuals().text_color()
-        } else {
-            muted_text(dark)
-        },
+        label_color,
     );
+
+    if let Some(tooltip) = tooltip {
+        let label_rect = egui::Rect::from_min_max(
+            row_rect.left_top(),
+            egui::pos2(row_rect.right() - control_width - 14.0, row_rect.bottom()),
+        );
+        let label_resp = ui.interact(
+            label_rect,
+            ui.id().with(("settings_label", label)),
+            egui::Sense::hover(),
+        );
+        if label_resp.hovered() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::Help);
+        }
+        label_resp.on_hover_text(tooltip);
+    }
 
     let control_rect = egui::Rect::from_min_size(
         egui::pos2(row_rect.right() - control_width, row_rect.top()),

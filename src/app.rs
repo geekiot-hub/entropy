@@ -2413,11 +2413,18 @@ impl EntropyApp {
                     egui::Layout::top_down(egui::Align::Min),
                     |ui| {
                         ui.set_min_size(egui::vec2(content_width, list_height));
+                        ui.spacing_mut().scroll.floating = false;
+                        ui.spacing_mut().scroll.bar_width = 7.0;
+                        ui.spacing_mut().scroll.bar_inner_margin = 8.0;
+                        ui.spacing_mut().scroll.bar_outer_margin = 0.0;
+                        ui.spacing_mut().scroll.handle_min_length = 32.0;
                         egui::ScrollArea::vertical()
                             .id_salt("mouse_keys_settings_scroll")
                             .max_height(list_height)
                             .min_scrolled_height(list_height)
                             .auto_shrink([false, false])
+                            .animated(false)
+                            .drag_to_scroll(false)
                             .show(ui, |ui| {
                                 self.draw_mouse_keys_editor_content(ui);
                             });
@@ -5458,22 +5465,67 @@ impl EntropyApp {
 
     fn draw_mouse_keys_editor_content(&mut self, ui: &mut egui::Ui) {
         // Limits match Vial GUI qmk_settings.json.
-        let rows: [(u16, &str, u32); 9] = [
-            (9, "Delay", 10000),
-            (10, "Interval", 10000),
-            (11, "Move delta", 1000),
-            (12, "Max speed", 1000),
-            (13, "Time to max", 1000),
-            (14, "Wheel delay", 10000),
-            (15, "Wheel interval", 10000),
-            (16, "Wheel max speed", 1000),
-            (17, "Wheel time to max", 1000),
+        let rows: [(u16, &str, &str, u32); 9] = [
+            (
+                9,
+                "Delay",
+                "How long to wait after a mouse key is pressed before cursor movement starts.",
+                10000,
+            ),
+            (
+                10,
+                "Interval",
+                "Delay between repeated cursor movement steps while a mouse key is held.",
+                10000,
+            ),
+            (
+                11,
+                "Move delta",
+                "Base cursor movement distance for each step before acceleration is applied.",
+                1000,
+            ),
+            (
+                12,
+                "Max speed",
+                "Maximum cursor movement speed reached after acceleration ramps up.",
+                1000,
+            ),
+            (
+                13,
+                "Time to max",
+                "How long the cursor takes to accelerate from base movement to maximum speed.",
+                1000,
+            ),
+            (
+                14,
+                "Wheel delay",
+                "How long to wait after a wheel key is pressed before scrolling starts.",
+                10000,
+            ),
+            (
+                15,
+                "Wheel interval",
+                "Delay between repeated wheel scroll steps while a wheel key is held.",
+                10000,
+            ),
+            (
+                16,
+                "Wheel max speed",
+                "Maximum wheel scrolling speed reached after acceleration ramps up.",
+                1000,
+            ),
+            (
+                17,
+                "Wheel time to max",
+                "How long wheel scrolling takes to accelerate from base speed to maximum speed.",
+                1000,
+            ),
         ];
         const CONTENT_WIDTH: f32 = 452.0;
         const ROW_HEIGHT: f32 = 54.0;
         const FIELD_WIDTH: f32 = 86.0;
 
-        for (qsid, label, max) in rows.iter().copied() {
+        for (qsid, label, tooltip, max) in rows.iter().copied() {
             let (current, write_back): (
                 u16,
                 Box<dyn FnOnce(&mut MouseKeysSettingsState, u16)>,
@@ -5517,12 +5569,13 @@ impl EntropyApp {
                 _ => continue,
             };
 
-            crate::ui_style::settings_list_row(
+            crate::ui_style::settings_list_row_with_tooltip(
                 ui,
                 CONTENT_WIDTH,
                 ROW_HEIGHT,
                 label,
                 true,
+                Some(tooltip),
                 FIELD_WIDTH,
                 |ui| {
                     let edit_id = egui::Id::new(("mouse_keys_edit", qsid));
@@ -5536,25 +5589,56 @@ impl EntropyApp {
                         text = current.to_string();
                     }
 
-                    ui.visuals_mut().widgets.inactive.bg_fill = app_surface_fill(ui.visuals().dark_mode);
-                    ui.visuals_mut().widgets.inactive.weak_bg_fill = app_surface_fill(ui.visuals().dark_mode);
-                    ui.visuals_mut().widgets.inactive.bg_stroke = crate::ui_style::modal_outline_stroke(ui.visuals().dark_mode);
-                    ui.visuals_mut().widgets.hovered.bg_fill = crate::ui_style::hover_fill(ui.visuals().dark_mode);
-                    ui.visuals_mut().widgets.hovered.weak_bg_fill = crate::ui_style::hover_fill(ui.visuals().dark_mode);
-                    ui.visuals_mut().widgets.hovered.bg_stroke = Stroke::new(1.0, Color32::from_rgb(112, 112, 116));
-                    ui.visuals_mut().widgets.active.bg_fill = app_surface_fill(ui.visuals().dark_mode);
-                    ui.visuals_mut().widgets.active.weak_bg_fill = app_surface_fill(ui.visuals().dark_mode);
-                    ui.visuals_mut().widgets.active.bg_stroke = Stroke::new(1.0, Color32::from_rgb(126, 126, 130));
-
-                    let resp = ui.add_sized(
-                        [FIELD_WIDTH, 32.0],
-                        egui::TextEdit::singleline(&mut text)
-                            .id(edit_id)
-                            .desired_width(FIELD_WIDTH)
-                            .char_limit(5)
-                            .horizontal_align(egui::Align::RIGHT)
-                            .vertical_align(egui::Align::Center),
+                    let field_size = Vec2::new(FIELD_WIDTH, 32.0);
+                    let (field_rect, _) = ui.allocate_exact_size(field_size, Sense::hover());
+                    let field_hovered = ui.input(|i| {
+                        i.pointer
+                            .hover_pos()
+                            .map(|pos| field_rect.contains(pos))
+                            .unwrap_or(false)
+                    });
+                    let field_focused = ui.memory(|m| m.has_focus(edit_id));
+                    let field_fill = if field_focused {
+                        if ui.visuals().dark_mode {
+                            Color32::from_rgb(52, 52, 55)
+                        } else {
+                            Color32::from_rgb(244, 244, 246)
+                        }
+                    } else if field_hovered {
+                        crate::ui_style::hover_fill(ui.visuals().dark_mode)
+                    } else {
+                        app_surface_fill(ui.visuals().dark_mode)
+                    };
+                    let field_stroke = if field_focused {
+                        Stroke::new(1.0, Color32::from_rgb(126, 126, 130))
+                    } else if field_hovered {
+                        Stroke::new(1.0, Color32::from_rgb(112, 112, 116))
+                    } else {
+                        crate::ui_style::modal_outline_stroke(ui.visuals().dark_mode)
+                    };
+                    ui.painter().rect(
+                        field_rect,
+                        9.0,
+                        field_fill,
+                        field_stroke,
+                        egui::StrokeKind::Inside,
                     );
+
+                    let mut edit_resp = None;
+                    ui.allocate_ui_at_rect(field_rect.shrink2(Vec2::new(10.0, 0.0)), |ui| {
+                        let resp = ui.add_sized(
+                            [FIELD_WIDTH - 20.0, 32.0],
+                            egui::TextEdit::singleline(&mut text)
+                                .id(edit_id)
+                                .desired_width(FIELD_WIDTH - 20.0)
+                                .char_limit(5)
+                                .frame(false)
+                                .horizontal_align(egui::Align::RIGHT)
+                                .vertical_align(egui::Align::Center),
+                        );
+                        edit_resp = Some(resp);
+                    });
+                    let resp = edit_resp.expect("mouse keys TextEdit response");
                     if resp.hovered() {
                         ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
                     }
