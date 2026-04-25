@@ -4547,6 +4547,7 @@ impl EntropyApp {
         keyboard_input_wanted_at_frame_start: bool,
     ) -> bool {
         matches!(self.main_menu_tab, MainMenuTab::Settings | MainMenuTab::Advanced)
+            && !self.secondary_click_handled
             && !self.keycode_picker.open
             && !self.mouse_keys_window_open
             && !self.unlock_open
