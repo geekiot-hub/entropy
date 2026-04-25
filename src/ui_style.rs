@@ -313,6 +313,7 @@ pub fn settings_list_row(
         egui::vec2(control_width, row_height),
     );
     ui.allocate_ui_at_rect(control_rect, |ui| {
+        ui.set_min_size(egui::vec2(control_width, row_height));
         ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), add_control);
     });
 }
