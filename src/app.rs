@@ -4880,44 +4880,50 @@ impl EntropyApp {
                         |ui| {
                             ui.set_min_width(RGB_SLIDER_SIZE[0]);
                             ui.spacing_mut().item_spacing = Vec2::new(0.0, 2.0);
-                            for (id, label) in &options {
-                                let selected = *id == selected_effect;
-                                let (option_rect, option_resp) = ui.allocate_exact_size(
-                                    Vec2::new(RGB_SLIDER_SIZE[0], 28.0),
-                                    Sense::click(),
-                                );
-                                if option_resp.hovered() {
-                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                }
-                                let option_fill = if selected {
-                                    if dark {
-                                        Color32::from_rgb(58, 58, 61)
-                                    } else {
-                                        Color32::from_rgb(236, 236, 238)
+                            egui::ScrollArea::vertical()
+                                .id_salt("rgb_effect_dropdown_scroll")
+                                .max_height(142.0)
+                                .auto_shrink([false, true])
+                                .show(ui, |ui| {
+                                    for (id, label) in &options {
+                                        let selected = *id == selected_effect;
+                                        let (option_rect, option_resp) = ui.allocate_exact_size(
+                                            Vec2::new(RGB_SLIDER_SIZE[0], 28.0),
+                                            Sense::click(),
+                                        );
+                                        if option_resp.hovered() {
+                                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                        }
+                                        let option_fill = if selected {
+                                            if dark {
+                                                Color32::from_rgb(58, 58, 61)
+                                            } else {
+                                                Color32::from_rgb(236, 236, 238)
+                                            }
+                                        } else if option_resp.hovered() {
+                                            crate::ui_style::hover_fill(dark)
+                                        } else {
+                                            Color32::TRANSPARENT
+                                        };
+                                        ui.painter().rect_filled(option_rect, 7.0, option_fill);
+                                        ui.painter().text(
+                                            egui::pos2(option_rect.left() + 10.0, option_rect.center().y),
+                                            egui::Align2::LEFT_CENTER,
+                                            *label,
+                                            FontId::proportional(12.0),
+                                            if selected {
+                                                ui.visuals().text_color()
+                                            } else {
+                                                app_muted_text(dark)
+                                            },
+                                        );
+                                        if option_resp.clicked() {
+                                            selected_effect = *id;
+                                            self.set_rgb_effect(selected_effect);
+                                            ui.memory_mut(|m| m.close_popup());
+                                        }
                                     }
-                                } else if option_resp.hovered() {
-                                    crate::ui_style::hover_fill(dark)
-                                } else {
-                                    Color32::TRANSPARENT
-                                };
-                                ui.painter().rect_filled(option_rect, 7.0, option_fill);
-                                ui.painter().text(
-                                    egui::pos2(option_rect.left() + 10.0, option_rect.center().y),
-                                    egui::Align2::LEFT_CENTER,
-                                    *label,
-                                    FontId::proportional(12.0),
-                                    if selected {
-                                        ui.visuals().text_color()
-                                    } else {
-                                        app_muted_text(dark)
-                                    },
-                                );
-                                if option_resp.clicked() {
-                                    selected_effect = *id;
-                                    self.set_rgb_effect(selected_effect);
-                                    ui.memory_mut(|m| m.close_popup());
-                                }
-                            }
+                                });
                         },
                     );
                 },
