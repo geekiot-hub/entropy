@@ -278,9 +278,9 @@ fn apply_picker_button_visuals(ui: &mut egui::Ui) {
     visuals.widgets.inactive.bg_fill = Color32::TRANSPARENT;
     visuals.widgets.inactive.weak_bg_fill = Color32::TRANSPARENT;
     let picker_hover_fill = if dark_mode {
-        Color32::from_rgb(64, 54, 58)
+        Color32::from_rgb(62, 56, 56)
     } else {
-        Color32::from_rgb(244, 232, 234)
+        Color32::from_rgb(239, 233, 232)
     };
     visuals.widgets.hovered.bg_fill = picker_hover_fill;
     visuals.widgets.hovered.weak_bg_fill = picker_hover_fill;
@@ -289,13 +289,13 @@ fn apply_picker_button_visuals(ui: &mut egui::Ui) {
     visuals.widgets.open.bg_fill = Color32::TRANSPARENT;
     visuals.widgets.open.weak_bg_fill = Color32::TRANSPARENT;
     if dark_mode {
-        visuals.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(78, 62, 68));
-        visuals.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(78, 62, 68));
+        visuals.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(72, 72, 76));
+        visuals.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(72, 72, 76));
         visuals.widgets.active.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(196, 132, 144));
         visuals.widgets.open.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(196, 132, 144));
     } else {
-        visuals.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(226, 207, 212));
-        visuals.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(226, 207, 212));
+        visuals.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(186, 186, 192));
+        visuals.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(186, 186, 192));
         visuals.widgets.active.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(196, 132, 144));
         visuals.widgets.open.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(196, 132, 144));
     }
@@ -878,19 +878,19 @@ impl KeycodePicker {
         let rect = egui::Rect::from_min_size(egui::pos2(x, y), Vec2::new(width, cell_h));
         let tip = keycode_tooltip(value, &[], &self.layer_names);
         let inactive_stroke = if ui.visuals().dark_mode {
-            egui::Stroke::new(1.0, Color32::from_rgb(78, 62, 68))
+            egui::Stroke::new(1.0, Color32::from_rgb(72, 72, 76))
         } else {
-            egui::Stroke::new(1.0, Color32::from_rgb(226, 207, 212))
+            egui::Stroke::new(1.0, Color32::from_rgb(186, 186, 192))
         };
         let hover_stroke = if ui.visuals().dark_mode {
-            egui::Stroke::new(1.0, Color32::from_rgb(78, 62, 68))
+            egui::Stroke::new(1.0, Color32::from_rgb(72, 72, 76))
         } else {
-            egui::Stroke::new(1.0, Color32::from_rgb(226, 207, 212))
+            egui::Stroke::new(1.0, Color32::from_rgb(186, 186, 192))
         };
         let hover_fill = if ui.visuals().dark_mode {
-            Color32::from_rgb(64, 54, 58)
+            Color32::from_rgb(62, 56, 56)
         } else {
-            Color32::from_rgb(244, 232, 234)
+            Color32::from_rgb(239, 233, 232)
         };
         let resp = ui.put(
             rect,
@@ -1385,9 +1385,9 @@ impl KeycodePicker {
                             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                             if !is_active {
                                 let hover_fill = if ui.visuals().dark_mode {
-                                    Color32::from_rgb(64, 54, 58)
+                                    Color32::from_rgb(62, 56, 56)
                                 } else {
-                                    Color32::from_rgb(244, 232, 234)
+                                    Color32::from_rgb(239, 233, 232)
                                 };
                                 painter.rect_filled(rect, ui.visuals().widgets.hovered.corner_radius, hover_fill);
                             }
@@ -1660,9 +1660,9 @@ impl KeycodePicker {
                             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                             if !is_active {
                                 let hover_fill = if ui.visuals().dark_mode {
-                                    Color32::from_rgb(64, 54, 58)
+                                    Color32::from_rgb(62, 56, 56)
                                 } else {
-                                    Color32::from_rgb(244, 232, 234)
+                                    Color32::from_rgb(239, 233, 232)
                                 };
                                 painter.rect_filled(rect, ui.visuals().widgets.hovered.corner_radius, hover_fill);
                             }

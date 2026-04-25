@@ -30,9 +30,9 @@ pub fn surface_fill(dark: bool) -> Color32 {
 
 pub fn hover_fill(dark: bool) -> Color32 {
     if dark {
-        Color32::from_rgb(64, 54, 58)
+        Color32::from_rgb(62, 56, 56)
     } else {
-        Color32::from_rgb(244, 232, 234)
+        Color32::from_rgb(239, 233, 232)
     }
 }
 
