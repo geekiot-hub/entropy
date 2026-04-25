@@ -289,13 +289,13 @@ fn apply_picker_button_visuals(ui: &mut egui::Ui) {
     visuals.widgets.open.bg_fill = Color32::TRANSPARENT;
     visuals.widgets.open.weak_bg_fill = Color32::TRANSPARENT;
     if dark_mode {
-        visuals.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(60, 60, 64));
-        visuals.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(60, 60, 64));
+        visuals.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(54, 54, 58));
+        visuals.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(54, 54, 58));
         visuals.widgets.active.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(196, 132, 144));
         visuals.widgets.open.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(196, 132, 144));
     } else {
-        visuals.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(214, 214, 218));
-        visuals.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(214, 214, 218));
+        visuals.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(230, 230, 233));
+        visuals.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(230, 230, 233));
         visuals.widgets.active.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(196, 132, 144));
         visuals.widgets.open.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(196, 132, 144));
     }
@@ -878,14 +878,14 @@ impl KeycodePicker {
         let rect = egui::Rect::from_min_size(egui::pos2(x, y), Vec2::new(width, cell_h));
         let tip = keycode_tooltip(value, &[], &self.layer_names);
         let inactive_stroke = if ui.visuals().dark_mode {
-            egui::Stroke::new(1.0, Color32::from_rgb(60, 60, 64))
+            egui::Stroke::new(1.0, Color32::from_rgb(54, 54, 58))
         } else {
-            egui::Stroke::new(1.0, Color32::from_rgb(214, 214, 218))
+            egui::Stroke::new(1.0, Color32::from_rgb(230, 230, 233))
         };
         let hover_stroke = if ui.visuals().dark_mode {
-            egui::Stroke::new(1.0, Color32::from_rgb(60, 60, 64))
+            egui::Stroke::new(1.0, Color32::from_rgb(54, 54, 58))
         } else {
-            egui::Stroke::new(1.0, Color32::from_rgb(214, 214, 218))
+            egui::Stroke::new(1.0, Color32::from_rgb(230, 230, 233))
         };
         let hover_fill = if ui.visuals().dark_mode {
             Color32::from_rgb(62, 56, 56)
