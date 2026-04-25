@@ -115,7 +115,7 @@ struct RgbModalLayout {
 impl RgbModalLayout {
     fn new() -> Self {
         Self {
-            content_width: 560.0,
+            content_width: 500.0,
             top_padding: 4.0,
             row_height: 54.0,
             color_row_height: 54.0,
@@ -4815,28 +4815,111 @@ impl EntropyApp {
                 true,
                 RGB_SLIDER_SIZE[0],
                 |ui| {
-                    ui.spacing_mut().combo_width = RGB_SLIDER_SIZE[0];
-                    ui.visuals_mut().widgets.inactive.bg_fill = app_surface_fill(dark);
-                    ui.visuals_mut().widgets.inactive.weak_bg_fill = app_surface_fill(dark);
-                    ui.visuals_mut().widgets.inactive.bg_stroke = crate::ui_style::modal_outline_stroke(dark);
-                    ui.visuals_mut().widgets.hovered.bg_fill = crate::ui_style::hover_fill(dark);
-                    ui.visuals_mut().widgets.hovered.weak_bg_fill = crate::ui_style::hover_fill(dark);
-                    ui.visuals_mut().widgets.hovered.bg_stroke = Stroke::new(1.0, app_accent().gamma_multiply(0.85));
-                    ui.visuals_mut().widgets.active.bg_fill = crate::ui_style::hover_fill(dark);
-                    ui.visuals_mut().widgets.active.weak_bg_fill = crate::ui_style::hover_fill(dark);
-                    egui::ComboBox::from_id_salt("rgb_effect_combo")
-                        .selected_text(selected_effect_name)
-                        .width(RGB_SLIDER_SIZE[0])
-                        .show_ui(ui, |ui| {
+                    let dropdown_id = ui.make_persistent_id("rgb_effect_dropdown");
+                    let dropdown_open = ui.memory(|m| m.is_popup_open(dropdown_id));
+                    let (dropdown_rect, dropdown_resp) = ui.allocate_exact_size(
+                        Vec2::new(RGB_SLIDER_SIZE[0], 32.0),
+                        Sense::click(),
+                    );
+                    if dropdown_resp.hovered() {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                    }
+                    if dropdown_resp.clicked() {
+                        ui.memory_mut(|m| m.toggle_popup(dropdown_id));
+                    }
+
+                    let dropdown_fill = if dropdown_open || dropdown_resp.hovered() {
+                        crate::ui_style::hover_fill(dark)
+                    } else {
+                        app_surface_fill(dark)
+                    };
+                    let dropdown_stroke = if dropdown_open {
+                        Stroke::new(1.0, Color32::from_rgb(126, 126, 130))
+                    } else if dropdown_resp.hovered() {
+                        Stroke::new(1.0, Color32::from_rgb(112, 112, 116))
+                    } else {
+                        crate::ui_style::modal_outline_stroke(dark)
+                    };
+                    ui.painter().rect(
+                        dropdown_rect,
+                        9.0,
+                        dropdown_fill,
+                        dropdown_stroke,
+                        egui::StrokeKind::Inside,
+                    );
+                    ui.painter().text(
+                        egui::pos2(dropdown_rect.left() + 12.0, dropdown_rect.center().y),
+                        egui::Align2::LEFT_CENTER,
+                        selected_effect_name,
+                        FontId::proportional(12.5),
+                        ui.visuals().text_color(),
+                    );
+                    let chevron_x = dropdown_rect.right() - 15.0;
+                    let chevron_y = dropdown_rect.center().y + 1.0;
+                    let chevron_color = app_muted_text(dark);
+                    ui.painter().line_segment(
+                        [
+                            egui::pos2(chevron_x - 4.5, chevron_y - 2.0),
+                            egui::pos2(chevron_x, chevron_y + 2.5),
+                        ],
+                        Stroke::new(1.4, chevron_color),
+                    );
+                    ui.painter().line_segment(
+                        [
+                            egui::pos2(chevron_x, chevron_y + 2.5),
+                            egui::pos2(chevron_x + 4.5, chevron_y - 2.0),
+                        ],
+                        Stroke::new(1.4, chevron_color),
+                    );
+
+                    egui::popup_below_widget(
+                        ui,
+                        dropdown_id,
+                        &dropdown_resp,
+                        egui::PopupCloseBehavior::CloseOnClickOutside,
+                        |ui| {
+                            ui.set_min_width(RGB_SLIDER_SIZE[0]);
+                            ui.spacing_mut().item_spacing = Vec2::new(0.0, 2.0);
                             for (id, label) in &options {
-                                if ui
-                                    .selectable_value(&mut selected_effect, *id, *label)
-                                    .changed()
-                                {
+                                let selected = *id == selected_effect;
+                                let (option_rect, option_resp) = ui.allocate_exact_size(
+                                    Vec2::new(RGB_SLIDER_SIZE[0], 28.0),
+                                    Sense::click(),
+                                );
+                                if option_resp.hovered() {
+                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                }
+                                let option_fill = if selected {
+                                    if dark {
+                                        Color32::from_rgb(58, 58, 61)
+                                    } else {
+                                        Color32::from_rgb(236, 236, 238)
+                                    }
+                                } else if option_resp.hovered() {
+                                    crate::ui_style::hover_fill(dark)
+                                } else {
+                                    Color32::TRANSPARENT
+                                };
+                                ui.painter().rect_filled(option_rect, 7.0, option_fill);
+                                ui.painter().text(
+                                    egui::pos2(option_rect.left() + 10.0, option_rect.center().y),
+                                    egui::Align2::LEFT_CENTER,
+                                    *label,
+                                    FontId::proportional(12.0),
+                                    if selected {
+                                        ui.visuals().text_color()
+                                    } else {
+                                        app_muted_text(dark)
+                                    },
+                                );
+                                if option_resp.clicked() {
+                                    selected_effect = *id;
                                     self.set_rgb_effect(selected_effect);
+                                    ui.memory_mut(|m| m.close_popup());
                                 }
                             }
-                        });
+                        },
+                    );
                 },
             );
 

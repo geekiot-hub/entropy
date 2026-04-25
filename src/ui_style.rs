@@ -335,9 +335,9 @@ pub fn settings_switch(ui: &mut Ui, checked: &mut bool) -> egui::Response {
         let radius = rect.height() / 2.0;
         let track_fill = if *checked {
             if dark {
-                Color32::from_rgb(86, 66, 71)
+                Color32::from_rgb(70, 76, 72)
             } else {
-                Color32::from_rgb(232, 211, 216)
+                Color32::from_rgb(218, 221, 215)
             }
         } else if dark {
             Color32::from_rgb(50, 50, 53)
@@ -350,7 +350,18 @@ pub fn settings_switch(ui: &mut Ui, checked: &mut bool) -> egui::Response {
             track_fill.gamma_multiply(0.62)
         };
         let stroke = if response.hovered() && ui.is_enabled() {
-            Stroke::new(1.0, accent().gamma_multiply(0.85))
+            Stroke::new(
+                1.0,
+                if *checked {
+                    if dark {
+                        Color32::from_rgb(118, 130, 120)
+                    } else {
+                        Color32::from_rgb(132, 142, 134)
+                    }
+                } else {
+                    border_color(dark)
+                },
+            )
         } else {
             Stroke::new(1.0, border_color(dark))
         };
@@ -366,9 +377,9 @@ pub fn settings_switch(ui: &mut Ui, checked: &mut bool) -> egui::Response {
         let x = egui::lerp((rect.left() + radius)..=(rect.right() - radius), t);
         let knob_fill = if *checked {
             if dark {
-                Color32::from_rgb(222, 184, 191)
+                Color32::from_rgb(220, 224, 217)
             } else {
-                Color32::from_rgb(132, 92, 100)
+                Color32::from_rgb(78, 84, 80)
             }
         } else if dark {
             Color32::from_rgb(126, 126, 130)
