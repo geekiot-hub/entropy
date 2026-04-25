@@ -5469,7 +5469,7 @@ impl EntropyApp {
             (16, "Wheel max speed", 1000),
             (17, "Wheel time to max", 1000),
         ];
-        const CONTENT_WIDTH: f32 = 470.0;
+        const CONTENT_WIDTH: f32 = 452.0;
         const ROW_HEIGHT: f32 = 54.0;
         const FIELD_WIDTH: f32 = 86.0;
 
