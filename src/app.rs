@@ -6478,6 +6478,7 @@ impl EntropyApp {
 
                 if show_dropdown {
                     let area_id = ui.make_persistent_id("device_dropdown_area");
+                    let mut device_clicked = false;
                     egui::Area::new(area_id)
                         .order(egui::Order::Foreground)
                         .fixed_pos(dropdown_rect.min)
@@ -6531,6 +6532,8 @@ impl EntropyApp {
                                             );
                                             if resp.clicked() {
                                                 self.selected_device = Some(i);
+                                                self.main_menu_tab = MainMenuTab::Keyboard;
+                                                device_clicked = true;
                                             }
                                         }
                                     }
@@ -6586,7 +6589,10 @@ impl EntropyApp {
                         });
 
                     ui.ctx().data_mut(|d| {
-                        d.insert_temp(dropdown_id, device_tab_hovered || pointer_over_bridge)
+                        d.insert_temp(
+                            dropdown_id,
+                            !device_clicked && (device_tab_hovered || pointer_over_bridge),
+                        )
                     });
                 } else {
                     ui.ctx().data_mut(|d| d.insert_temp(dropdown_id, false));
