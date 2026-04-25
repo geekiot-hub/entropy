@@ -2407,7 +2407,7 @@ impl EntropyApp {
                     return;
                 }
 
-                const VISIBLE_MOUSE_KEY_ROWS: usize = 7;
+                const VISIBLE_MOUSE_KEY_ROWS: usize = 6;
                 const TOTAL_MOUSE_KEY_ROWS: usize = 9;
                 const MOUSE_KEY_ROW_HEIGHT: f32 = 54.0;
                 let list_height = MOUSE_KEY_ROW_HEIGHT * VISIBLE_MOUSE_KEY_ROWS as f32;
@@ -2421,21 +2421,63 @@ impl EntropyApp {
                     egui::vec2(content_width, list_height),
                     Sense::hover(),
                 );
+
+                let track_width = 6.0;
+                let track_rect = egui::Rect::from_min_max(
+                    egui::pos2(viewport.right() - track_width, viewport.top()),
+                    egui::pos2(viewport.right(), viewport.bottom()),
+                );
+                let scrollbar_resp = if max_first_row > 0 {
+                    Some(ui.interact(
+                        track_rect.expand2(egui::vec2(5.0, 0.0)),
+                        ui.id().with("mouse_keys_manual_scrollbar"),
+                        Sense::click_and_drag(),
+                    ))
+                } else {
+                    None
+                };
+
+                let mut scroll_active = false;
                 let scroll_delta = if viewport_resp.hovered() {
                     ui.input(|i| i.raw_scroll_delta.y + i.smooth_scroll_delta.y)
                 } else {
                     0.0
                 };
                 if scroll_delta.abs() > 0.0 && max_first_row > 0 {
+                    scroll_active = true;
                     let step = if scroll_delta.abs() > MOUSE_KEY_ROW_HEIGHT { 2 } else { 1 };
                     if scroll_delta < 0.0 {
                         first_row = (first_row + step).min(max_first_row);
                     } else {
                         first_row = first_row.saturating_sub(step);
                     }
-                    ui.ctx().data_mut(|d| d.insert_persisted(scroll_id, first_row));
                 }
-                let suppress_tooltips = scroll_delta.abs() > 0.0 || ui.input(|i| i.pointer.primary_down());
+
+                let handle_height = if max_first_row > 0 {
+                    (VISIBLE_MOUSE_KEY_ROWS as f32 / TOTAL_MOUSE_KEY_ROWS as f32)
+                        * viewport.height()
+                } else {
+                    viewport.height()
+                };
+                if let Some(resp) = &scrollbar_resp {
+                    if resp.hovered() || resp.dragged() {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                    }
+                    if (resp.dragged() || resp.clicked()) && max_first_row > 0 {
+                        if let Some(pointer_pos) = ui.input(|i| i.pointer.interact_pos()) {
+                            scroll_active = true;
+                            let travel = (track_rect.height() - handle_height).max(1.0);
+                            let t = ((pointer_pos.y - track_rect.top() - handle_height / 2.0)
+                                / travel)
+                                .clamp(0.0, 1.0);
+                            first_row = (t * max_first_row as f32).round() as usize;
+                        }
+                    }
+                }
+                first_row = first_row.min(max_first_row);
+                ui.ctx().data_mut(|d| d.insert_persisted(scroll_id, first_row));
+
+                let suppress_tooltips = scroll_active || ui.input(|i| i.pointer.primary_down());
                 ui.allocate_ui_at_rect(viewport, |ui| {
                     ui.set_clip_rect(viewport);
                     ui.set_min_size(egui::vec2(content_width, list_height));
@@ -2448,20 +2490,13 @@ impl EntropyApp {
                 });
 
                 if max_first_row > 0 {
-                    let track_width = 5.0;
-                    let track_rect = egui::Rect::from_min_max(
-                        egui::pos2(viewport.right() - track_width, viewport.top()),
-                        egui::pos2(viewport.right(), viewport.bottom()),
-                    );
                     let track_fill = if dark {
-                        Color32::from_rgb(38, 38, 41)
+                        Color32::from_rgb(40, 40, 43)
                     } else {
-                        Color32::from_rgb(238, 238, 240)
+                        Color32::from_rgb(236, 236, 238)
                     };
-                    ui.painter().rect_filled(track_rect, 2.5, track_fill);
+                    ui.painter().rect_filled(track_rect, 3.0, track_fill);
 
-                    let handle_height = (VISIBLE_MOUSE_KEY_ROWS as f32 / TOTAL_MOUSE_KEY_ROWS as f32)
-                        * viewport.height();
                     let t = if max_first_row == 0 {
                         0.0
                     } else {
@@ -2476,11 +2511,11 @@ impl EntropyApp {
                         egui::pos2(track_rect.right(), handle_top + handle_height),
                     );
                     let handle_fill = if dark {
-                        Color32::from_rgb(70, 70, 74)
+                        Color32::from_rgb(82, 82, 86)
                     } else {
-                        Color32::from_rgb(198, 198, 202)
+                        Color32::from_rgb(188, 188, 192)
                     };
-                    ui.painter().rect_filled(handle_rect, 2.5, handle_fill);
+                    ui.painter().rect_filled(handle_rect, 3.0, handle_fill);
                 }            });
         });
     }
