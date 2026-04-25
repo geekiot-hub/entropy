@@ -3971,9 +3971,7 @@ impl eframe::App for EntropyApp {
                                 padding,
                             )
                         });
-                        let scale = (unit / base_unit).min(1.0);
-
-                        for (ki, key) in layout.keys.iter().enumerate() {
+                        for key in &layout.keys {
                             let is_unlock = unlock_keys
                                 .iter()
                                 .any(|(r, c)| key.row == *r && key.col == *c);
@@ -4005,26 +4003,6 @@ impl eframe::App for EntropyApp {
                                 egui::StrokeKind::Inside,
                             );
 
-                            let kc = layout.get_keycode(0, ki);
-                            let label = keycode_label_with_macro_names(
-                                kc,
-                                &layout.custom_keycodes,
-                                &self.layer_names,
-                                &self.keycode_picker.macro_names,
-                                &self.keycode_picker.tap_dance_names,
-                            );
-                            let text_color = if is_unlock {
-                                Color32::WHITE
-                            } else {
-                                Color32::from_gray(80)
-                            };
-                            ui.painter().text(
-                                rect.center(),
-                                egui::Align2::CENTER_CENTER,
-                                &label,
-                                FontId::proportional(9.0 * scale),
-                                text_color,
-                            );
                         }
                     }
                 });
