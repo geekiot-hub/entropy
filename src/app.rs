@@ -2411,24 +2411,23 @@ impl EntropyApp {
                 const TOTAL_MOUSE_KEY_ROWS: usize = 9;
                 const MOUSE_KEY_ROW_HEIGHT: f32 = 54.0;
                 let list_height = MOUSE_KEY_ROW_HEIGHT * VISIBLE_MOUSE_KEY_ROWS as f32;
-                let content_height = MOUSE_KEY_ROW_HEIGHT * TOTAL_MOUSE_KEY_ROWS as f32;
-                let max_offset = (content_height - list_height).max(0.0);
-                let offset_id = ui.id().with("mouse_keys_smooth_scroll_offset");
-                let mut scroll_offset = ui
+                let scroll_id = ui.id().with("mouse_keys_manual_scroll_first_row");
+                let max_first_row = TOTAL_MOUSE_KEY_ROWS.saturating_sub(VISIBLE_MOUSE_KEY_ROWS);
+                let mut first_row = ui
                     .ctx()
-                    .data_mut(|d| d.get_persisted::<f32>(offset_id).unwrap_or(0.0))
-                    .clamp(0.0, max_offset);
-
+                    .data_mut(|d| d.get_persisted::<usize>(scroll_id).unwrap_or(0))
+                    .min(max_first_row);
                 let (viewport, viewport_resp) = ui.allocate_exact_size(
                     egui::vec2(content_width, list_height),
                     Sense::hover(),
                 );
+
                 let track_width = 6.0;
                 let track_rect = egui::Rect::from_min_max(
                     egui::pos2(viewport.right() - track_width, viewport.top()),
                     egui::pos2(viewport.right(), viewport.bottom()),
                 );
-                let scrollbar_resp = if max_offset > 0.0 {
+                let scrollbar_resp = if max_first_row > 0 {
                     Some(ui.interact(
                         track_rect.expand2(egui::vec2(5.0, 0.0)),
                         ui.id().with("mouse_keys_manual_scrollbar"),
@@ -2439,65 +2438,55 @@ impl EntropyApp {
                 };
 
                 let mut scroll_active = false;
-                let wheel_delta = if viewport_resp.hovered() {
-                    ui.input(|i| {
-                        if i.smooth_scroll_delta.y.abs() > 0.0 {
-                            i.smooth_scroll_delta.y
-                        } else {
-                            i.raw_scroll_delta.y
-                        }
-                    })
+                let scroll_delta = if viewport_resp.hovered() {
+                    ui.input(|i| i.raw_scroll_delta.y + i.smooth_scroll_delta.y)
                 } else {
                     0.0
                 };
-                if wheel_delta.abs() > 0.0 && max_offset > 0.0 {
+                if scroll_delta.abs() > 0.0 && max_first_row > 0 {
                     scroll_active = true;
-                    scroll_offset = (scroll_offset - wheel_delta).clamp(0.0, max_offset);
+                    let step = if scroll_delta.abs() > MOUSE_KEY_ROW_HEIGHT { 2 } else { 1 };
+                    if scroll_delta < 0.0 {
+                        first_row = (first_row + step).min(max_first_row);
+                    } else {
+                        first_row = first_row.saturating_sub(step);
+                    }
                 }
 
-                let handle_height = if max_offset > 0.0 {
-                    (list_height / content_height * viewport.height()).clamp(42.0, viewport.height())
+                let handle_height = if max_first_row > 0 {
+                    (VISIBLE_MOUSE_KEY_ROWS as f32 / TOTAL_MOUSE_KEY_ROWS as f32)
+                        * viewport.height()
                 } else {
                     viewport.height()
                 };
                 if let Some(resp) = &scrollbar_resp {
-                    if (resp.dragged() || resp.clicked()) && max_offset > 0.0 {
+                    if (resp.dragged() || resp.clicked()) && max_first_row > 0 {
                         if let Some(pointer_pos) = ui.input(|i| i.pointer.interact_pos()) {
                             scroll_active = true;
                             let travel = (track_rect.height() - handle_height).max(1.0);
                             let t = ((pointer_pos.y - track_rect.top() - handle_height / 2.0)
                                 / travel)
                                 .clamp(0.0, 1.0);
-                            scroll_offset = t * max_offset;
+                            first_row = (t * max_first_row as f32).round() as usize;
                         }
                     }
                 }
-                scroll_offset = scroll_offset.clamp(0.0, max_offset);
-                ui.ctx()
-                    .data_mut(|d| d.insert_persisted(offset_id, scroll_offset));
+                first_row = first_row.min(max_first_row);
+                ui.ctx().data_mut(|d| d.insert_persisted(scroll_id, first_row));
 
                 let suppress_tooltips = scroll_active || ui.input(|i| i.pointer.primary_down());
-                let first_visible_row = (scroll_offset / MOUSE_KEY_ROW_HEIGHT).floor() as usize;
-                let row_y_offset = scroll_offset - first_visible_row as f32 * MOUSE_KEY_ROW_HEIGHT;
-                let last_visible_row = (first_visible_row + VISIBLE_MOUSE_KEY_ROWS + 1)
-                    .min(TOTAL_MOUSE_KEY_ROWS);
-                let visible_row_count = last_visible_row.saturating_sub(first_visible_row);
-                let content_rect = egui::Rect::from_min_size(
-                    egui::pos2(viewport.left(), viewport.top() - row_y_offset),
-                    egui::vec2(content_width, MOUSE_KEY_ROW_HEIGHT * visible_row_count as f32),
-                );
-                ui.allocate_ui_at_rect(content_rect, |ui| {
+                ui.allocate_ui_at_rect(viewport, |ui| {
                     ui.set_clip_rect(viewport);
-                    ui.set_min_size(content_rect.size());
+                    ui.set_min_size(egui::vec2(content_width, list_height));
                     ui.spacing_mut().item_spacing.y = 0.0;
                     self.draw_mouse_keys_editor_content(
                         ui,
-                        first_visible_row..last_visible_row,
+                        first_row..(first_row + VISIBLE_MOUSE_KEY_ROWS).min(TOTAL_MOUSE_KEY_ROWS),
                         suppress_tooltips,
                     );
                 });
 
-                if max_offset > 0.0 {
+                if max_first_row > 0 {
                     let track_hovered = scrollbar_resp
                         .as_ref()
                         .map(|resp| resp.hovered() || resp.dragged())
@@ -2515,7 +2504,11 @@ impl EntropyApp {
                     };
                     ui.painter().rect_filled(track_rect, 3.0, track_fill);
 
-                    let t = (scroll_offset / max_offset).clamp(0.0, 1.0);
+                    let t = if max_first_row == 0 {
+                        0.0
+                    } else {
+                        first_row as f32 / max_first_row as f32
+                    };
                     let handle_top = egui::lerp(
                         track_rect.top()..=(track_rect.bottom() - handle_height),
                         t,
