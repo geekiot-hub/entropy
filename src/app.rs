@@ -115,7 +115,7 @@ struct RgbModalLayout {
 impl RgbModalLayout {
     fn new() -> Self {
         Self {
-            content_width: 500.0,
+            content_width: 470.0,
             top_padding: 4.0,
             row_height: 54.0,
             color_row_height: 54.0,
