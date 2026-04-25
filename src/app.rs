@@ -4778,7 +4778,7 @@ impl EntropyApp {
 
         crate::ui_style::modal_content(ui, layout.modal_layout(), |ui| {
             let content_width = layout.content_width;
-            const RGB_VALUE_WIDTH: f32 = 44.0;
+            const RGB_VALUE_WIDTH: f32 = 36.0;
             const RGB_SLIDER_WIDTH: f32 = 160.0;
             const RGB_SLIDER_SIZE: [f32; 2] = [168.0, 24.0];
             const RGB_CONTROL_WIDTH: f32 = RGB_SLIDER_SIZE[0] + RGB_VALUE_WIDTH;
@@ -5040,28 +5040,31 @@ impl EntropyApp {
                     ui.visuals_mut().widgets.active.bg_fill = rgb_slider_fill;
                     ui.visuals_mut().widgets.active.weak_bg_fill = rgb_slider_fill;
                     ui.visuals_mut().widgets.hovered.bg_stroke = Stroke::new(1.0, rgb_slider_fill);
-                    ui.add_enabled_ui(speed_enabled, |ui| {
-                        ui.spacing_mut().slider_width = RGB_SLIDER_WIDTH;
-                        let slider = egui::Slider::new(&mut speed_percent, 0.0..=100.0)
-                            .step_by(1.0)
-                            .show_value(false)
-                            .trailing_fill(true);
-                        let resp = ui.add_sized(RGB_SLIDER_SIZE, slider);
-                        if resp.changed() {
-                            let raw_value = ((speed_percent / 100.0) * speed_max)
-                                .round()
-                                .clamp(0.0, speed_max) as u8;
-                            self.set_rgb_speed(raw_value);
-                        }
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.add_sized(
+                            [RGB_VALUE_WIDTH, layout.row_height],
+                            egui::Label::new(
+                                RichText::new(format!("{}%", speed_percent as u8))
+                                    .size(12.0)
+                                    .color(value_color),
+                            )
+                            .halign(egui::Align::RIGHT),
+                        );
+                        ui.add_enabled_ui(speed_enabled, |ui| {
+                            ui.spacing_mut().slider_width = RGB_SLIDER_WIDTH;
+                            let slider = egui::Slider::new(&mut speed_percent, 0.0..=100.0)
+                                .step_by(1.0)
+                                .show_value(false)
+                                .trailing_fill(true);
+                            let resp = ui.add_sized(RGB_SLIDER_SIZE, slider);
+                            if resp.changed() {
+                                let raw_value = ((speed_percent / 100.0) * speed_max)
+                                    .round()
+                                    .clamp(0.0, speed_max) as u8;
+                                self.set_rgb_speed(raw_value);
+                            }
+                        });
                     });
-                    ui.add_sized(
-                        [RGB_VALUE_WIDTH, layout.row_height],
-                        egui::Label::new(
-                            RichText::new(format!("{}%", speed_percent as u8))
-                                .size(12.0)
-                                .color(value_color),
-                        ),
-                    );
                 },
             );
 
@@ -5092,29 +5095,32 @@ impl EntropyApp {
                     ui.visuals_mut().widgets.active.bg_fill = rgb_slider_fill;
                     ui.visuals_mut().widgets.active.weak_bg_fill = rgb_slider_fill;
                     ui.visuals_mut().widgets.hovered.bg_stroke = Stroke::new(1.0, rgb_slider_fill);
-                    ui.add_enabled_ui(brightness_enabled, |ui| {
-                        ui.spacing_mut().slider_width = RGB_SLIDER_WIDTH;
-                        let slider = egui::Slider::new(&mut brightness_percent, 0.0..=100.0)
-                            .step_by(1.0)
-                            .show_value(false)
-                            .trailing_fill(true);
-                        let resp = ui.add_sized(RGB_SLIDER_SIZE, slider);
-                        if resp.changed() {
-                            let raw_value = ((brightness_percent / 100.0) * brightness_max as f32)
-                                .round()
-                                .clamp(0.0, brightness_max as f32)
-                                as u8;
-                            self.set_rgb_brightness(raw_value);
-                        }
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.add_sized(
+                            [RGB_VALUE_WIDTH, layout.row_height],
+                            egui::Label::new(
+                                RichText::new(format!("{}%", brightness_percent as u8))
+                                    .size(12.0)
+                                    .color(value_color),
+                            )
+                            .halign(egui::Align::RIGHT),
+                        );
+                        ui.add_enabled_ui(brightness_enabled, |ui| {
+                            ui.spacing_mut().slider_width = RGB_SLIDER_WIDTH;
+                            let slider = egui::Slider::new(&mut brightness_percent, 0.0..=100.0)
+                                .step_by(1.0)
+                                .show_value(false)
+                                .trailing_fill(true);
+                            let resp = ui.add_sized(RGB_SLIDER_SIZE, slider);
+                            if resp.changed() {
+                                let raw_value = ((brightness_percent / 100.0) * brightness_max as f32)
+                                    .round()
+                                    .clamp(0.0, brightness_max as f32)
+                                    as u8;
+                                self.set_rgb_brightness(raw_value);
+                            }
+                        });
                     });
-                    ui.add_sized(
-                        [RGB_VALUE_WIDTH, layout.row_height],
-                        egui::Label::new(
-                            RichText::new(format!("{}%", brightness_percent as u8))
-                                .size(12.0)
-                                .color(value_color),
-                        ),
-                    );
                 },
             );
         });
