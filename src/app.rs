@@ -1131,6 +1131,8 @@ pub struct EntropyApp {
     scan_frame: u32,
     /// Layer to preview on hover (None = show selected_layer)
     hover_layer: Option<usize>,
+    /// Last main keyboard layout geometry: offset_x, offset_y, unit, padding
+    last_layout_geometry: Option<(f32, f32, f32, f32)>,
     /// Key index hovered in previous frame (for hint display)
     prev_hovered_key: Option<usize>,
     prev_hovered_encoder: bool,
@@ -1221,6 +1223,7 @@ impl EntropyApp {
             undo_stack: Vec::new(),
             scan_frame: 0,
             hover_layer: None,
+            last_layout_geometry: None,
             prev_hovered_key: None,
             prev_hovered_encoder: false,
             prev_hovered_encoder_keycode: None,
@@ -3933,30 +3936,42 @@ impl eframe::App for EntropyApp {
 
                     // Draw layout keys with highlighted unlock keys
                     if let Some(layout) = &self.layout {
-                        let base_unit = 54.0f32 * 0.85;
-                        let padding = 3.0f32;
-                        let mut min_x = f32::MAX;
-                        let mut min_y = f32::MAX;
-                        let mut max_x = f32::MIN;
-                        let mut max_y = f32::MIN;
-                        for key in &layout.keys {
-                            min_x = min_x.min(key.x);
-                            min_y = min_y.min(key.y);
-                            max_x = max_x.max(key.x + key.w);
-                            max_y = max_y.max(key.y + key.h);
-                        }
-                        let span_x = max_x - min_x;
-                        let span_y = max_y - min_y;
-                        let avail_w = screen.width() - 80.0;
-                        let avail_h = screen.height() - 160.0;
-                        let scale = (avail_w / (span_x * base_unit))
-                            .min(avail_h / (span_y * base_unit))
-                            .min(1.0);
-                        let unit = base_unit * scale;
-                        let layout_w = span_x * unit;
-                        let layout_h = span_y * unit;
-                        let off_x = center_x - layout_w / 2.0 - min_x * unit;
-                        let off_y = bar_y + 30.0 + (avail_h - layout_h) / 2.0 - min_y * unit;
+                        let base_unit = 54.0f32 * 1.15;
+                        let (off_x, off_y, unit, padding) = self.last_layout_geometry.unwrap_or_else(|| {
+                            let padding = 4.0f32;
+                            let mut min_x = f32::MAX;
+                            let mut min_y = f32::MAX;
+                            let mut max_x = f32::MIN;
+                            let mut max_y = f32::MIN;
+                            for key in &layout.keys {
+                                min_x = min_x.min(key.x);
+                                min_y = min_y.min(key.y);
+                                max_x = max_x.max(key.x + key.w);
+                                max_y = max_y.max(key.y + key.h);
+                            }
+                            for encoder in &layout.encoders {
+                                min_x = min_x.min(encoder.x);
+                                min_y = min_y.min(encoder.y);
+                                max_x = max_x.max(encoder.x + encoder.w);
+                                max_y = max_y.max(encoder.y + encoder.h);
+                            }
+                            let span_x = max_x - min_x;
+                            let span_y = max_y - min_y;
+                            let margin = 40.0f32;
+                            let scale_x = (screen.width() - margin) / (span_x * base_unit).max(1.0);
+                            let scale_y = (screen.height() - margin) / (span_y * base_unit).max(1.0);
+                            let scale = scale_x.min(scale_y).min(1.0);
+                            let unit = base_unit * scale;
+                            let layout_w = span_x * unit;
+                            let layout_h = span_y * unit;
+                            (
+                                center_x - layout_w / 2.0 - min_x * unit,
+                                screen.center().y - layout_h / 2.0 - min_y * unit,
+                                unit,
+                                padding,
+                            )
+                        });
+                        let scale = (unit / base_unit).min(1.0);
 
                         for (ki, key) in layout.keys.iter().enumerate() {
                             let is_unlock = unlock_keys
@@ -6323,6 +6338,7 @@ impl EntropyApp {
         let content_top = ui.min_rect().top() + top_reserved_h;
         let content_bottom = ui.max_rect().bottom() - bottom_reserved_h;
         let offset_y = ((content_top + content_bottom) - layout_h) / 2.0 - min_y * unit;
+        self.last_layout_geometry = Some((offset_x, offset_y, unit, padding));
 
         // ── Main menu tabs ────────────────────────────────────────────────
         {
