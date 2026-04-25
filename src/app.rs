@@ -2781,13 +2781,29 @@ impl EntropyApp {
         content_rect: egui::Rect,
         dark: bool,
     ) {
-        let center_x = content_rect.center().x;
-        let row_start_y = content_rect.top() + 106.0;
-        let row_height = 28.0_f32;
-        let row_spacing = 4.0_f32;
-        let row_width = 156.0_f32;
-        let checkbox_width = 18.0_f32;
-        let checkbox_gap = 12.0_f32;
+        const ENCODERS_CONTENT_WIDTH: f32 = 470.0;
+        const ENCODERS_ROW_HEIGHT: f32 = 54.0;
+        const ENCODERS_TOP_PADDING: f32 = 4.0;
+        const SWITCH_WIDTH: f32 = 46.0;
+
+        let (visible_count, device_name) = self
+            .layout
+            .as_ref()
+            .map(|layout| {
+                let mut seen = std::collections::BTreeSet::new();
+                let count = layout
+                    .encoders
+                    .iter()
+                    .filter(|encoder| seen.insert(encoder.encoder_idx))
+                    .count();
+                (count, layout.name.clone())
+            })
+            .unwrap_or((0, String::new()));
+
+        if self.encoder_visibility.len() < visible_count {
+            self.encoder_visibility.resize(visible_count, true);
+        }
+        self.encoder_visibility.truncate(visible_count);
 
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
@@ -2799,57 +2815,50 @@ impl EntropyApp {
                         .size(13.0)
                         .color(app_muted_text(dark)),
                 );
+                ui.add_space(24.0);
+
+                if visible_count == 0 {
+                    crate::ui_style::modal_empty_state(
+                        ui,
+                        "No encoder controls are available for this device",
+                        None,
+                    );
+                    return;
+                }
+
+                crate::ui_style::modal_content(
+                    ui,
+                    crate::ui_style::ModalLayout::new(ENCODERS_CONTENT_WIDTH)
+                        .with_top_padding(ENCODERS_TOP_PADDING),
+                    |ui| {
+                        for visual_idx in 0..visible_count {
+                            let mut visible = self.encoder_visibility[visual_idx];
+                            let label = format!("Encoder {}", visual_idx + 1);
+                            crate::ui_style::settings_list_row(
+                                ui,
+                                ENCODERS_CONTENT_WIDTH,
+                                ENCODERS_ROW_HEIGHT,
+                                &label,
+                                true,
+                                SWITCH_WIDTH,
+                                |ui| {
+                                    let resp = crate::ui_style::settings_switch(ui, &mut visible);
+                                    if resp.changed() {
+                                        self.encoder_visibility[visual_idx] = visible;
+                                        if !device_name.is_empty() {
+                                            save_encoder_visibility(
+                                                &self.encoder_visibility,
+                                                &device_name,
+                                            );
+                                        }
+                                    }
+                                },
+                            );
+                        }
+                    },
+                );
             });
         });
-
-        let visible_count = self
-            .layout
-            .as_ref()
-            .map(|layout| {
-                let mut seen = std::collections::BTreeSet::new();
-                layout
-                    .encoders
-                    .iter()
-                    .filter(|encoder| seen.insert(encoder.encoder_idx))
-                    .count()
-            })
-            .unwrap_or(0);
-        if self.encoder_visibility.len() < visible_count {
-            self.encoder_visibility.resize(visible_count, true);
-        }
-        self.encoder_visibility.truncate(visible_count);
-
-        for visual_idx in 0..visible_count {
-            let y = row_start_y + visual_idx as f32 * (row_height + row_spacing);
-            let row_rect = egui::Rect::from_min_size(
-                egui::pos2(center_x - row_width / 2.0, y),
-                egui::vec2(row_width, row_height),
-            );
-            let checkbox_rect = egui::Rect::from_min_size(
-                egui::pos2(row_rect.right() - checkbox_width, row_rect.top()),
-                egui::vec2(checkbox_width, row_height),
-            );
-            let label_rect = egui::Rect::from_min_size(
-                row_rect.left_top(),
-                egui::vec2(row_width - checkbox_width - checkbox_gap, row_height),
-            );
-            let is_visible = self.encoder_visibility[visual_idx];
-            let mut toggled = is_visible;
-            let resp = ui.put(checkbox_rect, egui::Checkbox::without_text(&mut toggled));
-            if resp.hovered() {
-                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-            }
-            if toggled != is_visible {
-                self.encoder_visibility[visual_idx] = toggled;
-            }
-            ui.painter().text(
-                egui::pos2(label_rect.left(), row_rect.center().y),
-                egui::Align2::LEFT_CENTER,
-                format!("Encoder {}", visual_idx + 1),
-                FontId::proportional(13.0),
-                ui.visuals().text_color(),
-            );
-        }
     }
 
     fn draw_auto_shift_settings_page(
