@@ -2440,16 +2440,64 @@ impl EntropyApp {
                         } else {
                             Color32::from_rgb(194, 194, 198)
                         };
-                        egui::ScrollArea::vertical()
+                        let suppress_tooltips = ui.input(|i| {
+                            i.raw_scroll_delta.y.abs() > 0.0
+                                || i.smooth_scroll_delta.y.abs() > 0.0
+                                || i.pointer.primary_down()
+                        });
+                        let scroll_output = egui::ScrollArea::vertical()
                             .id_salt("mouse_keys_settings_scroll")
                             .max_height(list_height)
                             .min_scrolled_height(list_height)
                             .auto_shrink([false, false])
                             .animated(false)
                             .drag_to_scroll(false)
+                            .scroll_bar_visibility(
+                                egui::containers::scroll_area::ScrollBarVisibility::AlwaysHidden,
+                            )
                             .show_rows(ui, 54.0, 9, |ui, row_range| {
-                                self.draw_mouse_keys_editor_content(ui, row_range);
+                                self.draw_mouse_keys_editor_content(
+                                    ui,
+                                    row_range,
+                                    suppress_tooltips,
+                                );
                             });
+
+                        let viewport = scroll_output.inner_rect;
+                        let content_height = scroll_output.content_size.y.max(viewport.height());
+                        if content_height > viewport.height() + 1.0 {
+                            let track_width = 5.0;
+                            let track_rect = egui::Rect::from_min_max(
+                                egui::pos2(viewport.right() - track_width, viewport.top()),
+                                egui::pos2(viewport.right(), viewport.bottom()),
+                            );
+                            let track_fill = if dark {
+                                Color32::from_rgb(30, 30, 32)
+                            } else {
+                                Color32::from_rgb(248, 248, 249)
+                            };
+                            ui.painter().rect_filled(track_rect, 2.5, track_fill);
+
+                            let handle_height = ((viewport.height() / content_height)
+                                * viewport.height())
+                                .clamp(42.0, viewport.height());
+                            let max_offset = (content_height - viewport.height()).max(1.0);
+                            let t = (scroll_output.state.offset.y / max_offset).clamp(0.0, 1.0);
+                            let handle_top = egui::lerp(
+                                track_rect.top()..=(track_rect.bottom() - handle_height),
+                                t,
+                            );
+                            let handle_rect = egui::Rect::from_min_max(
+                                egui::pos2(track_rect.left(), handle_top),
+                                egui::pos2(track_rect.right(), handle_top + handle_height),
+                            );
+                            let handle_fill = if dark {
+                                Color32::from_rgb(42, 42, 45)
+                            } else {
+                                Color32::from_rgb(232, 232, 234)
+                            };
+                            ui.painter().rect_filled(handle_rect, 2.5, handle_fill);
+                        }
                     },
                 );
             });
@@ -5489,6 +5537,7 @@ impl EntropyApp {
         &mut self,
         ui: &mut egui::Ui,
         row_range: std::ops::Range<usize>,
+        suppress_tooltips: bool,
     ) {
         // Limits match Vial GUI qmk_settings.json.
         let rows: [(u16, &str, &str, u32); 9] = [
@@ -5574,7 +5623,7 @@ impl EntropyApp {
                 ROW_HEIGHT,
                 label,
                 true,
-                Some(tooltip),
+                if suppress_tooltips { None } else { Some(tooltip) },
                 FIELD_WIDTH,
                 |ui| {
                     let edit_id = egui::Id::new(("mouse_keys_edit", qsid));
