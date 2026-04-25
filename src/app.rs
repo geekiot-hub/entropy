@@ -2370,7 +2370,9 @@ impl EntropyApp {
             }
         }
 
-        self.draw_settings_navigation_hint(ui);
+        if self.settings_tab != SettingsTab::MatrixTester {
+            self.draw_settings_navigation_hint(ui);
+        }
     }
 
     fn draw_settings_navigation_hint(&self, ui: &mut egui::Ui) {
@@ -4487,6 +4489,7 @@ impl EntropyApp {
         keyboard_input_wanted_at_frame_start: bool,
     ) -> bool {
         matches!(self.main_menu_tab, MainMenuTab::Settings | MainMenuTab::Advanced)
+            && self.settings_tab != SettingsTab::MatrixTester
             && !self.secondary_click_handled
             && !self.keycode_picker.open
             && !self.unlock_open
