@@ -3770,19 +3770,49 @@ impl eframe::App for EntropyApp {
             }
         });
 
-        // Bottom bar — theme toggle
-        egui::TopBottomPanel::bottom("bottom_bar").show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                let theme_label = if self.dark_mode {
-                    "☀ Light"
-                } else {
-                    "🌙 Dark"
-                };
-                if ui.small_button(theme_label).clicked() {
-                    self.dark_mode = !self.dark_mode;
-                }
+        egui::Area::new(egui::Id::new("theme_selector"))
+            .anchor(egui::Align2::RIGHT_BOTTOM, [-16.0, -12.0])
+            .order(egui::Order::Foreground)
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    let active = app_accent();
+                    let inactive = app_muted_text(self.dark_mode);
+
+                    let light_resp = ui.add(
+                        egui::Label::new(
+                            RichText::new("Light")
+                                .size(11.0)
+                                .color(if self.dark_mode { inactive } else { active })
+                                .strong(),
+                        )
+                        .sense(egui::Sense::click()),
+                    );
+                    if light_resp.hovered() {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                    }
+                    if light_resp.clicked() {
+                        self.dark_mode = false;
+                    }
+
+                    ui.label(RichText::new("·").size(11.0).color(inactive));
+
+                    let dark_resp = ui.add(
+                        egui::Label::new(
+                            RichText::new("Dark")
+                                .size(11.0)
+                                .color(if self.dark_mode { active } else { inactive })
+                                .strong(),
+                        )
+                        .sense(egui::Sense::click()),
+                    );
+                    if dark_resp.hovered() {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                    }
+                    if dark_resp.clicked() {
+                        self.dark_mode = true;
+                    }
+                });
             });
-        });
 
         // Keycode picker modal
         // Vial unlock modal
