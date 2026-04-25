@@ -4943,6 +4943,7 @@ impl EntropyApp {
             ui.add_space(layout.row_spacing);
 
             let speed_enabled = rgb_effect_supports_speed(self.rgb_settings.kind, selected_effect);
+            let rgb_slider_fill: Color32 = color_hsva.into();
             ui.horizontal_centered(|ui| {
                 let (row_rect, _) = ui.allocate_exact_size(
                     egui::vec2(content_width, layout.row_height),
@@ -4981,6 +4982,14 @@ impl EntropyApp {
                     },
                 );
                 ui.allocate_ui_at_rect(slider_rect, |ui| {
+                    ui.visuals_mut().selection.bg_fill = if speed_enabled {
+                        rgb_slider_fill
+                    } else {
+                        rgb_slider_fill.gamma_multiply(0.35)
+                    };
+                    ui.visuals_mut().widgets.active.bg_fill = rgb_slider_fill;
+                    ui.visuals_mut().widgets.active.weak_bg_fill = rgb_slider_fill;
+                    ui.visuals_mut().widgets.hovered.bg_stroke = Stroke::new(1.0, rgb_slider_fill);
                     ui.add_enabled_ui(speed_enabled, |ui| {
                         ui.spacing_mut().slider_width = RGB_SLIDER_WIDTH;
                         let slider = egui::Slider::new(&mut speed_percent, 0.0..=100.0)
@@ -5037,6 +5046,10 @@ impl EntropyApp {
                     ui.visuals().text_color(),
                 );
                 ui.allocate_ui_at_rect(slider_rect, |ui| {
+                    ui.visuals_mut().selection.bg_fill = rgb_slider_fill;
+                    ui.visuals_mut().widgets.active.bg_fill = rgb_slider_fill;
+                    ui.visuals_mut().widgets.active.weak_bg_fill = rgb_slider_fill;
+                    ui.visuals_mut().widgets.hovered.bg_stroke = Stroke::new(1.0, rgb_slider_fill);
                     ui.spacing_mut().slider_width = RGB_SLIDER_WIDTH;
                     let slider = egui::Slider::new(&mut brightness_percent, 0.0..=100.0)
                         .step_by(1.0)
