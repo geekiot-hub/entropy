@@ -3875,8 +3875,38 @@ impl eframe::App for EntropyApp {
                 .order(egui::Order::Foreground)
                 .show(ctx, |ui| {
                     let screen = ui.ctx().screen_rect();
-                    // Dim background
-                    ui.painter().rect_filled(screen, 0.0, Color32::BLACK);
+                    let dark = ui.visuals().dark_mode;
+                    let screen_bg = if dark {
+                        Color32::from_gray(12)
+                    } else {
+                        Color32::from_gray(246)
+                    };
+                    let title_color = if dark {
+                        Color32::WHITE
+                    } else {
+                        Color32::from_gray(28)
+                    };
+                    let subtitle_color = if dark {
+                        Color32::from_gray(180)
+                    } else {
+                        Color32::from_gray(96)
+                    };
+                    let bar_bg = if dark {
+                        Color32::from_gray(40)
+                    } else {
+                        Color32::from_gray(220)
+                    };
+                    let inactive_key_bg = if dark {
+                        Color32::from_rgba_unmultiplied(48, 48, 52, 120)
+                    } else {
+                        Color32::from_rgba_unmultiplied(226, 226, 232, 210)
+                    };
+                    let inactive_key_border = if dark {
+                        Color32::from_gray(60)
+                    } else {
+                        Color32::from_gray(184)
+                    };
+                    ui.painter().rect_filled(screen, 0.0, screen_bg);
 
                     let center_x = screen.center().x;
                     let top_y = screen.min.y + 40.0;
@@ -3887,7 +3917,7 @@ impl eframe::App for EntropyApp {
                         egui::Align2::CENTER_CENTER,
                         "🔓 Unlock Keyboard",
                         FontId::proportional(24.0),
-                        Color32::WHITE,
+                        title_color,
                     );
 
                     ui.painter().text(
@@ -3895,7 +3925,7 @@ impl eframe::App for EntropyApp {
                         egui::Align2::CENTER_CENTER,
                         "Press and hold the highlighted keys one by one",
                         FontId::proportional(14.0),
-                        Color32::from_gray(180),
+                        subtitle_color,
                     );
 
                     // Progress bar
@@ -3914,7 +3944,7 @@ impl eframe::App for EntropyApp {
                     ui.painter().rect(
                         bar_rect,
                         4.0,
-                        Color32::from_gray(40),
+                        bar_bg,
                         egui::Stroke::NONE,
                         egui::StrokeKind::Inside,
                     );
@@ -3984,12 +4014,12 @@ impl eframe::App for EntropyApp {
                             let bg = if is_unlock {
                                 Color32::from_rgb(91, 104, 223)
                             } else {
-                                Color32::from_rgba_unmultiplied(48, 48, 52, 120)
+                                inactive_key_bg
                             };
                             let border = if is_unlock {
                                 Color32::from_rgb(120, 130, 255)
                             } else {
-                                Color32::from_gray(60)
+                                inactive_key_border
                             };
                             ui.painter().rect(
                                 rect,
