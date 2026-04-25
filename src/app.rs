@@ -3774,11 +3774,19 @@ impl eframe::App for EntropyApp {
             .anchor(egui::Align2::LEFT_BOTTOM, [16.0, -12.0])
             .order(egui::Order::Foreground)
             .show(ctx, |ui| {
-                ui.label(
-                    RichText::new("Made with <3 by eh.industries")
-                        .size(11.0)
-                        .color(app_muted_text(self.dark_mode)),
-                );
+                ui.horizontal(|ui| {
+                    let muted = app_muted_text(self.dark_mode);
+                    ui.spacing_mut().item_spacing.x = 3.0;
+                    ui.label(
+                        RichText::new("Made with ♥ by")
+                            .size(11.0)
+                            .color(muted),
+                    );
+                    ui.add(egui::Hyperlink::from_label_and_url(
+                        RichText::new("eh.industries").size(11.0),
+                        "https://eh.industries",
+                    ));
+                });
             });
 
         egui::Area::new(egui::Id::new("theme_selector"))
