@@ -2673,8 +2673,7 @@ impl EntropyApp {
                     return;
                 }
 
-                let mut close_after_save = false;
-                self.draw_rgb_editor_content(ui, dark, &RgbModalLayout::new(), false, &mut close_after_save);
+                self.draw_rgb_editor_content(ui, dark, &RgbModalLayout::new());
             });
         });
     }
@@ -4653,6 +4652,7 @@ impl EntropyApp {
                 if effect != 0 {
                     self.rgb_settings.last_enabled_effect = effect;
                 }
+                self.autosave_rgb_settings();
             }
             Err(e) => {
                 self.status_msg = format!("Failed to update RGB effect: {}", e);
@@ -4677,7 +4677,10 @@ impl EntropyApp {
             RgbSupportKind::None => return,
         };
         match result {
-            Ok(()) => self.rgb_settings.brightness = brightness,
+            Ok(()) => {
+                self.rgb_settings.brightness = brightness;
+                self.autosave_rgb_settings();
+            }
             Err(e) => {
                 self.status_msg = format!("Failed to update RGB brightness: {}", e);
                 log::warn!("set_rgb_brightness failed: {e}");
@@ -4704,6 +4707,7 @@ impl EntropyApp {
             Ok(()) => {
                 self.rgb_settings.hue = hue;
                 self.rgb_settings.saturation = saturation;
+                self.autosave_rgb_settings();
             }
             Err(e) => {
                 self.status_msg = format!("Failed to update RGB color: {}", e);
@@ -4728,7 +4732,10 @@ impl EntropyApp {
             RgbSupportKind::None => return,
         };
         match result {
-            Ok(()) => self.rgb_settings.speed = speed,
+            Ok(()) => {
+                self.rgb_settings.speed = speed;
+                self.autosave_rgb_settings();
+            }
             Err(e) => {
                 self.status_msg = format!("Failed to update RGB speed: {}", e);
                 log::warn!("set_rgb_speed failed: {e}");
@@ -4736,15 +4743,13 @@ impl EntropyApp {
         }
     }
 
-    fn save_rgb_settings(&mut self) {
+    fn autosave_rgb_settings(&mut self) {
         let Some(hid) = &self.hid_device else {
             return;
         };
         if let Err(e) = hid.save_rgb() {
             self.status_msg = format!("Failed to save RGB settings: {}", e);
             log::warn!("save_rgb failed: {e}");
-        } else {
-            self.status_msg = "RGB settings saved".to_string();
         }
     }
 
@@ -4753,8 +4758,6 @@ impl EntropyApp {
         ui: &mut egui::Ui,
         dark: bool,
         layout: &RgbModalLayout,
-        close_on_save: bool,
-        close_after_save: &mut bool,
     ) {
         let options = rgb_effect_options(&self.rgb_settings);
         let mut enabled = self.rgb_settings.is_enabled();
@@ -5088,21 +5091,6 @@ impl EntropyApp {
                 );
             });
 
-            let save_size = crate::ui_style::modal_action_button_size();
-            ui.allocate_ui_with_layout(
-                egui::vec2(content_width, save_size.y),
-                egui::Layout::top_down(egui::Align::Center),
-                |ui| {
-                    let btn = egui::Button::new(RichText::new("Save").size(13.0))
-                        .min_size(save_size);
-                    if ui.add(btn).clicked() {
-                        self.save_rgb_settings();
-                        if close_on_save {
-                            *close_after_save = true;
-                        }
-                    }
-                },
-            );
         });
     }
 
