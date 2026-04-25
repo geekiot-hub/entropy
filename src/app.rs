@@ -2414,14 +2414,9 @@ impl EntropyApp {
                 let content_height = MOUSE_KEY_ROW_HEIGHT * TOTAL_MOUSE_KEY_ROWS as f32;
                 let max_offset = (content_height - list_height).max(0.0);
                 let offset_id = ui.id().with("mouse_keys_smooth_scroll_offset");
-                let target_id = ui.id().with("mouse_keys_smooth_scroll_target");
                 let mut scroll_offset = ui
                     .ctx()
                     .data_mut(|d| d.get_persisted::<f32>(offset_id).unwrap_or(0.0))
-                    .clamp(0.0, max_offset);
-                let mut target_offset = ui
-                    .ctx()
-                    .data_mut(|d| d.get_persisted::<f32>(target_id).unwrap_or(scroll_offset))
                     .clamp(0.0, max_offset);
 
                 let (viewport, viewport_resp) = ui.allocate_exact_size(
@@ -2457,7 +2452,7 @@ impl EntropyApp {
                 };
                 if wheel_delta.abs() > 0.0 && max_offset > 0.0 {
                     scroll_active = true;
-                    target_offset = (target_offset - wheel_delta).clamp(0.0, max_offset);
+                    scroll_offset = (scroll_offset - wheel_delta).clamp(0.0, max_offset);
                 }
 
                 let handle_height = if max_offset > 0.0 {
@@ -2466,9 +2461,6 @@ impl EntropyApp {
                     viewport.height()
                 };
                 if let Some(resp) = &scrollbar_resp {
-                    if resp.hovered() || resp.dragged() {
-                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                    }
                     if (resp.dragged() || resp.clicked()) && max_offset > 0.0 {
                         if let Some(pointer_pos) = ui.input(|i| i.pointer.interact_pos()) {
                             scroll_active = true;
@@ -2476,37 +2468,31 @@ impl EntropyApp {
                             let t = ((pointer_pos.y - track_rect.top() - handle_height / 2.0)
                                 / travel)
                                 .clamp(0.0, 1.0);
-                            target_offset = t * max_offset;
-                            scroll_offset = target_offset;
+                            scroll_offset = t * max_offset;
                         }
                     }
                 }
-
-                if (scroll_offset - target_offset).abs() > 0.5 {
-                    scroll_offset += (target_offset - scroll_offset) * 0.35;
-                    ui.ctx().request_repaint();
-                } else {
-                    scroll_offset = target_offset;
-                }
                 scroll_offset = scroll_offset.clamp(0.0, max_offset);
-                target_offset = target_offset.clamp(0.0, max_offset);
-                ui.ctx().data_mut(|d| {
-                    d.insert_persisted(offset_id, scroll_offset);
-                    d.insert_persisted(target_id, target_offset);
-                });
+                ui.ctx()
+                    .data_mut(|d| d.insert_persisted(offset_id, scroll_offset));
 
                 let suppress_tooltips = scroll_active || ui.input(|i| i.pointer.primary_down());
+                let first_visible_row = (scroll_offset / MOUSE_KEY_ROW_HEIGHT).floor() as usize;
+                let row_y_offset = scroll_offset - first_visible_row as f32 * MOUSE_KEY_ROW_HEIGHT;
+                let last_visible_row = (first_visible_row + VISIBLE_MOUSE_KEY_ROWS + 1)
+                    .min(TOTAL_MOUSE_KEY_ROWS);
+                let visible_row_count = last_visible_row.saturating_sub(first_visible_row);
                 let content_rect = egui::Rect::from_min_size(
-                    egui::pos2(viewport.left(), viewport.top() - scroll_offset),
-                    egui::vec2(content_width, content_height),
+                    egui::pos2(viewport.left(), viewport.top() - row_y_offset),
+                    egui::vec2(content_width, MOUSE_KEY_ROW_HEIGHT * visible_row_count as f32),
                 );
                 ui.allocate_ui_at_rect(content_rect, |ui| {
                     ui.set_clip_rect(viewport);
-                    ui.set_min_size(egui::vec2(content_width, content_height));
+                    ui.set_min_size(content_rect.size());
                     ui.spacing_mut().item_spacing.y = 0.0;
                     self.draw_mouse_keys_editor_content(
                         ui,
-                        0..TOTAL_MOUSE_KEY_ROWS,
+                        first_visible_row..last_visible_row,
                         suppress_tooltips,
                     );
                 });
