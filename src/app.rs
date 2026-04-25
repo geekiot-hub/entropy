@@ -6419,7 +6419,7 @@ impl EntropyApp {
             let total_w = tab_size.x * 3.0 + tab_gap * 2.0;
             let start_x = center_x - total_w / 2.0;
             let tabs = [
-                (MainMenuTab::Keyboard, "Device"),
+                (MainMenuTab::Keyboard, "Layout"),
                 (MainMenuTab::Advanced, "Advanced"),
                 (MainMenuTab::Settings, "Settings"),
             ];
