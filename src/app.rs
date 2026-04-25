@@ -6398,7 +6398,7 @@ impl EntropyApp {
                     }
                 }
 
-                let is_active = !matches!(tab, MainMenuTab::Advanced) && self.main_menu_tab == *tab;
+                let is_active = self.main_menu_tab == *tab;
                 let text_color = if is_active {
                     ui.visuals().widgets.inactive.fg_stroke.color
                 } else if resp.hovered() {
@@ -6646,18 +6646,18 @@ impl EntropyApp {
                                     if combo_resp.clicked() {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.settings_tab = SettingsTab::Combo;
-                                        self.main_menu_tab = MainMenuTab::Settings;
+                                        self.main_menu_tab = MainMenuTab::Advanced;
                                         if self.combo_visible_count == 0 { self.combo_visible_count = 1; }
                                     }
                                     if auto_shift_resp.clicked() && auto_shift_supported {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.settings_tab = SettingsTab::AutoShift;
-                                        self.main_menu_tab = MainMenuTab::Settings;
+                                        self.main_menu_tab = MainMenuTab::Advanced;
                                     }
                                     if key_override_resp.clicked() {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.settings_tab = SettingsTab::KeyOverrides;
-                                        self.main_menu_tab = MainMenuTab::Settings;
+                                        self.main_menu_tab = MainMenuTab::Advanced;
                                     }
                                     if !auto_shift_supported {
                                         let _ = auto_shift_resp.clone().on_hover_text("Auto Shift is not enabled in this keyboard firmware");
@@ -6800,7 +6800,7 @@ impl EntropyApp {
                     ui.ctx().data_mut(|d| d.insert_temp(dropdown_id, false));
                 }
             }
-            if self.main_menu_tab == MainMenuTab::Settings {
+            if matches!(self.main_menu_tab, MainMenuTab::Settings | MainMenuTab::Advanced) {
                 self.draw_settings_screen(ui, layout, ctx, ui.min_rect().top() + top_reserved_h);
                 return;
             }
