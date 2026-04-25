@@ -3876,11 +3876,7 @@ impl eframe::App for EntropyApp {
                 .show(ctx, |ui| {
                     let screen = ui.ctx().screen_rect();
                     // Dim background
-                    ui.painter().rect_filled(
-                        screen,
-                        0.0,
-                        Color32::from_rgba_unmultiplied(0, 0, 0, 180),
-                    );
+                    ui.painter().rect_filled(screen, 0.0, Color32::BLACK);
 
                     let center_x = screen.center().x;
                     let top_y = screen.min.y + 40.0;
