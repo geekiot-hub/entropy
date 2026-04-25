@@ -2408,18 +2408,19 @@ impl EntropyApp {
                 }
 
                 let list_height = 54.0 * 5.0;
-                crate::ui_style::modal_content(
-                    ui,
-                    crate::ui_style::ModalLayout::new(content_width).with_top_padding(0.0),
+                ui.allocate_ui_with_layout(
+                    egui::vec2(content_width, list_height),
+                    egui::Layout::top_down(egui::Align::Min),
                     |ui| {
+                        ui.set_min_size(egui::vec2(content_width, list_height));
                         egui::ScrollArea::vertical()
                             .id_salt("mouse_keys_settings_scroll")
                             .max_height(list_height)
+                            .min_scrolled_height(list_height)
                             .auto_shrink([false, false])
                             .show(ui, |ui| {
                                 self.draw_mouse_keys_editor_content(ui);
                             });
-
                     },
                 );
             });
