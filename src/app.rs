@@ -1101,6 +1101,7 @@ enum SettingsTab {
     Combo,
     KeyOverrides,
     AltRepeat,
+    MouseKeys,
 }
 
 pub struct EntropyApp {
@@ -2374,6 +2375,9 @@ impl EntropyApp {
             SettingsTab::AltRepeat => {
                 self.draw_alt_repeat_settings_page(ui, content_rect);
             }
+            SettingsTab::MouseKeys => {
+                self.draw_mouse_keys_settings_page(ui, content_rect);
+            }
         }
 
         self.draw_settings_navigation_hint(ui);
@@ -2392,6 +2396,42 @@ impl EntropyApp {
             FontId::proportional(11.0),
             hint_color,
         );
+    }
+
+    fn draw_mouse_keys_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
+        let dark = ui.visuals().dark_mode;
+        let content_width = 520.0_f32;
+
+        ui.allocate_ui_at_rect(content_rect, |ui| {
+            ui.vertical_centered(|ui| {
+                ui.add_space(18.0);
+                ui.label(RichText::new("Mouse Keys").size(18.0).strong());
+                ui.add_space(6.0);
+                ui.label(
+                    RichText::new("Tune mouse cursor and wheel movement parameters")
+                        .size(13.0)
+                        .color(app_muted_text(dark)),
+                );
+                ui.add_space(24.0);
+
+                if !self.mouse_keys_settings.supported {
+                    crate::ui_style::modal_empty_state(
+                        ui,
+                        "Mouse keys settings are not available on this firmware",
+                        Some("Enable MOUSEKEY_ENABLE and QMK_SETTINGS in the keyboard rules.mk to use this page"),
+                    );
+                    return;
+                }
+
+                crate::ui_style::modal_content(
+                    ui,
+                    crate::ui_style::ModalLayout::new(content_width).with_top_padding(0.0),
+                    |ui| {
+                        self.draw_mouse_keys_editor_content(ui);
+                    },
+                );
+            });
+        });
     }
 
     fn draw_matrix_tester_settings(
@@ -3252,9 +3292,7 @@ impl EntropyApp {
             return;
         }
         if is_mouse_keycode(kc) {
-            self.request_modal_focus();
-            self.popup_state.on_open(PopupKey::MouseKeysWindow);
-            self.mouse_keys_window_open = true;
+            self.open_mouse_keys_settings_page();
             self.secondary_click_handled = true;
             return;
         }
@@ -4477,6 +4515,11 @@ impl EntropyApp {
         self.main_menu_tab = MainMenuTab::Settings;
     }
 
+    fn open_mouse_keys_settings_page(&mut self) {
+        self.settings_tab = SettingsTab::MouseKeys;
+        self.main_menu_tab = MainMenuTab::Settings;
+    }
+
     fn close_top_dropdowns(&self, ctx: &egui::Context) {
         ctx.data_mut(|d| {
             d.insert_temp(egui::Id::new("device_dropdown_open"), false);
@@ -5418,6 +5461,114 @@ impl EntropyApp {
         }
     }
 
+    fn draw_mouse_keys_editor_content(&mut self, ui: &mut egui::Ui) {
+        // Limits match Vial GUI qmk_settings.json.
+        let rows: [(u16, &str, u32); 9] = [
+            (
+                9,
+                "Delay between pressing a movement key and cursor movement",
+                10000,
+            ),
+            (10, "Time between cursor movements in milliseconds", 10000),
+            (11, "Step size", 1000),
+            (12, "Maximum cursor speed at which acceleration stops", 1000),
+            (13, "Time until maximum cursor speed is reached", 1000),
+            (14, "Delay between pressing a wheel key and wheel movement", 10000),
+            (15, "Time between wheel movements", 10000),
+            (16, "Maximum number of scroll steps per scroll action", 1000),
+            (17, "Time until maximum scroll speed is reached", 1000),
+        ];
+
+        egui::Grid::new(ui.id().with("mouse_keys_grid"))
+            .num_columns(2)
+            .spacing([18.0, 10.0])
+            .show(ui, |ui| {
+                for (qsid, label, max) in rows.iter().copied() {
+                    let (current, write_back): (
+                        u16,
+                        Box<dyn FnOnce(&mut MouseKeysSettingsState, u16)>,
+                    ) = match qsid {
+                        9 => (
+                            self.mouse_keys_settings.delay,
+                            Box::new(|s: &mut MouseKeysSettingsState, v| s.delay = v),
+                        ),
+                        10 => (
+                            self.mouse_keys_settings.interval,
+                            Box::new(|s: &mut MouseKeysSettingsState, v| s.interval = v),
+                        ),
+                        11 => (
+                            self.mouse_keys_settings.move_delta,
+                            Box::new(|s: &mut MouseKeysSettingsState, v| s.move_delta = v),
+                        ),
+                        12 => (
+                            self.mouse_keys_settings.max_speed,
+                            Box::new(|s: &mut MouseKeysSettingsState, v| s.max_speed = v),
+                        ),
+                        13 => (
+                            self.mouse_keys_settings.time_to_max,
+                            Box::new(|s: &mut MouseKeysSettingsState, v| s.time_to_max = v),
+                        ),
+                        14 => (
+                            self.mouse_keys_settings.wheel_delay,
+                            Box::new(|s: &mut MouseKeysSettingsState, v| s.wheel_delay = v),
+                        ),
+                        15 => (
+                            self.mouse_keys_settings.wheel_interval,
+                            Box::new(|s: &mut MouseKeysSettingsState, v| s.wheel_interval = v),
+                        ),
+                        16 => (
+                            self.mouse_keys_settings.wheel_max_speed,
+                            Box::new(|s: &mut MouseKeysSettingsState, v| s.wheel_max_speed = v),
+                        ),
+                        17 => (
+                            self.mouse_keys_settings.wheel_time_to_max,
+                            Box::new(|s: &mut MouseKeysSettingsState, v| s.wheel_time_to_max = v),
+                        ),
+                        _ => continue,
+                    };
+
+                    ui.label(RichText::new(label).size(12.5));
+
+                    let edit_id = egui::Id::new(("mouse_keys_edit", qsid));
+                    let mut text = ui.ctx().data_mut(|d| {
+                        d.get_temp::<String>(edit_id)
+                            .unwrap_or_else(|| current.to_string())
+                    });
+                    if text.parse::<u16>().ok() != Some(current)
+                        && !ui.memory(|m| m.has_focus(edit_id))
+                    {
+                        text = current.to_string();
+                    }
+
+                    let resp = ui.add(
+                        egui::TextEdit::singleline(&mut text)
+                            .id(edit_id)
+                            .desired_width(72.0),
+                    );
+                    if resp.hovered() {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
+                    }
+                    ui.end_row();
+
+                    if resp.changed() {
+                        let filtered: String =
+                            text.chars().filter(|c: &char| c.is_ascii_digit()).collect();
+                        let parsed = filtered.parse::<u32>().unwrap_or(0).min(max);
+                        let new_value = parsed as u16;
+                        if new_value != current {
+                            write_back(&mut self.mouse_keys_settings, new_value);
+                            self.write_mouse_keys_setting(qsid, new_value);
+                        }
+                        text = filtered;
+                    }
+                    ui.ctx().data_mut(|d| d.insert_temp(edit_id, text));
+                }
+            });
+
+        ui.add_space(10.0);
+        crate::ui_style::modal_hint(ui, "Changes are written to the keyboard immediately");
+    }
+
     fn show_mouse_keys_window(&mut self, ctx: &egui::Context) {
         if !self.keycode_picker.open && ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
             self.mouse_keys_window_open = false;
@@ -5443,92 +5594,11 @@ impl EntropyApp {
                     return;
                 }
 
-                let content_width = 480.0_f32;
-                // (qsid, label, max, &mut value)
-                // Limits match Vial GUI qmk_settings.json.
-                let rows: [(u16, &str, u32); 9] = [
-                    (9,  "Delay between pressing a movement key and cursor movement", 10000),
-                    (10, "Time between cursor movements in milliseconds",             10000),
-                    (11, "Step size",                                                  1000),
-                    (12, "Maximum cursor speed at which acceleration stops",           1000),
-                    (13, "Time until maximum cursor speed is reached",                 1000),
-                    (14, "Delay between pressing a wheel key and wheel movement",     10000),
-                    (15, "Time between wheel movements",                              10000),
-                    (16, "Maximum number of scroll steps per scroll action",           1000),
-                    (17, "Time until maximum scroll speed is reached",                 1000),
-                ];
-
                 crate::ui_style::modal_content(
                     ui,
-                    crate::ui_style::ModalLayout::new(content_width).with_top_padding(8.0),
+                    crate::ui_style::ModalLayout::new(480.0).with_top_padding(8.0),
                     |ui| {
-                        egui::Grid::new(ui.id().with("mouse_keys_grid"))
-                                .num_columns(2)
-                                .spacing([18.0, 10.0])
-                                .show(ui, |ui| {
-                                    for (qsid, label, max) in rows.iter().copied() {
-                                        let (current, write_back): (u16, Box<dyn FnOnce(&mut MouseKeysSettingsState, u16)>) = match qsid {
-                                            9  => (self.mouse_keys_settings.delay,
-                                                   Box::new(|s: &mut MouseKeysSettingsState, v| s.delay = v)),
-                                            10 => (self.mouse_keys_settings.interval,
-                                                   Box::new(|s: &mut MouseKeysSettingsState, v| s.interval = v)),
-                                            11 => (self.mouse_keys_settings.move_delta,
-                                                   Box::new(|s: &mut MouseKeysSettingsState, v| s.move_delta = v)),
-                                            12 => (self.mouse_keys_settings.max_speed,
-                                                   Box::new(|s: &mut MouseKeysSettingsState, v| s.max_speed = v)),
-                                            13 => (self.mouse_keys_settings.time_to_max,
-                                                   Box::new(|s: &mut MouseKeysSettingsState, v| s.time_to_max = v)),
-                                            14 => (self.mouse_keys_settings.wheel_delay,
-                                                   Box::new(|s: &mut MouseKeysSettingsState, v| s.wheel_delay = v)),
-                                            15 => (self.mouse_keys_settings.wheel_interval,
-                                                   Box::new(|s: &mut MouseKeysSettingsState, v| s.wheel_interval = v)),
-                                            16 => (self.mouse_keys_settings.wheel_max_speed,
-                                                   Box::new(|s: &mut MouseKeysSettingsState, v| s.wheel_max_speed = v)),
-                                            17 => (self.mouse_keys_settings.wheel_time_to_max,
-                                                   Box::new(|s: &mut MouseKeysSettingsState, v| s.wheel_time_to_max = v)),
-                                            _ => continue,
-                                        };
-
-                                        ui.label(RichText::new(label).size(12.5));
-
-                                        let edit_id = egui::Id::new(("mouse_keys_edit", qsid));
-                                        let mut text = ui.ctx().data_mut(|d| {
-                                            d.get_temp::<String>(edit_id).unwrap_or_else(|| current.to_string())
-                                        });
-                                        // If external value changed and user is not editing, resync text.
-                                        if text.parse::<u16>().ok() != Some(current) && !ui.memory(|m| m.has_focus(edit_id)) {
-                                            text = current.to_string();
-                                        }
-
-                                        let resp = ui.add(
-                                            egui::TextEdit::singleline(&mut text)
-                                                .id(edit_id)
-                                                .desired_width(72.0),
-                                        );
-                                        if resp.hovered() {
-                                            ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
-                                        }
-                                        ui.end_row();
-
-                                        if resp.changed() {
-                                            let filtered: String = text.chars().filter(|c: &char| c.is_ascii_digit()).collect();
-                                            let parsed = filtered.parse::<u32>().unwrap_or(0).min(max);
-                                            let new_value = parsed as u16;
-                                            if new_value != current {
-                                                write_back(&mut self.mouse_keys_settings, new_value);
-                                                self.write_mouse_keys_setting(qsid, new_value);
-                                            }
-                                            text = filtered;
-                                        }
-                                        ui.ctx().data_mut(|d| d.insert_temp(edit_id, text));
-                                    }
-                                });
-
-                        ui.add_space(10.0);
-                        crate::ui_style::modal_hint(
-                            ui,
-                            "Changes are written to the keyboard immediately",
-                        );
+                        self.draw_mouse_keys_editor_content(ui);
                     },
                 );
             });
@@ -7760,11 +7830,9 @@ impl EntropyApp {
                     self.keycode_picker.tap_dance_editor_open = Some(td_n);
                     self.secondary_click_handled = true;
                 }
-                // Mouse keys — RClick opens Mouse keys settings
+                // Mouse keys — RClick opens Mouse keys settings page
                 if is_mouse_keycode(kc) {
-                    self.request_modal_focus();
-            self.popup_state.on_open(PopupKey::MouseKeysWindow);
-            self.mouse_keys_window_open = true;
+                    self.open_mouse_keys_settings_page();
                     self.secondary_click_handled = true;
                 }
                 if is_alt_repeat_keycode(kc) {
