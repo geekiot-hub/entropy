@@ -107,7 +107,6 @@ fn save_encoder_visibility(visibility: &[bool], device_name: &str) {
 #[derive(Clone, Copy)]
 struct RgbModalLayout {
     content_width: f32,
-    label_width: f32,
     top_padding: f32,
     row_height: f32,
     color_row_height: f32,
@@ -117,19 +116,14 @@ impl RgbModalLayout {
     fn new() -> Self {
         Self {
             content_width: 560.0,
-            label_width: 300.0,
             top_padding: 4.0,
             row_height: 54.0,
-            color_row_height: 58.0,
+            color_row_height: 54.0,
         }
     }
 
     fn modal_layout(self) -> crate::ui_style::ModalLayout {
         crate::ui_style::ModalLayout::new(self.content_width).with_top_padding(self.top_padding)
-    }
-
-    fn control_width(self) -> f32 {
-        self.content_width - self.label_width
     }
 }
 
@@ -4783,7 +4777,6 @@ impl EntropyApp {
         };
 
         crate::ui_style::modal_content(ui, layout.modal_layout(), |ui| {
-            let control_width = layout.control_width();
             let content_width = layout.content_width;
             const RGB_VALUE_WIDTH: f32 = 44.0;
             const RGB_SLIDER_WIDTH: f32 = 160.0;
@@ -4820,11 +4813,20 @@ impl EntropyApp {
                 layout.row_height,
                 "Effect",
                 true,
-                control_width,
+                RGB_SLIDER_SIZE[0],
                 |ui| {
+                    ui.spacing_mut().combo_width = RGB_SLIDER_SIZE[0];
+                    ui.visuals_mut().widgets.inactive.bg_fill = app_surface_fill(dark);
+                    ui.visuals_mut().widgets.inactive.weak_bg_fill = app_surface_fill(dark);
+                    ui.visuals_mut().widgets.inactive.bg_stroke = crate::ui_style::modal_outline_stroke(dark);
+                    ui.visuals_mut().widgets.hovered.bg_fill = crate::ui_style::hover_fill(dark);
+                    ui.visuals_mut().widgets.hovered.weak_bg_fill = crate::ui_style::hover_fill(dark);
+                    ui.visuals_mut().widgets.hovered.bg_stroke = Stroke::new(1.0, app_accent().gamma_multiply(0.85));
+                    ui.visuals_mut().widgets.active.bg_fill = crate::ui_style::hover_fill(dark);
+                    ui.visuals_mut().widgets.active.weak_bg_fill = crate::ui_style::hover_fill(dark);
                     egui::ComboBox::from_id_salt("rgb_effect_combo")
                         .selected_text(selected_effect_name)
-                        .width(control_width)
+                        .width(RGB_SLIDER_SIZE[0])
                         .show_ui(ui, |ui| {
                             for (id, label) in &options {
                                 if ui
