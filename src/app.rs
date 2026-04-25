@@ -4943,7 +4943,7 @@ impl EntropyApp {
             ui.add_space(layout.row_spacing);
 
             let speed_enabled = rgb_effect_supports_speed(self.rgb_settings.kind, selected_effect);
-            let rgb_slider_fill: Color32 = color_hsva.into();
+            let rgb_slider_fill: Color32 = Color32::from(color_hsva).gamma_multiply(0.5);
             ui.horizontal_centered(|ui| {
                 let (row_rect, _) = ui.allocate_exact_size(
                     egui::vec2(content_width, layout.row_height),
@@ -4985,7 +4985,7 @@ impl EntropyApp {
                     ui.visuals_mut().selection.bg_fill = if speed_enabled {
                         rgb_slider_fill
                     } else {
-                        rgb_slider_fill.gamma_multiply(0.35)
+                        rgb_slider_fill.gamma_multiply(0.5)
                     };
                     ui.visuals_mut().widgets.active.bg_fill = rgb_slider_fill;
                     ui.visuals_mut().widgets.active.weak_bg_fill = rgb_slider_fill;
