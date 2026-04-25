@@ -347,6 +347,7 @@ pub fn settings_list_row_with_tooltip(
         if label_resp.hovered() {
             ui.ctx().set_cursor_icon(egui::CursorIcon::Help);
         }
+        let tooltip = tooltip.trim_end_matches('.');
         label_resp.on_hover_text(tooltip);
     }
 
