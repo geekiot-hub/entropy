@@ -54,9 +54,9 @@ pub fn muted_text(dark: bool) -> Color32 {
 
 pub fn modal_outline_stroke(dark: bool) -> Stroke {
     if dark {
-        Stroke::new(1.0, Color32::from_gray(110))
+        Stroke::new(1.0, Color32::from_rgb(54, 54, 58))
     } else {
-        Stroke::new(1.0, Color32::from_gray(175))
+        Stroke::new(1.0, Color32::from_rgb(230, 230, 233))
     }
 }
 

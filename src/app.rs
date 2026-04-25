@@ -5898,40 +5898,31 @@ impl EntropyApp {
     fn draw_combo_editor_content(&mut self, ui: &mut egui::Ui, show_intro: bool) {
                 ui.style_mut().visuals.button_frame = true;
                 if ui.visuals().dark_mode {
-                    ui.style_mut().visuals.widgets.inactive.bg_fill = Color32::from_rgb(48, 48, 58);
-                    ui.style_mut().visuals.widgets.inactive.weak_bg_fill =
-                        Color32::from_rgb(48, 48, 58);
+                    ui.style_mut().visuals.widgets.inactive.bg_fill = app_surface_fill(true);
+                    ui.style_mut().visuals.widgets.inactive.weak_bg_fill = app_surface_fill(true);
                     ui.style_mut().visuals.widgets.inactive.bg_stroke =
-                        Stroke::new(1.0, Color32::from_gray(110));
-                    ui.style_mut().visuals.widgets.hovered.bg_fill = Color32::from_rgb(70, 64, 64);
-                    ui.style_mut().visuals.widgets.hovered.weak_bg_fill =
-                        Color32::from_rgb(70, 64, 64);
+                        crate::ui_style::modal_outline_stroke(true);
+                    ui.style_mut().visuals.widgets.hovered.bg_fill = app_hover_fill(true);
+                    ui.style_mut().visuals.widgets.hovered.weak_bg_fill = app_hover_fill(true);
                     ui.style_mut().visuals.widgets.hovered.bg_stroke =
-                        Stroke::new(1.0, Color32::from_rgb(130, 130, 160));
-                    ui.style_mut().visuals.widgets.active.bg_fill = Color32::from_rgb(78, 78, 102);
-                    ui.style_mut().visuals.widgets.active.weak_bg_fill =
-                        Color32::from_rgb(78, 78, 102);
+                        crate::ui_style::modal_outline_stroke(true);
+                    ui.style_mut().visuals.widgets.active.bg_fill = app_accent();
+                    ui.style_mut().visuals.widgets.active.weak_bg_fill = app_accent();
                     ui.style_mut().visuals.widgets.active.bg_stroke =
-                        Stroke::new(1.0, Color32::from_rgb(150, 150, 184));
+                        Stroke::new(1.0, Color32::from_rgb(218, 164, 174));
                 } else {
-                    ui.style_mut().visuals.widgets.inactive.bg_fill =
-                        Color32::from_rgb(255, 255, 255);
-                    ui.style_mut().visuals.widgets.inactive.weak_bg_fill =
-                        Color32::from_rgb(255, 255, 255);
+                    ui.style_mut().visuals.widgets.inactive.bg_fill = app_surface_fill(false);
+                    ui.style_mut().visuals.widgets.inactive.weak_bg_fill = app_surface_fill(false);
                     ui.style_mut().visuals.widgets.inactive.bg_stroke =
-                        Stroke::new(1.0, Color32::from_rgb(222, 222, 228));
-                    ui.style_mut().visuals.widgets.hovered.bg_fill =
-                        Color32::from_rgb(234, 232, 242);
-                    ui.style_mut().visuals.widgets.hovered.weak_bg_fill =
-                        Color32::from_rgb(234, 232, 242);
+                        crate::ui_style::modal_outline_stroke(false);
+                    ui.style_mut().visuals.widgets.hovered.bg_fill = app_hover_fill(false);
+                    ui.style_mut().visuals.widgets.hovered.weak_bg_fill = app_hover_fill(false);
                     ui.style_mut().visuals.widgets.hovered.bg_stroke =
-                        Stroke::new(1.0, Color32::from_rgb(210, 206, 223));
-                    ui.style_mut().visuals.widgets.active.bg_fill =
-                        Color32::from_rgb(228, 225, 238);
-                    ui.style_mut().visuals.widgets.active.weak_bg_fill =
-                        Color32::from_rgb(228, 225, 238);
+                        crate::ui_style::modal_outline_stroke(false);
+                    ui.style_mut().visuals.widgets.active.bg_fill = app_accent();
+                    ui.style_mut().visuals.widgets.active.weak_bg_fill = app_accent();
                     ui.style_mut().visuals.widgets.active.bg_stroke =
-                        Stroke::new(1.0, Color32::from_rgb(202, 198, 216));
+                        Stroke::new(1.0, Color32::from_rgb(204, 145, 158));
                 }
 
                 ui.vertical_centered(|ui| {
