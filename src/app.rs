@@ -6385,9 +6385,7 @@ impl EntropyApp {
                         MainMenuTab::Keyboard => {
                             self.main_menu_tab = MainMenuTab::Keyboard;
                         }
-                        MainMenuTab::Advanced => {
-                            self.main_menu_tab = MainMenuTab::Keyboard;
-                        }
+                        MainMenuTab::Advanced => {}
                         MainMenuTab::Settings => {
                             if self.main_menu_tab != MainMenuTab::Settings {
                                 self.reset_matrix_tester_state();
