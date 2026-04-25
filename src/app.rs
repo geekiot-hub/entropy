@@ -2703,37 +2703,31 @@ impl EntropyApp {
         content_rect: egui::Rect,
     ) {
         const ALT_REPEAT_PAGE_WIDTH: f32 = 548.0;
-        const ALT_REPEAT_TITLE_Y_OFFSET: f32 = 30.0;
-        const ALT_REPEAT_DESC_GAP: f32 = 28.0;
-        const ALT_REPEAT_BLOCK_TOP_GAP: f32 = 34.0;
+        const ALT_REPEAT_TITLE_Y_OFFSET: f32 = 18.0;
+        const ALT_REPEAT_DESC_GAP: f32 = 6.0;
+        const ALT_REPEAT_BLOCK_TOP_GAP: f32 = 18.0;
 
         let dark = ui.visuals().dark_mode;
-        let center_x = content_rect.center().x;
-        let title_y = content_rect.top() + ALT_REPEAT_TITLE_Y_OFFSET;
-        let desc_y = title_y + ALT_REPEAT_DESC_GAP;
-        let block_top = desc_y + ALT_REPEAT_BLOCK_TOP_GAP;
-        let block_rect = egui::Rect::from_min_max(
-            egui::pos2(center_x - ALT_REPEAT_PAGE_WIDTH / 2.0, block_top),
-            egui::pos2(center_x + ALT_REPEAT_PAGE_WIDTH / 2.0, content_rect.bottom()),
-        );
 
-        ui.painter().text(
-            egui::pos2(center_x, title_y),
-            egui::Align2::CENTER_CENTER,
-            "Alt Repeat",
-            FontId::proportional(18.0),
-            ui.visuals().text_color(),
-        );
-        ui.painter().text(
-            egui::pos2(center_x, desc_y),
-            egui::Align2::CENTER_CENTER,
-            "Configure alternate repeat keys and modifier behavior",
-            FontId::proportional(13.0),
-            app_muted_text(dark),
-        );
-
-        ui.allocate_ui_at_rect(block_rect, |ui| {
-            self.draw_alt_repeat_editor_content(ui);
+        ui.allocate_ui_at_rect(content_rect, |ui| {
+            ui.vertical_centered(|ui| {
+                ui.add_space(ALT_REPEAT_TITLE_Y_OFFSET);
+                ui.label(RichText::new("Alt Repeat").size(18.0).strong());
+                ui.add_space(ALT_REPEAT_DESC_GAP);
+                ui.label(
+                    RichText::new("Configure alternate repeat keys and modifier behavior")
+                        .size(13.0)
+                        .color(app_muted_text(dark)),
+                );
+                ui.add_space(ALT_REPEAT_BLOCK_TOP_GAP);
+                ui.allocate_ui_with_layout(
+                    egui::vec2(ALT_REPEAT_PAGE_WIDTH, 0.0),
+                    egui::Layout::top_down(egui::Align::Min),
+                    |ui| {
+                        self.draw_alt_repeat_editor_content(ui);
+                    },
+                );
+            });
         });
     }
 
@@ -2797,7 +2791,13 @@ impl EntropyApp {
                         .color(app_muted_text(dark)),
                 );
                 ui.add_space(18.0);
-                self.draw_combo_editor_content(ui, false);
+                ui.allocate_ui_with_layout(
+                    egui::vec2(548.0, 0.0),
+                    egui::Layout::top_down(egui::Align::Min),
+                    |ui| {
+                        self.draw_combo_editor_content(ui, false);
+                    },
+                );
             });
         });
     }
@@ -6376,10 +6376,11 @@ impl EntropyApp {
                 let content_width = 548.0_f32;
                 let compact_field_width = action_button_size.x * 2.0 + 8.0;
                 let name_field_width = compact_field_width;
+                let top_field_inset = ((content_width - compact_field_width) * 0.5).max(0.0);
 
                 crate::ui_style::modal_content(
                     ui,
-                    crate::ui_style::ModalLayout::new(content_width).with_top_padding(0.0),
+                    crate::ui_style::ModalLayout::new(content_width).with_top_padding(2.0),
                     |ui| {
                         let selected_combo_empty = self.combo_entries.get(self.selected_combo)
                             .map(|entry| entry.keys.iter().all(|&k| k == 0) && entry.output == 0)
@@ -6404,15 +6405,12 @@ impl EntropyApp {
                                 ui.visuals().text_color()
                             }),
                         };
-                        ui.horizontal_centered(|ui| {
-                            ui.allocate_ui_with_layout(
-                                Vec2::new(compact_field_width, 0.0),
-                                egui::Layout::left_to_right(egui::Align::Center),
-                                |ui| {
-                                    egui::ComboBox::from_id_salt("combo_entry_select")
-                                        .selected_text(selected_combo_label)
-                                        .width(compact_field_width)
-                                        .show_ui(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.add_space(top_field_inset);
+                            egui::ComboBox::from_id_salt("combo_entry_select")
+                                .selected_text(selected_combo_label)
+                                .width(compact_field_width)
+                                .show_ui(ui, |ui| {
                                             for idx in 0..self.combo_entries.len() {
                                                 let combo_empty = self.combo_entries.get(idx)
                                                     .map(|entry| entry.keys.iter().all(|&k| k == 0) && entry.output == 0)
@@ -6446,12 +6444,10 @@ impl EntropyApp {
                                                     ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                                 }
                                             }
-                                        });
-                                },
-                            );
+                                });
                         });
 
-                        ui.add_space(crate::ui_style::modal_space_md());
+                        ui.add_space(6.0);
                     },
                 );
 
@@ -6463,7 +6459,8 @@ impl EntropyApp {
                             let mut combo_name_changed = false;
                             if let Some(name) = self.combo_names.get_mut(combo_idx) {
                                 let resp = ui
-                                    .horizontal_centered(|ui| {
+                                    .horizontal(|ui| {
+                                        ui.add_space(top_field_inset);
                                         ui.add_sized(
                                             crate::ui_style::modal_field_button_size(name_field_width),
                                             egui::TextEdit::singleline(name)
