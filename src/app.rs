@@ -5375,6 +5375,7 @@ impl EntropyApp {
         let content_width = 520.0_f32;
         let double_page_gap = 28.0_f32;
         let double_page_width = field_width * 2.0 + double_page_gap;
+        let centered_field_offset = (content_width - field_width) / 2.0;
         let custom = self
             .layout
             .as_ref()
@@ -5438,7 +5439,8 @@ impl EntropyApp {
             ui,
             crate::ui_style::ModalLayout::new(content_width).with_top_padding(2.0),
             |ui| {
-                ui.horizontal_centered(|ui| {
+                ui.horizontal(|ui| {
+                    ui.add_space(centered_field_offset);
                     egui::ComboBox::from_id_salt("alt_repeat_entry_select")
                         .selected_text(RichText::new(selected_text).color(selected_text_color))
                         .width(field_width)
@@ -5481,7 +5483,8 @@ impl EntropyApp {
                 ui.add_space(6.0);
                 let mut name_changed = false;
                 if let Some(name) = self.alt_repeat_names.get_mut(idx) {
-                    ui.horizontal_centered(|ui| {
+                    ui.horizontal(|ui| {
+                        ui.add_space(centered_field_offset);
                         let resp = ui.add_sized(
                             crate::ui_style::modal_field_button_size(field_width),
                             egui::TextEdit::singleline(name)
@@ -5504,7 +5507,8 @@ impl EntropyApp {
                 }
 
                 ui.add_space(8.0);
-                ui.horizontal_centered(|ui| {
+                ui.horizontal(|ui| {
+                    ui.add_space(centered_field_offset);
                     ui.vertical(|ui| {
                         ui.set_width(field_width);
                         crate::ui_style::modal_section_title(ui, "Last key");
@@ -5523,7 +5527,8 @@ impl EntropyApp {
                 });
 
                 ui.add_space(8.0);
-                ui.horizontal_centered(|ui| {
+                ui.horizontal(|ui| {
+                    ui.add_space(centered_field_offset);
                     ui.vertical(|ui| {
                         ui.set_width(field_width);
                         crate::ui_style::modal_section_title(ui, "Alt key");
@@ -5543,7 +5548,7 @@ impl EntropyApp {
 
                 ui.add_space(10.0);
                 ui.horizontal(|ui| {
-                    ui.add_space((content_width - double_page_width) / 2.0);
+                    ui.add_space((content_width - double_page_width) / 2.0 + 32.0);
                     ui.vertical(|ui| {
                         ui.set_width(field_width);
                         ui.label(
@@ -5592,7 +5597,10 @@ impl EntropyApp {
         );
 
         ui.add_space(10.0);
-        ui.horizontal_centered(|ui| {
+        ui.horizontal(|ui| {
+            let action_width = crate::ui_style::modal_action_button_size().x * 2.0
+                + ui.spacing().item_spacing.x;
+            ui.add_space((content_width - action_width) / 2.0);
             let clear_enabled = Self::alt_repeat_entry_exists(&self.alt_repeat_entries[idx])
                 || self
                     .alt_repeat_names
