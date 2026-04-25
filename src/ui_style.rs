@@ -38,9 +38,9 @@ pub fn hover_fill(dark: bool) -> Color32 {
 
 pub fn border_color(dark: bool) -> Color32 {
     if dark {
-        Color32::from_rgb(72, 72, 78)
+        Color32::from_rgb(60, 60, 64)
     } else {
-        Color32::from_rgb(220, 220, 228)
+        Color32::from_rgb(226, 226, 230)
     }
 }
 

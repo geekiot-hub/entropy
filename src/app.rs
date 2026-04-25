@@ -3658,7 +3658,7 @@ impl eframe::App for EntropyApp {
             v.widgets.inactive.bg_stroke = Stroke::new(1.0, app_border_color(false));
             v.widgets.hovered.bg_fill = app_hover_fill(false);
             v.widgets.hovered.weak_bg_fill = app_hover_fill(false);
-            v.widgets.hovered.bg_stroke = Stroke::new(1.0, Color32::from_rgb(186, 186, 192));
+            v.widgets.hovered.bg_stroke = Stroke::new(1.0, Color32::from_rgb(214, 214, 218));
             v.widgets.active.bg_fill = app_accent();
             v.widgets.active.weak_bg_fill = app_accent();
             v.widgets.active.bg_stroke = Stroke::new(1.0, Color32::from_rgb(204, 145, 158));
@@ -7892,9 +7892,9 @@ impl EntropyApp {
                     .map(|b| b.display_name == "Transparent")
                     .unwrap_or(false);
                 let border = if dark {
-                    Color32::from_rgb(72, 72, 76)
+                    Color32::from_rgb(60, 60, 64)
                 } else {
-                    Color32::from_rgb(186, 186, 192)
+                    Color32::from_rgb(214, 214, 218)
                 };
                 painter.rect(
                     draw_rect,
@@ -7942,9 +7942,9 @@ impl EntropyApp {
                         Stroke::new(
                             1.0,
                             if dark {
-                                Color32::from_rgb(72, 72, 76)
+                                Color32::from_rgb(60, 60, 64)
                             } else {
-                                Color32::from_rgb(186, 186, 192)
+                                Color32::from_rgb(214, 214, 218)
                             },
                         ),
                         egui::StrokeKind::Inside,
@@ -7977,7 +7977,7 @@ impl EntropyApp {
                     let no_border = if dark {
                         Color32::from_rgb(40, 40, 44)
                     } else {
-                        Color32::from_rgb(186, 186, 192)
+                        Color32::from_rgb(214, 214, 218)
                     };
                     let fill = if is_selected || is_hovered { bg } else { no_bg };
                     painter.rect(
@@ -7989,9 +7989,9 @@ impl EntropyApp {
                     );
                 } else {
                     let border = if dark {
-                        Color32::from_rgb(72, 72, 76)
+                        Color32::from_rgb(60, 60, 64)
                     } else {
-                        Color32::from_rgb(186, 186, 192)
+                        Color32::from_rgb(214, 214, 218)
                     };
                     painter.rect(
                         draw_rect,
