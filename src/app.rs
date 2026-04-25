@@ -6675,11 +6675,12 @@ impl EntropyApp {
                     ui.ctx().data_mut(|d| {
                         d.insert_temp(
                             dropdown_id,
-                            advanced_tab_hovered
-                                || combo_hovered
-                                || auto_shift_hovered
-                                || key_override_hovered
-                                || (pointer_over_bridge && !advanced_clicked),
+                            !advanced_clicked
+                                && (advanced_tab_hovered
+                                    || combo_hovered
+                                    || auto_shift_hovered
+                                    || key_override_hovered
+                                    || pointer_over_bridge),
                         )
                     });
                 } else {
@@ -6797,11 +6798,12 @@ impl EntropyApp {
                     ui.ctx().data_mut(|d| {
                         d.insert_temp(
                             dropdown_id,
-                            settings_tab_hovered
-                                || matrix_hovered
-                                || rgb_hovered
-                                || encoders_hovered
-                                || (pointer_over_bridge && !settings_clicked),
+                            !settings_clicked
+                                && (settings_tab_hovered
+                                    || matrix_hovered
+                                    || rgb_hovered
+                                    || encoders_hovered
+                                    || pointer_over_bridge),
                         )
                     });
                 } else {
