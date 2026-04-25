@@ -2604,7 +2604,7 @@ impl EntropyApp {
                 idle_fill
             };
             let stroke = if is_pressed {
-                Color32::from_rgb(218, 134, 154)
+                Color32::from_rgb(218, 164, 174)
             } else if was_pressed {
                 Color32::from_rgb(104, 152, 120)
             } else {
@@ -3636,11 +3636,12 @@ impl eframe::App for EntropyApp {
             v.widgets.inactive.bg_stroke = Stroke::new(1.0, app_border_color(true));
             v.widgets.hovered.bg_fill = app_hover_fill(true);
             v.widgets.hovered.weak_bg_fill = app_hover_fill(true);
-            v.widgets.hovered.bg_stroke = Stroke::new(1.0, Color32::from_rgb(96, 96, 104));
+            v.widgets.hovered.bg_stroke = Stroke::new(1.0, Color32::from_rgb(110, 88, 96));
             v.widgets.active.bg_fill = app_accent();
             v.widgets.active.weak_bg_fill = app_accent();
-            v.widgets.active.bg_stroke = Stroke::new(1.0, Color32::from_rgb(218, 134, 154));
-            v.selection.bg_fill = Color32::from_rgba_unmultiplied(184, 92, 112, 120);
+            v.widgets.active.bg_stroke = Stroke::new(1.0, Color32::from_rgb(218, 164, 174));
+            v.selection.bg_fill = Color32::from_rgba_unmultiplied(98, 128, 150, 115);
+            v.hyperlink_color = Color32::from_rgb(216, 150, 162);
             v.interact_cursor = Some(egui::CursorIcon::PointingHand);
             ctx.set_visuals(v);
         } else {
@@ -3656,11 +3657,12 @@ impl eframe::App for EntropyApp {
             v.widgets.inactive.bg_stroke = Stroke::new(1.0, app_border_color(false));
             v.widgets.hovered.bg_fill = app_hover_fill(false);
             v.widgets.hovered.weak_bg_fill = app_hover_fill(false);
-            v.widgets.hovered.bg_stroke = Stroke::new(1.0, Color32::from_rgb(206, 206, 216));
+            v.widgets.hovered.bg_stroke = Stroke::new(1.0, Color32::from_rgb(226, 207, 212));
             v.widgets.active.bg_fill = app_accent();
             v.widgets.active.weak_bg_fill = app_accent();
-            v.widgets.active.bg_stroke = Stroke::new(1.0, Color32::from_rgb(204, 112, 134));
-            v.selection.bg_fill = Color32::from_rgba_unmultiplied(184, 92, 112, 80);
+            v.widgets.active.bg_stroke = Stroke::new(1.0, Color32::from_rgb(204, 145, 158));
+            v.selection.bg_fill = Color32::from_rgba_unmultiplied(98, 128, 150, 72);
+            v.hyperlink_color = Color32::from_rgb(150, 86, 100);
             v.interact_cursor = Some(egui::CursorIcon::PointingHand);
             ctx.set_visuals(v);
         }
@@ -3801,8 +3803,7 @@ impl eframe::App for EntropyApp {
                         egui::Label::new(
                             RichText::new("☀ Light")
                                 .size(11.0)
-                                .color(if self.dark_mode { inactive } else { active })
-                                .strong(),
+                                .color(if self.dark_mode { inactive } else { active }),
                         )
                         .sense(egui::Sense::click()),
                     );
@@ -3819,8 +3820,7 @@ impl eframe::App for EntropyApp {
                         egui::Label::new(
                             RichText::new("🌙 Dark")
                                 .size(11.0)
-                                .color(if self.dark_mode { active } else { inactive })
-                                .strong(),
+                                .color(if self.dark_mode { active } else { inactive }),
                         )
                         .sense(egui::Sense::click()),
                     );
@@ -3971,7 +3971,7 @@ impl eframe::App for EntropyApp {
                     ui.painter().rect(
                         fill_rect,
                         4.0,
-                        Color32::from_rgb(184, 92, 112),
+                        Color32::from_rgb(196, 132, 144),
                         egui::Stroke::NONE,
                         egui::StrokeKind::Inside,
                     );
@@ -4028,12 +4028,12 @@ impl eframe::App for EntropyApp {
                                 ),
                             );
                             let bg = if is_unlock {
-                                Color32::from_rgb(184, 92, 112)
+                                Color32::from_rgb(196, 132, 144)
                             } else {
                                 inactive_key_bg
                             };
                             let border = if is_unlock {
-                                Color32::from_rgb(218, 134, 154)
+                                Color32::from_rgb(218, 164, 174)
                             } else {
                                 inactive_key_border
                             };
@@ -5903,9 +5903,9 @@ impl EntropyApp {
                         Color32::from_rgb(48, 48, 58);
                     ui.style_mut().visuals.widgets.inactive.bg_stroke =
                         Stroke::new(1.0, Color32::from_gray(110));
-                    ui.style_mut().visuals.widgets.hovered.bg_fill = Color32::from_rgb(68, 68, 88);
+                    ui.style_mut().visuals.widgets.hovered.bg_fill = Color32::from_rgb(74, 62, 66);
                     ui.style_mut().visuals.widgets.hovered.weak_bg_fill =
-                        Color32::from_rgb(68, 68, 88);
+                        Color32::from_rgb(74, 62, 66);
                     ui.style_mut().visuals.widgets.hovered.bg_stroke =
                         Stroke::new(1.0, Color32::from_rgb(130, 130, 160));
                     ui.style_mut().visuals.widgets.active.bg_fill = Color32::from_rgb(78, 78, 102);
@@ -6958,14 +6958,14 @@ impl EntropyApp {
                             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                         }
                         let add_col = if add_resp.hovered() && can_add {
-                            Color32::from_rgb(184, 92, 112)
+                            Color32::from_rgb(196, 132, 144)
                         } else if can_add {
                             active_color
                         } else {
                             disabled_color
                         };
                         let rem_col = if remove_resp.hovered() && can_remove {
-                            Color32::from_rgb(184, 92, 112)
+                            Color32::from_rgb(196, 132, 144)
                         } else if can_remove {
                             active_color
                         } else {
@@ -7181,14 +7181,14 @@ impl EntropyApp {
                         Color32::from_gray(200)
                     };
                     let ac_l = if left_r.hovered() {
-                        Color32::from_rgb(184, 92, 112)
+                        Color32::from_rgb(196, 132, 144)
                     } else if self.dark_mode {
                         Color32::from_gray(140)
                     } else {
                         Color32::from_gray(120)
                     };
                     let ac_r = if right_r.hovered() {
-                        Color32::from_rgb(184, 92, 112)
+                        Color32::from_rgb(196, 132, 144)
                     } else if self.dark_mode {
                         Color32::from_gray(140)
                     } else {
@@ -7840,12 +7840,12 @@ impl EntropyApp {
             let is_hovered = hovered_key == Some(*ki);
             // Accent: #5B68DF indigo
             let bg = if is_selected {
-                Color32::from_rgb(184, 92, 112)
+                Color32::from_rgb(196, 132, 144)
             } else if is_hovered {
                 if dark {
-                    Color32::from_rgb(60, 60, 65)
+                    Color32::from_rgb(64, 54, 58)
                 } else {
-                    Color32::from_rgb(232, 232, 240)
+                    Color32::from_rgb(244, 232, 234)
                 }
             } else {
                 if dark {
@@ -7892,9 +7892,9 @@ impl EntropyApp {
                     .map(|b| b.display_name == "Transparent")
                     .unwrap_or(false);
                 let border = if dark {
-                    Color32::from_rgb(55, 55, 60)
+                    Color32::from_rgb(78, 62, 68)
                 } else {
-                    Color32::from_rgb(210, 210, 218)
+                    Color32::from_rgb(226, 207, 212)
                 };
                 painter.rect(
                     draw_rect,
@@ -7942,9 +7942,9 @@ impl EntropyApp {
                         Stroke::new(
                             1.0,
                             if dark {
-                                Color32::from_rgb(55, 55, 60)
+                                Color32::from_rgb(78, 62, 68)
                             } else {
-                                Color32::from_rgb(210, 210, 218)
+                                Color32::from_rgb(226, 207, 212)
                             },
                         ),
                         egui::StrokeKind::Inside,
@@ -7977,7 +7977,7 @@ impl EntropyApp {
                     let no_border = if dark {
                         Color32::from_rgb(40, 40, 44)
                     } else {
-                        Color32::from_rgb(210, 210, 218)
+                        Color32::from_rgb(226, 207, 212)
                     };
                     let fill = if is_selected || is_hovered { bg } else { no_bg };
                     painter.rect(
@@ -7989,9 +7989,9 @@ impl EntropyApp {
                     );
                 } else {
                     let border = if dark {
-                        Color32::from_rgb(55, 55, 60)
+                        Color32::from_rgb(78, 62, 68)
                     } else {
-                        Color32::from_rgb(210, 210, 218)
+                        Color32::from_rgb(226, 207, 212)
                     };
                     painter.rect(
                         draw_rect,
@@ -8465,7 +8465,7 @@ impl EntropyApp {
 
 fn draw_key_label_dimmed(painter: &egui::Painter, rect: egui::Rect, label: &str, dark: bool) {
     let dim = if dark {
-        Color32::from_rgb(60, 60, 65)
+        Color32::from_rgb(64, 54, 58)
     } else {
         Color32::from_rgb(200, 200, 208)
     };
@@ -8552,7 +8552,7 @@ fn draw_key_label_alpha(
     );
     let main_color = with_alpha(
         if dark {
-            Color32::from_rgb(232, 232, 240)
+            Color32::from_rgb(244, 232, 234)
         } else {
             Color32::from_rgb(26, 26, 30)
         },
@@ -8676,7 +8676,7 @@ fn draw_key_label(painter: &egui::Painter, rect: egui::Rect, label: &str, dark: 
             Color32::from_rgb(130, 130, 150)
         };
         let main_color = if dark {
-            Color32::from_rgb(232, 232, 240)
+            Color32::from_rgb(244, 232, 234)
         } else {
             Color32::from_rgb(26, 26, 30)
         };
@@ -8702,7 +8702,7 @@ fn draw_key_label(painter: &egui::Painter, rect: egui::Rect, label: &str, dark: 
             bottom,
             FontId::proportional(font_size),
             if dark {
-                Color32::from_rgb(232, 232, 240)
+                Color32::from_rgb(244, 232, 234)
             } else {
                 Color32::from_rgb(26, 26, 30)
             },

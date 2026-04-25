@@ -1,7 +1,7 @@
 use egui::{Color32, RichText, Stroke, Ui, Vec2};
 
 pub fn accent() -> Color32 {
-    Color32::from_rgb(184, 92, 112)
+    Color32::from_rgb(196, 132, 144)
 }
 
 pub fn panel_fill(dark: bool) -> Color32 {
@@ -30,9 +30,9 @@ pub fn surface_fill(dark: bool) -> Color32 {
 
 pub fn hover_fill(dark: bool) -> Color32 {
     if dark {
-        Color32::from_rgb(60, 60, 65)
+        Color32::from_rgb(64, 54, 58)
     } else {
-        Color32::from_rgb(232, 232, 240)
+        Color32::from_rgb(244, 232, 234)
     }
 }
 
