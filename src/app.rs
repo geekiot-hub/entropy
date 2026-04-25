@@ -3770,6 +3770,17 @@ impl eframe::App for EntropyApp {
             }
         });
 
+        egui::Area::new(egui::Id::new("made_by_signature"))
+            .anchor(egui::Align2::LEFT_BOTTOM, [16.0, -12.0])
+            .order(egui::Order::Foreground)
+            .show(ctx, |ui| {
+                ui.label(
+                    RichText::new("Made with <3 by eh.industries")
+                        .size(11.0)
+                        .color(app_muted_text(self.dark_mode)),
+                );
+            });
+
         egui::Area::new(egui::Id::new("theme_selector"))
             .anchor(egui::Align2::RIGHT_BOTTOM, [-16.0, -12.0])
             .order(egui::Order::Foreground)
