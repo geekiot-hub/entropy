@@ -2,13 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PopupKey {
-    RgbWindow,
-    EncoderVisibilityWindow,
-    AltRepeatWindow,
-    AutoShiftWindow,
     MouseKeysWindow,
-    KeyOverrideWindow,
-    ComboWindow,
     PickerWindow,
     MacroKeyPickWindow,
     PickLayerWindow,

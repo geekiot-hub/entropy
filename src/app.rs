@@ -105,39 +105,7 @@ fn save_encoder_visibility(visibility: &[bool], device_name: &str) {
 }
 
 #[derive(Clone, Copy)]
-struct EncoderVisibilityModalLayout {
-    window_size: Vec2,
-    content_width: f32,
-    hint_width: f32,
-    top_padding: f32,
-    hint_bottom_spacing: f32,
-    row_spacing: f32,
-    row_height: f32,
-    checkbox_label_gap: f32,
-}
-
-impl EncoderVisibilityModalLayout {
-    fn new() -> Self {
-        Self {
-            window_size: Vec2::new(216.0, 252.0),
-            content_width: 148.0,
-            hint_width: 280.0,
-            top_padding: 2.0,
-            hint_bottom_spacing: 8.0,
-            row_spacing: 4.0,
-            row_height: 28.0,
-            checkbox_label_gap: 0.0,
-        }
-    }
-
-    fn modal_layout(self) -> crate::ui_style::ModalLayout {
-        crate::ui_style::ModalLayout::new(self.content_width).with_top_padding(self.top_padding)
-    }
-}
-
-#[derive(Clone, Copy)]
 struct RgbModalLayout {
-    window_size: Vec2,
     content_width: f32,
     label_width: f32,
     top_padding: f32,
@@ -149,7 +117,6 @@ struct RgbModalLayout {
 impl RgbModalLayout {
     fn new() -> Self {
         Self {
-            window_size: Vec2::new(304.0, 270.0),
             content_width: 280.0,
             label_width: 68.0,
             top_padding: 4.0,
@@ -1113,18 +1080,6 @@ enum AltRepeatPickField {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum PendingPopupOpen {
-    Combo,
-    AutoShift,
-    KeyOverrides,
-    Rgb,
-    EncoderVisibility,
-    MouseKeys,
-    AltRepeat,
-    AltRepeatCompact,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
 enum MainMenuTab {
     Keyboard,
     Advanced,
@@ -1204,37 +1159,27 @@ pub struct EntropyApp {
     alt_repeat_entries: Vec<AltRepeatKeyEntry>,
     alt_repeat_names: Vec<String>,
     alt_repeat_undo_stack: Vec<(Vec<AltRepeatKeyEntry>, Vec<String>, usize)>,
-    alt_repeat_window_open: bool,
     selected_alt_repeat: usize,
     alt_repeat_visible_count: usize,
     alt_repeat_pick_target: Option<AltRepeatPickField>,
-    alt_repeat_reopen_after_pick: bool,
     modal_focus_frames: u8,
     prev_any_floating_window_open: bool,
     popup_state: PopupState,
-    pending_popup_open: Option<PendingPopupOpen>,
     last_single_instance_signal: String,
     rgb_settings: RgbSettingsState,
-    rgb_window_open: bool,
     encoder_visibility: Vec<bool>,
-    encoder_visibility_window_open: bool,
     combo_term_dirty: bool,
-    combo_window_open: bool,
-    combo_reopen_after_pick: bool,
     combo_visible_count: usize,
     combo_capture_open: bool,
     combo_capture_keys: Vec<u16>,
     combo_undo_stack: Vec<(Vec<ComboEntry>, Vec<String>, Option<u16>, usize, usize)>,
     combo_pick_target: Option<(usize, ComboPickField)>,
-    auto_shift_window_open: bool,
     key_override_entries: Vec<KeyOverrideEntry>,
     key_override_names: Vec<String>,
-    key_override_window_open: bool,
     key_override_visible_count: usize,
     key_override_undo_stack: Vec<(Vec<KeyOverrideEntry>, Vec<String>, usize, usize)>,
     selected_key_override: usize,
     key_override_pick_target: Option<KeyOverridePickField>,
-    key_override_reopen_after_pick: bool,
     matrix_tester_pressed: Vec<bool>,
     matrix_tester_ever_pressed: Vec<bool>,
     matrix_tester_last_poll: std::time::Instant,
@@ -1308,37 +1253,27 @@ impl EntropyApp {
             alt_repeat_entries: vec![],
             alt_repeat_names: vec![],
             alt_repeat_undo_stack: Vec::new(),
-            alt_repeat_window_open: false,
             selected_alt_repeat: 0,
             alt_repeat_visible_count: 1,
             alt_repeat_pick_target: None,
-            alt_repeat_reopen_after_pick: false,
             modal_focus_frames: 0,
             prev_any_floating_window_open: false,
             popup_state: PopupState::default(),
-            pending_popup_open: None,
             last_single_instance_signal: read_single_instance_signal(),
             rgb_settings: RgbSettingsState::default(),
-            rgb_window_open: false,
             encoder_visibility: vec![],
-            encoder_visibility_window_open: false,
             combo_term_dirty: false,
-            combo_window_open: false,
-            combo_reopen_after_pick: false,
             combo_visible_count: 1,
             combo_capture_open: false,
             combo_capture_keys: Vec::new(),
             combo_undo_stack: Vec::new(),
             combo_pick_target: None,
-            auto_shift_window_open: false,
             key_override_entries: Vec::new(),
             key_override_names: vec![],
-            key_override_window_open: false,
             key_override_visible_count: 1,
             key_override_undo_stack: Vec::new(),
             selected_key_override: 0,
             key_override_pick_target: None,
-            key_override_reopen_after_pick: false,
             matrix_tester_pressed: Vec::new(),
             matrix_tester_ever_pressed: Vec::new(),
             matrix_tester_last_poll: std::time::Instant::now(),
@@ -1393,8 +1328,6 @@ impl EntropyApp {
         self.zmk_has_unsaved = false;
         self.zmk_lock_state = 1; // assume unlocked until we know
         self.zmk_no_extra_layers = false;
-        self.combo_window_open = false;
-        self.combo_reopen_after_pick = false;
         self.combo_visible_count = 1;
         self.combo_capture_open = false;
         self.combo_capture_keys.clear();
@@ -1406,29 +1339,22 @@ impl EntropyApp {
         self.auto_shift_options = AutoShiftOptionsState::default();
         self.auto_shift_timeout = None;
         self.auto_shift_timeout_text.clear();
-        self.auto_shift_window_open = false;
         self.mouse_keys_settings = MouseKeysSettingsState::default();
         self.mouse_keys_window_open = false;
         self.alt_repeat_entries.clear();
         self.alt_repeat_names.clear();
         self.alt_repeat_undo_stack.clear();
-        self.alt_repeat_window_open = false;
         self.selected_alt_repeat = 0;
         self.alt_repeat_visible_count = 1;
         self.alt_repeat_pick_target = None;
-        self.alt_repeat_reopen_after_pick = false;
         self.rgb_settings = RgbSettingsState::default();
-        self.rgb_window_open = false;
         self.encoder_visibility.clear();
-        self.encoder_visibility_window_open = false;
         self.key_override_entries.clear();
         self.key_override_names.clear();
-        self.key_override_window_open = false;
         self.key_override_visible_count = 1;
         self.key_override_undo_stack.clear();
         self.selected_key_override = 0;
         self.key_override_pick_target = None;
-        self.key_override_reopen_after_pick = false;
         self.reset_matrix_tester_state();
 
         let (tx, rx) = mpsc::channel();
@@ -3076,11 +3002,6 @@ impl EntropyApp {
                     }
                     self.combo_dirty = true;
                 }
-                if self.combo_reopen_after_pick {
-                    self.request_modal_focus();
-                    self.combo_window_open = true;
-                    self.combo_reopen_after_pick = false;
-                }
             } else if let Some(field) = self.key_override_pick_target.take() {
                 let idx = self
                     .selected_key_override
@@ -3094,11 +3015,6 @@ impl EntropyApp {
                     Self::normalize_key_override_entry(entry);
                 }
                 self.write_key_override(idx);
-                if self.key_override_reopen_after_pick {
-                    self.request_modal_focus();
-                    self.key_override_window_open = true;
-                    self.key_override_reopen_after_pick = false;
-                }
             } else if let Some(field) = self.alt_repeat_pick_target.take() {
                 let idx = self
                     .selected_alt_repeat
@@ -3110,13 +3026,6 @@ impl EntropyApp {
                     }
                 }
                 self.write_alt_repeat_entry(idx);
-                if self.alt_repeat_reopen_after_pick {
-                    self.queue_popup_open(PendingPopupOpen::AltRepeat);
-                    self.alt_repeat_visible_count = self
-                        .alt_repeat_visible_count
-                        .clamp(1, self.alt_repeat_entries.len().max(1));
-                    self.alt_repeat_reopen_after_pick = false;
-                }
             } else if let Some((layer, encoder_visual_idx)) = self.selected_encoder {
                 #[cfg(not(target_arch = "wasm32"))]
                 self.assign_encoder_keycode(layer, encoder_visual_idx, kc_value);
@@ -3323,7 +3232,9 @@ impl EntropyApp {
             return;
         }
         if is_mouse_keycode(kc) {
-            self.queue_popup_open(PendingPopupOpen::MouseKeys);
+            self.request_modal_focus();
+            self.popup_state.on_open(PopupKey::MouseKeysWindow);
+            self.mouse_keys_window_open = true;
             self.secondary_click_handled = true;
             return;
         }
@@ -3654,8 +3565,6 @@ impl eframe::App for EntropyApp {
 
         #[cfg(not(target_arch = "wasm32"))]
         self.poll_single_instance_signal(ctx);
-
-        self.process_pending_popup_open(ctx);
 
         // Apply theme
         if self.dark_mode {
@@ -4106,14 +4015,7 @@ impl eframe::App for EntropyApp {
                 });
         }
 
-        let any_floating_window_open = self.combo_window_open
-            || self.auto_shift_window_open
-            || self.mouse_keys_window_open
-            || self.alt_repeat_window_open
-            || self.rgb_window_open
-            || self.encoder_visibility_window_open
-            || self.key_override_window_open
-            || self.keycode_picker.open;
+        let any_floating_window_open = self.mouse_keys_window_open || self.keycode_picker.open;
         if any_floating_window_open && !self.prev_any_floating_window_open {
             self.request_modal_focus();
         }
@@ -4134,13 +4036,7 @@ impl eframe::App for EntropyApp {
                         )),
                     );
                     if response.clicked() {
-                        self.combo_window_open = false;
-                        self.auto_shift_window_open = false;
                         self.mouse_keys_window_open = false;
-                        self.alt_repeat_window_open = false;
-                        self.rgb_window_open = false;
-                        self.encoder_visibility_window_open = false;
-                        self.key_override_window_open = false;
                         self.keycode_picker.open = false;
                         if let Some(id) = ctx.memory(|m| m.focused()) {
                             ctx.memory_mut(|m| m.surrender_focus(id));
@@ -4150,46 +4046,9 @@ impl eframe::App for EntropyApp {
         }
 
         self.popup_state
-            .begin_frame(PopupKey::ComboWindow, self.combo_window_open);
-        self.popup_state
-            .begin_frame(PopupKey::AutoShiftWindow, self.auto_shift_window_open);
-        self.popup_state
             .begin_frame(PopupKey::MouseKeysWindow, self.mouse_keys_window_open);
-        self.popup_state
-            .begin_frame(PopupKey::AltRepeatWindow, self.alt_repeat_window_open);
-        self.popup_state
-            .begin_frame(PopupKey::RgbWindow, self.rgb_window_open);
-        self.popup_state.begin_frame(
-            PopupKey::EncoderVisibilityWindow,
-            self.encoder_visibility_window_open,
-        );
-        self.popup_state
-            .begin_frame(PopupKey::KeyOverrideWindow, self.key_override_window_open);
-
-        if self.combo_window_open {
-            self.show_combo_window(ctx);
-        }
-        if self.auto_shift_window_open {
-            self.show_auto_shift_window(ctx);
-        }
         if self.mouse_keys_window_open {
             self.show_mouse_keys_window(ctx);
-        }
-        if self.alt_repeat_window_open {
-            self.show_alt_repeat_window(ctx);
-        }
-        if self.rgb_window_open {
-            self.show_rgb_window(ctx);
-        }
-        if self.encoder_visibility_window_open {
-            self.show_encoder_visibility_window(ctx);
-        }
-        if self.key_override_window_open {
-            self.show_key_override_window(ctx);
-        }
-
-        if self.pending_popup_open.is_some() {
-            ctx.request_repaint();
         }
 
         if !self.unlock_open && !self.vial_unlock_polling {
@@ -4197,43 +4056,24 @@ impl eframe::App for EntropyApp {
             self.apply_picker_results();
         }
 
-        self.prev_any_floating_window_open = self.combo_window_open
-            || self.auto_shift_window_open
-            || self.mouse_keys_window_open
-            || self.alt_repeat_window_open
-            || self.rgb_window_open
-            || self.encoder_visibility_window_open
-            || self.key_override_window_open
-            || self.keycode_picker.open;
+        self.prev_any_floating_window_open = self.mouse_keys_window_open || self.keycode_picker.open;
         if self.combo_pick_target.is_some()
             && !self.keycode_picker.open
             && self.keycode_picker.result.is_none()
         {
             self.combo_pick_target = None;
-            if self.combo_reopen_after_pick {
-                self.queue_popup_open(PendingPopupOpen::Combo);
-                self.combo_reopen_after_pick = false;
-            }
         }
         if self.key_override_pick_target.is_some()
             && !self.keycode_picker.open
             && self.keycode_picker.result.is_none()
         {
             self.key_override_pick_target = None;
-            if self.key_override_reopen_after_pick {
-                self.queue_popup_open(PendingPopupOpen::KeyOverrides);
-                self.key_override_reopen_after_pick = false;
-            }
         }
         if self.alt_repeat_pick_target.is_some()
             && !self.keycode_picker.open
             && self.keycode_picker.result.is_none()
         {
             self.alt_repeat_pick_target = None;
-            if self.alt_repeat_reopen_after_pick {
-                self.queue_popup_open(PendingPopupOpen::AltRepeat);
-                self.alt_repeat_reopen_after_pick = false;
-            }
         }
 
         // Write macros to device if changed
@@ -4518,8 +4358,6 @@ impl EntropyApp {
 
     fn open_key_override_picker(&mut self, target: KeyOverridePickField) {
         self.key_override_pick_target = Some(target);
-        self.key_override_reopen_after_pick = true;
-        self.key_override_window_open = false;
         self.keycode_picker.result = None;
         self.keycode_picker.open = true;
     }
@@ -4566,8 +4404,6 @@ impl EntropyApp {
 
     fn open_alt_repeat_picker(&mut self, target: AltRepeatPickField) {
         self.alt_repeat_pick_target = Some(target);
-        self.alt_repeat_reopen_after_pick = true;
-        self.alt_repeat_window_open = false;
         self.keycode_picker.result = None;
         self.keycode_picker.open = true;
     }
@@ -4589,57 +4425,6 @@ impl EntropyApp {
 
     fn request_modal_focus(&mut self) {
         self.modal_focus_frames = 6;
-    }
-
-    fn queue_popup_open(&mut self, popup: PendingPopupOpen) {
-        self.request_modal_focus();
-        self.pending_popup_open = Some(popup);
-    }
-
-    fn process_pending_popup_open(&mut self, ctx: &egui::Context) {
-        let Some(popup) = self.pending_popup_open.take() else {
-            return;
-        };
-        match popup {
-            PendingPopupOpen::Combo => {
-                self.popup_state.on_open(PopupKey::ComboWindow);
-                self.combo_window_open = true;
-                if self.combo_visible_count == 0 {
-                    self.combo_visible_count = 1;
-                }
-            }
-            PendingPopupOpen::AutoShift => {
-                self.popup_state.on_open(PopupKey::AutoShiftWindow);
-                self.auto_shift_window_open = true;
-            }
-            PendingPopupOpen::KeyOverrides => {
-                self.popup_state.on_open(PopupKey::KeyOverrideWindow);
-                self.key_override_window_open = true;
-            }
-            PendingPopupOpen::Rgb => {
-                self.popup_state.on_open(PopupKey::RgbWindow);
-                self.rgb_window_open = true;
-            }
-            PendingPopupOpen::EncoderVisibility => {
-                self.popup_state.on_open(PopupKey::EncoderVisibilityWindow);
-                self.encoder_visibility_window_open = true;
-            }
-            PendingPopupOpen::MouseKeys => {
-                self.popup_state.on_open(PopupKey::MouseKeysWindow);
-                self.mouse_keys_window_open = true;
-            }
-            PendingPopupOpen::AltRepeat => {
-                self.popup_state.on_open(PopupKey::AltRepeatWindow);
-                self.alt_repeat_window_open = true;
-            }
-            PendingPopupOpen::AltRepeatCompact => {
-                self.selected_alt_repeat = 0;
-                self.alt_repeat_visible_count = 1;
-                self.popup_state.on_open(PopupKey::AltRepeatWindow);
-                self.alt_repeat_window_open = true;
-            }
-        }
-        ctx.request_repaint();
     }
 
     fn focus_modal_window<T>(&mut self, shown: &Option<egui::InnerResponse<T>>) {
@@ -5227,131 +5012,6 @@ impl EntropyApp {
         });
     }
 
-    fn show_rgb_window(&mut self, ctx: &egui::Context) {
-        let layout = RgbModalLayout::new();
-        let mut open = self.rgb_window_open;
-        let mut close_after_save = false;
-        let dark = ctx.style().visuals.dark_mode;
-
-        let shown = crate::ui_style::centered_modal_window(
-            ctx,
-            "RGB",
-            self.popup_state.id(PopupKey::RgbWindow),
-            &mut open,
-            layout.window_size,
-        )
-        .show(ctx, |ui| {
-            if !self.rgb_settings.supported {
-                crate::ui_style::modal_empty_state(
-                    ui,
-                    "RGB settings are not available on this firmware",
-                    None,
-                );
-                return;
-            }
-
-            self.draw_rgb_editor_content(ui, dark, &layout, true, &mut close_after_save);
-        });
-
-        if close_after_save {
-            open = false;
-        }
-        self.focus_modal_window(&shown);
-        self.rgb_window_open = open;
-    }
-
-    fn draw_encoder_visibility_editor_content(
-        &mut self,
-        ui: &mut egui::Ui,
-        layout: &EncoderVisibilityModalLayout,
-        show_intro: bool,
-    ) {
-        crate::ui_style::modal_content(ui, layout.modal_layout(), |ui| {
-            if show_intro {
-                crate::ui_style::modal_centered_text_block(ui, layout.hint_width, |ui| {
-                    ui.label(
-                        RichText::new("Show or hide encoder controls for this device")
-                            .size(13.0)
-                            .color(app_muted_text(ui.visuals().dark_mode)),
-                    );
-                });
-                ui.add_space(layout.hint_bottom_spacing);
-            }
-
-            let visible_count = self
-                .layout
-                .as_ref()
-                .map(|layout| {
-                    let mut seen = std::collections::BTreeSet::new();
-                    layout
-                        .encoders
-                        .iter()
-                        .filter(|encoder| seen.insert(encoder.encoder_idx))
-                        .count()
-                })
-                .unwrap_or(0);
-            if self.encoder_visibility.len() < visible_count {
-                self.encoder_visibility.resize(visible_count, true);
-            }
-            self.encoder_visibility.truncate(visible_count);
-
-            for visual_idx in 0..visible_count {
-                let is_visible = self.encoder_visibility[visual_idx];
-                let mut toggled = is_visible;
-                ui.horizontal_centered(|ui| {
-                    let (row_rect, _) = ui.allocate_exact_size(
-                        egui::vec2(layout.content_width, layout.row_height),
-                        egui::Sense::hover(),
-                    );
-                    let checkbox_rect = egui::Rect::from_min_size(
-                        egui::pos2(row_rect.left(), row_rect.top()),
-                        egui::vec2(18.0, layout.row_height),
-                    );
-                    let label_rect = egui::Rect::from_min_size(
-                        egui::pos2(row_rect.left() + 24.0, row_rect.top()),
-                        egui::vec2(layout.content_width - 24.0, layout.row_height),
-                    );
-                    let resp = ui.put(checkbox_rect, egui::Checkbox::without_text(&mut toggled));
-                    if resp.hovered() {
-                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                    }
-                    ui.painter().text(
-                        egui::pos2(label_rect.left(), label_rect.center().y),
-                        egui::Align2::LEFT_CENTER,
-                        format!("Encoder {}", visual_idx + 1),
-                        FontId::proportional(13.0),
-                        ui.visuals().text_color(),
-                    );
-                });
-                if toggled != is_visible {
-                    self.encoder_visibility[visual_idx] = toggled;
-                }
-                if visual_idx + 1 < visible_count {
-                    ui.add_space(layout.row_spacing);
-                }
-            }
-        });
-    }
-
-    fn show_encoder_visibility_window(&mut self, ctx: &egui::Context) {
-        let layout = EncoderVisibilityModalLayout::new();
-        let mut open = self.encoder_visibility_window_open;
-
-        let shown = crate::ui_style::centered_modal_window(
-            ctx,
-            "Encoders",
-            self.popup_state.id(PopupKey::EncoderVisibilityWindow),
-            &mut open,
-            layout.window_size,
-        )
-            .show(ctx, |ui| {
-                self.draw_encoder_visibility_editor_content(ui, &layout, true);
-            });
-
-        self.focus_modal_window(&shown);
-        self.encoder_visibility_window_open = open;
-    }
-
     fn draw_alt_repeat_editor_content(&mut self, ui: &mut egui::Ui) {
         let dark = ui.visuals().dark_mode;
         if self.alt_repeat_entries.is_empty() {
@@ -5653,57 +5313,6 @@ impl EntropyApp {
         }
     }
 
-    fn show_alt_repeat_window(&mut self, ctx: &egui::Context) {
-        if !self.keycode_picker.open && ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-            self.alt_repeat_window_open = false;
-            return;
-        }
-
-        let mut open = self.alt_repeat_window_open;
-        let shown = crate::ui_style::centered_modal_window(
-            ctx,
-            "Alt Repeat",
-            self.popup_state.id(PopupKey::AltRepeatWindow),
-            &mut open,
-            Vec2::new(444.0, 500.0),
-        )
-            .show(ctx, |ui| {
-                self.draw_alt_repeat_editor_content(ui);
-            });
-
-        self.focus_modal_window(&shown);
-        self.alt_repeat_window_open = open;
-    }
-
-    fn show_auto_shift_window(&mut self, ctx: &egui::Context) {
-        let mut open = self.auto_shift_window_open;
-        let dark = ctx.style().visuals.dark_mode;
-
-        let shown = crate::ui_style::centered_modal_window(
-            ctx,
-            "Auto Shift",
-            self.popup_state.id(PopupKey::AutoShiftWindow),
-            &mut open,
-            Vec2::new(440.0, 280.0),
-        )
-        .show(ctx, |ui| {
-            if self.auto_shift_timeout.is_none() {
-                crate::ui_style::modal_empty_state(
-                    ui,
-                    "Auto Shift is not enabled in this firmware",
-                    Some("Enable AUTO_SHIFT_ENABLE in the keyboard rules.mk to use this window"),
-                );
-                return;
-            }
-
-            self.draw_auto_shift_editor_content(ui, dark, 360.0);
-        });
-
-        self.focus_modal_window(&shown);
-        self.auto_shift_window_open = open;
-    }
-
-    /// Write a single mouse-keys QMK setting to device. In Vial qmk_settings these are width=1.
     fn write_mouse_keys_setting(&mut self, qsid: u16, value: u16) {
         let Some(hid) = &self.hid_device else {
             return;
@@ -6197,33 +5806,11 @@ impl EntropyApp {
         });
     }
 
-    fn show_key_override_window(&mut self, ctx: &egui::Context) {
-        if !self.keycode_picker.open && ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-            self.key_override_window_open = false;
-            return;
-        }
-
-        let mut open = self.key_override_window_open;
-        let shown = crate::ui_style::centered_modal_window(
-            ctx,
-            "Key Overrides",
-            self.popup_state.id(PopupKey::KeyOverrideWindow),
-            &mut open,
-            Vec2::new(336.0, 584.0),
-        )
-            .show(ctx, |ui| {
-                self.draw_key_override_editor_content(ui, false);
-            });
-        self.focus_modal_window(&shown);
-        self.key_override_window_open = open;
-    }
-
     fn handle_combo_editor_input(&mut self, ctx: &egui::Context, allow_close: bool) -> bool {
         if !self.keycode_picker.open && ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
             if self.combo_capture_open {
                 self.cancel_combo_capture();
             } else if allow_close {
-                self.combo_window_open = false;
                 self.combo_capture_open = false;
                 self.combo_capture_keys.clear();
                 return true;
@@ -6580,9 +6167,7 @@ impl EntropyApp {
                             }
                             if resp.clicked() {
                                 self.combo_pick_target = Some((combo_idx, ComboPickField::Output));
-                                self.combo_reopen_after_pick = true;
-                                self.combo_window_open = false;
-                                self.keycode_picker.result = None;
+                                                        self.keycode_picker.result = None;
                                 self.keycode_picker.selected_tab = KeycodeTab::Basic;
                                 self.keycode_picker.open = true;
                             }
@@ -6683,30 +6268,6 @@ impl EntropyApp {
                         },
                     );
                 });
-    }
-
-    fn show_combo_window(&mut self, ctx: &egui::Context) {
-        if self.handle_combo_editor_input(ctx, true) {
-            return;
-        }
-        let mut open = self.combo_window_open;
-
-        let shown = crate::ui_style::centered_modal_window(
-            ctx,
-            "Combo",
-            self.popup_state.id(PopupKey::ComboWindow),
-            &mut open,
-            Vec2::new(360.0, 420.0),
-        )
-            .show(ctx, |ui| {
-                self.draw_combo_editor_content(ui, true);
-            });
-        self.focus_modal_window(&shown);
-        self.combo_window_open = open;
-        if !self.combo_window_open {
-            self.combo_capture_open = false;
-            self.combo_capture_keys.clear();
-        }
     }
 
     fn draw_layout(&mut self, ui: &mut egui::Ui, layout: &KeyboardLayout, ctx: &egui::Context) {
@@ -8090,7 +7651,9 @@ impl EntropyApp {
                 }
                 // Mouse keys — RClick opens Mouse keys settings
                 if is_mouse_keycode(kc) {
-                    self.queue_popup_open(PendingPopupOpen::MouseKeys);
+                    self.request_modal_focus();
+            self.popup_state.on_open(PopupKey::MouseKeysWindow);
+            self.mouse_keys_window_open = true;
                     self.secondary_click_handled = true;
                 }
                 if is_alt_repeat_keycode(kc) {
