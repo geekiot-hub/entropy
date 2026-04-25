@@ -2790,10 +2790,10 @@ impl EntropyApp {
         ui: &mut egui::Ui,
         content_rect: egui::Rect,
     ) {
-        const ALT_REPEAT_PAGE_WIDTH: f32 = 520.0;
+        const ALT_REPEAT_PAGE_WIDTH: f32 = 470.0;
         const ALT_REPEAT_TITLE_Y_OFFSET: f32 = 30.0;
         const ALT_REPEAT_DESC_GAP: f32 = 28.0;
-        const ALT_REPEAT_BLOCK_TOP_GAP: f32 = 34.0;
+        const ALT_REPEAT_BLOCK_TOP_GAP: f32 = 22.0;
 
         let dark = ui.visuals().dark_mode;
         let center_x = content_rect.center().x;
@@ -5253,7 +5253,11 @@ impl EntropyApp {
     fn draw_alt_repeat_editor_content(&mut self, ui: &mut egui::Ui) {
         let dark = ui.visuals().dark_mode;
         if self.alt_repeat_entries.is_empty() {
-            ui.label("Alt Repeat is not supported by this keyboard");
+            crate::ui_style::modal_empty_state(
+                ui,
+                "Alt Repeat is not supported by this keyboard",
+                None,
+            );
             return;
         }
 
@@ -5269,11 +5273,10 @@ impl EntropyApp {
         let idx = self.selected_alt_repeat;
         let current = self.alt_repeat_entries[idx].clone();
         let mut edited = current.clone();
-        let field_width = 220.0_f32;
-        let content_width = 520.0_f32;
-        let double_page_gap = 28.0_f32;
-        let double_page_width = field_width * 2.0 + double_page_gap;
-        let centered_field_offset = (content_width - field_width) / 2.0;
+        const CONTENT_WIDTH: f32 = 470.0;
+        const ROW_HEIGHT: f32 = 54.0;
+        const CONTROL_WIDTH: f32 = 168.0;
+        const MOD_CONTROL_WIDTH: f32 = 210.0;
         let custom = self
             .layout
             .as_ref()
@@ -5335,211 +5338,273 @@ impl EntropyApp {
 
         crate::ui_style::modal_content(
             ui,
-            crate::ui_style::ModalLayout::new(content_width).with_top_padding(2.0),
+            crate::ui_style::ModalLayout::new(CONTENT_WIDTH).with_top_padding(4.0),
             |ui| {
-                ui.horizontal(|ui| {
-                    ui.add_space(centered_field_offset);
-                    egui::ComboBox::from_id_salt("alt_repeat_entry_select")
-                        .selected_text(RichText::new(selected_text).color(selected_text_color))
-                        .width(field_width)
-                        .show_ui(ui, |ui| {
-                            for idx in 0..self.alt_repeat_entries.len() {
-                                let empty = self
-                                    .alt_repeat_entries
-                                    .get(idx)
-                                    .map(|entry| !Self::alt_repeat_entry_exists(entry))
-                                    .unwrap_or(true)
-                                    && self
-                                        .alt_repeat_names
-                                        .get(idx)
-                                        .map(|name| name.trim().is_empty())
-                                        .unwrap_or(true);
-                                let label = match self.alt_repeat_names.get(idx) {
-                                    Some(name) if !name.trim().is_empty() => {
-                                        RichText::new(format!("AR{}: {}", idx, name.trim())).color(
+                crate::ui_style::settings_list_row(
+                    ui,
+                    CONTENT_WIDTH,
+                    ROW_HEIGHT,
+                    "Entry",
+                    true,
+                    CONTROL_WIDTH,
+                    |ui| {
+                        egui::ComboBox::from_id_salt("alt_repeat_entry_select")
+                            .selected_text(RichText::new(selected_text).color(selected_text_color))
+                            .width(CONTROL_WIDTH)
+                            .show_ui(ui, |ui| {
+                                for entry_idx in 0..self.alt_repeat_entries.len() {
+                                    let empty = self
+                                        .alt_repeat_entries
+                                        .get(entry_idx)
+                                        .map(|entry| !Self::alt_repeat_entry_exists(entry))
+                                        .unwrap_or(true)
+                                        && self
+                                            .alt_repeat_names
+                                            .get(entry_idx)
+                                            .map(|name| name.trim().is_empty())
+                                            .unwrap_or(true);
+                                    let label = match self.alt_repeat_names.get(entry_idx) {
+                                        Some(name) if !name.trim().is_empty() => RichText::new(
+                                            format!("AR{}: {}", entry_idx, name.trim()),
+                                        )
+                                        .color(if empty {
+                                            app_inactive_entry_text(ui.visuals().dark_mode)
+                                        } else {
+                                            ui.visuals().text_color()
+                                        }),
+                                        _ => RichText::new(format!("AR{}", entry_idx)).color(
                                             if empty {
                                                 app_inactive_entry_text(ui.visuals().dark_mode)
                                             } else {
                                                 ui.visuals().text_color()
                                             },
-                                        )
+                                        ),
+                                    };
+                                    let resp = ui.selectable_value(
+                                        &mut self.selected_alt_repeat,
+                                        entry_idx,
+                                        label,
+                                    );
+                                    if resp.hovered() {
+                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                     }
-                                    _ => RichText::new(format!("AR{}", idx)).color(if empty {
-                                        app_inactive_entry_text(ui.visuals().dark_mode)
-                                    } else {
-                                        ui.visuals().text_color()
-                                    }),
-                                };
-                                let resp = ui.selectable_value(&mut self.selected_alt_repeat, idx, label);
-                                if resp.hovered() {
-                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                 }
-                            }
-                        });
-                });
+                            });
+                    },
+                );
 
-                ui.add_space(6.0);
                 let mut name_changed = false;
-                if let Some(name) = self.alt_repeat_names.get_mut(idx) {
-                    ui.horizontal(|ui| {
-                        ui.add_space(centered_field_offset);
-                        let resp = ui.add_sized(
-                            crate::ui_style::modal_field_button_size(field_width),
-                            egui::TextEdit::singleline(name)
-                                .desired_width(field_width)
-                                .hint_text("Name")
-                                .char_limit(12)
-                                .horizontal_align(egui::Align::Center)
-                                .vertical_align(egui::Align::Center),
-                        );
-                        name_changed = resp.changed();
-                        resp.clone().on_hover_text("Stored locally in Entropy");
-                        if resp.hovered() {
-                            ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
+                crate::ui_style::settings_list_row(
+                    ui,
+                    CONTENT_WIDTH,
+                    ROW_HEIGHT,
+                    "Name",
+                    true,
+                    CONTROL_WIDTH,
+                    |ui| {
+                        if let Some(name) = self.alt_repeat_names.get_mut(idx) {
+                            let resp = ui.add_sized(
+                                [CONTROL_WIDTH, 32.0],
+                                egui::TextEdit::singleline(name)
+                                    .desired_width(CONTROL_WIDTH)
+                                    .hint_text("Name")
+                                    .char_limit(12)
+                                    .horizontal_align(egui::Align::Center)
+                                    .vertical_align(egui::Align::Center),
+                            );
+                            name_changed = resp.changed();
+                            resp.clone().on_hover_text("Stored locally in Entropy");
+                            if resp.hovered() {
+                                ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
+                            }
                         }
-                    });
-                }
+                    },
+                );
                 if name_changed {
                     self.push_alt_repeat_undo();
                     save_alt_repeat_names(&self.alt_repeat_names, &self.current_device_name);
                 }
 
-                ui.add_space(10.0);
-                ui.horizontal(|ui| {
-                    ui.add_space((content_width - double_page_width) / 2.0);
-                    ui.vertical(|ui| {
-                        ui.set_width(field_width);
-                        crate::ui_style::modal_section_title(ui, "Last key");
-                        ui.add_space(4.0);
+                crate::ui_style::settings_list_row(
+                    ui,
+                    CONTENT_WIDTH,
+                    ROW_HEIGHT,
+                    "Last key",
+                    true,
+                    CONTROL_WIDTH,
+                    |ui| {
                         let resp = ui
                             .add_sized(
-                                [field_width, 34.0],
+                                [CONTROL_WIDTH, 32.0],
                                 egui::Button::new(RichText::new(last_key_label).size(12.0)),
                             )
                             .on_hover_cursor(egui::CursorIcon::PointingHand);
                         if resp.clicked() {
                             self.open_alt_repeat_picker(AltRepeatPickField::LastKey);
                         }
-                        resp.on_hover_text(last_key_tip);
-                    });
+                        resp.on_hover_text(last_key_tip.trim_end_matches('.'));
+                    },
+                );
 
-                    ui.add_space(double_page_gap);
-
-                    ui.vertical(|ui| {
-                        ui.set_width(field_width);
-                        crate::ui_style::modal_section_title(ui, "Alt key");
-                        ui.add_space(4.0);
+                crate::ui_style::settings_list_row(
+                    ui,
+                    CONTENT_WIDTH,
+                    ROW_HEIGHT,
+                    "Alt key",
+                    true,
+                    CONTROL_WIDTH,
+                    |ui| {
                         let resp = ui
                             .add_sized(
-                                [field_width, 34.0],
+                                [CONTROL_WIDTH, 32.0],
                                 egui::Button::new(RichText::new(alt_key_label).size(12.0)),
                             )
                             .on_hover_cursor(egui::CursorIcon::PointingHand);
                         if resp.clicked() {
                             self.open_alt_repeat_picker(AltRepeatPickField::AltKey);
                         }
-                        resp.on_hover_text(alt_key_tip);
-                    });
-                });
+                        resp.on_hover_text(alt_key_tip.trim_end_matches('.'));
+                    },
+                );
 
-                ui.add_space(12.0);
-                ui.horizontal(|ui| {
-                    ui.add_space((content_width - double_page_width) / 2.0);
-                    ui.vertical(|ui| {
-                        ui.set_width(field_width);
-                        ui.label(
-                            RichText::new("Allowed mods")
-                                .size(11.0)
-                                .color(app_muted_text(dark)),
-                        );
-                        ui.add_space(4.0);
-                        Self::draw_key_override_mod_mask(
+                let gui = crate::keycode::gui_mod_name();
+                let mut mod_pair_row =
+                    |ui: &mut egui::Ui, row_label: &str, left_label: &str, left_bit: u8, right_label: &str, right_bit: u8| {
+                        crate::ui_style::settings_list_row(
                             ui,
-                            &mut edited.allowed_mods,
-                            "alt_repeat_allowed_mods",
+                            CONTENT_WIDTH,
+                            ROW_HEIGHT,
+                            row_label,
+                            true,
+                            MOD_CONTROL_WIDTH,
+                            |ui| {
+                                let mut left_checked = (edited.allowed_mods & (1 << left_bit)) != 0;
+                                ui.label(
+                                    RichText::new(left_label)
+                                        .size(12.0)
+                                        .color(app_muted_text(ui.visuals().dark_mode)),
+                                );
+                                let left_resp = crate::ui_style::settings_switch(ui, &mut left_checked);
+                                if left_resp.changed() {
+                                    if left_checked {
+                                        edited.allowed_mods |= 1 << left_bit;
+                                    } else {
+                                        edited.allowed_mods &= !(1 << left_bit);
+                                    }
+                                }
+                                ui.add_space(10.0);
+                                let mut right_checked = (edited.allowed_mods & (1 << right_bit)) != 0;
+                                ui.label(
+                                    RichText::new(right_label)
+                                        .size(12.0)
+                                        .color(app_muted_text(ui.visuals().dark_mode)),
+                                );
+                                let right_resp = crate::ui_style::settings_switch(ui, &mut right_checked);
+                                if right_resp.changed() {
+                                    if right_checked {
+                                        edited.allowed_mods |= 1 << right_bit;
+                                    } else {
+                                        edited.allowed_mods &= !(1 << right_bit);
+                                    }
+                                }
+                            },
                         );
-                    });
+                    };
+                mod_pair_row(ui, "Ctrl mods", "L", 0, "R", 4);
+                mod_pair_row(ui, "Shift mods", "L", 1, "R", 5);
+                mod_pair_row(ui, "Alt mods", "L", 2, "R", 6);
+                mod_pair_row(ui, &format!("{} mods", gui), "L", 3, "R", 7);
 
-                    ui.add_space(double_page_gap);
-
-                    ui.vertical(|ui| {
-                        ui.set_width(field_width);
-                        ui.label(
-                            RichText::new("Options")
-                                .size(11.0)
-                                .color(app_muted_text(dark)),
-                        );
-                        ui.add_space(4.0);
-                        let row = |ui: &mut egui::Ui, label: &str, value: &mut bool| {
-                            let resp = ui.checkbox(value, label);
-                            if resp.hovered() {
-                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                            }
-                        };
-                        row(
+                crate::ui_style::settings_list_row(
+                    ui,
+                    CONTENT_WIDTH,
+                    ROW_HEIGHT,
+                    "Default alt key",
+                    true,
+                    46.0,
+                    |ui| {
+                        crate::ui_style::settings_switch(
                             ui,
-                            "Default to this alt key",
                             &mut edited.options.default_to_this_alt_key,
                         );
-                        row(ui, "Bidirectional", &mut edited.options.bidirectional);
-                        row(
+                    },
+                );
+                crate::ui_style::settings_list_row(
+                    ui,
+                    CONTENT_WIDTH,
+                    ROW_HEIGHT,
+                    "Bidirectional",
+                    true,
+                    46.0,
+                    |ui| {
+                        crate::ui_style::settings_switch(
                             ui,
-                            "Ignore mod handedness",
+                            &mut edited.options.bidirectional,
+                        );
+                    },
+                );
+                crate::ui_style::settings_list_row(
+                    ui,
+                    CONTENT_WIDTH,
+                    ROW_HEIGHT,
+                    "Ignore handedness",
+                    true,
+                    46.0,
+                    |ui| {
+                        crate::ui_style::settings_switch(
+                            ui,
                             &mut edited.options.ignore_mod_handedness,
                         );
-                    });
+                    },
+                );
+
+                ui.add_space(12.0);
+                ui.horizontal_centered(|ui| {
+                    let clear_enabled = Self::alt_repeat_entry_exists(&self.alt_repeat_entries[idx])
+                        || self
+                            .alt_repeat_names
+                            .get(idx)
+                            .map(|s| !s.trim().is_empty())
+                            .unwrap_or(false);
+                    let clear_btn = egui::Button::new(RichText::new("Clear").size(13.0))
+                        .min_size(crate::ui_style::modal_action_button_size());
+                    let clear_resp = ui.add_enabled(clear_enabled, clear_btn);
+                    if clear_resp.hovered() && clear_enabled {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                    }
+                    if clear_resp.clicked() {
+                        self.push_alt_repeat_undo();
+                        self.alt_repeat_entries[idx] = AltRepeatKeyEntry::default();
+                        if let Some(name) = self.alt_repeat_names.get_mut(idx) {
+                            name.clear();
+                        }
+                        save_alt_repeat_names(&self.alt_repeat_names, &self.current_device_name);
+                        self.write_alt_repeat_entry(idx);
+                        edited = self.alt_repeat_entries[idx].clone();
+                    }
+
+                    let undo_enabled = !self.alt_repeat_undo_stack.is_empty();
+                    let undo_btn = egui::Button::new(RichText::new("Undo").size(13.0))
+                        .min_size(crate::ui_style::modal_action_button_size());
+                    let undo_resp = ui.add_enabled(undo_enabled, undo_btn);
+                    if undo_resp.hovered() && undo_enabled {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                    }
+                    if undo_resp.clicked() {
+                        if let Some((entries, names, selected)) = self.alt_repeat_undo_stack.pop() {
+                            self.alt_repeat_entries = entries;
+                            self.alt_repeat_names = names;
+                            self.selected_alt_repeat = selected
+                                .min(self.alt_repeat_entries.len().saturating_sub(1));
+                            save_alt_repeat_names(&self.alt_repeat_names, &self.current_device_name);
+                            for entry_idx in 0..self.alt_repeat_entries.len() {
+                                self.write_alt_repeat_entry(entry_idx);
+                            }
+                        }
+                    }
                 });
             },
         );
-
-        ui.add_space(10.0);
-        ui.horizontal(|ui| {
-            let action_width = crate::ui_style::modal_action_button_size().x * 2.0
-                + ui.spacing().item_spacing.x;
-            ui.add_space((content_width - action_width) / 2.0);
-            let clear_enabled = Self::alt_repeat_entry_exists(&self.alt_repeat_entries[idx])
-                || self
-                    .alt_repeat_names
-                    .get(idx)
-                    .map(|s| !s.trim().is_empty())
-                    .unwrap_or(false);
-            let clear_btn = egui::Button::new(RichText::new("Clear").size(13.0))
-                .min_size(crate::ui_style::modal_action_button_size());
-            let clear_resp = ui.add_enabled(clear_enabled, clear_btn);
-            if clear_resp.hovered() && clear_enabled {
-                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-            }
-            if clear_resp.clicked() {
-                self.push_alt_repeat_undo();
-                self.alt_repeat_entries[idx] = AltRepeatKeyEntry::default();
-                if let Some(name) = self.alt_repeat_names.get_mut(idx) {
-                    name.clear();
-                }
-                save_alt_repeat_names(&self.alt_repeat_names, &self.current_device_name);
-                self.write_alt_repeat_entry(idx);
-                edited = self.alt_repeat_entries[idx].clone();
-            }
-
-            let undo_enabled = !self.alt_repeat_undo_stack.is_empty();
-            let undo_btn = egui::Button::new(RichText::new("Undo").size(13.0))
-                .min_size(crate::ui_style::modal_action_button_size());
-            let undo_resp = ui.add_enabled(undo_enabled, undo_btn);
-            if undo_resp.hovered() && undo_enabled {
-                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-            }
-            if undo_resp.clicked() {
-                if let Some((entries, names, selected)) = self.alt_repeat_undo_stack.pop() {
-                    self.alt_repeat_entries = entries;
-                    self.alt_repeat_names = names;
-                    self.selected_alt_repeat = selected.min(self.alt_repeat_entries.len().saturating_sub(1));
-                    save_alt_repeat_names(&self.alt_repeat_names, &self.current_device_name);
-                    for idx in 0..self.alt_repeat_entries.len() {
-                        self.write_alt_repeat_entry(idx);
-                    }
-                    return;
-                }
-            }
-        });
 
         Self::normalize_alt_repeat_entry(&mut edited);
         if edited != current {
