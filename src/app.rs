@@ -2407,7 +2407,7 @@ impl EntropyApp {
                     return;
                 }
 
-                let list_height = (content_rect.bottom() - ui.cursor().top() - 54.0).clamp(190.0, 336.0);
+                let list_height = 54.0 * 5.0;
                 crate::ui_style::modal_content(
                     ui,
                     crate::ui_style::ModalLayout::new(content_width).with_top_padding(0.0),
@@ -2419,11 +2419,7 @@ impl EntropyApp {
                             .show(ui, |ui| {
                                 self.draw_mouse_keys_editor_content(ui);
                             });
-                        ui.add_space(12.0);
-                        crate::ui_style::modal_hint(
-                            ui,
-                            "Changes are written to the keyboard immediately",
-                        );
+
                     },
                 );
             });
