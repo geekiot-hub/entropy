@@ -384,7 +384,6 @@ fn keycode_tooltip_with_macro_names(
 }
 use crate::keyboard::KeyboardLayout;
 use crate::keycode::{key_label_font_sizes, keycode_label_with_names, keycode_tooltip};
-use crate::popup_state::{PopupKey, PopupState};
 use crate::keycode_picker::{egui_key_to_qmk, KeycodePicker, KeycodeTab};
 use egui::{Color32, FontId, RichText, Sense, Stroke, Vec2};
 
@@ -1158,16 +1157,12 @@ pub struct EntropyApp {
     auto_shift_timeout: Option<u16>,
     auto_shift_timeout_text: String,
     mouse_keys_settings: MouseKeysSettingsState,
-    mouse_keys_window_open: bool,
     alt_repeat_entries: Vec<AltRepeatKeyEntry>,
     alt_repeat_names: Vec<String>,
     alt_repeat_undo_stack: Vec<(Vec<AltRepeatKeyEntry>, Vec<String>, usize)>,
     selected_alt_repeat: usize,
     alt_repeat_visible_count: usize,
     alt_repeat_pick_target: Option<AltRepeatPickField>,
-    modal_focus_frames: u8,
-    prev_any_floating_window_open: bool,
-    popup_state: PopupState,
     last_single_instance_signal: String,
     rgb_settings: RgbSettingsState,
     encoder_visibility: Vec<bool>,
@@ -1253,16 +1248,12 @@ impl EntropyApp {
             auto_shift_timeout: None,
             auto_shift_timeout_text: String::new(),
             mouse_keys_settings: MouseKeysSettingsState::default(),
-            mouse_keys_window_open: false,
             alt_repeat_entries: vec![],
             alt_repeat_names: vec![],
             alt_repeat_undo_stack: Vec::new(),
             selected_alt_repeat: 0,
             alt_repeat_visible_count: 1,
             alt_repeat_pick_target: None,
-            modal_focus_frames: 0,
-            prev_any_floating_window_open: false,
-            popup_state: PopupState::default(),
             last_single_instance_signal: read_single_instance_signal(),
             rgb_settings: RgbSettingsState::default(),
             encoder_visibility: vec![],
@@ -1344,7 +1335,6 @@ impl EntropyApp {
         self.auto_shift_timeout = None;
         self.auto_shift_timeout_text.clear();
         self.mouse_keys_settings = MouseKeysSettingsState::default();
-        self.mouse_keys_window_open = false;
         self.alt_repeat_entries.clear();
         self.alt_repeat_names.clear();
         self.alt_repeat_undo_stack.clear();
@@ -3597,7 +3587,6 @@ impl eframe::App for EntropyApp {
         let combo_capture_open_at_frame_start = self.combo_capture_open;
         let keyboard_input_wanted_at_frame_start = ctx.wants_keyboard_input();
         let modal_or_popup_open_at_frame_start = self.keycode_picker.open
-            || self.mouse_keys_window_open
             || self.unlock_open
             || self.vial_unlock_polling
             || self.top_dropdown_open(ctx)
@@ -4098,11 +4087,7 @@ impl eframe::App for EntropyApp {
                 });
         }
 
-        let any_floating_window_open = self.mouse_keys_window_open || self.keycode_picker.open;
-        if any_floating_window_open && !self.prev_any_floating_window_open {
-            self.request_modal_focus();
-        }
-        if any_floating_window_open {
+        if self.keycode_picker.open {
             let screen_rect = ctx.screen_rect();
             egui::Area::new("window_backdrop".into())
                 .order(egui::Order::Foreground)
@@ -4119,7 +4104,6 @@ impl eframe::App for EntropyApp {
                         )),
                     );
                     if response.clicked() {
-                        self.mouse_keys_window_open = false;
                         self.keycode_picker.open = false;
                         if let Some(id) = ctx.memory(|m| m.focused()) {
                             ctx.memory_mut(|m| m.surrender_focus(id));
@@ -4128,18 +4112,11 @@ impl eframe::App for EntropyApp {
                 });
         }
 
-        self.popup_state
-            .begin_frame(PopupKey::MouseKeysWindow, self.mouse_keys_window_open);
-        if self.mouse_keys_window_open {
-            self.show_mouse_keys_window(ctx);
-        }
-
         if !self.unlock_open && !self.vial_unlock_polling {
             self.keycode_picker.show(ctx);
             self.apply_picker_results();
         }
 
-        self.prev_any_floating_window_open = self.mouse_keys_window_open || self.keycode_picker.open;
         if self.combo_pick_target.is_some()
             && !self.keycode_picker.open
             && self.keycode_picker.result.is_none()
@@ -4549,7 +4526,6 @@ impl EntropyApp {
         matches!(self.main_menu_tab, MainMenuTab::Settings | MainMenuTab::Advanced)
             && !self.secondary_click_handled
             && !self.keycode_picker.open
-            && !self.mouse_keys_window_open
             && !self.unlock_open
             && !self.vial_unlock_polling
             && !self.combo_capture_open
@@ -4559,24 +4535,6 @@ impl EntropyApp {
             && !ctx.wants_keyboard_input()
             && !ctx.memory(|m| m.any_popup_open())
             && !self.top_dropdown_open(ctx)
-    }
-
-    fn request_modal_focus(&mut self) {
-        self.modal_focus_frames = 6;
-    }
-
-    fn focus_modal_window<T>(&mut self, shown: &Option<egui::InnerResponse<T>>) {
-        if self.modal_focus_frames > 0 {
-            if let Some(shown) = shown {
-                shown.response.ctx.move_to_top(shown.response.layer_id);
-                shown.response.request_focus();
-                shown.response.ctx.request_repaint();
-                self.modal_focus_frames = self.modal_focus_frames.saturating_sub(1);
-                if shown.response.has_focus() {
-                    self.modal_focus_frames = 0;
-                }
-            }
-        }
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -5568,44 +5526,6 @@ impl EntropyApp {
 
         ui.add_space(10.0);
         crate::ui_style::modal_hint(ui, "Changes are written to the keyboard immediately");
-    }
-
-    fn show_mouse_keys_window(&mut self, ctx: &egui::Context) {
-        if !self.keycode_picker.open && ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-            self.mouse_keys_window_open = false;
-            return;
-        }
-
-        let mut open = self.mouse_keys_window_open;
-
-        let shown = crate::ui_style::centered_modal_window(
-            ctx,
-            "Mouse keys",
-            self.popup_state.id(PopupKey::MouseKeysWindow),
-            &mut open,
-            Vec2::new(520.0, 360.0),
-        )
-            .show(ctx, |ui| {
-                if !self.mouse_keys_settings.supported {
-                    crate::ui_style::modal_empty_state(
-                        ui,
-                        "Mouse keys settings are not available on this firmware",
-                        Some("Enable MOUSEKEY_ENABLE and QMK_SETTINGS in the keyboard rules.mk to use this window"),
-                    );
-                    return;
-                }
-
-                crate::ui_style::modal_content(
-                    ui,
-                    crate::ui_style::ModalLayout::new(480.0).with_top_padding(8.0),
-                    |ui| {
-                        self.draw_mouse_keys_editor_content(ui);
-                    },
-                );
-            });
-
-        self.focus_modal_window(&shown);
-        self.mouse_keys_window_open = open;
     }
 
     fn draw_key_override_editor_content(&mut self, ui: &mut egui::Ui, two_column: bool) {
