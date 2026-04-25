@@ -2414,29 +2414,31 @@ impl EntropyApp {
                     |ui| {
                         ui.set_min_size(egui::vec2(content_width, list_height));
                         ui.spacing_mut().scroll.floating = false;
-                        ui.spacing_mut().scroll.bar_width = 6.0;
-                        ui.spacing_mut().scroll.bar_inner_margin = 8.0;
+                        ui.spacing_mut().item_spacing.y = 0.0;
+                        ui.spacing_mut().scroll.floating = false;
+                        ui.spacing_mut().scroll.bar_width = 5.0;
+                        ui.spacing_mut().scroll.bar_inner_margin = 9.0;
                         ui.spacing_mut().scroll.bar_outer_margin = 0.0;
-                        ui.spacing_mut().scroll.handle_min_length = 36.0;
+                        ui.spacing_mut().scroll.handle_min_length = 42.0;
                         ui.visuals_mut().extreme_bg_color = if dark {
-                            Color32::from_rgb(34, 34, 36)
+                            Color32::from_rgb(31, 31, 33)
                         } else {
-                            Color32::from_rgb(236, 236, 238)
+                            Color32::from_rgb(246, 246, 247)
                         };
                         ui.visuals_mut().widgets.inactive.bg_fill = if dark {
-                            Color32::from_rgb(72, 72, 76)
+                            Color32::from_rgb(54, 54, 58)
                         } else {
-                            Color32::from_rgb(184, 184, 188)
+                            Color32::from_rgb(220, 220, 223)
                         };
                         ui.visuals_mut().widgets.hovered.bg_fill = if dark {
-                            Color32::from_rgb(92, 92, 96)
+                            Color32::from_rgb(64, 64, 68)
                         } else {
-                            Color32::from_rgb(164, 164, 168)
+                            Color32::from_rgb(206, 206, 210)
                         };
                         ui.visuals_mut().widgets.active.bg_fill = if dark {
-                            Color32::from_rgb(108, 108, 112)
+                            Color32::from_rgb(74, 74, 78)
                         } else {
-                            Color32::from_rgb(144, 144, 148)
+                            Color32::from_rgb(194, 194, 198)
                         };
                         egui::ScrollArea::vertical()
                             .id_salt("mouse_keys_settings_scroll")
@@ -2445,8 +2447,8 @@ impl EntropyApp {
                             .auto_shrink([false, false])
                             .animated(false)
                             .drag_to_scroll(false)
-                            .show(ui, |ui| {
-                                self.draw_mouse_keys_editor_content(ui);
+                            .show_rows(ui, 54.0, 9, |ui, row_range| {
+                                self.draw_mouse_keys_editor_content(ui, row_range);
                             });
                     },
                 );
@@ -5483,7 +5485,11 @@ impl EntropyApp {
         }
     }
 
-    fn draw_mouse_keys_editor_content(&mut self, ui: &mut egui::Ui) {
+    fn draw_mouse_keys_editor_content(
+        &mut self,
+        ui: &mut egui::Ui,
+        row_range: std::ops::Range<usize>,
+    ) {
         // Limits match Vial GUI qmk_settings.json.
         let rows: [(u16, &str, &str, u32); 9] = [
             (
@@ -5545,7 +5551,10 @@ impl EntropyApp {
         const ROW_HEIGHT: f32 = 54.0;
         const FIELD_WIDTH: f32 = 86.0;
 
-        for (qsid, label, tooltip, max) in rows.iter().copied() {
+        for row_idx in row_range {
+            let Some((qsid, label, tooltip, max)) = rows.get(row_idx).copied() else {
+                continue;
+            };
             let current = match qsid {
                 9 => self.mouse_keys_settings.delay,
                 10 => self.mouse_keys_settings.interval,
