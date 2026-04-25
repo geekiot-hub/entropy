@@ -2702,32 +2702,38 @@ impl EntropyApp {
         ui: &mut egui::Ui,
         content_rect: egui::Rect,
     ) {
-        const ALT_REPEAT_PAGE_WIDTH: f32 = 548.0;
-        const ALT_REPEAT_TITLE_Y_OFFSET: f32 = 18.0;
-        const ALT_REPEAT_DESC_GAP: f32 = 6.0;
-        const ALT_REPEAT_BLOCK_TOP_GAP: f32 = 18.0;
+        const ALT_REPEAT_PAGE_WIDTH: f32 = 520.0;
+        const ALT_REPEAT_TITLE_Y_OFFSET: f32 = 30.0;
+        const ALT_REPEAT_DESC_GAP: f32 = 28.0;
+        const ALT_REPEAT_BLOCK_TOP_GAP: f32 = 34.0;
 
         let dark = ui.visuals().dark_mode;
+        let center_x = content_rect.center().x;
+        let title_y = content_rect.top() + ALT_REPEAT_TITLE_Y_OFFSET;
+        let desc_y = title_y + ALT_REPEAT_DESC_GAP;
+        let block_top = desc_y + ALT_REPEAT_BLOCK_TOP_GAP;
+        let block_rect = egui::Rect::from_min_max(
+            egui::pos2(center_x - ALT_REPEAT_PAGE_WIDTH / 2.0, block_top),
+            egui::pos2(center_x + ALT_REPEAT_PAGE_WIDTH / 2.0, content_rect.bottom()),
+        );
 
-        ui.allocate_ui_at_rect(content_rect, |ui| {
-            ui.vertical_centered(|ui| {
-                ui.add_space(ALT_REPEAT_TITLE_Y_OFFSET);
-                ui.label(RichText::new("Alt Repeat").size(18.0).strong());
-                ui.add_space(ALT_REPEAT_DESC_GAP);
-                ui.label(
-                    RichText::new("Configure alternate repeat keys and modifier behavior")
-                        .size(13.0)
-                        .color(app_muted_text(dark)),
-                );
-                ui.add_space(ALT_REPEAT_BLOCK_TOP_GAP);
-                ui.allocate_ui_with_layout(
-                    egui::vec2(ALT_REPEAT_PAGE_WIDTH, 0.0),
-                    egui::Layout::top_down(egui::Align::Min),
-                    |ui| {
-                        self.draw_alt_repeat_editor_content(ui);
-                    },
-                );
-            });
+        ui.painter().text(
+            egui::pos2(center_x, title_y),
+            egui::Align2::CENTER_CENTER,
+            "Alt Repeat",
+            FontId::proportional(18.0),
+            ui.visuals().text_color(),
+        );
+        ui.painter().text(
+            egui::pos2(center_x, desc_y),
+            egui::Align2::CENTER_CENTER,
+            "Configure alternate repeat keys and modifier behavior",
+            FontId::proportional(13.0),
+            app_muted_text(dark),
+        );
+
+        ui.allocate_ui_at_rect(block_rect, |ui| {
+            self.draw_alt_repeat_editor_content(ui);
         });
     }
 
@@ -2791,13 +2797,7 @@ impl EntropyApp {
                         .color(app_muted_text(dark)),
                 );
                 ui.add_space(18.0);
-                ui.allocate_ui_with_layout(
-                    egui::vec2(548.0, 0.0),
-                    egui::Layout::top_down(egui::Align::Min),
-                    |ui| {
-                        self.draw_combo_editor_content(ui, false);
-                    },
-                );
+                self.draw_combo_editor_content(ui, false);
             });
         });
     }
@@ -5371,14 +5371,11 @@ impl EntropyApp {
         let idx = self.selected_alt_repeat;
         let current = self.alt_repeat_entries[idx].clone();
         let mut edited = current.clone();
-        let column_width = 260.0_f32;
-        let column_gap = 28.0_f32;
-        let content_width = column_width * 2.0 + column_gap;
-        let action_button_size = crate::ui_style::modal_action_button_size();
-        let field_width = action_button_size.x * 2.0 + 8.0;
-        let name_field_width = field_width;
-        let top_field_inset = ((content_width - field_width) * 0.5).max(0.0);
-        let field_inset = ((column_width - field_width) * 0.5).max(0.0);
+        let field_width = 220.0_f32;
+        let content_width = 520.0_f32;
+        let double_page_gap = 28.0_f32;
+        let double_page_width = field_width * 2.0 + double_page_gap;
+        let centered_field_offset = (content_width - field_width) / 2.0;
         let custom = self
             .layout
             .as_ref()
@@ -5443,7 +5440,7 @@ impl EntropyApp {
             crate::ui_style::ModalLayout::new(content_width).with_top_padding(2.0),
             |ui| {
                 ui.horizontal(|ui| {
-                    ui.add_space(top_field_inset);
+                    ui.add_space(centered_field_offset);
                     egui::ComboBox::from_id_salt("alt_repeat_entry_select")
                         .selected_text(RichText::new(selected_text).color(selected_text_color))
                         .width(field_width)
@@ -5487,11 +5484,11 @@ impl EntropyApp {
                 let mut name_changed = false;
                 if let Some(name) = self.alt_repeat_names.get_mut(idx) {
                     ui.horizontal(|ui| {
-                        ui.add_space(top_field_inset);
+                        ui.add_space(centered_field_offset);
                         let resp = ui.add_sized(
-                            crate::ui_style::modal_field_button_size(name_field_width),
+                            crate::ui_style::modal_field_button_size(field_width),
                             egui::TextEdit::singleline(name)
-                                .desired_width(name_field_width)
+                                .desired_width(field_width)
                                 .hint_text("Name")
                                 .char_limit(12)
                                 .horizontal_align(egui::Align::Center)
@@ -5511,109 +5508,87 @@ impl EntropyApp {
 
                 ui.add_space(10.0);
                 ui.horizontal(|ui| {
+                    ui.add_space((content_width - double_page_width) / 2.0);
                     ui.vertical(|ui| {
-                        ui.set_width(column_width);
-                        ui.horizontal(|ui| {
-                            ui.add_space(field_inset);
-                            ui.vertical(|ui| {
-                                ui.set_width(field_width);
-                                crate::ui_style::modal_section_title(ui, "Last key");
-                                ui.add_space(4.0);
-                                let resp = ui
-                                    .add_sized(
-                                        [field_width, 34.0],
-                                        egui::Button::new(RichText::new(last_key_label).size(12.0)),
-                                    )
-                                    .on_hover_cursor(egui::CursorIcon::PointingHand);
-                                if resp.clicked() {
-                                    self.open_alt_repeat_picker(AltRepeatPickField::LastKey);
-                                }
-                                resp.on_hover_text(last_key_tip);
-                            });
-                        });
+                        ui.set_width(field_width);
+                        crate::ui_style::modal_section_title(ui, "Last key");
+                        ui.add_space(4.0);
+                        let resp = ui
+                            .add_sized(
+                                [field_width, 34.0],
+                                egui::Button::new(RichText::new(last_key_label).size(12.0)),
+                            )
+                            .on_hover_cursor(egui::CursorIcon::PointingHand);
+                        if resp.clicked() {
+                            self.open_alt_repeat_picker(AltRepeatPickField::LastKey);
+                        }
+                        resp.on_hover_text(last_key_tip);
                     });
 
-                    ui.add_space(column_gap);
+                    ui.add_space(double_page_gap);
 
                     ui.vertical(|ui| {
-                        ui.set_width(column_width);
-                        ui.horizontal(|ui| {
-                            ui.add_space(field_inset);
-                            ui.vertical(|ui| {
-                                ui.set_width(field_width);
-                                crate::ui_style::modal_section_title(ui, "Alt key");
-                                ui.add_space(4.0);
-                                let resp = ui
-                                    .add_sized(
-                                        [field_width, 34.0],
-                                        egui::Button::new(RichText::new(alt_key_label).size(12.0)),
-                                    )
-                                    .on_hover_cursor(egui::CursorIcon::PointingHand);
-                                if resp.clicked() {
-                                    self.open_alt_repeat_picker(AltRepeatPickField::AltKey);
-                                }
-                                resp.on_hover_text(alt_key_tip);
-                            });
-                        });
+                        ui.set_width(field_width);
+                        crate::ui_style::modal_section_title(ui, "Alt key");
+                        ui.add_space(4.0);
+                        let resp = ui
+                            .add_sized(
+                                [field_width, 34.0],
+                                egui::Button::new(RichText::new(alt_key_label).size(12.0)),
+                            )
+                            .on_hover_cursor(egui::CursorIcon::PointingHand);
+                        if resp.clicked() {
+                            self.open_alt_repeat_picker(AltRepeatPickField::AltKey);
+                        }
+                        resp.on_hover_text(alt_key_tip);
                     });
                 });
 
                 ui.add_space(12.0);
                 ui.horizontal(|ui| {
+                    ui.add_space((content_width - double_page_width) / 2.0);
                     ui.vertical(|ui| {
-                        ui.set_width(column_width);
-                        ui.horizontal(|ui| {
-                            ui.add_space(field_inset);
-                            ui.vertical(|ui| {
-                                ui.set_width(field_width);
-                                ui.label(
-                                    RichText::new("Allowed mods")
-                                        .size(11.0)
-                                        .color(app_muted_text(dark)),
-                                );
-                                ui.add_space(4.0);
-                                Self::draw_key_override_mod_mask(
-                                    ui,
-                                    &mut edited.allowed_mods,
-                                    "alt_repeat_allowed_mods",
-                                );
-                            });
-                        });
+                        ui.set_width(field_width);
+                        ui.label(
+                            RichText::new("Allowed mods")
+                                .size(11.0)
+                                .color(app_muted_text(dark)),
+                        );
+                        ui.add_space(4.0);
+                        Self::draw_key_override_mod_mask(
+                            ui,
+                            &mut edited.allowed_mods,
+                            "alt_repeat_allowed_mods",
+                        );
                     });
 
-                    ui.add_space(column_gap);
+                    ui.add_space(double_page_gap);
 
                     ui.vertical(|ui| {
-                        ui.set_width(column_width);
-                        ui.horizontal(|ui| {
-                            ui.add_space(field_inset);
-                            ui.vertical(|ui| {
-                                ui.set_width(field_width);
-                                ui.label(
-                                    RichText::new("Options")
-                                        .size(11.0)
-                                        .color(app_muted_text(dark)),
-                                );
-                                ui.add_space(4.0);
-                                let row = |ui: &mut egui::Ui, label: &str, value: &mut bool| {
-                                    let resp = ui.checkbox(value, label);
-                                    if resp.hovered() {
-                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                    }
-                                };
-                                row(
-                                    ui,
-                                    "Default to this alt key",
-                                    &mut edited.options.default_to_this_alt_key,
-                                );
-                                row(ui, "Bidirectional", &mut edited.options.bidirectional);
-                                row(
-                                    ui,
-                                    "Ignore mod handedness",
-                                    &mut edited.options.ignore_mod_handedness,
-                                );
-                            });
-                        });
+                        ui.set_width(field_width);
+                        ui.label(
+                            RichText::new("Options")
+                                .size(11.0)
+                                .color(app_muted_text(dark)),
+                        );
+                        ui.add_space(4.0);
+                        let row = |ui: &mut egui::Ui, label: &str, value: &mut bool| {
+                            let resp = ui.checkbox(value, label);
+                            if resp.hovered() {
+                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                            }
+                        };
+                        row(
+                            ui,
+                            "Default to this alt key",
+                            &mut edited.options.default_to_this_alt_key,
+                        );
+                        row(ui, "Bidirectional", &mut edited.options.bidirectional);
+                        row(
+                            ui,
+                            "Ignore mod handedness",
+                            &mut edited.options.ignore_mod_handedness,
+                        );
                     });
                 });
             },
@@ -5621,7 +5596,8 @@ impl EntropyApp {
 
         ui.add_space(10.0);
         ui.horizontal(|ui| {
-            let action_width = action_button_size.x * 2.0 + ui.spacing().item_spacing.x;
+            let action_width = crate::ui_style::modal_action_button_size().x * 2.0
+                + ui.spacing().item_spacing.x;
             ui.add_space((content_width - action_width) / 2.0);
             let clear_enabled = Self::alt_repeat_entry_exists(&self.alt_repeat_entries[idx])
                 || self
@@ -6373,14 +6349,13 @@ impl EntropyApp {
 
                 let combo_idx = self.selected_combo;
                 let action_button_size = crate::ui_style::modal_action_button_size();
-                let content_width = 548.0_f32;
-                let compact_field_width = action_button_size.x * 2.0 + 8.0;
-                let name_field_width = compact_field_width;
-                let top_field_inset = ((content_width - compact_field_width) * 0.5).max(0.0);
+                let content_width = action_button_size.x * 2.0 + 8.0;
+                let compact_field_width = content_width;
+                let name_field_width = content_width;
 
                 crate::ui_style::modal_content(
                     ui,
-                    crate::ui_style::ModalLayout::new(content_width).with_top_padding(2.0),
+                    crate::ui_style::ModalLayout::new(content_width).with_top_padding(0.0),
                     |ui| {
                         let selected_combo_empty = self.combo_entries.get(self.selected_combo)
                             .map(|entry| entry.keys.iter().all(|&k| k == 0) && entry.output == 0)
@@ -6405,12 +6380,15 @@ impl EntropyApp {
                                 ui.visuals().text_color()
                             }),
                         };
-                        ui.horizontal(|ui| {
-                            ui.add_space(top_field_inset);
-                            egui::ComboBox::from_id_salt("combo_entry_select")
-                                .selected_text(selected_combo_label)
-                                .width(compact_field_width)
-                                .show_ui(ui, |ui| {
+                        ui.horizontal_centered(|ui| {
+                            ui.allocate_ui_with_layout(
+                                Vec2::new(compact_field_width, 0.0),
+                                egui::Layout::left_to_right(egui::Align::Center),
+                                |ui| {
+                                    egui::ComboBox::from_id_salt("combo_entry_select")
+                                        .selected_text(selected_combo_label)
+                                        .width(compact_field_width)
+                                        .show_ui(ui, |ui| {
                                             for idx in 0..self.combo_entries.len() {
                                                 let combo_empty = self.combo_entries.get(idx)
                                                     .map(|entry| entry.keys.iter().all(|&k| k == 0) && entry.output == 0)
@@ -6444,10 +6422,12 @@ impl EntropyApp {
                                                     ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                                 }
                                             }
-                                });
+                                        });
+                                },
+                            );
                         });
 
-                        ui.add_space(6.0);
+                        ui.add_space(crate::ui_style::modal_space_md());
                     },
                 );
 
@@ -6459,8 +6439,7 @@ impl EntropyApp {
                             let mut combo_name_changed = false;
                             if let Some(name) = self.combo_names.get_mut(combo_idx) {
                                 let resp = ui
-                                    .horizontal(|ui| {
-                                        ui.add_space(top_field_inset);
+                                    .horizontal_centered(|ui| {
                                         ui.add_sized(
                                             crate::ui_style::modal_field_button_size(name_field_width),
                                             egui::TextEdit::singleline(name)
