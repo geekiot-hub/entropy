@@ -275,3 +275,115 @@ pub fn modal_labeled_row(
         },
     );
 }
+
+
+pub fn settings_list_row(
+    ui: &mut Ui,
+    content_width: f32,
+    row_height: f32,
+    label: &str,
+    label_enabled: bool,
+    control_width: f32,
+    add_control: impl FnOnce(&mut Ui),
+) {
+    let dark = ui.visuals().dark_mode;
+    let (row_rect, _) = ui.allocate_exact_size(
+        egui::vec2(content_width, row_height),
+        egui::Sense::hover(),
+    );
+    let separator = border_color(dark).gamma_multiply(if dark { 0.72 } else { 0.9 });
+    ui.painter().line_segment(
+        [row_rect.left_bottom(), row_rect.right_bottom()],
+        Stroke::new(1.0, separator),
+    );
+    ui.painter().text(
+        egui::pos2(row_rect.left() + 2.0, row_rect.center().y),
+        egui::Align2::LEFT_CENTER,
+        label,
+        egui::FontId::proportional(13.0),
+        if label_enabled {
+            ui.visuals().text_color()
+        } else {
+            muted_text(dark)
+        },
+    );
+
+    let control_rect = egui::Rect::from_min_size(
+        egui::pos2(row_rect.right() - control_width, row_rect.top()),
+        egui::vec2(control_width, row_height),
+    );
+    ui.allocate_ui_at_rect(control_rect, |ui| {
+        ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), add_control);
+    });
+}
+
+pub fn settings_switch(ui: &mut Ui, checked: &mut bool) -> egui::Response {
+    let desired_size = egui::vec2(46.0, 24.0);
+    let (rect, mut response) = ui.allocate_exact_size(desired_size, egui::Sense::click());
+    if ui.is_enabled() && response.clicked() {
+        *checked = !*checked;
+        response.mark_changed();
+    }
+    if response.hovered() && ui.is_enabled() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+
+    if ui.is_rect_visible(rect) {
+        let dark = ui.visuals().dark_mode;
+        let t = ui.ctx().animate_bool_responsive(response.id, *checked);
+        let radius = rect.height() / 2.0;
+        let track_fill = if *checked {
+            if dark {
+                Color32::from_rgb(86, 66, 71)
+            } else {
+                Color32::from_rgb(232, 211, 216)
+            }
+        } else if dark {
+            Color32::from_rgb(50, 50, 53)
+        } else {
+            Color32::from_rgb(226, 226, 229)
+        };
+        let track_fill = if ui.is_enabled() {
+            track_fill
+        } else {
+            track_fill.gamma_multiply(0.62)
+        };
+        let stroke = if response.hovered() && ui.is_enabled() {
+            Stroke::new(1.0, accent().gamma_multiply(0.85))
+        } else {
+            Stroke::new(1.0, border_color(dark))
+        };
+        ui.painter().rect(
+            rect,
+            radius,
+            track_fill,
+            stroke,
+            egui::StrokeKind::Inside,
+        );
+
+        let knob_radius = radius - 4.0;
+        let x = egui::lerp((rect.left() + radius)..=(rect.right() - radius), t);
+        let knob_fill = if *checked {
+            if dark {
+                Color32::from_rgb(222, 184, 191)
+            } else {
+                Color32::from_rgb(132, 92, 100)
+            }
+        } else if dark {
+            Color32::from_rgb(126, 126, 130)
+        } else {
+            Color32::from_rgb(150, 150, 154)
+        };
+        ui.painter().circle_filled(
+            egui::pos2(x, rect.center().y),
+            knob_radius,
+            if ui.is_enabled() {
+                knob_fill
+            } else {
+                knob_fill.gamma_multiply(0.62)
+            },
+        );
+    }
+
+    response
+}
