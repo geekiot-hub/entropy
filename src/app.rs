@@ -2384,7 +2384,7 @@ impl EntropyApp {
 
     fn draw_mouse_keys_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
         let dark = ui.visuals().dark_mode;
-        let content_width = 520.0_f32;
+        let content_width = 470.0_f32;
 
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
@@ -5450,71 +5450,72 @@ impl EntropyApp {
     fn draw_mouse_keys_editor_content(&mut self, ui: &mut egui::Ui) {
         // Limits match Vial GUI qmk_settings.json.
         let rows: [(u16, &str, u32); 9] = [
-            (
-                9,
-                "Delay between pressing a movement key and cursor movement",
-                10000,
-            ),
-            (10, "Time between cursor movements in milliseconds", 10000),
-            (11, "Step size", 1000),
-            (12, "Maximum cursor speed at which acceleration stops", 1000),
-            (13, "Time until maximum cursor speed is reached", 1000),
-            (14, "Delay between pressing a wheel key and wheel movement", 10000),
-            (15, "Time between wheel movements", 10000),
-            (16, "Maximum number of scroll steps per scroll action", 1000),
-            (17, "Time until maximum scroll speed is reached", 1000),
+            (9, "Delay", 10000),
+            (10, "Interval", 10000),
+            (11, "Move delta", 1000),
+            (12, "Max speed", 1000),
+            (13, "Time to max", 1000),
+            (14, "Wheel delay", 10000),
+            (15, "Wheel interval", 10000),
+            (16, "Wheel max speed", 1000),
+            (17, "Wheel time to max", 1000),
         ];
+        const CONTENT_WIDTH: f32 = 470.0;
+        const ROW_HEIGHT: f32 = 54.0;
+        const FIELD_WIDTH: f32 = 86.0;
 
-        egui::Grid::new(ui.id().with("mouse_keys_grid"))
-            .num_columns(2)
-            .spacing([18.0, 10.0])
-            .show(ui, |ui| {
-                for (qsid, label, max) in rows.iter().copied() {
-                    let (current, write_back): (
-                        u16,
-                        Box<dyn FnOnce(&mut MouseKeysSettingsState, u16)>,
-                    ) = match qsid {
-                        9 => (
-                            self.mouse_keys_settings.delay,
-                            Box::new(|s: &mut MouseKeysSettingsState, v| s.delay = v),
-                        ),
-                        10 => (
-                            self.mouse_keys_settings.interval,
-                            Box::new(|s: &mut MouseKeysSettingsState, v| s.interval = v),
-                        ),
-                        11 => (
-                            self.mouse_keys_settings.move_delta,
-                            Box::new(|s: &mut MouseKeysSettingsState, v| s.move_delta = v),
-                        ),
-                        12 => (
-                            self.mouse_keys_settings.max_speed,
-                            Box::new(|s: &mut MouseKeysSettingsState, v| s.max_speed = v),
-                        ),
-                        13 => (
-                            self.mouse_keys_settings.time_to_max,
-                            Box::new(|s: &mut MouseKeysSettingsState, v| s.time_to_max = v),
-                        ),
-                        14 => (
-                            self.mouse_keys_settings.wheel_delay,
-                            Box::new(|s: &mut MouseKeysSettingsState, v| s.wheel_delay = v),
-                        ),
-                        15 => (
-                            self.mouse_keys_settings.wheel_interval,
-                            Box::new(|s: &mut MouseKeysSettingsState, v| s.wheel_interval = v),
-                        ),
-                        16 => (
-                            self.mouse_keys_settings.wheel_max_speed,
-                            Box::new(|s: &mut MouseKeysSettingsState, v| s.wheel_max_speed = v),
-                        ),
-                        17 => (
-                            self.mouse_keys_settings.wheel_time_to_max,
-                            Box::new(|s: &mut MouseKeysSettingsState, v| s.wheel_time_to_max = v),
-                        ),
-                        _ => continue,
-                    };
+        for (qsid, label, max) in rows.iter().copied() {
+            let (current, write_back): (
+                u16,
+                Box<dyn FnOnce(&mut MouseKeysSettingsState, u16)>,
+            ) = match qsid {
+                9 => (
+                    self.mouse_keys_settings.delay,
+                    Box::new(|s: &mut MouseKeysSettingsState, v| s.delay = v),
+                ),
+                10 => (
+                    self.mouse_keys_settings.interval,
+                    Box::new(|s: &mut MouseKeysSettingsState, v| s.interval = v),
+                ),
+                11 => (
+                    self.mouse_keys_settings.move_delta,
+                    Box::new(|s: &mut MouseKeysSettingsState, v| s.move_delta = v),
+                ),
+                12 => (
+                    self.mouse_keys_settings.max_speed,
+                    Box::new(|s: &mut MouseKeysSettingsState, v| s.max_speed = v),
+                ),
+                13 => (
+                    self.mouse_keys_settings.time_to_max,
+                    Box::new(|s: &mut MouseKeysSettingsState, v| s.time_to_max = v),
+                ),
+                14 => (
+                    self.mouse_keys_settings.wheel_delay,
+                    Box::new(|s: &mut MouseKeysSettingsState, v| s.wheel_delay = v),
+                ),
+                15 => (
+                    self.mouse_keys_settings.wheel_interval,
+                    Box::new(|s: &mut MouseKeysSettingsState, v| s.wheel_interval = v),
+                ),
+                16 => (
+                    self.mouse_keys_settings.wheel_max_speed,
+                    Box::new(|s: &mut MouseKeysSettingsState, v| s.wheel_max_speed = v),
+                ),
+                17 => (
+                    self.mouse_keys_settings.wheel_time_to_max,
+                    Box::new(|s: &mut MouseKeysSettingsState, v| s.wheel_time_to_max = v),
+                ),
+                _ => continue,
+            };
 
-                    ui.label(RichText::new(label).size(12.5));
-
+            crate::ui_style::settings_list_row(
+                ui,
+                CONTENT_WIDTH,
+                ROW_HEIGHT,
+                label,
+                true,
+                FIELD_WIDTH,
+                |ui| {
                     let edit_id = egui::Id::new(("mouse_keys_edit", qsid));
                     let mut text = ui.ctx().data_mut(|d| {
                         d.get_temp::<String>(edit_id)
@@ -5526,15 +5527,28 @@ impl EntropyApp {
                         text = current.to_string();
                     }
 
-                    let resp = ui.add(
+                    ui.visuals_mut().widgets.inactive.bg_fill = app_surface_fill(ui.visuals().dark_mode);
+                    ui.visuals_mut().widgets.inactive.weak_bg_fill = app_surface_fill(ui.visuals().dark_mode);
+                    ui.visuals_mut().widgets.inactive.bg_stroke = crate::ui_style::modal_outline_stroke(ui.visuals().dark_mode);
+                    ui.visuals_mut().widgets.hovered.bg_fill = crate::ui_style::hover_fill(ui.visuals().dark_mode);
+                    ui.visuals_mut().widgets.hovered.weak_bg_fill = crate::ui_style::hover_fill(ui.visuals().dark_mode);
+                    ui.visuals_mut().widgets.hovered.bg_stroke = Stroke::new(1.0, Color32::from_rgb(112, 112, 116));
+                    ui.visuals_mut().widgets.active.bg_fill = app_surface_fill(ui.visuals().dark_mode);
+                    ui.visuals_mut().widgets.active.weak_bg_fill = app_surface_fill(ui.visuals().dark_mode);
+                    ui.visuals_mut().widgets.active.bg_stroke = Stroke::new(1.0, Color32::from_rgb(126, 126, 130));
+
+                    let resp = ui.add_sized(
+                        [FIELD_WIDTH, 32.0],
                         egui::TextEdit::singleline(&mut text)
                             .id(edit_id)
-                            .desired_width(72.0),
+                            .desired_width(FIELD_WIDTH)
+                            .char_limit(5)
+                            .horizontal_align(egui::Align::RIGHT)
+                            .vertical_align(egui::Align::Center),
                     );
                     if resp.hovered() {
                         ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
                     }
-                    ui.end_row();
 
                     if resp.changed() {
                         let filtered: String =
@@ -5548,10 +5562,11 @@ impl EntropyApp {
                         text = filtered;
                     }
                     ui.ctx().data_mut(|d| d.insert_temp(edit_id, text));
-                }
-            });
+                },
+            );
+        }
 
-        ui.add_space(10.0);
+        ui.add_space(12.0);
         crate::ui_style::modal_hint(ui, "Changes are written to the keyboard immediately");
     }
 
