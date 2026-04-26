@@ -2127,6 +2127,7 @@ impl KeycodePicker {
                                     *ms = v;
                                 }
                             }
+                            ui.add_space(12.0);
                             ui.label(
                                 RichText::new("ms")
                                     .size(macro_font_size)
@@ -2424,6 +2425,7 @@ impl KeycodePicker {
                             }
                         }
                     }
+                    ui.add_space(12.0);
                     ui.label(
                         RichText::new("ms")
                             .size(td_font_size)
@@ -2641,6 +2643,7 @@ impl KeycodePicker {
                                 self.tap_dance_entries[n].tapping_term = v;
                             }
                         }
+                        ui.add_space(12.0);
                         ui.label(RichText::new("ms").size(14.0));
                     });
                     ui.end_row();
