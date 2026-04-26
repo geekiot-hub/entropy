@@ -1559,8 +1559,8 @@ impl KeycodePicker {
                 );
                 let resp = ui
                     .add(
-                        egui::Button::new(RichText::new(label).size(14.0))
-                            .min_size(Vec2::new(42.0, 34.0)),
+                        egui::Button::new(RichText::new(label).size(11.0))
+                            .min_size(Vec2::new(52.0, 38.0)),
                     )
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
                 if resp.clicked() {
@@ -1622,8 +1622,8 @@ impl KeycodePicker {
                 );
                 let resp = ui
                     .add(
-                        egui::Button::new(RichText::new(label).size(14.0))
-                            .min_size(Vec2::new(42.0, 34.0)),
+                        egui::Button::new(RichText::new(label).size(11.0))
+                            .min_size(Vec2::new(52.0, 38.0)),
                     )
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
                 if resp.clicked() {

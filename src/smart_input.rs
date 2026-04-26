@@ -10,6 +10,7 @@ pub struct SmartSymbol {
 const KC_F13: u16 = 0x0068;
 const MOD_CTRL: u16 = 0x0100;
 const MOD_SHIFT: u16 = 0x0200;
+const MOD_ALT: u16 = 0x0400;
 
 pub const SMART_SYMBOLS: &[SmartSymbol] = &[
     // F13..F24
@@ -53,6 +54,15 @@ pub const SMART_SYMBOLS: &[SmartSymbol] = &[
     SmartSymbol { trigger_keycode: MOD_CTRL | (KC_F13 + 9),  symbol: '≈', name: "Almost equal sign" },
     SmartSymbol { trigger_keycode: MOD_CTRL | (KC_F13 + 10), symbol: '✓', name: "Check mark" },
     SmartSymbol { trigger_keycode: MOD_CTRL | (KC_F13 + 11), symbol: '§', name: "Section sign" },
+
+    // Alt+F13..F24
+    SmartSymbol { trigger_keycode: MOD_ALT | KC_F13,      symbol: '.', name: "Full stop" },
+    SmartSymbol { trigger_keycode: MOD_ALT | (KC_F13 + 1),  symbol: ',', name: "Comma" },
+    SmartSymbol { trigger_keycode: MOD_ALT | (KC_F13 + 2),  symbol: ';', name: "Semicolon" },
+    SmartSymbol { trigger_keycode: MOD_ALT | (KC_F13 + 3),  symbol: ':', name: "Colon" },
+    SmartSymbol { trigger_keycode: MOD_ALT | (KC_F13 + 4),  symbol: '/', name: "Slash" },
+    SmartSymbol { trigger_keycode: MOD_ALT | (KC_F13 + 5),  symbol: '`', name: "Grave accent" },
+    SmartSymbol { trigger_keycode: MOD_ALT | (KC_F13 + 6),  symbol: '^', name: "Caret" },
 
     // Ctrl+Shift+F13..F24
     SmartSymbol { trigger_keycode: MOD_CTRL | MOD_SHIFT | KC_F13,      symbol: '°', name: "Degree sign" },
@@ -102,6 +112,9 @@ fn symbol_for_vk(vk: u32) -> Option<(char, u16)> {
     }
     if modifier_down(VK_SHIFT) {
         trigger_keycode |= MOD_SHIFT;
+    }
+    if modifier_down(VK_MENU) {
+        trigger_keycode |= MOD_ALT;
     }
     smart_symbol_for_keycode(trigger_keycode).map(|symbol| (symbol.symbol, trigger_keycode))
 }
@@ -173,6 +186,9 @@ unsafe fn release_transport_modifiers(trigger_keycode: u16) {
     if trigger_keycode & MOD_SHIFT != 0 {
         send_vk_keyup(VK_SHIFT as u16);
     }
+    if trigger_keycode & MOD_ALT != 0 {
+        send_vk_keyup(VK_MENU as u16);
+    }
     if trigger_keycode & MOD_CTRL != 0 {
         send_vk_keyup(VK_CONTROL as u16);
     }
@@ -203,6 +219,8 @@ const WM_SYSKEYUP: usize = 0x0105;
 const VK_SHIFT: i32 = 0x10;
 #[cfg(target_os = "windows")]
 const VK_CONTROL: i32 = 0x11;
+#[cfg(target_os = "windows")]
+const VK_MENU: i32 = 0x12;
 #[cfg(target_os = "windows")]
 const LLKHF_INJECTED: u32 = 0x10;
 #[cfg(target_os = "windows")]
