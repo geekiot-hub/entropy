@@ -1054,10 +1054,12 @@ fn load_rgb_settings(
         Some("qmk_rgblight") | Some("qmk_backlight_rgblight") => {
             candidates.extend([RgbSupportKind::QmkRgblight, RgbSupportKind::VialRgb]);
         }
-        _ if layout.supports_rgb => {
-            candidates.extend([RgbSupportKind::VialRgb, RgbSupportKind::QmkRgblight])
+        _ => {
+            // Some QMK/Vial definitions do not advertise `lighting` in vial.json even
+            // though the firmware still exposes runtime lighting commands. Probe both
+            // backends and enable the RGB page if either one responds.
+            candidates.extend([RgbSupportKind::VialRgb, RgbSupportKind::QmkRgblight]);
         }
-        _ => return RgbSettingsState::default(),
     }
 
     for kind in candidates {
@@ -2158,7 +2160,7 @@ impl EntropyApp {
 
                 // Populate picker based on firmware
                 self.keycode_picker.firmware = self.firmware;
-                self.keycode_picker.supports_rgb = r.layout.supports_rgb;
+                self.keycode_picker.supports_rgb = r.layout.supports_rgb || self.rgb_settings.supported;
                 self.keycode_picker.layer_count = r.layout.layers.len().max(1);
                 self.keycode_picker.tap_dance_names = load_tap_dance_names(&device_name);
                 if self.firmware == FirmwareProtocol::Vial {
