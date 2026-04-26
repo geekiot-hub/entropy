@@ -323,6 +323,123 @@ fn app_border_color(dark: bool) -> Color32 {
 fn app_muted_text(dark: bool) -> Color32 {
     crate::ui_style::muted_text(dark)
 }
+
+fn alt_repeat_modern_button(
+    ui: &mut egui::Ui,
+    label: &str,
+    size: Vec2,
+    enabled: bool,
+) -> egui::Response {
+    let dark = ui.visuals().dark_mode;
+    let sense = if enabled { Sense::click() } else { Sense::hover() };
+    let (rect, resp) = ui.allocate_exact_size(size, sense);
+    let active = enabled && resp.is_pointer_button_down_on();
+    let hovered = enabled && resp.hovered();
+    let fill = if active {
+        if dark {
+            Color32::from_rgb(56, 56, 59)
+        } else {
+            Color32::from_rgb(232, 232, 235)
+        }
+    } else if hovered {
+        crate::ui_style::hover_fill(dark)
+    } else {
+        app_surface_fill(dark)
+    };
+    let stroke = if active || hovered {
+        Stroke::new(1.0, Color32::from_rgb(112, 112, 116))
+    } else {
+        crate::ui_style::modal_outline_stroke(dark)
+    };
+    ui.painter().rect(
+        rect,
+        9.0,
+        fill,
+        stroke,
+        egui::StrokeKind::Inside,
+    );
+    ui.painter().text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        label,
+        FontId::proportional(12.5),
+        if enabled {
+            ui.visuals().text_color()
+        } else {
+            app_muted_text(dark)
+        },
+    );
+    if hovered {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    resp
+}
+
+fn alt_repeat_modern_text_field(
+    ui: &mut egui::Ui,
+    id: egui::Id,
+    text: &mut String,
+    width: f32,
+    hint: &str,
+    char_limit: usize,
+) -> egui::Response {
+    let dark = ui.visuals().dark_mode;
+    let field_size = Vec2::new(width, 32.0);
+    let (field_rect, _) = ui.allocate_exact_size(field_size, Sense::hover());
+    let field_hovered = ui.input(|i| {
+        i.pointer
+            .hover_pos()
+            .map(|pos| field_rect.contains(pos))
+            .unwrap_or(false)
+    });
+    let field_focused = ui.memory(|m| m.has_focus(id));
+    let field_fill = if field_focused {
+        if dark {
+            Color32::from_rgb(52, 52, 55)
+        } else {
+            Color32::from_rgb(244, 244, 246)
+        }
+    } else if field_hovered {
+        crate::ui_style::hover_fill(dark)
+    } else {
+        app_surface_fill(dark)
+    };
+    let field_stroke = if field_focused {
+        Stroke::new(1.0, Color32::from_rgb(126, 126, 130))
+    } else if field_hovered {
+        Stroke::new(1.0, Color32::from_rgb(112, 112, 116))
+    } else {
+        crate::ui_style::modal_outline_stroke(dark)
+    };
+    ui.painter().rect(
+        field_rect,
+        9.0,
+        field_fill,
+        field_stroke,
+        egui::StrokeKind::Inside,
+    );
+
+    let mut edit_resp = None;
+    ui.allocate_ui_at_rect(field_rect.shrink2(Vec2::new(10.0, 0.0)), |ui| {
+        let resp = ui.add_sized(
+            [width - 20.0, 32.0],
+            egui::TextEdit::singleline(text)
+                .id(id)
+                .desired_width(width - 20.0)
+                .hint_text(hint)
+                .char_limit(char_limit)
+                .frame(false)
+                .horizontal_align(egui::Align::Center)
+                .vertical_align(egui::Align::Center),
+        );
+        edit_resp = Some(resp);
+    });
+    let resp = edit_resp.expect("alt repeat TextEdit response");
+    if resp.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
+    }
+    resp
+}
 fn app_inactive_entry_text(dark: bool) -> Color32 {
     if dark {
         Color32::from_gray(105)
@@ -5386,7 +5503,7 @@ impl EntropyApp {
                     0.0
                 };
                 if scroll_delta.abs() > 0.0 && max_first_row > 0 {
-                    const WHEEL_ROW_THRESHOLD: f32 = 96.0;
+                    const WHEEL_ROW_THRESHOLD: f32 = 48.0;
                     wheel_accum = (wheel_accum + scroll_delta)
                         .clamp(-WHEEL_ROW_THRESHOLD, WHEEL_ROW_THRESHOLD);
                     if wheel_accum <= -WHEEL_ROW_THRESHOLD {
@@ -5578,20 +5695,16 @@ impl EntropyApp {
                                     CONTROL_WIDTH,
                                     |ui| {
                                         if let Some(name) = self.alt_repeat_names.get_mut(idx) {
-                                            let resp = ui.add_sized(
-                                                [CONTROL_WIDTH, 32.0],
-                                                egui::TextEdit::singleline(name)
-                                                    .desired_width(CONTROL_WIDTH)
-                                                    .hint_text("Name")
-                                                    .char_limit(12)
-                                                    .horizontal_align(egui::Align::Center)
-                                                    .vertical_align(egui::Align::Center),
+                                            let resp = alt_repeat_modern_text_field(
+                                                ui,
+                                                egui::Id::new(("alt_repeat_name", idx)),
+                                                name,
+                                                CONTROL_WIDTH,
+                                                "Name",
+                                                12,
                                             );
                                             name_changed = resp.changed();
                                             resp.clone().on_hover_text("Stored locally in Entropy");
-                                            if resp.hovered() {
-                                                ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
-                                            }
                                         }
                                     },
                                 );
@@ -5609,12 +5722,12 @@ impl EntropyApp {
                                     true,
                                     CONTROL_WIDTH,
                                     |ui| {
-                                        let resp = ui
-                                            .add_sized(
-                                                [CONTROL_WIDTH, 32.0],
-                                                egui::Button::new(RichText::new(last_key_label.as_str()).size(12.0)),
-                                            )
-                                            .on_hover_cursor(egui::CursorIcon::PointingHand);
+                                        let resp = alt_repeat_modern_button(
+                                            ui,
+                                            last_key_label.as_str(),
+                                            Vec2::new(CONTROL_WIDTH, 32.0),
+                                            true,
+                                        );
                                         if resp.clicked() {
                                             self.open_alt_repeat_picker(AltRepeatPickField::LastKey);
                                         }
@@ -5631,12 +5744,12 @@ impl EntropyApp {
                                     true,
                                     CONTROL_WIDTH,
                                     |ui| {
-                                        let resp = ui
-                                            .add_sized(
-                                                [CONTROL_WIDTH, 32.0],
-                                                egui::Button::new(RichText::new(alt_key_label.as_str()).size(12.0)),
-                                            )
-                                            .on_hover_cursor(egui::CursorIcon::PointingHand);
+                                        let resp = alt_repeat_modern_button(
+                                            ui,
+                                            alt_key_label.as_str(),
+                                            Vec2::new(CONTROL_WIDTH, 32.0),
+                                            true,
+                                        );
                                         if resp.clicked() {
                                             self.open_alt_repeat_picker(AltRepeatPickField::AltKey);
                                         }
@@ -5809,12 +5922,12 @@ impl EntropyApp {
                             .get(idx)
                             .map(|s| !s.trim().is_empty())
                             .unwrap_or(false);
-                    let clear_btn = egui::Button::new(RichText::new("Clear").size(13.0))
-                        .min_size(crate::ui_style::modal_action_button_size());
-                    let clear_resp = ui.add_enabled(clear_enabled, clear_btn);
-                    if clear_resp.hovered() && clear_enabled {
-                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                    }
+                    let clear_resp = alt_repeat_modern_button(
+                        ui,
+                        "Clear",
+                        crate::ui_style::modal_action_button_size(),
+                        clear_enabled,
+                    );
                     if clear_resp.clicked() {
                         self.push_alt_repeat_undo();
                         self.alt_repeat_entries[idx] = AltRepeatKeyEntry::default();
@@ -5827,12 +5940,12 @@ impl EntropyApp {
                     }
 
                     let undo_enabled = !self.alt_repeat_undo_stack.is_empty();
-                    let undo_btn = egui::Button::new(RichText::new("Undo").size(13.0))
-                        .min_size(crate::ui_style::modal_action_button_size());
-                    let undo_resp = ui.add_enabled(undo_enabled, undo_btn);
-                    if undo_resp.hovered() && undo_enabled {
-                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                    }
+                    let undo_resp = alt_repeat_modern_button(
+                        ui,
+                        "Undo",
+                        crate::ui_style::modal_action_button_size(),
+                        undo_enabled,
+                    );
                     if undo_resp.clicked() {
                         if let Some((entries, names, selected)) = self.alt_repeat_undo_stack.pop() {
                             self.alt_repeat_entries = entries;
