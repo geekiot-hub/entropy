@@ -624,14 +624,6 @@ struct MouseKeysSettingsState {
 struct TapHoldSettingsState {
     /// qsid 7: Global tap-vs-hold decision window in milliseconds
     tapping_term: u16,
-    /// qsid 8 bit 0: Legacy permissive hold flag
-    permissive_hold_legacy: bool,
-    /// qsid 8 bit 1: Legacy ignore mod-tap interrupt flag
-    ignore_mod_tap_interrupt: bool,
-    /// qsid 8 bit 2: Legacy tapping force hold flag
-    tapping_force_hold: bool,
-    /// qsid 8 bit 3: Legacy retro tapping flag
-    retro_tapping_legacy: bool,
     /// qsid 22: Prefer hold for nested taps
     permissive_hold: bool,
     /// qsid 23: Prefer hold as soon as another key is pressed
@@ -1638,17 +1630,6 @@ impl EntropyApp {
                                             }
                                         }
                                     };
-                                    match dev_conn.get_qmk_setting_u8(8) {
-                                        Ok(flags) => {
-                                            th.permissive_hold_legacy = flags & (1 << 0) != 0;
-                                            th.ignore_mod_tap_interrupt = flags & (1 << 1) != 0;
-                                            th.tapping_force_hold = flags & (1 << 2) != 0;
-                                            th.retro_tapping_legacy = flags & (1 << 3) != 0;
-                                        }
-                                        Err(e) => {
-                                            log::warn!("get_qmk_setting_u8(tap_hold qsid 8): {e}");
-                                        }
-                                    }
                                     let read_u16 = |qsid: u16| -> u16 {
                                         match dev_conn.get_qmk_setting_u16(qsid) {
                                             Ok(val) => val,
@@ -5918,7 +5899,7 @@ impl EntropyApp {
                 }
 
                 const VISIBLE_ROWS: usize = 6;
-                const TOTAL_ROWS: usize = 14;
+                const TOTAL_ROWS: usize = 10;
                 const CONTENT_WIDTH: f32 = 470.0;
                 const ROW_CONTENT_WIDTH: f32 = 452.0;
                 const ROW_HEIGHT: f32 = 54.0;
@@ -6048,30 +6029,26 @@ impl EntropyApp {
         row_height: f32,
         suppress_tooltips: bool,
     ) {
-        let rows: [(u16, Option<u8>, &str, &str, bool, u32); 14] = [
-            (7, None, "Tapping term", "Global tap-vs-hold decision window for dual-role keys", false, 10000),
-            (22, None, "Permissive hold", "Nested taps choose hold for Mod-Tap and Layer-Tap keys", true, 1),
-            (23, None, "Hold on other key", "Pressing another key immediately chooses hold for dual-role keys", true, 1),
-            (24, None, "Retro tapping", "A held-and-released-alone dual-role key still sends its tap action", true, 1),
-            (26, None, "Chordal hold", "Same-hand chords prefer tap to reduce home-row mod accidents", true, 1),
-            (25, None, "Quick tap term", "Tap-then-hold repeat window for dual-role key tap actions", false, 10000),
-            (18, None, "Tap code delay", "Delay between register and unregister in tap_code", false, 1000),
-            (19, None, "Tap hold caps delay", "Extra delay for LT/MT keys whose tap action is Caps Lock", false, 1000),
-            (20, None, "Tapping toggle", "Number of taps needed for TT layer toggle", false, 100),
-            (27, None, "Flow tap", "Fast typing timeout that forces MT/LT keys to tap", false, 10000),
-            (8, Some(0), "Permissive hold (legacy)", "Legacy QMK flag used by older firmware builds", true, 1),
-            (8, Some(1), "Ignore mod-tap interrupt", "Legacy QMK flag for mod-tap interrupt handling", true, 1),
-            (8, Some(2), "Tapping force hold", "Legacy QMK flag that makes tap-then-hold choose hold", true, 1),
-            (8, Some(3), "Retro tapping (legacy)", "Legacy QMK flag for held-and-released-alone tap behavior", true, 1),
+        let rows: [(u16, &str, &str, bool, u32); 10] = [
+            (7, "Tapping term", "Global tap-vs-hold decision window for dual-role keys", false, 10000),
+            (22, "Permissive hold", "Nested taps choose hold for Mod-Tap and Layer-Tap keys", true, 1),
+            (23, "Hold on other key", "Pressing another key immediately chooses hold for dual-role keys", true, 1),
+            (24, "Retro tapping", "A held-and-released-alone dual-role key still sends its tap action", true, 1),
+            (26, "Chordal hold", "Same-hand chords prefer tap to reduce home-row mod accidents", true, 1),
+            (25, "Quick tap term", "Tap-then-hold repeat window for dual-role key tap actions", false, 10000),
+            (18, "Tap code delay", "Delay between register and unregister in tap_code", false, 1000),
+            (19, "Tap hold caps delay", "Extra delay for LT/MT keys whose tap action is Caps Lock", false, 1000),
+            (20, "Tapping toggle", "Number of taps needed for TT layer toggle", false, 100),
+            (27, "Flow tap", "Fast typing timeout that forces MT/LT keys to tap", false, 10000),
         ];
         const FIELD_WIDTH: f32 = 86.0;
 
         for row_idx in row_range {
-            let Some((qsid, bit, label, tooltip, is_bool, max)) = rows.get(row_idx).copied() else {
+            let Some((qsid, label, tooltip, is_bool, max)) = rows.get(row_idx).copied() else {
                 continue;
             };
             if is_bool {
-                let mut value = self.tap_hold_bool_value(qsid, bit);
+                let mut value = self.tap_hold_bool_value(qsid);
                 crate::ui_style::settings_list_row_with_tooltip(
                     ui,
                     content_width,
@@ -6083,8 +6060,8 @@ impl EntropyApp {
                     |ui| {
                         let resp = crate::ui_style::settings_switch(ui, &mut value);
                         if resp.changed() {
-                            self.set_tap_hold_bool_value(qsid, bit, value);
-                            self.write_tap_hold_bool_setting(qsid, bit, value);
+                            self.set_tap_hold_bool_value(qsid, value);
+                            self.write_tap_hold_bool_setting(qsid, value);
                         }
                     },
                 );
@@ -6162,39 +6139,24 @@ impl EntropyApp {
         }
     }
 
-    fn tap_hold_bool_value(&self, qsid: u16, bit: Option<u8>) -> bool {
-        match (qsid, bit) {
-            (8, Some(0)) => self.tap_hold_settings.permissive_hold_legacy,
-            (8, Some(1)) => self.tap_hold_settings.ignore_mod_tap_interrupt,
-            (8, Some(2)) => self.tap_hold_settings.tapping_force_hold,
-            (8, Some(3)) => self.tap_hold_settings.retro_tapping_legacy,
-            (22, None) => self.tap_hold_settings.permissive_hold,
-            (23, None) => self.tap_hold_settings.hold_on_other_key_press,
-            (24, None) => self.tap_hold_settings.retro_tapping,
-            (26, None) => self.tap_hold_settings.chordal_hold,
+    fn tap_hold_bool_value(&self, qsid: u16) -> bool {
+        match qsid {
+            22 => self.tap_hold_settings.permissive_hold,
+            23 => self.tap_hold_settings.hold_on_other_key_press,
+            24 => self.tap_hold_settings.retro_tapping,
+            26 => self.tap_hold_settings.chordal_hold,
             _ => false,
         }
     }
 
-    fn set_tap_hold_bool_value(&mut self, qsid: u16, bit: Option<u8>, value: bool) {
-        match (qsid, bit) {
-            (8, Some(0)) => self.tap_hold_settings.permissive_hold_legacy = value,
-            (8, Some(1)) => self.tap_hold_settings.ignore_mod_tap_interrupt = value,
-            (8, Some(2)) => self.tap_hold_settings.tapping_force_hold = value,
-            (8, Some(3)) => self.tap_hold_settings.retro_tapping_legacy = value,
-            (22, None) => self.tap_hold_settings.permissive_hold = value,
-            (23, None) => self.tap_hold_settings.hold_on_other_key_press = value,
-            (24, None) => self.tap_hold_settings.retro_tapping = value,
-            (26, None) => self.tap_hold_settings.chordal_hold = value,
+    fn set_tap_hold_bool_value(&mut self, qsid: u16, value: bool) {
+        match qsid {
+            22 => self.tap_hold_settings.permissive_hold = value,
+            23 => self.tap_hold_settings.hold_on_other_key_press = value,
+            24 => self.tap_hold_settings.retro_tapping = value,
+            26 => self.tap_hold_settings.chordal_hold = value,
             _ => {}
         }
-    }
-
-    fn tap_hold_legacy_bits(&self) -> u8 {
-        (self.tap_hold_settings.permissive_hold_legacy as u8)
-            | ((self.tap_hold_settings.ignore_mod_tap_interrupt as u8) << 1)
-            | ((self.tap_hold_settings.tapping_force_hold as u8) << 2)
-            | ((self.tap_hold_settings.retro_tapping_legacy as u8) << 3)
     }
 
     fn write_tap_hold_numeric_setting(&mut self, qsid: u16, value: u16) {
@@ -6212,16 +6174,11 @@ impl EntropyApp {
         }
     }
 
-    fn write_tap_hold_bool_setting(&mut self, qsid: u16, bit: Option<u8>, value: bool) {
+    fn write_tap_hold_bool_setting(&mut self, qsid: u16, value: bool) {
         let Some(hid) = &self.hid_device else {
             return;
         };
-        let result = if qsid == 8 && bit.is_some() {
-            hid.set_qmk_setting_u8(8, self.tap_hold_legacy_bits())
-        } else {
-            hid.set_qmk_setting_u8(qsid, u8::from(value))
-        };
-        if let Err(e) = result {
+        if let Err(e) = hid.set_qmk_setting_u8(qsid, u8::from(value)) {
             self.status_msg = format!("Failed to save Tap-Hold setting (qsid {qsid}): {}", e);
             log::warn!("set_qmk_setting_u8(tap_hold qsid {qsid}) failed: {e}");
         }
