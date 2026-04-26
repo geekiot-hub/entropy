@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component>
+  <name>org.freedesktop.IBus.Entropy</name>
+  <description>Entropy Universal Symbols</description>
+  <exec>@ENGINE_PATH@</exec>
+  <version>1.0.0</version>
+  <author>Ergohaven</author>
+  <license>GPL-3.0-or-later</license>
+  <homepage>https://eh.industries</homepage>
+  <textdomain>entropy</textdomain>
+  <engines>
+    <engine>
+      <name>entropy-universal-symbols</name>
+      <language>x-other</language>
+      <license>GPL-3.0-or-later</license>
+      <author>Ergohaven</author>
+      <icon>input-keyboard</icon>
+      <layout>default</layout>
+      <longname>Entropy Universal Symbols</longname>
+      <description>Universal Unicode symbols for Ergohaven keyboards</description>
+    </engine>
+  </engines>
+</component>
