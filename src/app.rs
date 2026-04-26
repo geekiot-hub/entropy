@@ -8179,6 +8179,7 @@ impl EntropyApp {
         self.combo_visible_count = self.combo_entries.len().max(1);
 
         let combo_idx = self.selected_combo;
+        let page_center_x = ui.max_rect().center().x;
         let combo_undo_snapshot = (
             self.combo_entries.clone(),
             self.combo_names.clone(),
@@ -8478,7 +8479,7 @@ impl EntropyApp {
                         Some("Maximum time between combo key presses"),
                         TIMEOUT_CONTROL_WIDTH,
                         |ui| {
-                            ui.horizontal(|ui| {
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                 let resp = crate::ui_style::modern_text_field(
                                     ui,
                                     egui::Id::new("combo_term"),
@@ -8509,14 +8510,16 @@ impl EntropyApp {
         );
 
         ui.add_space(14.0);
-        ui.horizontal_centered(|ui| {
-            let action_size = crate::ui_style::modal_action_button_size();
-            let action_width = action_size.x * 2.0 + 8.0;
-            ui.allocate_ui_with_layout(
-                Vec2::new(action_width, action_size.y),
-                egui::Layout::left_to_right(egui::Align::Center),
-                |ui| {
-                    ui.spacing_mut().item_spacing.x = 8.0;
+        let action_size = crate::ui_style::modal_action_button_size();
+        let action_width = action_size.x * 2.0 + 8.0;
+        let action_rect = egui::Rect::from_min_size(
+            egui::pos2(page_center_x - action_width / 2.0, ui.cursor().min.y),
+            Vec2::new(action_width, action_size.y),
+        );
+        ui.allocate_ui_at_rect(action_rect, |ui| {
+            ui.set_min_size(action_rect.size());
+            ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                ui.spacing_mut().item_spacing.x = 8.0;
                     let clear_enabled = combo_idx < self.combo_entries.len()
                         && (self.combo_entries[combo_idx].keys.iter().any(|&k| k != 0)
                             || self.combo_entries[combo_idx].output != 0
@@ -8555,9 +8558,9 @@ impl EntropyApp {
                             self.combo_term_dirty = true;
                         }
                     }
-                },
-            );
+            });
         });
+        ui.allocate_space(Vec2::new(1.0, action_size.y));
     }
 
     fn draw_layout(&mut self, ui: &mut egui::Ui, layout: &KeyboardLayout, ctx: &egui::Context) {
