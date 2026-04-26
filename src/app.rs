@@ -624,12 +624,32 @@ struct MouseKeysSettingsState {
 struct TapHoldSettingsState {
     /// qsid 7: Global tap-vs-hold decision window in milliseconds
     tapping_term: u16,
+    /// qsid 8 bit 0: Legacy permissive hold flag
+    permissive_hold_legacy: bool,
+    /// qsid 8 bit 1: Legacy ignore mod-tap interrupt flag
+    ignore_mod_tap_interrupt: bool,
+    /// qsid 8 bit 2: Legacy tapping force hold flag
+    tapping_force_hold: bool,
+    /// qsid 8 bit 3: Legacy retro tapping flag
+    retro_tapping_legacy: bool,
     /// qsid 22: Prefer hold for nested taps
     permissive_hold: bool,
     /// qsid 23: Prefer hold as soon as another key is pressed
     hold_on_other_key_press: bool,
     /// qsid 24: Send tap when a dual-role key is held and released alone
     retro_tapping: bool,
+    /// qsid 25: Tap-then-hold repeat window in milliseconds
+    quick_tap_term: u16,
+    /// qsid 18: Delay between register_code and unregister_code in tap_code
+    tap_code_delay: u16,
+    /// qsid 19: Delay for LT/MT keys when tap key is KC_CAPS_LOCK
+    tap_hold_caps_delay: u16,
+    /// qsid 20: Number of taps needed for TT(layer) toggle
+    tapping_toggle: u16,
+    /// qsid 26: Same-hand chords prefer tap for tap-hold keys
+    chordal_hold: bool,
+    /// qsid 27: Fast-typing timeout that forces MT/LT tap behavior
+    flow_tap: u16,
     /// Whether qsid 7 was readable (firmware support flag)
     supported: bool,
 }
@@ -1618,9 +1638,41 @@ impl EntropyApp {
                                             }
                                         }
                                     };
+                                    match dev_conn.get_qmk_setting_u8(8) {
+                                        Ok(flags) => {
+                                            th.permissive_hold_legacy = flags & (1 << 0) != 0;
+                                            th.ignore_mod_tap_interrupt = flags & (1 << 1) != 0;
+                                            th.tapping_force_hold = flags & (1 << 2) != 0;
+                                            th.retro_tapping_legacy = flags & (1 << 3) != 0;
+                                        }
+                                        Err(e) => {
+                                            log::warn!("get_qmk_setting_u8(tap_hold qsid 8): {e}");
+                                        }
+                                    }
+                                    let read_u16 = |qsid: u16| -> u16 {
+                                        match dev_conn.get_qmk_setting_u16(qsid) {
+                                            Ok(val) => val,
+                                            Err(e) => {
+                                                log::warn!("get_qmk_setting_u16(tap_hold qsid {qsid}): {e}");
+                                                0
+                                            }
+                                        }
+                                    };
                                     th.permissive_hold = read_bool(22);
                                     th.hold_on_other_key_press = read_bool(23);
                                     th.retro_tapping = read_bool(24);
+                                    th.quick_tap_term = read_u16(25);
+                                    th.tap_code_delay = read_u16(18);
+                                    th.tap_hold_caps_delay = read_u16(19);
+                                    th.tapping_toggle = dev_conn
+                                        .get_qmk_setting_u8(20)
+                                        .map(|value| value as u16)
+                                        .unwrap_or_else(|e| {
+                                            log::warn!("get_qmk_setting_u8(tap_hold qsid 20): {e}");
+                                            0
+                                        });
+                                    th.chordal_hold = read_bool(26);
+                                    th.flow_tap = read_u16(27);
                                 }
                                 Err(e) => {
                                     log::warn!("get_qmk_setting_u16(tap_hold tapping_term): {e}");
@@ -5865,26 +5917,125 @@ impl EntropyApp {
                     return;
                 }
 
-                const TOTAL_ROWS: usize = 4;
-                let visible_rows = TOTAL_ROWS.min(6);
+                const VISIBLE_ROWS: usize = 6;
+                const TOTAL_ROWS: usize = 14;
                 const CONTENT_WIDTH: f32 = 470.0;
                 const ROW_CONTENT_WIDTH: f32 = 452.0;
                 const ROW_HEIGHT: f32 = 54.0;
-                let list_height = ROW_HEIGHT * visible_rows as f32;
-                let (viewport, _) = ui.allocate_exact_size(
+                let list_height = ROW_HEIGHT * VISIBLE_ROWS as f32;
+                let content_height = ROW_HEIGHT * TOTAL_ROWS as f32;
+                let max_offset = (content_height - list_height).max(0.0);
+                let offset_id = ui.id().with("tap_hold_settings_smooth_offset");
+                let target_id = ui.id().with("tap_hold_settings_smooth_target");
+                let mut scroll_offset = ui
+                    .ctx()
+                    .data_mut(|d| d.get_persisted::<f32>(offset_id).unwrap_or(0.0))
+                    .clamp(0.0, max_offset);
+                let mut target_offset = ui
+                    .ctx()
+                    .data_mut(|d| d.get_persisted::<f32>(target_id).unwrap_or(scroll_offset))
+                    .clamp(0.0, max_offset);
+                let (viewport, viewport_resp) = ui.allocate_exact_size(
                     egui::vec2(CONTENT_WIDTH, list_height),
                     Sense::hover(),
                 );
-                let content_rect = egui::Rect::from_min_size(
-                    viewport.min,
-                    egui::vec2(CONTENT_WIDTH, ROW_HEIGHT * TOTAL_ROWS as f32),
+                let track_width = 6.0;
+                let track_rect = egui::Rect::from_min_max(
+                    egui::pos2(viewport.right() - track_width, viewport.top()),
+                    egui::pos2(viewport.right(), viewport.bottom()),
                 );
+                let scrollbar_resp = if max_offset > 0.0 {
+                    Some(ui.interact(
+                        track_rect.expand2(egui::vec2(5.0, 0.0)),
+                        ui.id().with("tap_hold_settings_scrollbar"),
+                        Sense::click_and_drag(),
+                    ))
+                } else {
+                    None
+                };
+
+                let scroll_delta = if viewport_resp.hovered() {
+                    ui.input(|i| {
+                        if i.smooth_scroll_delta.y.abs() > 0.0 {
+                            i.smooth_scroll_delta.y
+                        } else {
+                            i.raw_scroll_delta.y
+                        }
+                    })
+                } else {
+                    0.0
+                };
+                if scroll_delta.abs() > 0.0 && max_offset > 0.0 {
+                    target_offset = (target_offset - scroll_delta * 0.72).clamp(0.0, max_offset);
+                }
+
+                let handle_height = if max_offset > 0.0 {
+                    (list_height / content_height * viewport.height()).clamp(42.0, viewport.height())
+                } else {
+                    viewport.height()
+                };
+                if let Some(resp) = &scrollbar_resp {
+                    if (resp.dragged() || resp.clicked()) && max_offset > 0.0 {
+                        if let Some(pointer_pos) = ui.input(|i| i.pointer.interact_pos()) {
+                            let travel = (track_rect.height() - handle_height).max(1.0);
+                            let t = ((pointer_pos.y - track_rect.top() - handle_height / 2.0)
+                                / travel)
+                                .clamp(0.0, 1.0);
+                            target_offset = t * max_offset;
+                            scroll_offset = target_offset;
+                        }
+                    }
+                }
+
+                if (scroll_offset - target_offset).abs() > 0.35 {
+                    scroll_offset += (target_offset - scroll_offset) * 0.42;
+                    ui.ctx().request_repaint();
+                } else {
+                    scroll_offset = target_offset;
+                }
+                scroll_offset = scroll_offset.clamp(0.0, max_offset);
+                target_offset = target_offset.clamp(0.0, max_offset);
+                ui.ctx().data_mut(|d| {
+                    d.insert_persisted(offset_id, scroll_offset);
+                    d.insert_persisted(target_id, target_offset);
+                });
+
+                let first_visible_row = (scroll_offset / ROW_HEIGHT).floor() as usize;
+                let row_y_offset = scroll_offset - first_visible_row as f32 * ROW_HEIGHT;
+                let last_visible_row = (first_visible_row + VISIBLE_ROWS + 1).min(TOTAL_ROWS);
+                let visible_row_count = last_visible_row.saturating_sub(first_visible_row);
+                let content_rect = egui::Rect::from_min_size(
+                    egui::pos2(viewport.left(), viewport.top() - row_y_offset),
+                    egui::vec2(CONTENT_WIDTH, ROW_HEIGHT * visible_row_count as f32),
+                );
+                let suppress_tooltips = (scroll_offset - target_offset).abs() > 0.35
+                    || ui.input(|i| i.pointer.primary_down());
                 ui.allocate_ui_at_rect(content_rect, |ui| {
                     ui.set_clip_rect(viewport);
                     ui.set_min_size(content_rect.size());
                     ui.spacing_mut().item_spacing.y = 0.0;
-                    self.draw_tap_hold_editor_content(ui, 0..TOTAL_ROWS, ROW_CONTENT_WIDTH, ROW_HEIGHT);
+                    self.draw_tap_hold_editor_content(
+                        ui,
+                        first_visible_row..last_visible_row,
+                        ROW_CONTENT_WIDTH,
+                        ROW_HEIGHT,
+                        suppress_tooltips,
+                    );
                 });
+
+                if max_offset > 0.0 {
+                    let track_hovered = scrollbar_resp
+                        .as_ref()
+                        .map(|resp| resp.hovered() || resp.dragged())
+                        .unwrap_or(false);
+                    crate::ui_style::paint_floating_scrollbar_handle(
+                        ui,
+                        track_rect,
+                        handle_height,
+                        scroll_offset / max_offset,
+                        track_hovered,
+                    );
+                }
             });
         });
     }
@@ -5895,34 +6046,45 @@ impl EntropyApp {
         row_range: std::ops::Range<usize>,
         content_width: f32,
         row_height: f32,
+        suppress_tooltips: bool,
     ) {
-        let rows: [(u16, &str, &str, bool, u32); 4] = [
-            (7, "Tapping term", "Global tap-vs-hold decision window for dual-role keys", false, 10000),
-            (22, "Permissive hold", "Nested taps choose hold for Mod-Tap and Layer-Tap keys", true, 1),
-            (23, "Hold on other key", "Pressing another key immediately chooses hold for dual-role keys", true, 1),
-            (24, "Retro tapping", "A held-and-released-alone dual-role key still sends its tap action", true, 1),
+        let rows: [(u16, Option<u8>, &str, &str, bool, u32); 14] = [
+            (7, None, "Tapping term", "Global tap-vs-hold decision window for dual-role keys", false, 10000),
+            (8, Some(0), "Permissive hold (legacy)", "Legacy QMK flag used by older firmware builds", true, 1),
+            (8, Some(1), "Ignore mod-tap interrupt", "Legacy QMK flag for mod-tap interrupt handling", true, 1),
+            (8, Some(2), "Tapping force hold", "Legacy QMK flag that makes tap-then-hold choose hold", true, 1),
+            (8, Some(3), "Retro tapping (legacy)", "Legacy QMK flag for held-and-released-alone tap behavior", true, 1),
+            (22, None, "Permissive hold", "Nested taps choose hold for Mod-Tap and Layer-Tap keys", true, 1),
+            (23, None, "Hold on other key", "Pressing another key immediately chooses hold for dual-role keys", true, 1),
+            (24, None, "Retro tapping", "A held-and-released-alone dual-role key still sends its tap action", true, 1),
+            (25, None, "Quick tap term", "Tap-then-hold repeat window for dual-role key tap actions", false, 10000),
+            (18, None, "Tap code delay", "Delay between register and unregister in tap_code", false, 1000),
+            (19, None, "Tap hold caps delay", "Extra delay for LT/MT keys whose tap action is Caps Lock", false, 1000),
+            (20, None, "Tapping toggle", "Number of taps needed for TT layer toggle", false, 100),
+            (26, None, "Chordal hold", "Same-hand chords prefer tap to reduce home-row mod accidents", true, 1),
+            (27, None, "Flow tap", "Fast typing timeout that forces MT/LT keys to tap", false, 10000),
         ];
         const FIELD_WIDTH: f32 = 86.0;
 
         for row_idx in row_range {
-            let Some((qsid, label, tooltip, is_bool, max)) = rows.get(row_idx).copied() else {
+            let Some((qsid, bit, label, tooltip, is_bool, max)) = rows.get(row_idx).copied() else {
                 continue;
             };
             if is_bool {
-                let mut value = self.tap_hold_bool_value(qsid);
+                let mut value = self.tap_hold_bool_value(qsid, bit);
                 crate::ui_style::settings_list_row_with_tooltip(
                     ui,
                     content_width,
                     row_height,
                     label,
                     true,
-                    Some(tooltip),
+                    if suppress_tooltips { None } else { Some(tooltip) },
                     46.0,
                     |ui| {
                         let resp = crate::ui_style::settings_switch(ui, &mut value);
                         if resp.changed() {
-                            self.set_tap_hold_bool_value(qsid, value);
-                            self.write_tap_hold_bool_setting(qsid, value);
+                            self.set_tap_hold_bool_value(qsid, bit, value);
+                            self.write_tap_hold_bool_setting(qsid, bit, value);
                         }
                     },
                 );
@@ -5934,7 +6096,7 @@ impl EntropyApp {
                     row_height,
                     label,
                     true,
-                    Some(tooltip),
+                    if suppress_tooltips { None } else { Some(tooltip) },
                     FIELD_WIDTH,
                     |ui| {
                         let edit_id = egui::Id::new(("tap_hold_edit", qsid));
@@ -5979,6 +6141,11 @@ impl EntropyApp {
     fn tap_hold_numeric_value(&self, qsid: u16) -> u16 {
         match qsid {
             7 => self.tap_hold_settings.tapping_term,
+            25 => self.tap_hold_settings.quick_tap_term,
+            18 => self.tap_hold_settings.tap_code_delay,
+            19 => self.tap_hold_settings.tap_hold_caps_delay,
+            20 => self.tap_hold_settings.tapping_toggle,
+            27 => self.tap_hold_settings.flow_tap,
             _ => 0,
         }
     }
@@ -5986,43 +6153,75 @@ impl EntropyApp {
     fn set_tap_hold_numeric_value(&mut self, qsid: u16, value: u16) {
         match qsid {
             7 => self.tap_hold_settings.tapping_term = value,
+            25 => self.tap_hold_settings.quick_tap_term = value,
+            18 => self.tap_hold_settings.tap_code_delay = value,
+            19 => self.tap_hold_settings.tap_hold_caps_delay = value,
+            20 => self.tap_hold_settings.tapping_toggle = value,
+            27 => self.tap_hold_settings.flow_tap = value,
             _ => {}
         }
     }
 
-    fn tap_hold_bool_value(&self, qsid: u16) -> bool {
-        match qsid {
-            22 => self.tap_hold_settings.permissive_hold,
-            23 => self.tap_hold_settings.hold_on_other_key_press,
-            24 => self.tap_hold_settings.retro_tapping,
+    fn tap_hold_bool_value(&self, qsid: u16, bit: Option<u8>) -> bool {
+        match (qsid, bit) {
+            (8, Some(0)) => self.tap_hold_settings.permissive_hold_legacy,
+            (8, Some(1)) => self.tap_hold_settings.ignore_mod_tap_interrupt,
+            (8, Some(2)) => self.tap_hold_settings.tapping_force_hold,
+            (8, Some(3)) => self.tap_hold_settings.retro_tapping_legacy,
+            (22, None) => self.tap_hold_settings.permissive_hold,
+            (23, None) => self.tap_hold_settings.hold_on_other_key_press,
+            (24, None) => self.tap_hold_settings.retro_tapping,
+            (26, None) => self.tap_hold_settings.chordal_hold,
             _ => false,
         }
     }
 
-    fn set_tap_hold_bool_value(&mut self, qsid: u16, value: bool) {
-        match qsid {
-            22 => self.tap_hold_settings.permissive_hold = value,
-            23 => self.tap_hold_settings.hold_on_other_key_press = value,
-            24 => self.tap_hold_settings.retro_tapping = value,
+    fn set_tap_hold_bool_value(&mut self, qsid: u16, bit: Option<u8>, value: bool) {
+        match (qsid, bit) {
+            (8, Some(0)) => self.tap_hold_settings.permissive_hold_legacy = value,
+            (8, Some(1)) => self.tap_hold_settings.ignore_mod_tap_interrupt = value,
+            (8, Some(2)) => self.tap_hold_settings.tapping_force_hold = value,
+            (8, Some(3)) => self.tap_hold_settings.retro_tapping_legacy = value,
+            (22, None) => self.tap_hold_settings.permissive_hold = value,
+            (23, None) => self.tap_hold_settings.hold_on_other_key_press = value,
+            (24, None) => self.tap_hold_settings.retro_tapping = value,
+            (26, None) => self.tap_hold_settings.chordal_hold = value,
             _ => {}
         }
+    }
+
+    fn tap_hold_legacy_bits(&self) -> u8 {
+        (self.tap_hold_settings.permissive_hold_legacy as u8)
+            | ((self.tap_hold_settings.ignore_mod_tap_interrupt as u8) << 1)
+            | ((self.tap_hold_settings.tapping_force_hold as u8) << 2)
+            | ((self.tap_hold_settings.retro_tapping_legacy as u8) << 3)
     }
 
     fn write_tap_hold_numeric_setting(&mut self, qsid: u16, value: u16) {
         let Some(hid) = &self.hid_device else {
             return;
         };
-        if let Err(e) = hid.set_qmk_setting_u16(qsid, value) {
+        let result = if qsid == 20 {
+            hid.set_qmk_setting_u8(qsid, value.min(u8::MAX as u16) as u8)
+        } else {
+            hid.set_qmk_setting_u16(qsid, value)
+        };
+        if let Err(e) = result {
             self.status_msg = format!("Failed to save Tap-Hold setting (qsid {qsid}): {}", e);
-            log::warn!("set_qmk_setting_u16(tap_hold qsid {qsid}) failed: {e}");
+            log::warn!("set_qmk_setting(tap_hold qsid {qsid}) failed: {e}");
         }
     }
 
-    fn write_tap_hold_bool_setting(&mut self, qsid: u16, value: bool) {
+    fn write_tap_hold_bool_setting(&mut self, qsid: u16, bit: Option<u8>, value: bool) {
         let Some(hid) = &self.hid_device else {
             return;
         };
-        if let Err(e) = hid.set_qmk_setting_u8(qsid, u8::from(value)) {
+        let result = if qsid == 8 && bit.is_some() {
+            hid.set_qmk_setting_u8(8, self.tap_hold_legacy_bits())
+        } else {
+            hid.set_qmk_setting_u8(qsid, u8::from(value))
+        };
+        if let Err(e) = result {
             self.status_msg = format!("Failed to save Tap-Hold setting (qsid {qsid}): {}", e);
             log::warn!("set_qmk_setting_u8(tap_hold qsid {qsid}) failed: {e}");
         }
