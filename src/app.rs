@@ -3678,11 +3678,8 @@ impl EntropyApp {
                 tooltip,
                 46.0,
                 |ui| {
-                    let resp = ui
-                        .add_enabled_ui(enabled, |ui| {
-                            crate::ui_style::settings_switch(ui, &mut value)
-                        })
-                        .inner;
+                    let resp =
+                        crate::ui_style::settings_switch_interactive(ui, &mut value, enabled);
                     if resp.changed() {
                         match row_idx {
                             0 => self.auto_shift_options.enabled = value,
@@ -3713,19 +3710,16 @@ impl EntropyApp {
                 field_width,
                 |ui| {
                     let edit_id = egui::Id::new("auto_shift_timeout");
-                    let resp = ui
-                        .add_enabled_ui(enabled, |ui| {
-                            crate::ui_style::modern_text_field(
+                    let resp = crate::ui_style::modern_text_field_interactive(
                         ui,
                         edit_id,
                         &mut self.auto_shift_timeout_text,
                         field_width,
                         "ms",
                         5,
-                                egui::Align::RIGHT,
-                            )
-                        })
-                        .inner;
+                        egui::Align::RIGHT,
+                        enabled,
+                    );
                     if resp.changed() {
                         let filtered: String = self
                             .auto_shift_timeout_text

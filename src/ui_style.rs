@@ -115,6 +115,19 @@ pub fn modern_text_field(
     char_limit: usize,
     horizontal_align: egui::Align,
 ) -> egui::Response {
+    modern_text_field_interactive(ui, id, text, width, hint, char_limit, horizontal_align, true)
+}
+
+pub fn modern_text_field_interactive(
+    ui: &mut Ui,
+    id: egui::Id,
+    text: &mut String,
+    width: f32,
+    hint: &str,
+    char_limit: usize,
+    horizontal_align: egui::Align,
+    interactive: bool,
+) -> egui::Response {
     let dark = ui.visuals().dark_mode;
     let field_size = Vec2::new(width, 32.0);
     let (field_rect, _) = ui.allocate_exact_size(field_size, Sense::hover());
@@ -125,13 +138,13 @@ pub fn modern_text_field(
             .unwrap_or(false)
     });
     let field_focused = ui.memory(|m| m.has_focus(id));
-    let field_fill = if field_focused {
+    let field_fill = if interactive && field_focused {
         if dark {
             Color32::from_rgb(52, 52, 55)
         } else {
             Color32::from_rgb(244, 244, 246)
         }
-    } else if field_hovered {
+    } else if interactive && field_hovered {
         hover_fill(dark)
     } else {
         surface_fill(dark)
@@ -154,13 +167,14 @@ pub fn modern_text_field(
                 .hint_text(hint)
                 .char_limit(char_limit)
                 .frame(false)
+                .interactive(interactive)
                 .horizontal_align(horizontal_align)
                 .vertical_align(egui::Align::Center),
         );
         edit_resp = Some(resp);
     });
     let resp = edit_resp.expect("modern TextEdit response");
-    if resp.hovered() {
+    if resp.hovered() && interactive {
         ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
     }
     resp
@@ -557,13 +571,22 @@ pub fn settings_list_row_with_tooltip(
 }
 
 pub fn settings_switch(ui: &mut Ui, checked: &mut bool) -> egui::Response {
+    settings_switch_interactive(ui, checked, true)
+}
+
+pub fn settings_switch_interactive(
+    ui: &mut Ui,
+    checked: &mut bool,
+    interactive: bool,
+) -> egui::Response {
     let desired_size = egui::vec2(46.0, 24.0);
-    let (rect, mut response) = ui.allocate_exact_size(desired_size, egui::Sense::click());
-    if ui.is_enabled() && response.clicked() {
+    let sense = if interactive { egui::Sense::click() } else { egui::Sense::hover() };
+    let (rect, mut response) = ui.allocate_exact_size(desired_size, sense);
+    if interactive && response.clicked() {
         *checked = !*checked;
         response.mark_changed();
     }
-    if response.hovered() && ui.is_enabled() {
+    if response.hovered() && interactive {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
     }
 
@@ -581,11 +604,6 @@ pub fn settings_switch(ui: &mut Ui, checked: &mut bool) -> egui::Response {
             Color32::from_rgb(46, 46, 49)
         } else {
             Color32::from_rgb(232, 232, 235)
-        };
-        let track_fill = if ui.is_enabled() {
-            track_fill
-        } else {
-            track_fill.gamma_multiply(0.62)
         };
         let stroke = Stroke::new(0.0, Color32::TRANSPARENT);
         ui.painter().rect(
@@ -612,11 +630,7 @@ pub fn settings_switch(ui: &mut Ui, checked: &mut bool) -> egui::Response {
         ui.painter().circle_filled(
             egui::pos2(x, rect.center().y),
             knob_radius,
-            if ui.is_enabled() {
-                knob_fill
-            } else {
-                knob_fill.gamma_multiply(0.62)
-            },
+            knob_fill,
         );
     }
 
