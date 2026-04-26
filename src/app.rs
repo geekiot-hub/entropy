@@ -8382,6 +8382,25 @@ impl EntropyApp {
                 );
             }
 
+            let undo_enabled = !self.undo_stack.is_empty();
+            let undo_size = Vec2::new(92.0, 28.0);
+            let undo_x = (start_x + total_w + 18.0)
+                .min(ui.max_rect().right() - undo_size.x - 20.0)
+                .max(ui.min_rect().left() + 20.0);
+            let undo_rect = egui::Rect::from_min_size(egui::pos2(undo_x, tabs_y), undo_size);
+            ui.allocate_ui_at_rect(undo_rect, |ui| {
+                let undo_resp = crate::ui_style::modern_button(
+                    ui,
+                    "↶ Undo",
+                    undo_size,
+                    undo_enabled,
+                );
+                if undo_resp.clicked() && undo_enabled {
+                    self.undo();
+                    ctx.request_repaint();
+                }
+            });
+
             let divider_color = if ui.visuals().dark_mode {
                 Color32::from_gray(105)
             } else {
