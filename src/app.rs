@@ -8383,23 +8383,64 @@ impl EntropyApp {
             }
 
             let undo_enabled = !self.undo_stack.is_empty();
-            let undo_size = Vec2::new(92.0, 28.0);
-            let undo_x = (start_x + total_w + 18.0)
-                .min(ui.max_rect().right() - undo_size.x - 20.0)
-                .max(ui.min_rect().left() + 20.0);
-            let undo_rect = egui::Rect::from_min_size(egui::pos2(undo_x, tabs_y), undo_size);
-            ui.allocate_ui_at_rect(undo_rect, |ui| {
-                let undo_resp = crate::ui_style::modern_button(
-                    ui,
-                    "↶ Undo",
-                    undo_size,
-                    undo_enabled,
-                );
-                if undo_resp.clicked() && undo_enabled {
-                    self.undo();
-                    ctx.request_repaint();
-                }
+            let undo_label = "↶ Undo";
+            let undo_font = FontId::proportional(14.0);
+            let undo_text_w = ui.fonts(|f| {
+                f.layout_no_wrap(
+                    undo_label.to_owned(),
+                    undo_font.clone(),
+                    ui.visuals().widgets.inactive.fg_stroke.color,
+                )
+                .size()
+                .x
             });
+            let undo_rect = egui::Rect::from_min_size(
+                egui::pos2(ui.min_rect().left() + 24.0, tabs_y),
+                Vec2::new(undo_text_w + 12.0, tab_size.y),
+            );
+            let undo_resp = ui.allocate_rect(undo_rect, Sense::CLICK);
+            if undo_resp.hovered() && undo_enabled {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+            }
+            if undo_resp.clicked() && undo_enabled {
+                self.undo();
+                ctx.request_repaint();
+            }
+            let undo_color = if !undo_enabled {
+                if ui.visuals().dark_mode {
+                    Color32::from_gray(58)
+                } else {
+                    Color32::from_gray(178)
+                }
+            } else if undo_resp.hovered() {
+                if ui.visuals().dark_mode {
+                    Color32::from_gray(190)
+                } else {
+                    Color32::from_gray(64)
+                }
+            } else if ui.visuals().dark_mode {
+                Color32::from_gray(112)
+            } else {
+                Color32::from_gray(132)
+            };
+            let undo_text_pos = egui::pos2(undo_rect.left() + 6.0, undo_rect.center().y);
+            ui.painter().text(
+                undo_text_pos,
+                egui::Align2::LEFT_CENTER,
+                undo_label,
+                undo_font,
+                undo_color,
+            );
+            if undo_resp.hovered() && undo_enabled {
+                let underline_y = undo_rect.center().y + 10.0;
+                ui.painter().line_segment(
+                    [
+                        egui::pos2(undo_rect.left() + 6.0, underline_y),
+                        egui::pos2(undo_rect.left() + 6.0 + undo_text_w, underline_y),
+                    ],
+                    egui::Stroke::new(1.0, undo_color.linear_multiply(0.72)),
+                );
+            }
 
             let divider_color = if ui.visuals().dark_mode {
                 Color32::from_gray(105)
