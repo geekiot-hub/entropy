@@ -3925,6 +3925,7 @@ impl eframe::App for EntropyApp {
                                 .size(11.0)
                                 .color(if self.dark_mode { inactive } else { active }),
                         )
+                        .selectable(false)
                         .sense(egui::Sense::click()),
                     );
                     if light_resp.hovered() {
@@ -3934,7 +3935,10 @@ impl eframe::App for EntropyApp {
                         self.dark_mode = false;
                     }
 
-                    ui.label(RichText::new("|").size(11.0).color(inactive));
+                    ui.add(
+                        egui::Label::new(RichText::new("|").size(11.0).color(inactive))
+                            .selectable(false),
+                    );
 
                     let dark_resp = ui.add(
                         egui::Label::new(
@@ -3942,6 +3946,7 @@ impl eframe::App for EntropyApp {
                                 .size(11.0)
                                 .color(if self.dark_mode { active } else { inactive }),
                         )
+                        .selectable(false)
                         .sense(egui::Sense::click()),
                     );
                     if dark_resp.hovered() {
