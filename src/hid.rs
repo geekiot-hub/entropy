@@ -340,14 +340,21 @@ impl HidDevice {
         buf
     }
 
-    /// Get number of combo entries available
-    pub fn get_combo_count(&self) -> Result<u8> {
+    /// Get Vial dynamic entry counts and optional feature bits.
+    /// Returns (tap_dance, combo, key_override, alt_repeat, feature_bits).
+    pub fn get_dynamic_entry_counts(&self) -> Result<(u8, u8, u8, u8, u8)> {
         let resp = self.usb_send(&[
             CMD_VIA_VIAL_PREFIX,
             CMD_VIAL_DYNAMIC_ENTRY_OP,
             DYNAMIC_VIAL_GET_NUM_ENTRIES,
         ])?;
-        Ok(resp[1])
+        Ok((resp[0], resp[1], resp[2], resp[3], resp[31]))
+    }
+
+    /// Get number of combo entries available
+    pub fn get_combo_count(&self) -> Result<u8> {
+        let (_, combo, _, _, _) = self.get_dynamic_entry_counts()?;
+        Ok(combo)
     }
 
     /// Get combo entry: ([trigger_keys; 4], output_keycode)
@@ -395,22 +402,14 @@ impl HidDevice {
 
     /// Get number of key override entries available
     pub fn get_key_override_count(&self) -> Result<u8> {
-        let resp = self.usb_send(&[
-            CMD_VIA_VIAL_PREFIX,
-            CMD_VIAL_DYNAMIC_ENTRY_OP,
-            DYNAMIC_VIAL_GET_NUM_ENTRIES,
-        ])?;
-        Ok(resp[2])
+        let (_, _, key_override, _, _) = self.get_dynamic_entry_counts()?;
+        Ok(key_override)
     }
 
     /// Get number of alt repeat key entries available
     pub fn get_alt_repeat_key_count(&self) -> Result<u8> {
-        let resp = self.usb_send(&[
-            CMD_VIA_VIAL_PREFIX,
-            CMD_VIAL_DYNAMIC_ENTRY_OP,
-            DYNAMIC_VIAL_GET_NUM_ENTRIES,
-        ])?;
-        Ok(resp[3])
+        let (_, _, _, alt_repeat, _) = self.get_dynamic_entry_counts()?;
+        Ok(alt_repeat)
     }
 
     /// Get key override entry:
@@ -739,12 +738,8 @@ impl HidDevice {
 
     /// Get number of tap dance entries available
     pub fn get_tap_dance_count(&self) -> Result<u8> {
-        let resp = self.usb_send(&[
-            CMD_VIA_VIAL_PREFIX,
-            CMD_VIAL_DYNAMIC_ENTRY_OP,
-            DYNAMIC_VIAL_GET_NUM_ENTRIES,
-        ])?;
-        Ok(resp[1]) // second byte matches macro count response layout
+        let (tap_dance, _, _, _, _) = self.get_dynamic_entry_counts()?;
+        Ok(tap_dance)
     }
 
     /// Get a tap dance entry: (on_tap, on_hold, on_double_tap, on_tap_hold, tapping_term)

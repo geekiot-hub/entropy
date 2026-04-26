@@ -42,6 +42,15 @@ pub struct KeycodePicker {
     pub result: Option<u16>,
     pub custom_keycodes: Vec<(String, String, String, u16)>,
     pub supports_rgb: bool,
+    pub supports_macro: bool,
+    pub supports_tap_dance: bool,
+    pub supports_mouse_keys: bool,
+    pub supports_combo: bool,
+    pub supports_auto_shift: bool,
+    pub supports_caps_word: bool,
+    pub supports_repeat_key: bool,
+    pub supports_layer_lock: bool,
+    pub supports_persistent_default_layer: bool,
     pub layer_names: Vec<String>,
     pub layer_count: usize,
     pub layer_has_content: Vec<bool>,
@@ -191,6 +200,15 @@ impl Default for KeycodePicker {
             result: None,
             custom_keycodes: vec![],
             supports_rgb: true,
+            supports_macro: true,
+            supports_tap_dance: true,
+            supports_mouse_keys: true,
+            supports_combo: true,
+            supports_auto_shift: true,
+            supports_caps_word: true,
+            supports_repeat_key: true,
+            supports_layer_lock: true,
+            supports_persistent_default_layer: true,
             layer_names: (0..16).map(|i| i.to_string()).collect(),
             layer_count: 4,
             layer_has_content: vec![true; 16],
@@ -982,7 +1000,7 @@ impl KeycodePicker {
             crate::ui_style::modal_intro(ui, "Press a key on your keyboard, or pick below");
             ui.add_space(4.0);
 
-            if self.selected_tab == KeycodeTab::Rgb && !self.supports_rgb {
+            if !self.vial_tab_supported(self.selected_tab) {
                 self.selected_tab = KeycodeTab::Basic;
             }
 
@@ -990,10 +1008,7 @@ impl KeycodePicker {
             ui.horizontal_wrapped(|ui| {
                 ui.spacing_mut().item_spacing = egui::vec2(6.0, 6.0);
                 for tab in KeycodeTab::VIAL_TABS {
-                    if *tab == KeycodeTab::Rgb && !self.supports_rgb {
-                        continue;
-                    }
-                    if *tab == KeycodeTab::Custom && self.custom_keycodes.is_empty() {
+                    if !self.vial_tab_supported(*tab) {
                         continue;
                     }
                     let active = self.selected_tab == *tab;
@@ -1453,6 +1468,29 @@ impl KeycodePicker {
         }
     }
 
+    fn vial_tab_supported(&self, tab: KeycodeTab) -> bool {
+        match tab {
+            KeycodeTab::Rgb => self.supports_rgb,
+            KeycodeTab::Macro => self.supports_macro,
+            KeycodeTab::TapDance => self.supports_tap_dance,
+            KeycodeTab::Custom => !self.custom_keycodes.is_empty(),
+            _ => true,
+        }
+    }
+
+    fn vial_keycode_supported(&self, kc: &crate::keycode::Keycode) -> bool {
+        match kc.name {
+            "QK_CAPS_WORD_TOGGLE" => self.supports_caps_word,
+            "QK_REPEAT_KEY" | "QK_ALT_REPEAT_KEY" => self.supports_repeat_key,
+            "CMB_TOG" => self.supports_combo,
+            "KC_ASTG" => self.supports_auto_shift,
+            "QK_LAYER_LOCK" => self.supports_layer_lock,
+            name if name.starts_with("RGB_") => self.supports_rgb,
+            name if name.starts_with("BL_") => false,
+            _ => true,
+        }
+    }
+
     fn show_vial_tab_content(&mut self, ui: &mut egui::Ui) {
         match self.selected_tab {
             KeycodeTab::Basic => self.show_vial_basic(ui),
@@ -1480,7 +1518,7 @@ impl KeycodePicker {
             .collect();
         ui.horizontal_wrapped(|ui| {
             for kc in KEYCODES.iter() {
-                if !self.selected_tab.vial_matches(kc) {
+                if !self.selected_tab.vial_matches(kc) || !self.vial_keycode_supported(kc) {
                     continue;
                 }
                 let tip = keycode_tooltip(kc.value, &custom_pairs, &self.layer_names);
@@ -3247,6 +3285,11 @@ Repeat"
         ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| {
             for (label, value, tip) in &special_keys {
+                if let Some(kc) = crate::keycode::KEYCODES.iter().find(|kc| kc.value == *value) {
+                    if !self.vial_keycode_supported(kc) {
+                        continue;
+                    }
+                }
                 let resp = ui
                     .add_sized(Vec2::new(56.0, 42.0), egui::Button::new(""))
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
@@ -3280,6 +3323,9 @@ Repeat"
             }
         });
 
+        if !self.supports_mouse_keys {
+            return;
+        }
         ui.add_space(10.0);
         ui.label(
             RichText::new("Mouse")

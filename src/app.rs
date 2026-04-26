@@ -451,6 +451,14 @@ use egui::{Color32, FontId, RichText, Sense, Stroke, Vec2};
 #[cfg(not(target_arch = "wasm32"))]
 use std::sync::mpsc;
 
+#[derive(Debug, Clone, Default)]
+struct VialFeatureSupport {
+    caps_word: bool,
+    layer_lock: bool,
+    persistent_default_layer: bool,
+    repeat_key: bool,
+}
+
 /// Result sent back from the background connect thread.
 #[cfg(not(target_arch = "wasm32"))]
 struct ConnectResult {
@@ -487,6 +495,8 @@ struct ConnectResult {
     key_override_entries: Vec<KeyOverrideEntry>,
     /// Alt Repeat entries
     alt_repeat_entries: Vec<AltRepeatKeyEntry>,
+    /// Feature bits reported by Vial dynamic entries.
+    vial_features: VialFeatureSupport,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -1780,13 +1790,28 @@ impl EntropyApp {
                             }
                             Err(e) => {
                                 log::warn!("get_macro_count: {e}");
-                                vec![String::new(); 16]
+                                vec![]
                             }
                         };
 
-                        let combo_entries = match dev_conn.get_combo_count() {
-                            Ok(count) => {
-                                log::info!("Combo count: {count}");
+                        let (tap_dance_count, combo_count, key_override_count, alt_repeat_count, dynamic_feature_bits) =
+                            match dev_conn.get_dynamic_entry_counts() {
+                                Ok(counts) => counts,
+                                Err(e) => {
+                                    log::warn!("get_dynamic_entry_counts: {e}");
+                                    (0, 0, 0, 0, 0)
+                                }
+                            };
+                        let vial_features = VialFeatureSupport {
+                            caps_word: dynamic_feature_bits & (1 << 0) != 0,
+                            layer_lock: dynamic_feature_bits & (1 << 1) != 0,
+                            persistent_default_layer: key_override_count > 0,
+                            repeat_key: alt_repeat_count > 0,
+                        };
+
+                        let combo_entries = {
+                            let count = combo_count;
+                            log::info!("Combo count: {count}");
                                 let mut entries = Vec::new();
                                 for i in 0..count {
                                     match dev_conn.get_combo(i) {
@@ -1800,11 +1825,6 @@ impl EntropyApp {
                                     }
                                 }
                                 entries
-                            }
-                            Err(e) => {
-                                log::warn!("get_combo_count: {e}");
-                                vec![]
-                            }
                         };
 
                         let combo_term = match dev_conn.get_qmk_setting_u16(2) {
@@ -1976,40 +1996,35 @@ impl EntropyApp {
                         };
 
                         // Read tap dance entries
-                        let tap_dance_entries = match dev_conn.get_tap_dance_count() {
-                            Ok(count) => {
-                                log::info!("Tap dance count: {count}");
-                                let mut entries = Vec::new();
-                                for i in 0..count {
-                                    match dev_conn.get_tap_dance(i) {
-                                        Ok((tap, hold, dtap, taphold, term)) => {
-                                            entries.push(crate::keycode_picker::TapDanceEntry {
-                                                on_tap: tap,
-                                                on_hold: hold,
-                                                on_double_tap: dtap,
-                                                on_tap_hold: taphold,
-                                                tapping_term: term,
-                                            });
-                                        }
-                                        Err(e) => {
-                                            log::warn!("get_tap_dance({i}): {e}");
-                                            entries.push(Default::default());
-                                        }
+                        let tap_dance_entries = {
+                            let count = tap_dance_count;
+                            log::info!("Tap dance count: {count}");
+                            let mut entries = Vec::new();
+                            for i in 0..count {
+                                match dev_conn.get_tap_dance(i) {
+                                    Ok((tap, hold, dtap, taphold, term)) => {
+                                        entries.push(crate::keycode_picker::TapDanceEntry {
+                                            on_tap: tap,
+                                            on_hold: hold,
+                                            on_double_tap: dtap,
+                                            on_tap_hold: taphold,
+                                            tapping_term: term,
+                                        });
+                                    }
+                                    Err(e) => {
+                                        log::warn!("get_tap_dance({i}): {e}");
+                                        entries.push(Default::default());
                                     }
                                 }
-                                entries
                             }
-                            Err(e) => {
-                                log::warn!("get_tap_dance_count: {e}");
-                                vec![]
-                            }
+                            entries
                         };
-                        let key_override_entries = match dev_conn.get_key_override_count() {
-                            Ok(count) => {
-                                log::info!("Key Override count: {count}");
-                                let mut entries = Vec::new();
-                                for i in 0..count {
-                                    match dev_conn.get_key_override(i) {
+                        let key_override_entries = {
+                            let count = key_override_count;
+                            log::info!("Key Override count: {count}");
+                            let mut entries = Vec::new();
+                            for i in 0..count {
+                                match dev_conn.get_key_override(i) {
                                         Ok((
                                             trigger,
                                             replacement,
@@ -2031,26 +2046,21 @@ impl EntropyApp {
                                                 ),
                                             });
                                         }
-                                        Err(e) => {
-                                            log::warn!("get_key_override({i}): {e}");
-                                            entries.push(Default::default());
-                                        }
+                                    Err(e) => {
+                                        log::warn!("get_key_override({i}): {e}");
+                                        entries.push(Default::default());
                                     }
                                 }
-                                entries
                             }
-                            Err(e) => {
-                                log::warn!("get_key_override_count: {e}");
-                                vec![]
-                            }
+                            entries
                         };
 
-                        let alt_repeat_entries = match dev_conn.get_alt_repeat_key_count() {
-                            Ok(count) => {
-                                log::info!("Alt Repeat count: {count}");
-                                let mut entries = Vec::new();
-                                for i in 0..count {
-                                    match dev_conn.get_alt_repeat_key(i) {
+                        let alt_repeat_entries = {
+                            let count = alt_repeat_count;
+                            log::info!("Alt Repeat count: {count}");
+                            let mut entries = Vec::new();
+                            for i in 0..count {
+                                match dev_conn.get_alt_repeat_key(i) {
                                         Ok((keycode, alt_keycode, allowed_mods, options)) => {
                                             entries.push(AltRepeatKeyEntry {
                                                 keycode,
@@ -2061,18 +2071,13 @@ impl EntropyApp {
                                                 ),
                                             });
                                         }
-                                        Err(e) => {
-                                            log::warn!("get_alt_repeat_key({i}): {e}");
-                                            entries.push(Default::default());
-                                        }
+                                    Err(e) => {
+                                        log::warn!("get_alt_repeat_key({i}): {e}");
+                                        entries.push(Default::default());
                                     }
                                 }
-                                entries
                             }
-                            Err(e) => {
-                                log::warn!("get_alt_repeat_key_count: {e}");
-                                vec![]
-                            }
+                            entries
                         };
 
                         Ok(ConnectResult {
@@ -2090,6 +2095,7 @@ impl EntropyApp {
                             rgb_settings,
                             key_override_entries,
                             alt_repeat_entries,
+                            vial_features,
                             layout,
                             layer_count,
                             zmk_conn: None,
@@ -2146,6 +2152,7 @@ impl EntropyApp {
                                 rgb_settings: RgbSettingsState::default(),
                                 key_override_entries: vec![],
                                 alt_repeat_entries: vec![],
+                                vial_features: VialFeatureSupport::default(),
                                 layout,
                                 layer_count: 0,
                                 zmk_conn: Some(conn),
@@ -2210,6 +2217,7 @@ impl EntropyApp {
                             rgb_settings: RgbSettingsState::default(),
                             key_override_entries: vec![],
                             alt_repeat_entries: vec![],
+                            vial_features: VialFeatureSupport::default(),
                             layout,
                             layer_count,
                             zmk_conn: Some(conn),
@@ -2424,6 +2432,16 @@ impl EntropyApp {
                 self.keycode_picker.firmware = self.firmware;
                 self.keycode_picker.supports_rgb =
                     r.layout.supports_rgb || self.rgb_settings.supported;
+                self.keycode_picker.supports_macro = !r.macro_texts.is_empty();
+                self.keycode_picker.supports_tap_dance = !r.tap_dance_entries.is_empty();
+                self.keycode_picker.supports_mouse_keys = self.mouse_keys_settings.supported;
+                self.keycode_picker.supports_combo = !self.combo_entries.is_empty();
+                self.keycode_picker.supports_auto_shift = self.auto_shift_timeout.is_some();
+                self.keycode_picker.supports_caps_word = r.vial_features.caps_word;
+                self.keycode_picker.supports_repeat_key = r.vial_features.repeat_key;
+                self.keycode_picker.supports_layer_lock = r.vial_features.layer_lock;
+                self.keycode_picker.supports_persistent_default_layer =
+                    r.vial_features.persistent_default_layer;
                 self.keycode_picker.layer_count = r.layout.layers.len().max(1);
                 self.keycode_picker.tap_dance_names = load_tap_dance_names(&device_name);
                 if self.firmware == FirmwareProtocol::Vial {
@@ -8780,12 +8798,18 @@ impl EntropyApp {
                     .ctx()
                     .data(|d| d.get_temp::<bool>(dropdown_id))
                     .unwrap_or(false);
+                let combo_supported = !self.combo_entries.is_empty();
+                let key_override_supported = !self.key_override_entries.is_empty();
+                let auto_shift_supported = self.auto_shift_timeout.is_some();
+                let advanced_item_count = combo_supported as usize
+                    + auto_shift_supported as usize
+                    + key_override_supported as usize;
                 let dropdown_rect = egui::Rect::from_min_size(
                     egui::pos2(
                         advanced_rect.center().x - 76.0,
                         advanced_rect.bottom() + 6.0,
                     ),
-                    Vec2::new(152.0, 106.0),
+                    Vec2::new(152.0, (advanced_item_count.max(1) as f32) * 28.0 + 22.0),
                 );
                 let hover_bridge_rect = advanced_rect.union(dropdown_rect).expand(3.0);
                 let pointer_over_bridge = ui
@@ -8793,13 +8817,13 @@ impl EntropyApp {
                     .input(|i| i.pointer.hover_pos())
                     .map(|pos| hover_bridge_rect.contains(pos))
                     .unwrap_or(false);
-                let show_dropdown = !device_tab_hovered
+                let show_dropdown = advanced_item_count > 0
+                    && !device_tab_hovered
                     && !settings_tab_hovered
                     && (advanced_tab_hovered || (was_open && pointer_over_bridge));
 
                 if show_dropdown {
                     let dark = ui.visuals().dark_mode;
-                    let auto_shift_supported = self.auto_shift_timeout.is_some();
                     let item_width = dropdown_rect.width() - 16.0;
                     let (combo_hovered, auto_shift_hovered, key_override_hovered, advanced_clicked) =
                         egui::Area::new(egui::Id::new("advanced_dropdown_area"))
@@ -8809,58 +8833,61 @@ impl EntropyApp {
                                 top_dropdown_frame(dark)
                                     .show(ui, |ui| {
                                         ui.set_min_width(item_width);
-                                        let combo_resp = top_dropdown_item(
-                                            ui,
-                                            item_width,
-                                            "Combo",
-                                            true,
-                                            self.main_menu_tab == MainMenuTab::Advanced
-                                                && self.settings_tab == SettingsTab::Combo,
-                                        );
-                                        let auto_shift_resp = top_dropdown_item(
-                                            ui,
-                                            item_width,
-                                            "Auto Shift",
-                                            auto_shift_supported,
-                                            self.main_menu_tab == MainMenuTab::Advanced
-                                                && self.settings_tab == SettingsTab::AutoShift,
-                                        );
-                                        let key_override_resp = top_dropdown_item(
-                                            ui,
-                                            item_width,
-                                            "Key Overrides",
-                                            true,
-                                            self.main_menu_tab == MainMenuTab::Advanced
-                                                && self.settings_tab == SettingsTab::KeyOverrides,
-                                        );
-                                        if combo_resp.clicked() {
+                                        let combo_resp = combo_supported.then(|| {
+                                            top_dropdown_item(
+                                                ui,
+                                                item_width,
+                                                "Combo",
+                                                true,
+                                                self.main_menu_tab == MainMenuTab::Advanced
+                                                    && self.settings_tab == SettingsTab::Combo,
+                                            )
+                                        });
+                                        let auto_shift_resp = auto_shift_supported.then(|| {
+                                            top_dropdown_item(
+                                                ui,
+                                                item_width,
+                                                "Auto Shift",
+                                                true,
+                                                self.main_menu_tab == MainMenuTab::Advanced
+                                                    && self.settings_tab == SettingsTab::AutoShift,
+                                            )
+                                        });
+                                        let key_override_resp = key_override_supported.then(|| {
+                                            top_dropdown_item(
+                                                ui,
+                                                item_width,
+                                                "Key Overrides",
+                                                true,
+                                                self.main_menu_tab == MainMenuTab::Advanced
+                                                    && self.settings_tab == SettingsTab::KeyOverrides,
+                                            )
+                                        });
+                                        if combo_resp.as_ref().map(|r| r.clicked()).unwrap_or(false) {
                                             self.close_top_dropdowns(ui.ctx());
                                             self.settings_tab = SettingsTab::Combo;
                                             self.main_menu_tab = MainMenuTab::Advanced;
-                                            if self.combo_visible_count == 0 { self.combo_visible_count = 1; }
+                                            if self.combo_visible_count == 0 {
+                                                self.combo_visible_count = 1;
+                                            }
                                         }
-                                        if auto_shift_resp.clicked() && auto_shift_supported {
+                                        if auto_shift_resp.as_ref().map(|r| r.clicked()).unwrap_or(false) {
                                             self.close_top_dropdowns(ui.ctx());
                                             self.settings_tab = SettingsTab::AutoShift;
                                             self.main_menu_tab = MainMenuTab::Advanced;
                                         }
-                                        if key_override_resp.clicked() {
+                                        if key_override_resp.as_ref().map(|r| r.clicked()).unwrap_or(false) {
                                             self.close_top_dropdowns(ui.ctx());
                                             self.settings_tab = SettingsTab::KeyOverrides;
                                             self.main_menu_tab = MainMenuTab::Advanced;
                                         }
-                                        if !auto_shift_supported {
-                                            let _ = auto_shift_resp.clone().on_hover_text(
-                                                "Auto Shift is not enabled in this keyboard firmware",
-                                            );
-                                        }
                                         (
-                                            combo_resp.hovered(),
-                                            auto_shift_resp.hovered(),
-                                            key_override_resp.hovered(),
-                                            combo_resp.clicked()
-                                                || (auto_shift_resp.clicked() && auto_shift_supported)
-                                                || key_override_resp.clicked(),
+                                            combo_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
+                                            auto_shift_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
+                                            key_override_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
+                                            combo_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
+                                                || auto_shift_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
+                                                || key_override_resp.as_ref().map(|r| r.clicked()).unwrap_or(false),
                                         )
                                     })
                                     .inner
@@ -8891,8 +8918,16 @@ impl EntropyApp {
                 let rgb_available_for_menu =
                     self.rgb_settings.supported || layout.supports_rgb;
                 let layer_leds_available_for_menu = self.layer_led_settings.supported;
-                let show_rgb_item = rgb_available_for_menu || !layer_leds_available_for_menu;
-                let dropdown_height = if show_rgb_item { 162.0 } else { 134.0 };
+                let show_rgb_item = rgb_available_for_menu;
+                let show_layer_leds_item = layer_leds_available_for_menu;
+                let show_encoders_item = layout.encoder_count() > 0;
+                let show_tap_hold_item = self.tap_hold_settings.supported;
+                let settings_item_count = 1
+                    + show_rgb_item as usize
+                    + show_layer_leds_item as usize
+                    + show_encoders_item as usize
+                    + show_tap_hold_item as usize;
+                let dropdown_height = settings_item_count as f32 * 28.0 + 22.0;
                 let dropdown_rect = egui::Rect::from_min_size(
                     egui::pos2(
                         settings_rect.center().x - 76.0,
@@ -8913,8 +8948,6 @@ impl EntropyApp {
                 if show_dropdown {
                     let dark = ui.visuals().dark_mode;
                     let rgb_available = rgb_available_for_menu;
-                    let layer_leds_available = layer_leds_available_for_menu;
-                    let tap_hold_available = self.tap_hold_settings.supported;
                     let item_width = dropdown_rect.width() - 16.0;
                     let (
                         matrix_hovered,
@@ -8950,30 +8983,36 @@ impl EntropyApp {
                                     } else {
                                         None
                                     };
-                                    let layer_leds_resp = top_dropdown_item(
-                                        ui,
-                                        item_width,
-                                        "Layer LEDs",
-                                        layer_leds_available,
-                                        self.main_menu_tab == MainMenuTab::Settings
-                                            && self.settings_tab == SettingsTab::LayerLeds,
-                                    );
-                                    let encoders_resp = top_dropdown_item(
-                                        ui,
-                                        item_width,
-                                        "Encoders",
-                                        true,
-                                        self.main_menu_tab == MainMenuTab::Settings
-                                            && self.settings_tab == SettingsTab::Encoders,
-                                    );
-                                    let tap_hold_resp = top_dropdown_item(
-                                        ui,
-                                        item_width,
-                                        "Tap-Hold",
-                                        tap_hold_available,
-                                        self.main_menu_tab == MainMenuTab::Settings
-                                            && self.settings_tab == SettingsTab::TapHold,
-                                    );
+                                    let layer_leds_resp = show_layer_leds_item.then(|| {
+                                        top_dropdown_item(
+                                            ui,
+                                            item_width,
+                                            "Layer LEDs",
+                                            true,
+                                            self.main_menu_tab == MainMenuTab::Settings
+                                                && self.settings_tab == SettingsTab::LayerLeds,
+                                        )
+                                    });
+                                    let encoders_resp = show_encoders_item.then(|| {
+                                        top_dropdown_item(
+                                            ui,
+                                            item_width,
+                                            "Encoders",
+                                            true,
+                                            self.main_menu_tab == MainMenuTab::Settings
+                                                && self.settings_tab == SettingsTab::Encoders,
+                                        )
+                                    });
+                                    let tap_hold_resp = show_tap_hold_item.then(|| {
+                                        top_dropdown_item(
+                                            ui,
+                                            item_width,
+                                            "Tap-Hold",
+                                            true,
+                                            self.main_menu_tab == MainMenuTab::Settings
+                                                && self.settings_tab == SettingsTab::TapHold,
+                                        )
+                                    });
                                     if matrix_resp.clicked() {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.settings_tab = SettingsTab::MatrixTester;
@@ -8995,43 +9034,33 @@ impl EntropyApp {
                                             );
                                         }
                                     }
-                                    if layer_leds_resp.clicked() && layer_leds_available {
+                                    if layer_leds_resp.as_ref().map(|r| r.clicked()).unwrap_or(false) {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.open_layer_led_settings_page();
                                     }
-                                    if !layer_leds_available {
-                                        let _ = layer_leds_resp.clone().on_hover_text(
-                                            "Layer LED settings are not available on this firmware",
-                                        );
-                                    }
-                                    if encoders_resp.clicked() {
+                                    if encoders_resp.as_ref().map(|r| r.clicked()).unwrap_or(false) {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.settings_tab = SettingsTab::Encoders;
                                         self.main_menu_tab = MainMenuTab::Settings;
                                     }
-                                    if tap_hold_resp.clicked() && tap_hold_available {
+                                    if tap_hold_resp.as_ref().map(|r| r.clicked()).unwrap_or(false) {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.open_tap_hold_settings_page();
-                                    }
-                                    if !tap_hold_available {
-                                        let _ = tap_hold_resp.clone().on_hover_text(
-                                            "Tap-Hold settings are not available on this firmware",
-                                        );
                                     }
                                     (
                                         matrix_resp.hovered(),
                                         rgb_resp.as_ref().map(|resp| resp.hovered()).unwrap_or(false),
-                                        layer_leds_resp.hovered(),
-                                        encoders_resp.hovered(),
-                                        tap_hold_resp.hovered(),
+                                        layer_leds_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
+                                        encoders_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
+                                        tap_hold_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         matrix_resp.clicked()
                                             || rgb_resp
                                                 .as_ref()
                                                 .map(|resp| resp.clicked() && rgb_available)
                                                 .unwrap_or(false)
-                                            || (layer_leds_resp.clicked() && layer_leds_available)
-                                            || encoders_resp.clicked()
-                                            || (tap_hold_resp.clicked() && tap_hold_available),
+                                            || layer_leds_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
+                                            || encoders_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
+                                            || tap_hold_resp.as_ref().map(|r| r.clicked()).unwrap_or(false),
                                     )
                                 })
                                 .inner
