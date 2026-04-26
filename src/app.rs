@@ -1752,8 +1752,6 @@ impl EntropyApp {
                             }
                         };
 
-                        let rgb_settings = load_rgb_settings(&dev_conn, &layout);
-
                         // Mouse keys settings (qsid 9..=17, all u16). If qsid 9 is unsupported,
                         // we assume the whole group is unavailable.
                         let mouse_keys_settings = {
@@ -1876,6 +1874,16 @@ impl EntropyApp {
                                 }
                             }
                             leds
+                        };
+
+                        let rgb_settings = if layer_led_settings.supported && layout.lighting_mode.is_none() {
+                            // hpd3-style Ergohaven boards use QMK RGBLight internally only as a
+                            // transport for per-layer LEDs. If the Vial definition does not
+                            // explicitly advertise a standard lighting backend, expose Layer LEDs
+                            // instead of the generic RGB page.
+                            RgbSettingsState::default()
+                        } else {
+                            load_rgb_settings(&dev_conn, &layout)
                         };
 
                         // Read tap dance entries
