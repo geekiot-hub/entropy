@@ -1512,34 +1512,14 @@ impl KeycodePicker {
             })
             .collect();
 
-        let is_extra_smart_symbol = |symbol: char| {
-            matches!(
-                symbol,
-                '«' | '»'
-                    | '₽'
-                    | '€'
-                    | '—'
-                    | '–'
-                    | '•'
-                    | '×'
-                    | '±'
-                    | '≠'
-                    | '≈'
-                    | '✓'
-                    | '§'
-                    | '°'
-                    | '‰'
-                    | '′'
-                    | '″'
-                    | '‘'
-                    | '’'
-                    | '„'
-                    | '“'
-                    | '”'
-                    | '™'
-            )
-        };
-
+        let main_symbol_order = [
+            '.', ',', ';', ':', '!', '?', '/', '`', '~', '\'', '"', '(', ')', '[', ']', '{', '}',
+            '<', '>', '+', '*', '=', '#', '@', '$', '%', '^', '&', '|', '\\', '_', '№',
+        ];
+        let extra_symbol_order = [
+            '₽', '€', '«', '»', '‘', '’', '„', '“', '”', '—', '–', '•', '×', '±', '≠', '≈',
+            '✓', '§', '°', '‰', '′', '″', '™',
+        ];
 
         ui.label(
             RichText::new("Universal symbols — same output in any language")
@@ -1548,10 +1528,14 @@ impl KeycodePicker {
         );
         ui.add_space(6.0);
         ui.horizontal_wrapped(|ui| {
-            for smart in crate::smart_input::SMART_SYMBOLS.iter().copied() {
-                if is_extra_smart_symbol(smart.symbol) {
+            for wanted in main_symbol_order {
+                let Some(smart) = crate::smart_input::SMART_SYMBOLS
+                    .iter()
+                    .copied()
+                    .find(|smart| smart.symbol == wanted)
+                else {
                     continue;
-                }
+                };
                 let label = smart.symbol.to_string();
                 let tip = format!(
                     "Universal symbol: {} — types {} consistently regardless of the active keyboard language",
@@ -1611,10 +1595,14 @@ impl KeycodePicker {
         );
         ui.add_space(6.0);
         ui.horizontal_wrapped(|ui| {
-            for smart in crate::smart_input::SMART_SYMBOLS.iter().copied() {
-                if !is_extra_smart_symbol(smart.symbol) {
+            for wanted in extra_symbol_order {
+                let Some(smart) = crate::smart_input::SMART_SYMBOLS
+                    .iter()
+                    .copied()
+                    .find(|smart| smart.symbol == wanted)
+                else {
                     continue;
-                }
+                };
                 let label = smart.symbol.to_string();
                 let tip = format!(
                     "Universal symbol: {} — types {} consistently regardless of the active keyboard language",
