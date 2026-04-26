@@ -9281,7 +9281,7 @@ impl EntropyApp {
                 let middle_rect = middle_rect.unwrap();
                 let top_divider_y = middle_rect.top();
                 let bottom_divider_y = middle_rect.bottom();
-                let divider_radius = (radius - 1.25).max(0.0);
+                let divider_radius = (radius - 2.5).max(0.0);
                 let top_divider_half_width = (divider_radius * divider_radius
                     - (top_divider_y - center.y) * (top_divider_y - center.y))
                     .max(0.0)
@@ -9389,8 +9389,7 @@ impl EntropyApp {
                     text_color,
                 );
             } else {
-                let divider_extend = 1.5;
-                let divider_half_width = radius + divider_extend;
+                let divider_half_width = (radius - 2.5).max(0.0);
                 painter.line_segment(
                     [
                         egui::pos2(center.x - divider_half_width, center.y),
