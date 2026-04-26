@@ -485,6 +485,8 @@ struct ConnectResult {
     mouse_keys_settings: MouseKeysSettingsState,
     /// Tap-Hold settings from QMK settings, if supported
     tap_hold_settings: TapHoldSettingsState,
+    /// One Shot Keys settings from QMK settings, if supported
+    one_shot_settings: OneShotSettingsState,
     /// Grave Escape settings from QMK settings, if supported (qsid 1 bits 0..=3)
     grave_escape_settings: GraveEscapeSettingsState,
     /// Ergohaven per-layer LED settings from QMK settings, if supported (qsid 300..=317)
@@ -725,6 +727,16 @@ struct TapHoldSettingsState {
     /// qsid 27: Fast-typing timeout that forces MT/LT tap behavior
     flow_tap: u16,
     /// Whether qsid 7 was readable (firmware support flag)
+    supported: bool,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct OneShotSettingsState {
+    /// qsid 5: Tap count that makes a one-shot key stay held until tapped again
+    tap_toggle: u8,
+    /// qsid 6: Timeout in milliseconds before one-shot state is released
+    timeout: u16,
+    /// Whether qsid 5 was readable (firmware support flag)
     supported: bool,
 }
 
@@ -1374,6 +1386,7 @@ enum SettingsTab {
     LayerLeds,
     Encoders,
     TapHold,
+    OneShotKeys,
     GraveEscape,
     Combo,
     KeyOverrides,
@@ -1436,6 +1449,7 @@ pub struct EntropyApp {
     auto_shift_timeout_text: String,
     mouse_keys_settings: MouseKeysSettingsState,
     tap_hold_settings: TapHoldSettingsState,
+    one_shot_settings: OneShotSettingsState,
     grave_escape_settings: GraveEscapeSettingsState,
     layer_led_settings: LayerLedSettingsState,
     alt_repeat_entries: Vec<AltRepeatKeyEntry>,
@@ -1530,6 +1544,7 @@ impl EntropyApp {
             auto_shift_timeout_text: String::new(),
             mouse_keys_settings: MouseKeysSettingsState::default(),
             tap_hold_settings: TapHoldSettingsState::default(),
+            one_shot_settings: OneShotSettingsState::default(),
             grave_escape_settings: GraveEscapeSettingsState::default(),
             layer_led_settings: LayerLedSettingsState::default(),
             alt_repeat_entries: vec![],
@@ -1619,6 +1634,8 @@ impl EntropyApp {
         self.auto_shift_timeout = None;
         self.auto_shift_timeout_text.clear();
         self.mouse_keys_settings = MouseKeysSettingsState::default();
+        self.tap_hold_settings = TapHoldSettingsState::default();
+        self.one_shot_settings = OneShotSettingsState::default();
         self.layer_led_settings = LayerLedSettingsState::default();
         self.alt_repeat_entries.clear();
         self.alt_repeat_names.clear();
@@ -1932,6 +1949,25 @@ impl EntropyApp {
                             th
                         };
 
+                        // One Shot Keys settings (qsid 5..=6). These affect OSM(...) and OSL(...).
+                        let one_shot_settings = {
+                            let mut os = OneShotSettingsState::default();
+                            match dev_conn.get_qmk_setting_u8(5) {
+                                Ok(v) => {
+                                    os.tap_toggle = v;
+                                    os.supported = true;
+                                    os.timeout = dev_conn.get_qmk_setting_u16(6).unwrap_or_else(|e| {
+                                        log::warn!("get_qmk_setting_u16(one_shot timeout qsid 6): {e}");
+                                        0
+                                    });
+                                }
+                                Err(e) => {
+                                    log::warn!("get_qmk_setting_u8(one_shot tap toggle qsid 5): {e}");
+                                }
+                            }
+                            os
+                        };
+
                         // Grave Escape settings (qsid 1 bits 0..=3). These affect KC_GESC,
                         // not the physical Escape key.
                         let grave_escape_settings = {
@@ -2090,6 +2126,7 @@ impl EntropyApp {
                             auto_shift_timeout,
                             mouse_keys_settings,
                             tap_hold_settings,
+                            one_shot_settings,
                             grave_escape_settings,
                             layer_led_settings,
                             rgb_settings,
@@ -2147,6 +2184,7 @@ impl EntropyApp {
                                 auto_shift_timeout: None,
                                 mouse_keys_settings: MouseKeysSettingsState::default(),
                                 tap_hold_settings: TapHoldSettingsState::default(),
+                                one_shot_settings: OneShotSettingsState::default(),
                                 grave_escape_settings: GraveEscapeSettingsState::default(),
                                 layer_led_settings: LayerLedSettingsState::default(),
                                 rgb_settings: RgbSettingsState::default(),
@@ -2212,6 +2250,7 @@ impl EntropyApp {
                             auto_shift_timeout: None,
                             mouse_keys_settings: MouseKeysSettingsState::default(),
                             tap_hold_settings: TapHoldSettingsState::default(),
+                            one_shot_settings: OneShotSettingsState::default(),
                             grave_escape_settings: GraveEscapeSettingsState::default(),
                             layer_led_settings: LayerLedSettingsState::default(),
                             rgb_settings: RgbSettingsState::default(),
@@ -2294,6 +2333,7 @@ impl EntropyApp {
                     .unwrap_or_default();
                 self.mouse_keys_settings = r.mouse_keys_settings;
                 self.tap_hold_settings = r.tap_hold_settings;
+                self.one_shot_settings = r.one_shot_settings;
                 self.grave_escape_settings = r.grave_escape_settings;
                 self.layer_led_settings = r.layer_led_settings;
                 self.rgb_settings = r.rgb_settings;
@@ -2788,6 +2828,9 @@ impl EntropyApp {
             }
             SettingsTab::TapHold => {
                 self.draw_tap_hold_settings_page(ui, content_rect);
+            }
+            SettingsTab::OneShotKeys => {
+                self.draw_one_shot_settings_page(ui, content_rect);
             }
             SettingsTab::GraveEscape => {
                 self.draw_grave_escape_settings_page(ui, content_rect);
@@ -5208,6 +5251,11 @@ impl EntropyApp {
         self.main_menu_tab = MainMenuTab::Settings;
     }
 
+    fn open_one_shot_settings_page(&mut self) {
+        self.settings_tab = SettingsTab::OneShotKeys;
+        self.main_menu_tab = MainMenuTab::Settings;
+    }
+
     fn open_grave_escape_settings_page(&mut self) {
         self.settings_tab = SettingsTab::GraveEscape;
         self.main_menu_tab = MainMenuTab::Settings;
@@ -6981,6 +7029,176 @@ impl EntropyApp {
         if let Err(e) = hid.set_qmk_setting_u8(1, self.grave_escape_settings.bits) {
             self.status_msg = format!("Failed to save Grave Escape settings: {}", e);
             log::warn!("set_qmk_setting_u8(grave_escape qsid 1) failed: {e}");
+        }
+    }
+
+    fn draw_one_shot_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
+        let dark = ui.visuals().dark_mode;
+        let hid_ready = {
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                self.hid_device.is_some()
+            }
+            #[cfg(target_arch = "wasm32")]
+            {
+                false
+            }
+        };
+
+        ui.allocate_ui_at_rect(content_rect, |ui| {
+            ui.vertical_centered(|ui| {
+                ui.add_space(18.0);
+                ui.label(RichText::new("One Shot Keys").size(18.0).strong());
+                ui.add_space(6.0);
+                ui.label(
+                    RichText::new("Tune one-shot modifiers and one-shot layers")
+                        .size(13.0)
+                        .color(app_muted_text(dark)),
+                );
+                ui.add_space(24.0);
+
+                if !self.one_shot_settings.supported {
+                    crate::ui_style::modal_empty_state(
+                        ui,
+                        "One Shot Keys settings are not available on this firmware",
+                        Some("Enable QMK_SETTINGS in the keyboard rules.mk to use this page"),
+                    );
+                    return;
+                }
+
+                if !hid_ready {
+                    crate::ui_style::modal_empty_state(
+                        ui,
+                        "Connect a Vial keyboard to edit One Shot Keys settings",
+                        None,
+                    );
+                    return;
+                }
+
+                const CONTENT_WIDTH: f32 = 470.0;
+                const ROW_CONTENT_WIDTH: f32 = 452.0;
+                const ROW_HEIGHT: f32 = 54.0;
+                const FIELD_WIDTH: f32 = 86.0;
+
+                crate::ui_style::modal_content(
+                    ui,
+                    crate::ui_style::ModalLayout::new(CONTENT_WIDTH).with_top_padding(4.0),
+                    |ui| {
+                        ui.spacing_mut().item_spacing.y = 0.0;
+                        self.draw_one_shot_numeric_row(
+                            ui,
+                            ROW_CONTENT_WIDTH,
+                            ROW_HEIGHT,
+                            FIELD_WIDTH,
+                            5,
+                            "Tap toggle",
+                            "Tap this many times to keep a one-shot key held until tapped again",
+                            50,
+                            false,
+                        );
+                        self.draw_one_shot_numeric_row(
+                            ui,
+                            ROW_CONTENT_WIDTH,
+                            ROW_HEIGHT,
+                            FIELD_WIDTH,
+                            6,
+                            "Timeout",
+                            "How long one-shot state waits before it is released",
+                            60000,
+                            true,
+                        );
+                    },
+                );
+            });
+        });
+    }
+
+    fn draw_one_shot_numeric_row(
+        &mut self,
+        ui: &mut egui::Ui,
+        content_width: f32,
+        row_height: f32,
+        field_width: f32,
+        qsid: u16,
+        label: &str,
+        tooltip: &str,
+        max: u32,
+        is_time: bool,
+    ) {
+        let current = self.one_shot_numeric_value(qsid);
+        crate::ui_style::settings_list_row_with_tooltip(
+            ui,
+            content_width,
+            row_height,
+            label,
+            true,
+            Some(tooltip),
+            field_width,
+            |ui| {
+                let edit_id = egui::Id::new(("one_shot_edit", qsid));
+                let mut text = ui
+                    .ctx()
+                    .data_mut(|d| d.get_temp::<String>(edit_id).unwrap_or_else(|| current.to_string()));
+                if text.parse::<u16>().ok() != Some(current)
+                    && !ui.memory(|m| m.has_focus(edit_id))
+                {
+                    text = current.to_string();
+                }
+                let resp = crate::ui_style::modern_text_field(
+                    ui,
+                    edit_id,
+                    &mut text,
+                    field_width,
+                    "",
+                    if qsid == 6 { 5 } else { 2 },
+                    egui::Align::RIGHT,
+                );
+                if is_time {
+                    resp.clone().on_hover_text("Value is in milliseconds");
+                }
+                if resp.changed() {
+                    let filtered: String = text.chars().filter(|c| c.is_ascii_digit()).collect();
+                    let parsed = filtered.parse::<u32>().unwrap_or(0).min(max);
+                    let new_value = parsed as u16;
+                    if new_value != current {
+                        self.set_one_shot_numeric_value(qsid, new_value);
+                        self.write_one_shot_numeric_setting(qsid, new_value);
+                    }
+                    text = filtered;
+                }
+                ui.ctx().data_mut(|d| d.insert_temp(edit_id, text));
+            },
+        );
+    }
+
+    fn one_shot_numeric_value(&self, qsid: u16) -> u16 {
+        match qsid {
+            5 => self.one_shot_settings.tap_toggle as u16,
+            6 => self.one_shot_settings.timeout,
+            _ => 0,
+        }
+    }
+
+    fn set_one_shot_numeric_value(&mut self, qsid: u16, value: u16) {
+        match qsid {
+            5 => self.one_shot_settings.tap_toggle = value.min(u8::MAX as u16) as u8,
+            6 => self.one_shot_settings.timeout = value,
+            _ => {}
+        }
+    }
+
+    fn write_one_shot_numeric_setting(&mut self, qsid: u16, value: u16) {
+        let Some(hid) = &self.hid_device else {
+            return;
+        };
+        let result = if qsid == 5 {
+            hid.set_qmk_setting_u8(qsid, value.min(u8::MAX as u16) as u8)
+        } else {
+            hid.set_qmk_setting_u16(qsid, value)
+        };
+        if let Err(e) = result {
+            self.status_msg = format!("Failed to save One Shot Keys setting (qsid {qsid}): {}", e);
+            log::warn!("set_qmk_setting(one_shot qsid {qsid}) failed: {e}");
         }
     }
 
@@ -9131,11 +9349,13 @@ impl EntropyApp {
                 let show_layer_leds_item = layer_leds_available_for_menu;
                 let show_encoders_item = layout.encoder_count() > 0;
                 let show_tap_hold_item = self.tap_hold_settings.supported;
+                let show_one_shot_item = self.one_shot_settings.supported;
                 let settings_item_count = 1
                     + show_rgb_item as usize
                     + show_layer_leds_item as usize
                     + show_encoders_item as usize
-                    + show_tap_hold_item as usize;
+                    + show_tap_hold_item as usize
+                    + show_one_shot_item as usize;
                 let dropdown_height = settings_item_count as f32 * 28.0 + 22.0;
                 let dropdown_rect = egui::Rect::from_min_size(
                     egui::pos2(
@@ -9164,6 +9384,7 @@ impl EntropyApp {
                         layer_leds_hovered,
                         encoders_hovered,
                         tap_hold_hovered,
+                        one_shot_hovered,
                         settings_clicked,
                     ) = egui::Area::new(egui::Id::new("settings_dropdown_area"))
                         .order(egui::Order::Foreground)
@@ -9222,6 +9443,16 @@ impl EntropyApp {
                                                 && self.settings_tab == SettingsTab::TapHold,
                                         )
                                     });
+                                    let one_shot_resp = show_one_shot_item.then(|| {
+                                        top_dropdown_item(
+                                            ui,
+                                            item_width,
+                                            "One Shot Keys",
+                                            true,
+                                            self.main_menu_tab == MainMenuTab::Settings
+                                                && self.settings_tab == SettingsTab::OneShotKeys,
+                                        )
+                                    });
                                     if matrix_resp.clicked() {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.settings_tab = SettingsTab::MatrixTester;
@@ -9256,12 +9487,17 @@ impl EntropyApp {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.open_tap_hold_settings_page();
                                     }
+                                    if one_shot_resp.as_ref().map(|r| r.clicked()).unwrap_or(false) {
+                                        self.close_top_dropdowns(ui.ctx());
+                                        self.open_one_shot_settings_page();
+                                    }
                                     (
                                         matrix_resp.hovered(),
                                         rgb_resp.as_ref().map(|resp| resp.hovered()).unwrap_or(false),
                                         layer_leds_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         encoders_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         tap_hold_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
+                                        one_shot_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         matrix_resp.clicked()
                                             || rgb_resp
                                                 .as_ref()
@@ -9269,7 +9505,8 @@ impl EntropyApp {
                                                 .unwrap_or(false)
                                             || layer_leds_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
                                             || encoders_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
-                                            || tap_hold_resp.as_ref().map(|r| r.clicked()).unwrap_or(false),
+                                            || tap_hold_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
+                                            || one_shot_resp.as_ref().map(|r| r.clicked()).unwrap_or(false),
                                     )
                                 })
                                 .inner
@@ -9285,6 +9522,7 @@ impl EntropyApp {
                                     || layer_leds_hovered
                                     || encoders_hovered
                                     || tap_hold_hovered
+                                    || one_shot_hovered
                                     || pointer_over_bridge),
                         )
                     });
