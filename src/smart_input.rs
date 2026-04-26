@@ -104,6 +104,79 @@ pub fn smart_symbol_for_keycode(keycode: u16) -> Option<SmartSymbol> {
         .find(|symbol| symbol.trigger_keycode == keycode)
 }
 
+#[cfg(target_os = "windows")]
+pub fn universal_output_status() -> String {
+    "Universal output backend: Windows native".to_owned()
+}
+
+#[cfg(target_os = "macos")]
+pub fn universal_output_status() -> String {
+    "Universal output backend: macOS native — requires Accessibility/Input Monitoring permission"
+        .to_owned()
+}
+
+#[cfg(target_os = "linux")]
+pub fn universal_output_status() -> String {
+    let session = if std::env::var_os("WAYLAND_DISPLAY").is_some() {
+        "Wayland"
+    } else if std::env::var_os("DISPLAY").is_some() {
+        "X11"
+    } else {
+        "Linux"
+    };
+    let input_method = linux_input_method_hint();
+    match session {
+        "Wayland" => format!(
+            "Universal output backend: Wayland via IBus/Fcitx5 input method{}",
+            input_method
+        ),
+        "X11" => "Universal output backend: Linux X11 native; Wayland uses IBus/Fcitx5".to_owned(),
+        _ => format!(
+            "Universal output backend: Linux; use IBus/Fcitx5 for Wayland{}",
+            input_method
+        ),
+    }
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+pub fn universal_output_status() -> String {
+    "Universal output backend: unsupported on this OS".to_owned()
+}
+
+#[cfg(target_os = "linux")]
+fn linux_input_method_hint() -> &'static str {
+    let im_vars = ["GTK_IM_MODULE", "QT_IM_MODULE", "XMODIFIERS"];
+    let combined = im_vars
+        .iter()
+        .filter_map(|name| std::env::var(name).ok())
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_ascii_lowercase();
+    if combined.contains("fcitx") {
+        " — Fcitx detected"
+    } else if combined.contains("ibus") {
+        " — IBus detected"
+    } else {
+        ""
+    }
+}
+
+#[cfg(target_os = "linux")]
+pub fn universal_output_setup_hint() -> Option<&'static str> {
+    if std::env::var_os("WAYLAND_DISPLAY").is_some() {
+        Some("Install and select Entropy Universal Symbols: linux/ibus/install-user.sh or linux/fcitx5/install-user.sh")
+    } else if std::env::var_os("DISPLAY").is_some() {
+        Some("For X11 install xdotool; for Wayland install the IBus or Fcitx5 backend")
+    } else {
+        Some("Install the IBus or Fcitx5 backend for Linux universal output")
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+pub fn universal_output_setup_hint() -> Option<&'static str> {
+    None
+}
+
 fn smart_symbol_for_transport(
     base_keycode: u16,
     ctrl: bool,
