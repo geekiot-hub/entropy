@@ -312,7 +312,25 @@ impl INPUT {
 #[repr(C)]
 #[derive(Clone, Copy)]
 union INPUT_UNION {
+    mi: MOUSEINPUT,
     ki: KEYBDINPUT,
+}
+
+#[cfg(all(target_os = "windows", target_pointer_width = "64"))]
+const _: [(); 40] = [(); std::mem::size_of::<INPUT>()];
+#[cfg(all(target_os = "windows", target_pointer_width = "32"))]
+const _: [(); 28] = [(); std::mem::size_of::<INPUT>()];
+
+#[cfg(target_os = "windows")]
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct MOUSEINPUT {
+    dx: i32,
+    dy: i32,
+    mouseData: u32,
+    dwFlags: u32,
+    time: u32,
+    dwExtraInfo: usize,
 }
 
 #[cfg(target_os = "windows")]
