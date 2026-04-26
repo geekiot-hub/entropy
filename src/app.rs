@@ -829,8 +829,8 @@ fn layer_led_outline_color(index: u8) -> Color32 {
     if v == 0 {
         Color32::from_rgb(18, 18, 20)
     } else {
-        let pastel_s = (s as f32 / 255.0 * 0.42).clamp(0.0, 1.0);
-        let pastel_v = (v as f32 / 255.0 * 0.66 + 0.20).clamp(0.0, 0.86);
+        let pastel_s = (s as f32 / 255.0 * 0.26).clamp(0.0, 1.0);
+        let pastel_v = (v as f32 / 255.0 * 0.48 + 0.22).clamp(0.0, 0.72);
         Color32::from(egui::ecolor::Hsva::new(
             h as f32 / 255.0,
             pastel_s,
