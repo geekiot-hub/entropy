@@ -5264,89 +5264,6 @@ impl EntropyApp {
         }
     }
 
-    fn draw_key_override_layers(ui: &mut egui::Ui, layers: &mut u16) -> bool {
-        let mut changed = false;
-        const KO_LAYER_COLUMNS: usize = 4;
-        const KO_LAYER_ROWS: usize = 4;
-
-        egui::Grid::new(ui.id().with("ko_layers_grid"))
-            .num_columns(KO_LAYER_COLUMNS)
-            .spacing([8.0, 6.0])
-            .show(ui, |ui| {
-                for row in 0..KO_LAYER_ROWS {
-                    for col in 0..KO_LAYER_COLUMNS {
-                        let idx = row * KO_LAYER_COLUMNS + col;
-                        if idx >= 16 {
-                            ui.label("");
-                            continue;
-                        }
-                        let mut checked = (*layers & (1 << idx)) != 0;
-                        if ui.checkbox(&mut checked, idx.to_string()).changed() {
-                            if checked {
-                                *layers |= 1 << idx;
-                            } else {
-                                *layers &= !(1 << idx);
-                            }
-                            changed = true;
-                        }
-                    }
-                    ui.end_row();
-                }
-            });
-
-        ui.horizontal(|ui| {
-            if ui.small_button("Enable all").clicked() {
-                if *layers != u16::MAX {
-                    *layers = u16::MAX;
-                    changed = true;
-                }
-            }
-            if ui.small_button("Disable all").clicked() {
-                if *layers != 0 {
-                    *layers = 0;
-                    changed = true;
-                }
-            }
-        });
-        changed
-    }
-
-    fn draw_key_override_mod_mask(ui: &mut egui::Ui, mask: &mut u8, id: &str) -> bool {
-        let mut changed = false;
-        let gui = crate::keycode::gui_mod_name();
-        let labels = vec![
-            "Left Ctrl".to_string(),
-            "Left Shift".to_string(),
-            "Left Alt".to_string(),
-            format!("Left {}", gui),
-            "Right Ctrl".to_string(),
-            "Right Shift".to_string(),
-            "Right Alt".to_string(),
-            format!("Right {}", gui),
-        ];
-        egui::Grid::new(ui.id().with(id))
-            .num_columns(2)
-            .spacing([18.0, 4.0])
-            .show(ui, |ui| {
-                for row in 0..4 {
-                    for col in 0..2 {
-                        let idx = row * 2 + col;
-                        let mut checked = (*mask & (1 << idx)) != 0;
-                        if ui.checkbox(&mut checked, labels[idx].as_str()).changed() {
-                            if checked {
-                                *mask |= 1 << idx;
-                            } else {
-                                *mask &= !(1 << idx);
-                            }
-                            changed = true;
-                        }
-                    }
-                    ui.end_row();
-                }
-            });
-        changed
-    }
-
     fn set_rgb_effect(&mut self, effect: u16) {
         let Some(hid) = &self.hid_device else {
             return;
@@ -7658,28 +7575,64 @@ impl EntropyApp {
         let mut changed = false;
         let dark = ui.visuals().dark_mode;
 
-        ui.set_min_width(244.0);
-        ui.spacing_mut().item_spacing = Vec2::new(6.0, 6.0);
+        const POPUP_WIDTH: f32 = 244.0;
+        const LAYER_BUTTON_SIZE: Vec2 = Vec2::new(52.0, 30.0);
+        const BUTTON_GAP: f32 = 6.0;
+        let layer_row_width = LAYER_BUTTON_SIZE.x * 4.0 + BUTTON_GAP * 3.0;
+        let layer_row_inset = ((POPUP_WIDTH - layer_row_width) * 0.5).max(0.0);
+
+        ui.set_min_width(POPUP_WIDTH);
+        ui.spacing_mut().item_spacing = Vec2::new(BUTTON_GAP, BUTTON_GAP);
         for row in 0..4 {
             ui.horizontal(|ui| {
+                ui.add_space(layer_row_inset);
                 for col in 0..4 {
                     let idx = row * 4 + col;
                     let bit = 1u16 << idx;
                     let selected = (*layers & bit) != 0;
                     let label = idx.to_string();
-                    let resp = crate::ui_style::modern_button(
-                        ui,
-                        label.as_str(),
-                        Vec2::new(52.0, 30.0),
-                        true,
+                    let (rect, resp) = ui.allocate_exact_size(LAYER_BUTTON_SIZE, Sense::click());
+                    let active = resp.is_pointer_button_down_on();
+                    let hovered = resp.hovered();
+                    let fill = if active {
+                        if dark {
+                            Color32::from_rgb(56, 56, 59)
+                        } else {
+                            Color32::from_rgb(232, 232, 235)
+                        }
+                    } else if hovered {
+                        crate::ui_style::hover_fill(dark)
+                    } else {
+                        crate::ui_style::surface_fill(dark)
+                    };
+                    ui.painter().rect(
+                        rect,
+                        9.0,
+                        fill,
+                        crate::ui_style::modal_outline_stroke(dark),
+                        egui::StrokeKind::Inside,
+                    );
+                    ui.painter().text(
+                        rect.center(),
+                        egui::Align2::CENTER_CENTER,
+                        label,
+                        FontId::proportional(12.5),
+                        if selected {
+                            ui.visuals().text_color()
+                        } else {
+                            app_muted_text(dark)
+                        },
                     );
                     if selected {
                         ui.painter().rect_stroke(
-                            resp.rect.shrink(3.0),
+                            rect.shrink(3.0),
                             7.0,
                             crate::ui_style::modal_outline_stroke(dark),
                             egui::StrokeKind::Inside,
                         );
+                    }
+                    if hovered {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                     }
                     if resp.clicked() {
                         if selected {
@@ -7694,7 +7647,10 @@ impl EntropyApp {
         }
 
         ui.add_space(4.0);
+        let action_width = 112.0 * 2.0 + BUTTON_GAP;
+        let action_inset = ((POPUP_WIDTH - action_width) * 0.5).max(0.0);
         ui.horizontal(|ui| {
+            ui.add_space(action_inset);
             let all_resp = crate::ui_style::modern_button(
                 ui,
                 "Enable all",
