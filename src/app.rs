@@ -840,6 +840,37 @@ fn layer_led_outline_color(index: u8) -> Color32 {
     }
 }
 
+fn blend_color(a: Color32, b: Color32, t: f32) -> Color32 {
+    let t = t.clamp(0.0, 1.0);
+    let mix = |x: u8, y: u8| (x as f32 + (y as f32 - x as f32) * t).round() as u8;
+    Color32::from_rgb(mix(a.r(), b.r()), mix(a.g(), b.g()), mix(a.b(), b.b()))
+}
+
+fn layer_led_hover_fill(index: u8, dark: bool) -> Color32 {
+    let (h, s, v) = LAYER_LED_PALETTE_HSV
+        .get(index as usize)
+        .copied()
+        .unwrap_or((0, 0, 0));
+    let base = if dark {
+        Color32::from_rgb(62, 56, 56)
+    } else {
+        Color32::from_rgb(239, 233, 232)
+    };
+    if v == 0 {
+        base
+    } else {
+        let tint_s = (s as f32 / 255.0 * 0.22).clamp(0.0, 1.0);
+        let tint_v = if dark { 0.36 } else { 0.92 };
+        let tint = Color32::from(egui::ecolor::Hsva::new(
+            h as f32 / 255.0,
+            tint_s,
+            tint_v,
+            1.0,
+        ));
+        blend_color(base, tint, if dark { 0.62 } else { 0.52 })
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum RgbSupportKind {
     #[default]
@@ -9832,23 +9863,19 @@ impl EntropyApp {
         } else {
             self.selected_layer
         };
-        let layer_led_outline = if self.layer_led_settings.supported {
-            let color_idx = self
-                .layer_led_settings
+        let layer_led_color_idx = if self.layer_led_settings.supported {
+            self.layer_led_settings
                 .layer_colors
                 .get(layer.min(15))
                 .copied()
-                .unwrap_or(0);
-            // Off and White should keep the standard neutral outline so disabled/uncolored
-            // layers do not look artificially tinted.
-            if matches!(color_idx, 0 | 1) {
-                None
-            } else {
-                Some(layer_led_outline_color(color_idx))
-            }
+                .filter(|color_idx| !matches!(color_idx, 0 | 1))
         } else {
             None
         };
+        // Off and White should keep the standard neutral outline/fill so disabled/uncolored
+        // layers do not look artificially tinted.
+        let layer_led_outline = layer_led_color_idx.map(layer_led_outline_color);
+        let layer_led_hover_fill = layer_led_color_idx.map(|color_idx| layer_led_hover_fill(color_idx, dark));
         for (ki, rect, _) in &rects {
             let key = &layout.keys[*ki];
             let is_selected = self.selected_key == Some((layer, *ki));
@@ -9857,11 +9884,13 @@ impl EntropyApp {
             let bg = if is_selected {
                 Color32::from_rgb(196, 132, 144)
             } else if is_hovered {
-                if dark {
-                    Color32::from_rgb(62, 56, 56)
-                } else {
-                    Color32::from_rgb(239, 233, 232)
-                }
+                layer_led_hover_fill.unwrap_or_else(|| {
+                    if dark {
+                        Color32::from_rgb(62, 56, 56)
+                    } else {
+                        Color32::from_rgb(239, 233, 232)
+                    }
+                })
             } else {
                 if dark {
                     Color32::from_rgb(48, 48, 52)
