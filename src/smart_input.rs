@@ -65,13 +65,13 @@ pub const SMART_SYMBOLS: &[SmartSymbol] = &[
     SmartSymbol { trigger_keycode: MOD_ALT | (KC_F13 + 6),  symbol: '^', name: "Caret" },
 
     // Ctrl+Alt+F13..F19
-    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_ALT | KC_F13,      symbol: 'Б', name: "Cyrillic Be" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_ALT | (KC_F13 + 1),  symbol: 'Ю', name: "Cyrillic Yu" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_ALT | (KC_F13 + 2),  symbol: 'Ж', name: "Cyrillic Zhe" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_ALT | (KC_F13 + 3),  symbol: 'Э', name: "Cyrillic E" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_ALT | (KC_F13 + 4),  symbol: 'Х', name: "Cyrillic Ha" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_ALT | (KC_F13 + 5),  symbol: 'Ъ', name: "Cyrillic Hard Sign" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_ALT | (KC_F13 + 6),  symbol: 'Ё', name: "Cyrillic Yo" },
+    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_ALT | KC_F13,      symbol: 'б', name: "Cyrillic be" },
+    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_ALT | (KC_F13 + 1),  symbol: 'ю', name: "Cyrillic yu" },
+    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_ALT | (KC_F13 + 2),  symbol: 'ж', name: "Cyrillic zhe" },
+    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_ALT | (KC_F13 + 3),  symbol: 'э', name: "Cyrillic e" },
+    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_ALT | (KC_F13 + 4),  symbol: 'х', name: "Cyrillic ha" },
+    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_ALT | (KC_F13 + 5),  symbol: 'ъ', name: "Cyrillic hard sign" },
+    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_ALT | (KC_F13 + 6),  symbol: 'ё', name: "Cyrillic yo" },
 
     // Ctrl+Shift+F13..F24
     SmartSymbol { trigger_keycode: MOD_CTRL | MOD_SHIFT | KC_F13,      symbol: '°', name: "Degree sign" },
