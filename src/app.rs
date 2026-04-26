@@ -473,6 +473,8 @@ struct ConnectResult {
     mouse_keys_settings: MouseKeysSettingsState,
     /// Tap-Hold settings from QMK settings, if supported
     tap_hold_settings: TapHoldSettingsState,
+    /// Ergohaven per-layer LED settings from QMK settings, if supported (qsid 300..=317)
+    layer_led_settings: LayerLedSettingsState,
     /// Runtime RGB settings, if supported by the current Vial/QMK lighting backend
     rgb_settings: RgbSettingsState,
     /// Key Override entries
@@ -708,6 +710,64 @@ struct TapHoldSettingsState {
     flow_tap: u16,
     /// Whether qsid 7 was readable (firmware support flag)
     supported: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct LayerLedSettingsState {
+    /// qsid 300..=315: palette color index for each logical layer
+    layer_colors: [u8; 16],
+    /// qsid 316: global LED brightness, clamped by firmware to 0..=255
+    brightness: u16,
+    /// qsid 317: timeout in minutes, 0 disables timeout
+    timeout_mins: u8,
+    /// Whether qsid 300 was readable (firmware support flag)
+    supported: bool,
+}
+
+impl Default for LayerLedSettingsState {
+    fn default() -> Self {
+        Self {
+            layer_colors: [0; 16],
+            brightness: 0,
+            timeout_mins: 0,
+            supported: false,
+        }
+    }
+}
+
+const LAYER_LED_PALETTE: [&str; 25] = [
+    "Off",
+    "White",
+    "Red",
+    "Orange",
+    "Goldenrod",
+    "Gold",
+    "Yellow",
+    "Chartreuse",
+    "Lime",
+    "Green",
+    "Spring Green",
+    "Turquoise",
+    "Teal",
+    "Cyan",
+    "Azure",
+    "Sky",
+    "Blue",
+    "Indigo",
+    "Purple",
+    "Magenta",
+    "Pink",
+    "Coral",
+    "Salmon",
+    "Warm White",
+    "Amber",
+];
+
+fn layer_led_palette_name(index: u8) -> &'static str {
+    LAYER_LED_PALETTE
+        .get(index as usize)
+        .copied()
+        .unwrap_or("Unknown")
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -1184,6 +1244,7 @@ enum SettingsTab {
     MatrixTester,
     AutoShift,
     Rgb,
+    LayerLeds,
     Encoders,
     TapHold,
     Combo,
@@ -1247,6 +1308,7 @@ pub struct EntropyApp {
     auto_shift_timeout_text: String,
     mouse_keys_settings: MouseKeysSettingsState,
     tap_hold_settings: TapHoldSettingsState,
+    layer_led_settings: LayerLedSettingsState,
     alt_repeat_entries: Vec<AltRepeatKeyEntry>,
     alt_repeat_names: Vec<String>,
     alt_repeat_undo_stack: Vec<(Vec<AltRepeatKeyEntry>, Vec<String>, usize)>,
@@ -1339,6 +1401,7 @@ impl EntropyApp {
             auto_shift_timeout_text: String::new(),
             mouse_keys_settings: MouseKeysSettingsState::default(),
             tap_hold_settings: TapHoldSettingsState::default(),
+            layer_led_settings: LayerLedSettingsState::default(),
             alt_repeat_entries: vec![],
             alt_repeat_names: vec![],
             alt_repeat_undo_stack: Vec::new(),
@@ -1426,6 +1489,7 @@ impl EntropyApp {
         self.auto_shift_timeout = None;
         self.auto_shift_timeout_text.clear();
         self.mouse_keys_settings = MouseKeysSettingsState::default();
+        self.layer_led_settings = LayerLedSettingsState::default();
         self.alt_repeat_entries.clear();
         self.alt_repeat_names.clear();
         self.alt_repeat_undo_stack.clear();
@@ -1728,6 +1792,44 @@ impl EntropyApp {
                             th
                         };
 
+                        // Ergohaven per-layer LED settings (qsid 300..=317). If qsid 300 is
+                        // unsupported, we assume the whole group is unavailable.
+                        let layer_led_settings = {
+                            let mut leds = LayerLedSettingsState::default();
+                            match dev_conn.get_qmk_setting_u8(300) {
+                                Ok(v) => {
+                                    leds.layer_colors[0] = v;
+                                    leds.supported = true;
+                                    for layer in 1..16 {
+                                        let qsid = 300 + layer as u16;
+                                        leds.layer_colors[layer] = dev_conn
+                                            .get_qmk_setting_u8(qsid)
+                                            .unwrap_or_else(|e| {
+                                                log::warn!("get_qmk_setting_u8(layer_led qsid {qsid}): {e}");
+                                                0
+                                            });
+                                    }
+                                    leds.brightness = dev_conn
+                                        .get_qmk_setting_u16(316)
+                                        .unwrap_or_else(|e| {
+                                            log::warn!("get_qmk_setting_u16(layer_led brightness): {e}");
+                                            0
+                                        })
+                                        .min(255);
+                                    leds.timeout_mins = dev_conn
+                                        .get_qmk_setting_u8(317)
+                                        .unwrap_or_else(|e| {
+                                            log::warn!("get_qmk_setting_u8(layer_led timeout): {e}");
+                                            0
+                                        });
+                                }
+                                Err(e) => {
+                                    log::warn!("get_qmk_setting_u8(layer_led layer 0 color): {e}");
+                                }
+                            }
+                            leds
+                        };
+
                         // Read tap dance entries
                         let tap_dance_entries = match dev_conn.get_tap_dance_count() {
                             Ok(count) => {
@@ -1836,6 +1938,7 @@ impl EntropyApp {
                             auto_shift_timeout,
                             mouse_keys_settings,
                             tap_hold_settings,
+                            layer_led_settings,
                             rgb_settings,
                             key_override_entries,
                             alt_repeat_entries,
@@ -1890,6 +1993,7 @@ impl EntropyApp {
                                 auto_shift_timeout: None,
                                 mouse_keys_settings: MouseKeysSettingsState::default(),
                                 tap_hold_settings: TapHoldSettingsState::default(),
+                                layer_led_settings: LayerLedSettingsState::default(),
                                 rgb_settings: RgbSettingsState::default(),
                                 key_override_entries: vec![],
                                 alt_repeat_entries: vec![],
@@ -1952,6 +2056,7 @@ impl EntropyApp {
                             auto_shift_timeout: None,
                             mouse_keys_settings: MouseKeysSettingsState::default(),
                             tap_hold_settings: TapHoldSettingsState::default(),
+                            layer_led_settings: LayerLedSettingsState::default(),
                             rgb_settings: RgbSettingsState::default(),
                             key_override_entries: vec![],
                             alt_repeat_entries: vec![],
@@ -2026,6 +2131,7 @@ impl EntropyApp {
                     .unwrap_or_default();
                 self.mouse_keys_settings = r.mouse_keys_settings;
                 self.tap_hold_settings = r.tap_hold_settings;
+                self.layer_led_settings = r.layer_led_settings;
                 self.rgb_settings = r.rgb_settings;
                 let highest_used_combo = self
                     .combo_entries
@@ -2495,6 +2601,9 @@ impl EntropyApp {
             }
             SettingsTab::Rgb => {
                 self.draw_rgb_settings_page(ui, content_rect, dark);
+            }
+            SettingsTab::LayerLeds => {
+                self.draw_layer_led_settings_page(ui, content_rect);
             }
             SettingsTab::Encoders => {
                 self.draw_encoder_visibility_settings_page(ui, content_rect, dark);
@@ -4738,6 +4847,11 @@ impl EntropyApp {
         self.main_menu_tab = MainMenuTab::Settings;
     }
 
+    fn open_layer_led_settings_page(&mut self) {
+        self.settings_tab = SettingsTab::LayerLeds;
+        self.main_menu_tab = MainMenuTab::Settings;
+    }
+
     fn open_tap_hold_settings_page(&mut self) {
         self.settings_tab = SettingsTab::TapHold;
         self.main_menu_tab = MainMenuTab::Settings;
@@ -5918,6 +6032,398 @@ impl EntropyApp {
                 *slot = edited;
             }
             self.write_alt_repeat_entry(idx);
+        }
+    }
+
+    fn draw_layer_led_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
+        let dark = ui.visuals().dark_mode;
+        let hid_ready = {
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                self.hid_device.is_some()
+            }
+            #[cfg(target_arch = "wasm32")]
+            {
+                false
+            }
+        };
+
+        ui.allocate_ui_at_rect(content_rect, |ui| {
+            ui.vertical_centered(|ui| {
+                ui.add_space(18.0);
+                ui.label(RichText::new("Layer LEDs").size(18.0).strong());
+                ui.add_space(6.0);
+                ui.label(
+                    RichText::new("Set LED brightness, timeout and per-layer colors")
+                        .size(13.0)
+                        .color(app_muted_text(dark)),
+                );
+                ui.add_space(24.0);
+
+                if !self.layer_led_settings.supported {
+                    crate::ui_style::modal_empty_state(
+                        ui,
+                        "Layer LED settings are not available on this firmware",
+                        Some("Enable Ergohaven LED QMK_SETTINGS in the keyboard firmware to use this page"),
+                    );
+                    return;
+                }
+
+                if !hid_ready {
+                    crate::ui_style::modal_empty_state(
+                        ui,
+                        "Connect a Vial keyboard to edit Layer LED settings",
+                        None,
+                    );
+                    return;
+                }
+
+                const VISIBLE_ROWS: usize = 6;
+                const TOTAL_ROWS: usize = 18;
+                const CONTENT_WIDTH: f32 = 470.0;
+                const ROW_CONTENT_WIDTH: f32 = 452.0;
+                const ROW_HEIGHT: f32 = 54.0;
+                let list_height = ROW_HEIGHT * VISIBLE_ROWS as f32;
+                let content_height = ROW_HEIGHT * TOTAL_ROWS as f32;
+                let max_offset = (content_height - list_height).max(0.0);
+                let offset_id = ui.id().with("layer_led_settings_smooth_offset");
+                let target_id = ui.id().with("layer_led_settings_smooth_target");
+                let mut scroll_offset = ui
+                    .ctx()
+                    .data_mut(|d| d.get_persisted::<f32>(offset_id).unwrap_or(0.0))
+                    .clamp(0.0, max_offset);
+                let mut target_offset = ui
+                    .ctx()
+                    .data_mut(|d| d.get_persisted::<f32>(target_id).unwrap_or(scroll_offset))
+                    .clamp(0.0, max_offset);
+                let (viewport, viewport_resp) = ui.allocate_exact_size(
+                    egui::vec2(CONTENT_WIDTH, list_height),
+                    Sense::hover(),
+                );
+                let track_width = 6.0;
+                let track_rect = egui::Rect::from_min_max(
+                    egui::pos2(viewport.right() - track_width, viewport.top()),
+                    egui::pos2(viewport.right(), viewport.bottom()),
+                );
+                let scrollbar_resp = if max_offset > 0.0 {
+                    Some(ui.interact(
+                        track_rect.expand2(egui::vec2(5.0, 0.0)),
+                        ui.id().with("layer_led_settings_scrollbar"),
+                        Sense::click_and_drag(),
+                    ))
+                } else {
+                    None
+                };
+
+                let scroll_delta = if viewport_resp.hovered() {
+                    ui.input(|i| {
+                        if i.smooth_scroll_delta.y.abs() > 0.0 {
+                            i.smooth_scroll_delta.y
+                        } else {
+                            i.raw_scroll_delta.y
+                        }
+                    })
+                } else {
+                    0.0
+                };
+                if scroll_delta.abs() > 0.0 && max_offset > 0.0 {
+                    target_offset = (target_offset - scroll_delta * 0.72).clamp(0.0, max_offset);
+                }
+
+                let handle_height = if max_offset > 0.0 {
+                    (list_height / content_height * viewport.height()).clamp(42.0, viewport.height())
+                } else {
+                    viewport.height()
+                };
+                if let Some(resp) = &scrollbar_resp {
+                    if (resp.dragged() || resp.clicked()) && max_offset > 0.0 {
+                        if let Some(pointer_pos) = ui.input(|i| i.pointer.interact_pos()) {
+                            let travel = (track_rect.height() - handle_height).max(1.0);
+                            let t = ((pointer_pos.y - track_rect.top() - handle_height / 2.0)
+                                / travel)
+                                .clamp(0.0, 1.0);
+                            target_offset = t * max_offset;
+                            scroll_offset = target_offset;
+                        }
+                    }
+                }
+
+                if (scroll_offset - target_offset).abs() > 0.35 {
+                    scroll_offset += (target_offset - scroll_offset) * 0.42;
+                    ui.ctx().request_repaint();
+                } else {
+                    scroll_offset = target_offset;
+                }
+                scroll_offset = scroll_offset.clamp(0.0, max_offset);
+                target_offset = target_offset.clamp(0.0, max_offset);
+                ui.ctx().data_mut(|d| {
+                    d.insert_persisted(offset_id, scroll_offset);
+                    d.insert_persisted(target_id, target_offset);
+                });
+
+                let first_visible_row = (scroll_offset / ROW_HEIGHT).floor() as usize;
+                let row_y_offset = scroll_offset - first_visible_row as f32 * ROW_HEIGHT;
+                let last_visible_row = (first_visible_row + VISIBLE_ROWS + 1).min(TOTAL_ROWS);
+                let visible_row_count = last_visible_row.saturating_sub(first_visible_row);
+                let content_rect = egui::Rect::from_min_size(
+                    egui::pos2(viewport.left(), viewport.top() - row_y_offset),
+                    egui::vec2(CONTENT_WIDTH, ROW_HEIGHT * visible_row_count as f32),
+                );
+                let suppress_tooltips = (scroll_offset - target_offset).abs() > 0.35
+                    || ui.input(|i| i.pointer.primary_down());
+                ui.allocate_ui_at_rect(content_rect, |ui| {
+                    ui.set_clip_rect(viewport);
+                    ui.set_min_size(content_rect.size());
+                    ui.spacing_mut().item_spacing.y = 0.0;
+                    self.draw_layer_led_editor_content(
+                        ui,
+                        first_visible_row..last_visible_row,
+                        ROW_CONTENT_WIDTH,
+                        ROW_HEIGHT,
+                        suppress_tooltips,
+                    );
+                });
+
+                if max_offset > 0.0 {
+                    let track_hovered = scrollbar_resp
+                        .as_ref()
+                        .map(|resp| resp.hovered() || resp.dragged())
+                        .unwrap_or(false);
+                    crate::ui_style::paint_floating_scrollbar_handle(
+                        ui,
+                        track_rect,
+                        handle_height,
+                        scroll_offset / max_offset,
+                        track_hovered,
+                    );
+                }
+            });
+        });
+    }
+
+    fn draw_layer_led_editor_content(
+        &mut self,
+        ui: &mut egui::Ui,
+        row_range: std::ops::Range<usize>,
+        content_width: f32,
+        row_height: f32,
+        suppress_tooltips: bool,
+    ) {
+        const FIELD_WIDTH: f32 = 86.0;
+        const DROPDOWN_WIDTH: f32 = 168.0;
+        for row_idx in row_range {
+            match row_idx {
+                0 => {
+                    let current = self.layer_led_settings.brightness;
+                    crate::ui_style::settings_list_row_with_tooltip(
+                        ui,
+                        content_width,
+                        row_height,
+                        "LED brightness",
+                        true,
+                        if suppress_tooltips { None } else { Some("Global LED brightness for layer color lighting") },
+                        FIELD_WIDTH,
+                        |ui| {
+                            let edit_id = egui::Id::new("layer_led_brightness_edit");
+                            let mut text = ui.ctx().data_mut(|d| {
+                                d.get_temp::<String>(edit_id)
+                                    .unwrap_or_else(|| current.to_string())
+                            });
+                            if text.parse::<u16>().ok() != Some(current)
+                                && !ui.memory(|m| m.has_focus(edit_id))
+                            {
+                                text = current.to_string();
+                            }
+                            let resp = crate::ui_style::modern_text_field(
+                                ui,
+                                edit_id,
+                                &mut text,
+                                FIELD_WIDTH,
+                                "",
+                                3,
+                                egui::Align::RIGHT,
+                            );
+                            if resp.changed() {
+                                let filtered: String = text
+                                    .chars()
+                                    .filter(|c: &char| c.is_ascii_digit())
+                                    .collect();
+                                let new_value = filtered.parse::<u16>().unwrap_or(0).min(255);
+                                if new_value != current {
+                                    self.layer_led_settings.brightness = new_value;
+                                    self.write_layer_led_brightness(new_value);
+                                }
+                                text = filtered;
+                            }
+                            ui.ctx().data_mut(|d| d.insert_temp(edit_id, text));
+                        },
+                    );
+                }
+                1 => {
+                    let current = self.layer_led_settings.timeout_mins;
+                    crate::ui_style::settings_list_row_with_tooltip(
+                        ui,
+                        content_width,
+                        row_height,
+                        "LED timeout",
+                        true,
+                        if suppress_tooltips { None } else { Some("Minutes before LEDs turn off automatically, 0 disables timeout") },
+                        FIELD_WIDTH,
+                        |ui| {
+                            let edit_id = egui::Id::new("layer_led_timeout_edit");
+                            let mut text = ui.ctx().data_mut(|d| {
+                                d.get_temp::<String>(edit_id)
+                                    .unwrap_or_else(|| current.to_string())
+                            });
+                            if text.parse::<u8>().ok() != Some(current)
+                                && !ui.memory(|m| m.has_focus(edit_id))
+                            {
+                                text = current.to_string();
+                            }
+                            let resp = crate::ui_style::modern_text_field(
+                                ui,
+                                edit_id,
+                                &mut text,
+                                FIELD_WIDTH,
+                                "",
+                                3,
+                                egui::Align::RIGHT,
+                            );
+                            if resp.changed() {
+                                let filtered: String = text
+                                    .chars()
+                                    .filter(|c: &char| c.is_ascii_digit())
+                                    .collect();
+                                let new_value = filtered.parse::<u16>().unwrap_or(0).min(255) as u8;
+                                if new_value != current {
+                                    self.layer_led_settings.timeout_mins = new_value;
+                                    self.write_layer_led_timeout(new_value);
+                                }
+                                text = filtered;
+                            }
+                            ui.ctx().data_mut(|d| d.insert_temp(edit_id, text));
+                        },
+                    );
+                }
+                2..=17 => {
+                    let layer = row_idx - 2;
+                    let current = self.layer_led_settings.layer_colors[layer];
+                    let label = format!("Layer {layer} color");
+                    let tooltip = format!("LED palette color used when layer {layer} is active");
+                    crate::ui_style::settings_list_row_with_tooltip(
+                        ui,
+                        content_width,
+                        row_height,
+                        &label,
+                        true,
+                        if suppress_tooltips { None } else { Some(tooltip.as_str()) },
+                        DROPDOWN_WIDTH,
+                        |ui| {
+                            let dropdown_id = ui.make_persistent_id(("layer_led_color_dropdown", layer));
+                            let selected_text = layer_led_palette_name(current);
+                            let dropdown_resp = crate::ui_style::modern_dropdown_button(
+                                ui,
+                                dropdown_id,
+                                selected_text,
+                                ui.visuals().text_color(),
+                                DROPDOWN_WIDTH,
+                            );
+
+                            ui.style_mut().visuals.window_stroke = crate::ui_style::modal_outline_stroke(ui.visuals().dark_mode);
+                            ui.style_mut().visuals.window_fill = app_surface_fill(ui.visuals().dark_mode);
+                            egui::popup_below_widget(
+                                ui,
+                                dropdown_id,
+                                &dropdown_resp,
+                                egui::PopupCloseBehavior::CloseOnClickOutside,
+                                |ui| {
+                                    let dark = ui.visuals().dark_mode;
+                                    ui.set_min_width(DROPDOWN_WIDTH);
+                                    ui.spacing_mut().item_spacing = Vec2::new(0.0, 2.0);
+                                    egui::ScrollArea::vertical()
+                                        .id_salt(("layer_led_color_dropdown_scroll", layer))
+                                        .max_height(142.0)
+                                        .auto_shrink([false, true])
+                                        .show(ui, |ui| {
+                                            for (color_idx, option_label) in LAYER_LED_PALETTE.iter().enumerate() {
+                                                let selected = color_idx as u8 == current;
+                                                let (option_rect, option_resp) = ui.allocate_exact_size(
+                                                    Vec2::new(DROPDOWN_WIDTH, 28.0),
+                                                    Sense::click(),
+                                                );
+                                                if option_resp.hovered() {
+                                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                                }
+                                                let option_fill = if selected {
+                                                    if dark {
+                                                        Color32::from_rgb(58, 58, 61)
+                                                    } else {
+                                                        Color32::from_rgb(236, 236, 238)
+                                                    }
+                                                } else if option_resp.hovered() {
+                                                    crate::ui_style::hover_fill(dark)
+                                                } else {
+                                                    Color32::TRANSPARENT
+                                                };
+                                                ui.painter().rect_filled(option_rect, 7.0, option_fill);
+                                                ui.painter().text(
+                                                    egui::pos2(option_rect.left() + 10.0, option_rect.center().y),
+                                                    egui::Align2::LEFT_CENTER,
+                                                    *option_label,
+                                                    FontId::proportional(12.0),
+                                                    if selected {
+                                                        ui.visuals().text_color()
+                                                    } else {
+                                                        app_muted_text(dark)
+                                                    },
+                                                );
+                                                if option_resp.clicked() {
+                                                    let new_value = color_idx as u8;
+                                                    self.layer_led_settings.layer_colors[layer] = new_value;
+                                                    self.write_layer_led_color(layer, new_value);
+                                                    ui.memory_mut(|m| m.close_popup());
+                                                }
+                                            }
+                                        });
+                                },
+                            );
+                        },
+                    );
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn write_layer_led_color(&mut self, layer: usize, value: u8) {
+        let Some(hid) = &self.hid_device else {
+            return;
+        };
+        let qsid = 300 + layer as u16;
+        if let Err(e) = hid.set_qmk_setting_u8(qsid, value) {
+            self.status_msg = format!("Failed to save Layer LED color (layer {layer}): {}", e);
+            log::warn!("set_qmk_setting_u8(layer_led qsid {qsid}) failed: {e}");
+        }
+    }
+
+    fn write_layer_led_brightness(&mut self, value: u16) {
+        let Some(hid) = &self.hid_device else {
+            return;
+        };
+        let value = value.min(255);
+        if let Err(e) = hid.set_qmk_setting_u16(316, value) {
+            self.status_msg = format!("Failed to save Layer LED brightness: {}", e);
+            log::warn!("set_qmk_setting_u16(layer_led brightness) failed: {e}");
+        }
+    }
+
+    fn write_layer_led_timeout(&mut self, value: u8) {
+        let Some(hid) = &self.hid_device else {
+            return;
+        };
+        if let Err(e) = hid.set_qmk_setting_u8(317, value) {
+            self.status_msg = format!("Failed to save Layer LED timeout: {}", e);
+            log::warn!("set_qmk_setting_u8(layer_led timeout) failed: {e}");
         }
     }
 
@@ -7692,7 +8198,7 @@ impl EntropyApp {
                         settings_rect.center().x - 76.0,
                         settings_rect.bottom() + 6.0,
                     ),
-                    Vec2::new(152.0, 134.0),
+                    Vec2::new(152.0, 162.0),
                 );
                 let hover_bridge_rect = settings_rect.union(dropdown_rect).expand(3.0);
                 let pointer_over_bridge = ui
@@ -7712,9 +8218,10 @@ impl EntropyApp {
                             .as_ref()
                             .map(|l| l.supports_rgb)
                             .unwrap_or(false);
+                    let layer_leds_available = self.layer_led_settings.supported;
                     let tap_hold_available = self.tap_hold_settings.supported;
                     let item_width = dropdown_rect.width() - 16.0;
-                    let (matrix_hovered, rgb_hovered, encoders_hovered, tap_hold_hovered, settings_clicked) =
+                    let (matrix_hovered, rgb_hovered, layer_leds_hovered, encoders_hovered, tap_hold_hovered, settings_clicked) =
                         egui::Area::new(egui::Id::new("settings_dropdown_area"))
                             .order(egui::Order::Foreground)
                             .fixed_pos(dropdown_rect.min)
@@ -7737,6 +8244,14 @@ impl EntropyApp {
                                             rgb_available,
                                             self.main_menu_tab == MainMenuTab::Settings
                                                 && self.settings_tab == SettingsTab::Rgb,
+                                        );
+                                        let layer_leds_resp = top_dropdown_item(
+                                            ui,
+                                            item_width,
+                                            "Layer LEDs",
+                                            layer_leds_available,
+                                            self.main_menu_tab == MainMenuTab::Settings
+                                                && self.settings_tab == SettingsTab::LayerLeds,
                                         );
                                         let encoders_resp = top_dropdown_item(
                                             ui,
@@ -7773,6 +8288,15 @@ impl EntropyApp {
                                                 "RGB settings are not available on this firmware",
                                             );
                                         }
+                                        if layer_leds_resp.clicked() && layer_leds_available {
+                                            self.close_top_dropdowns(ui.ctx());
+                                            self.open_layer_led_settings_page();
+                                        }
+                                        if !layer_leds_available {
+                                            let _ = layer_leds_resp.clone().on_hover_text(
+                                                "Layer LED settings are not available on this firmware",
+                                            );
+                                        }
                                         if encoders_resp.clicked() {
                                             self.close_top_dropdowns(ui.ctx());
                                             self.settings_tab = SettingsTab::Encoders;
@@ -7790,10 +8314,12 @@ impl EntropyApp {
                                         (
                                             matrix_resp.hovered(),
                                             rgb_resp.hovered(),
+                                            layer_leds_resp.hovered(),
                                             encoders_resp.hovered(),
                                             tap_hold_resp.hovered(),
                                             matrix_resp.clicked()
                                                 || (rgb_resp.clicked() && rgb_available)
+                                                || (layer_leds_resp.clicked() && layer_leds_available)
                                                 || encoders_resp.clicked()
                                                 || (tap_hold_resp.clicked() && tap_hold_available),
                                         )
@@ -7808,6 +8334,7 @@ impl EntropyApp {
                                 && (settings_tab_hovered
                                     || matrix_hovered
                                     || rgb_hovered
+                                    || layer_leds_hovered
                                     || encoders_hovered
                                     || tap_hold_hovered
                                     || pointer_over_bridge),
