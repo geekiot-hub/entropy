@@ -1516,6 +1516,12 @@ impl KeycodePicker {
                 .size(11.0)
                 .color(Color32::from_gray(150)),
         );
+        ui.add_space(4.0);
+        ui.label(
+            RichText::new(crate::smart_input::status_text())
+                .size(10.0)
+                .color(Color32::from_gray(120)),
+        );
         ui.add_space(6.0);
         ui.horizontal_wrapped(|ui| {
             for smart in crate::smart_input::SMART_SYMBOLS.iter().copied() {
