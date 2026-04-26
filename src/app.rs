@@ -3086,10 +3086,10 @@ impl EntropyApp {
         };
 
         let board_top = content_rect.top() + 92.0;
-        let hint_y = content_rect.bottom() - 36.0;
+        let hint_y = ui.max_rect().bottom() - 36.0;
         let board_rect = egui::Rect::from_min_max(
             egui::pos2(content_rect.left(), board_top),
-            egui::pos2(content_rect.right(), content_rect.bottom() - 58.0),
+            egui::pos2(content_rect.right(), hint_y - 22.0),
         );
 
         if !supported {
@@ -3157,7 +3157,7 @@ impl EntropyApp {
         painter.text(
             egui::pos2(content_rect.center().x, hint_y),
             egui::Align2::CENTER_CENTER,
-            "Click Tested to reset",
+            "Click Tested to reset progress",
             FontId::proportional(11.0),
             hint_color,
         );
