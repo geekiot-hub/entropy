@@ -7620,7 +7620,7 @@ impl EntropyApp {
                         if selected {
                             ui.visuals().text_color()
                         } else {
-                            app_muted_text(dark)
+                            app_muted_text(dark).gamma_multiply(if dark { 0.62 } else { 1.10 })
                         },
                     );
                     if selected {
