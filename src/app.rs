@@ -5277,6 +5277,7 @@ impl EntropyApp {
         const ROW_HEIGHT: f32 = 54.0;
         const VISIBLE_ROWS: usize = 6;
         const TOTAL_ROWS: usize = 11;
+        const ROW_CONTENT_WIDTH: f32 = 452.0;
         const CONTROL_WIDTH: f32 = 168.0;
         const MOD_CONTROL_WIDTH: f32 = 210.0;
         let custom = self
@@ -5411,7 +5412,7 @@ impl EntropyApp {
                             0 => {
                                 crate::ui_style::settings_list_row(
                                     ui,
-                                    CONTENT_WIDTH,
+                                    ROW_CONTENT_WIDTH,
                                     ROW_HEIGHT,
                                     "Entry",
                                     true,
@@ -5552,7 +5553,7 @@ impl EntropyApp {
                                 let mut name_changed = false;
                                 crate::ui_style::settings_list_row(
                                     ui,
-                                    CONTENT_WIDTH,
+                                    ROW_CONTENT_WIDTH,
                                     ROW_HEIGHT,
                                     "Name",
                                     true,
@@ -5584,7 +5585,7 @@ impl EntropyApp {
                             2 => {
                                 crate::ui_style::settings_list_row(
                                     ui,
-                                    CONTENT_WIDTH,
+                                    ROW_CONTENT_WIDTH,
                                     ROW_HEIGHT,
                                     "Last key",
                                     true,
@@ -5606,7 +5607,7 @@ impl EntropyApp {
                             3 => {
                                 crate::ui_style::settings_list_row(
                                     ui,
-                                    CONTENT_WIDTH,
+                                    ROW_CONTENT_WIDTH,
                                     ROW_HEIGHT,
                                     "Alt key",
                                     true,
@@ -5634,48 +5635,50 @@ impl EntropyApp {
                                 };
                                 crate::ui_style::settings_list_row(
                                     ui,
-                                    CONTENT_WIDTH,
+                                    ROW_CONTENT_WIDTH,
                                     ROW_HEIGHT,
                                     row_label.as_str(),
                                     true,
                                     MOD_CONTROL_WIDTH,
                                     |ui| {
-                                        let mut left_checked = (edited.allowed_mods & (1 << left_bit)) != 0;
-                                        ui.label(
-                                            RichText::new("L")
-                                                .size(12.0)
-                                                .color(app_muted_text(ui.visuals().dark_mode)),
-                                        );
-                                        let left_resp = crate::ui_style::settings_switch(ui, &mut left_checked);
-                                        if left_resp.changed() {
-                                            if left_checked {
-                                                edited.allowed_mods |= 1 << left_bit;
-                                            } else {
-                                                edited.allowed_mods &= !(1 << left_bit);
+                                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                            let mut right_checked = (edited.allowed_mods & (1 << right_bit)) != 0;
+                                            let right_resp = crate::ui_style::settings_switch(ui, &mut right_checked);
+                                            if right_resp.changed() {
+                                                if right_checked {
+                                                    edited.allowed_mods |= 1 << right_bit;
+                                                } else {
+                                                    edited.allowed_mods &= !(1 << right_bit);
+                                                }
                                             }
-                                        }
-                                        ui.add_space(10.0);
-                                        let mut right_checked = (edited.allowed_mods & (1 << right_bit)) != 0;
-                                        ui.label(
-                                            RichText::new("R")
-                                                .size(12.0)
-                                                .color(app_muted_text(ui.visuals().dark_mode)),
-                                        );
-                                        let right_resp = crate::ui_style::settings_switch(ui, &mut right_checked);
-                                        if right_resp.changed() {
-                                            if right_checked {
-                                                edited.allowed_mods |= 1 << right_bit;
-                                            } else {
-                                                edited.allowed_mods &= !(1 << right_bit);
+                                            ui.label(
+                                                RichText::new("R")
+                                                    .size(12.0)
+                                                    .color(app_muted_text(ui.visuals().dark_mode)),
+                                            );
+                                            ui.add_space(10.0);
+                                            let mut left_checked = (edited.allowed_mods & (1 << left_bit)) != 0;
+                                            let left_resp = crate::ui_style::settings_switch(ui, &mut left_checked);
+                                            if left_resp.changed() {
+                                                if left_checked {
+                                                    edited.allowed_mods |= 1 << left_bit;
+                                                } else {
+                                                    edited.allowed_mods &= !(1 << left_bit);
+                                                }
                                             }
-                                        }
+                                            ui.label(
+                                                RichText::new("L")
+                                                    .size(12.0)
+                                                    .color(app_muted_text(ui.visuals().dark_mode)),
+                                            );
+                                        });
                                     },
                                 );
                             }
                             8 => {
                                 crate::ui_style::settings_list_row(
                                     ui,
-                                    CONTENT_WIDTH,
+                                    ROW_CONTENT_WIDTH,
                                     ROW_HEIGHT,
                                     "Default alt key",
                                     true,
@@ -5691,7 +5694,7 @@ impl EntropyApp {
                             9 => {
                                 crate::ui_style::settings_list_row(
                                     ui,
-                                    CONTENT_WIDTH,
+                                    ROW_CONTENT_WIDTH,
                                     ROW_HEIGHT,
                                     "Bidirectional",
                                     true,
@@ -5707,7 +5710,7 @@ impl EntropyApp {
                             10 => {
                                 crate::ui_style::settings_list_row(
                                     ui,
-                                    CONTENT_WIDTH,
+                                    ROW_CONTENT_WIDTH,
                                     ROW_HEIGHT,
                                     "Ignore handedness",
                                     true,
@@ -5769,8 +5772,11 @@ impl EntropyApp {
                     ui.painter().rect_filled(handle_rect, 3.0, handle_fill);
                 }
 
-                ui.add_space(12.0);
-                ui.horizontal_centered(|ui| {
+                ui.add_space(24.0);
+                ui.horizontal(|ui| {
+                    let action_width = crate::ui_style::modal_action_button_size().x * 2.0
+                        + ui.spacing().item_spacing.x;
+                    ui.add_space(((CONTENT_WIDTH - action_width) / 2.0).max(0.0));
                     let clear_enabled = Self::alt_repeat_entry_exists(&self.alt_repeat_entries[idx])
                         || self
                             .alt_repeat_names
