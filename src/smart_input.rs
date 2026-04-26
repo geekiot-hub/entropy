@@ -7,19 +7,66 @@ pub struct SmartSymbol {
     pub name: &'static str,
 }
 
+const KC_F13: u16 = 0x0068;
+const MOD_CTRL: u16 = 0x0100;
+const MOD_SHIFT: u16 = 0x0200;
+
 pub const SMART_SYMBOLS: &[SmartSymbol] = &[
-    SmartSymbol { trigger_keycode: 0x0068, symbol: '{', name: "Left brace" },
-    SmartSymbol { trigger_keycode: 0x0069, symbol: '}', name: "Right brace" },
-    SmartSymbol { trigger_keycode: 0x006A, symbol: '[', name: "Left bracket" },
-    SmartSymbol { trigger_keycode: 0x006B, symbol: ']', name: "Right bracket" },
-    SmartSymbol { trigger_keycode: 0x006C, symbol: '(', name: "Left parenthesis" },
-    SmartSymbol { trigger_keycode: 0x006D, symbol: ')', name: "Right parenthesis" },
-    SmartSymbol { trigger_keycode: 0x006E, symbol: '<', name: "Less-than" },
-    SmartSymbol { trigger_keycode: 0x006F, symbol: '>', name: "Greater-than" },
-    SmartSymbol { trigger_keycode: 0x0070, symbol: '#', name: "Number sign" },
-    SmartSymbol { trigger_keycode: 0x0071, symbol: '@', name: "At sign" },
-    SmartSymbol { trigger_keycode: 0x0072, symbol: '№', name: "Numero sign" },
-    SmartSymbol { trigger_keycode: 0x0073, symbol: '₽', name: "Ruble sign" },
+    // F13..F24
+    SmartSymbol { trigger_keycode: KC_F13,      symbol: '{', name: "Left brace" },
+    SmartSymbol { trigger_keycode: KC_F13 + 1,  symbol: '}', name: "Right brace" },
+    SmartSymbol { trigger_keycode: KC_F13 + 2,  symbol: '[', name: "Left bracket" },
+    SmartSymbol { trigger_keycode: KC_F13 + 3,  symbol: ']', name: "Right bracket" },
+    SmartSymbol { trigger_keycode: KC_F13 + 4,  symbol: '(', name: "Left parenthesis" },
+    SmartSymbol { trigger_keycode: KC_F13 + 5,  symbol: ')', name: "Right parenthesis" },
+    SmartSymbol { trigger_keycode: KC_F13 + 6,  symbol: '<', name: "Less-than" },
+    SmartSymbol { trigger_keycode: KC_F13 + 7,  symbol: '>', name: "Greater-than" },
+    SmartSymbol { trigger_keycode: KC_F13 + 8,  symbol: '#', name: "Number sign" },
+    SmartSymbol { trigger_keycode: KC_F13 + 9,  symbol: '@', name: "At sign" },
+    SmartSymbol { trigger_keycode: KC_F13 + 10, symbol: '№', name: "Numero sign" },
+    SmartSymbol { trigger_keycode: KC_F13 + 11, symbol: '₽', name: "Ruble sign" },
+
+    // Shift+F13..F24
+    SmartSymbol { trigger_keycode: MOD_SHIFT | KC_F13,      symbol: '!', name: "Exclamation mark" },
+    SmartSymbol { trigger_keycode: MOD_SHIFT | (KC_F13 + 1),  symbol: '"', name: "Quotation mark" },
+    SmartSymbol { trigger_keycode: MOD_SHIFT | (KC_F13 + 2),  symbol: '$', name: "Dollar sign" },
+    SmartSymbol { trigger_keycode: MOD_SHIFT | (KC_F13 + 3),  symbol: '%', name: "Percent sign" },
+    SmartSymbol { trigger_keycode: MOD_SHIFT | (KC_F13 + 4),  symbol: '&', name: "Ampersand" },
+    SmartSymbol { trigger_keycode: MOD_SHIFT | (KC_F13 + 5),  symbol: '\'', name: "Apostrophe" },
+    SmartSymbol { trigger_keycode: MOD_SHIFT | (KC_F13 + 6),  symbol: '*', name: "Asterisk" },
+    SmartSymbol { trigger_keycode: MOD_SHIFT | (KC_F13 + 7),  symbol: '+', name: "Plus sign" },
+    SmartSymbol { trigger_keycode: MOD_SHIFT | (KC_F13 + 8),  symbol: '=', name: "Equals sign" },
+    SmartSymbol { trigger_keycode: MOD_SHIFT | (KC_F13 + 9),  symbol: '?', name: "Question mark" },
+    SmartSymbol { trigger_keycode: MOD_SHIFT | (KC_F13 + 10), symbol: '|', name: "Vertical bar" },
+    SmartSymbol { trigger_keycode: MOD_SHIFT | (KC_F13 + 11), symbol: '\\', name: "Backslash" },
+
+    // Ctrl+F13..F24
+    SmartSymbol { trigger_keycode: MOD_CTRL | KC_F13,      symbol: '«', name: "Left guillemet" },
+    SmartSymbol { trigger_keycode: MOD_CTRL | (KC_F13 + 1),  symbol: '»', name: "Right guillemet" },
+    SmartSymbol { trigger_keycode: MOD_CTRL | (KC_F13 + 2),  symbol: '€', name: "Euro sign" },
+    SmartSymbol { trigger_keycode: MOD_CTRL | (KC_F13 + 3),  symbol: '—', name: "Em dash" },
+    SmartSymbol { trigger_keycode: MOD_CTRL | (KC_F13 + 4),  symbol: '–', name: "En dash" },
+    SmartSymbol { trigger_keycode: MOD_CTRL | (KC_F13 + 5),  symbol: '•', name: "Bullet" },
+    SmartSymbol { trigger_keycode: MOD_CTRL | (KC_F13 + 6),  symbol: '×', name: "Multiplication sign" },
+    SmartSymbol { trigger_keycode: MOD_CTRL | (KC_F13 + 7),  symbol: '±', name: "Plus-minus sign" },
+    SmartSymbol { trigger_keycode: MOD_CTRL | (KC_F13 + 8),  symbol: '≠', name: "Not equal sign" },
+    SmartSymbol { trigger_keycode: MOD_CTRL | (KC_F13 + 9),  symbol: '≈', name: "Almost equal sign" },
+    SmartSymbol { trigger_keycode: MOD_CTRL | (KC_F13 + 10), symbol: '✓', name: "Check mark" },
+    SmartSymbol { trigger_keycode: MOD_CTRL | (KC_F13 + 11), symbol: '§', name: "Section sign" },
+
+    // Ctrl+Shift+F13..F24
+    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_SHIFT | KC_F13,      symbol: '°', name: "Degree sign" },
+    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_SHIFT | (KC_F13 + 1),  symbol: '‰', name: "Per mille sign" },
+    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_SHIFT | (KC_F13 + 2),  symbol: '′', name: "Prime" },
+    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_SHIFT | (KC_F13 + 3),  symbol: '″', name: "Double prime" },
+    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_SHIFT | (KC_F13 + 4),  symbol: '‘', name: "Left single quotation mark" },
+    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_SHIFT | (KC_F13 + 5),  symbol: '’', name: "Right single quotation mark" },
+    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_SHIFT | (KC_F13 + 6),  symbol: '„', name: "Double low quotation mark" },
+    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_SHIFT | (KC_F13 + 7),  symbol: '“', name: "Left double quotation mark" },
+    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_SHIFT | (KC_F13 + 8),  symbol: '”', name: "Right double quotation mark" },
+    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_SHIFT | (KC_F13 + 9),  symbol: '™', name: "Trade mark sign" },
+    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_SHIFT | (KC_F13 + 10), symbol: '~', name: "Tilde" },
+    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_SHIFT | (KC_F13 + 11), symbol: '_', name: "Underscore" },
 ];
 
 pub fn smart_symbol_for_keycode(keycode: u16) -> Option<SmartSymbol> {
@@ -27,6 +74,19 @@ pub fn smart_symbol_for_keycode(keycode: u16) -> Option<SmartSymbol> {
         .iter()
         .copied()
         .find(|symbol| symbol.trigger_keycode == keycode)
+}
+
+pub fn trigger_label(keycode: u16) -> String {
+    let base = keycode & 0x00FF;
+    let mut parts = Vec::new();
+    if keycode & MOD_CTRL != 0 {
+        parts.push("Ctrl".to_string());
+    }
+    if keycode & MOD_SHIFT != 0 {
+        parts.push("Shift".to_string());
+    }
+    parts.push(format!("F{}", 13 + base.saturating_sub(KC_F13)));
+    parts.join("+")
 }
 
 #[cfg(target_os = "windows")]
@@ -44,12 +104,24 @@ pub fn start() {
 pub fn start() {}
 
 #[cfg(target_os = "windows")]
-fn symbol_for_vk(vk: u32) -> Option<char> {
-    let keycode = match vk {
-        0x7C..=0x87 => 0x0068 + (vk - 0x7C) as u16,
+fn symbol_for_vk(vk: u32) -> Option<(char, u16)> {
+    let base_keycode = match vk {
+        0x7C..=0x87 => KC_F13 + (vk - 0x7C) as u16,
         _ => return None,
     };
-    smart_symbol_for_keycode(keycode).map(|symbol| symbol.symbol)
+    let mut trigger_keycode = base_keycode;
+    if modifier_down(VK_CONTROL) {
+        trigger_keycode |= MOD_CTRL;
+    }
+    if modifier_down(VK_SHIFT) {
+        trigger_keycode |= MOD_SHIFT;
+    }
+    smart_symbol_for_keycode(trigger_keycode).map(|symbol| (symbol.symbol, trigger_keycode))
+}
+
+#[cfg(target_os = "windows")]
+fn modifier_down(vk: i32) -> bool {
+    unsafe { GetAsyncKeyState(vk) & 0x8000u16 as i16 != 0 }
 }
 
 #[cfg(target_os = "windows")]
@@ -78,9 +150,9 @@ unsafe extern "system" fn keyboard_proc(n_code: i32, w_param: usize, l_param: is
         let is_key_up = w_param == WM_KEYUP || w_param == WM_SYSKEYUP;
         let injected = info.flags & LLKHF_INJECTED != 0;
         if !injected {
-            if let Some(symbol) = symbol_for_vk(info.vkCode) {
+            if let Some((symbol, trigger_keycode)) = symbol_for_vk(info.vkCode) {
                 if is_key_down {
-                    send_unicode_char(symbol);
+                    send_unicode_char(symbol, trigger_keycode);
                 }
                 if is_key_down || is_key_up {
                     return 1;
@@ -92,7 +164,8 @@ unsafe extern "system" fn keyboard_proc(n_code: i32, w_param: usize, l_param: is
 }
 
 #[cfg(target_os = "windows")]
-unsafe fn send_unicode_char(symbol: char) {
+unsafe fn send_unicode_char(symbol: char, trigger_keycode: u16) {
+    release_transport_modifiers(trigger_keycode);
     for unit in symbol.encode_utf16(&mut [0; 2]) {
         let down = INPUT::keyboard_unicode(*unit, false);
         let up = INPUT::keyboard_unicode(*unit, true);
@@ -109,6 +182,25 @@ unsafe fn send_unicode_char(symbol: char) {
 }
 
 #[cfg(target_os = "windows")]
+unsafe fn release_transport_modifiers(trigger_keycode: u16) {
+    if trigger_keycode & MOD_SHIFT != 0 {
+        send_vk_keyup(VK_SHIFT as u16);
+    }
+    if trigger_keycode & MOD_CTRL != 0 {
+        send_vk_keyup(VK_CONTROL as u16);
+    }
+}
+
+#[cfg(target_os = "windows")]
+unsafe fn send_vk_keyup(vk: u16) {
+    let input = INPUT::keyboard_vk(vk, true);
+    let sent = SendInput(1, &input as *const INPUT, std::mem::size_of::<INPUT>() as i32);
+    if sent != 1 {
+        log::warn!("Smart Input: SendInput failed for VK keyup 0x{:02X}", vk);
+    }
+}
+
+#[cfg(target_os = "windows")]
 const WH_KEYBOARD_LL: i32 = 13;
 #[cfg(target_os = "windows")]
 const HC_ACTION: i32 = 0;
@@ -120,6 +212,10 @@ const WM_SYSKEYDOWN: usize = 0x0104;
 const WM_KEYUP: usize = 0x0101;
 #[cfg(target_os = "windows")]
 const WM_SYSKEYUP: usize = 0x0105;
+#[cfg(target_os = "windows")]
+const VK_SHIFT: i32 = 0x10;
+#[cfg(target_os = "windows")]
+const VK_CONTROL: i32 = 0x11;
 #[cfg(target_os = "windows")]
 const LLKHF_INJECTED: u32 = 0x10;
 #[cfg(target_os = "windows")]
@@ -185,6 +281,22 @@ impl INPUT {
             },
         }
     }
+
+    fn keyboard_vk(vk: u16, key_up: bool) -> Self {
+        let flags = if key_up { KEYEVENTF_KEYUP } else { 0 };
+        Self {
+            input_type: INPUT_KEYBOARD,
+            u: INPUT_UNION {
+                ki: KEYBDINPUT {
+                    wVk: vk,
+                    wScan: 0,
+                    dwFlags: flags,
+                    time: 0,
+                    dwExtraInfo: 0,
+                },
+            },
+        }
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -238,6 +350,7 @@ extern "system" {
     fn TranslateMessage(lpMsg: *const MSG) -> i32;
     fn DispatchMessageW(lpMsg: *const MSG) -> isize;
     fn SendInput(cInputs: u32, pInputs: *const INPUT, cbSize: i32) -> u32;
+    fn GetAsyncKeyState(vKey: i32) -> i16;
 }
 
 #[cfg(target_os = "windows")]

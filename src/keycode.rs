@@ -437,9 +437,7 @@ fn smart_symbol_tooltip(value: u16) -> Option<String> {
             "Entropy Smart Symbol: {} — inserts {} while Entropy is running; without Entropy this key is {}",
             smart.name,
             smart.symbol,
-            find_keycode(smart.trigger_keycode)
-                .map(|kc| kc.label)
-                .unwrap_or("reserved trigger")
+            crate::smart_input::trigger_label(smart.trigger_keycode)
         )
     })
 }
