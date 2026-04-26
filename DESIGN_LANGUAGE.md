@@ -44,7 +44,8 @@ Rules:
 ## Tooltips and copy
 
 - Tooltips must not end with a period
-- Settings row labels should have text-sized hover hitboxes for tooltips
+- Every left-side label on modern Settings/Advanced pages must use `settings_list_row_with_tooltip(...)` and have a meaningful tooltip
+- Settings row label tooltip hitboxes must be text-sized, not full-row
 - Suppress tooltips while actively scrolling or dragging where applicable
 - Win/Cmd/Super/GUI-related labels and tooltips must be OS-dependent by target binary:
   - macOS: Cmd / ⌘
