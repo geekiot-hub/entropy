@@ -7594,7 +7594,19 @@ impl EntropyApp {
                     let (rect, resp) = ui.allocate_exact_size(LAYER_BUTTON_SIZE, Sense::click());
                     let active = resp.is_pointer_button_down_on();
                     let hovered = resp.hovered();
-                    let fill = if active {
+                    let fill = if selected {
+                        if hovered || active {
+                            if dark {
+                                Color32::from_rgb(72, 64, 68)
+                            } else {
+                                Color32::from_rgb(242, 226, 230)
+                            }
+                        } else if dark {
+                            Color32::from_rgb(62, 56, 59)
+                        } else {
+                            Color32::from_rgb(248, 236, 239)
+                        }
+                    } else if active {
                         if dark {
                             Color32::from_rgb(56, 56, 59)
                         } else {
@@ -7605,13 +7617,19 @@ impl EntropyApp {
                     } else {
                         crate::ui_style::surface_fill(dark)
                     };
-                    ui.painter().rect(
-                        rect,
-                        9.0,
-                        fill,
-                        crate::ui_style::modal_outline_stroke(dark),
-                        egui::StrokeKind::Inside,
-                    );
+                    let stroke = if selected {
+                        Stroke::new(
+                            1.35,
+                            if dark {
+                                Color32::from_rgb(132, 98, 108)
+                            } else {
+                                Color32::from_rgb(202, 154, 166)
+                            },
+                        )
+                    } else {
+                        crate::ui_style::modal_outline_stroke(dark)
+                    };
+                    ui.painter().rect(rect, 9.0, fill, stroke, egui::StrokeKind::Inside);
                     ui.painter().text(
                         rect.center(),
                         egui::Align2::CENTER_CENTER,
@@ -7624,11 +7642,14 @@ impl EntropyApp {
                         },
                     );
                     if selected {
-                        ui.painter().rect_stroke(
-                            rect.shrink(3.0),
-                            7.0,
-                            crate::ui_style::modal_outline_stroke(dark),
-                            egui::StrokeKind::Inside,
+                        ui.painter().circle_filled(
+                            egui::pos2(rect.right() - 8.0, rect.top() + 8.0),
+                            2.4,
+                            if dark {
+                                Color32::from_rgb(164, 120, 132)
+                            } else {
+                                Color32::from_rgb(178, 116, 132)
+                            },
                         );
                     }
                     if hovered {
