@@ -2427,7 +2427,10 @@ impl EntropyApp {
                 self.keycode_picker.layer_count = r.layout.layers.len().max(1);
                 self.keycode_picker.tap_dance_names = load_tap_dance_names(&device_name);
                 if self.firmware == FirmwareProtocol::Vial {
-                    const USER_BASE: u16 = 0x7E40;
+                    // Vial GUI maps customKeycodes to USER00.. at QK_KB + index.
+                    // Protocol v6: QK_KB = 0x7E00. Do not use QK_USER (0x7E40):
+                    // assigning those values writes the wrong keycodes to firmware.
+                    const QK_KB: u16 = 0x7E00;
                     self.keycode_picker.custom_keycodes = r
                         .layout
                         .custom_keycodes
@@ -2438,7 +2441,7 @@ impl EntropyApp {
                                 custom.name.clone(),
                                 custom.label.clone(),
                                 custom.title.clone(),
-                                USER_BASE + i as u16,
+                                QK_KB + i as u16,
                             )
                         })
                         .collect();

@@ -533,27 +533,17 @@ pub fn keycode_label_with_names(value: u16, custom: &[CustomKeycode], layer_name
     }
 
     // Custom keycodes MUST be checked before LT/MT ranges!
-    // QK_KB_0 = 0x7E00, QK_USER_0 = 0x7E40
-    const KB_BASE: u16 = 0x7E00;
-    const USER_BASE: u16 = 0x7E40;
-    if value >= KB_BASE {
-        // Try USER range first (0x7E40+)
-        if value >= USER_BASE {
-            let idx = (value - USER_BASE) as usize;
-            if let Some(custom_keycode) = custom.get(idx) {
-                if !custom_keycode.label.is_empty() {
-                    return custom_keycode.label.clone();
-                }
-            }
-        }
-        // Try KB range (0x7E00+)
-        let idx = (value - KB_BASE) as usize;
+    // Vial GUI maps customKeycodes to USER00.. at QK_KB + index.
+    // Protocol v6: QK_KB = 0x7E00.
+    const QK_KB: u16 = 0x7E00;
+    if value >= QK_KB {
+        let idx = (value - QK_KB) as usize;
         if let Some(custom_keycode) = custom.get(idx) {
             if !custom_keycode.label.is_empty() {
                 return custom_keycode.label.clone();
             }
         }
-        return format!("USER{}", value - KB_BASE);
+        return format!("USER{}", value - QK_KB);
     }
 
     // One-shot mod: 0x52A0 / 0x52B0
@@ -829,16 +819,11 @@ pub fn keycode_tooltip(value: u16, custom: &[CustomKeycode], layer_names: &[Stri
     }
 
     // ── Custom keycodes ──────────────────────────────────────────────────────
-    const KB_BASE: u16 = 0x7E00;
-    const USER_BASE: u16 = 0x7E40;
-    if value >= KB_BASE {
-        if value >= USER_BASE {
-            let idx = (value - USER_BASE) as usize;
-            if let Some(custom_keycode) = custom.get(idx) {
-                return custom_keycode.title.clone();
-            }
-        }
-        let idx = (value - KB_BASE) as usize;
+    // Vial GUI maps customKeycodes to USER00.. at QK_KB + index.
+    // Protocol v6: QK_KB = 0x7E00.
+    const QK_KB: u16 = 0x7E00;
+    if value >= QK_KB {
+        let idx = (value - QK_KB) as usize;
         if let Some(custom_keycode) = custom.get(idx) {
             return custom_keycode.title.clone();
         }
