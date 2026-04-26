@@ -3086,10 +3086,10 @@ impl EntropyApp {
         };
 
         let board_top = content_rect.top() + 92.0;
-        let hint_y = content_rect.bottom() - 12.0;
+        let hint_y = content_rect.bottom() - 36.0;
         let board_rect = egui::Rect::from_min_max(
             egui::pos2(content_rect.left(), board_top),
-            egui::pos2(content_rect.right(), content_rect.bottom() - 28.0),
+            egui::pos2(content_rect.right(), content_rect.bottom() - 58.0),
         );
 
         if !supported {
@@ -3149,12 +3149,17 @@ impl EntropyApp {
         let offset_x = board_rect.center().x - layout_w / 2.0 - min_x * unit;
         let offset_y = board_rect.center().y - layout_h / 2.0 - min_y * unit;
 
+        let hint_color = if dark {
+            Color32::from_gray(100)
+        } else {
+            Color32::from_gray(160)
+        };
         painter.text(
             egui::pos2(content_rect.center().x, hint_y),
             egui::Align2::CENTER_CENTER,
-            "Click Tested to reset Matrix Tester",
-            FontId::proportional(12.0),
-            app_muted_text(dark),
+            "Click Tested to reset",
+            FontId::proportional(11.0),
+            hint_color,
         );
 
         for key in &layout.keys {
