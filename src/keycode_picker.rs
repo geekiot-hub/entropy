@@ -3988,6 +3988,13 @@ Repeat"
         );
         ui.add_space(4.0);
         let international_keys: &[(&str, &str, u16, &str)] = &[
+            ("Universal", "Б", 0x0500 | 0x0068, "Universal Cyrillic Б — types Б consistently regardless of the active keyboard language"),
+            ("Universal", "Ю", 0x0500 | 0x0069, "Universal Cyrillic Ю — types Ю consistently regardless of the active keyboard language"),
+            ("Universal", "Ж", 0x0500 | 0x006A, "Universal Cyrillic Ж — types Ж consistently regardless of the active keyboard language"),
+            ("Universal", "Э", 0x0500 | 0x006B, "Universal Cyrillic Э — types Э consistently regardless of the active keyboard language"),
+            ("Universal", "Х", 0x0500 | 0x006C, "Universal Cyrillic Х — types Х consistently regardless of the active keyboard language"),
+            ("Universal", "Ъ", 0x0500 | 0x006D, "Universal Cyrillic Ъ — types Ъ consistently regardless of the active keyboard language"),
+            ("Universal", "Ё", 0x0500 | 0x006E, "Universal Cyrillic Ё — types Ё consistently regardless of the active keyboard language"),
             ("JIS", "\\ _", 0x0087, "JIS \\ and _"),
             ("JIS", "Kana", 0x0088, "JIS Katakana/Hiragana"),
             ("JIS", "¥ |", 0x0089, "JIS ¥ and |"),
