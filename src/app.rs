@@ -6827,10 +6827,26 @@ impl EntropyApp {
                 const ROW_HEIGHT: f32 = 54.0;
                 const ROW_CONTENT_WIDTH: f32 = 452.0;
                 let rows: [(u8, &str, &str); 4] = [
-                    (0, "Alt forces Esc", "KC_GESC always sends Escape while Alt is held"),
-                    (1, "Control forces Esc", "KC_GESC always sends Escape while Control is held"),
-                    (2, "GUI forces Esc", "KC_GESC always sends Escape while GUI/Win/Cmd is held"),
-                    (3, "Shift forces Esc", "KC_GESC always sends Escape while Shift is held"),
+                    (
+                        0,
+                        "Alt forces Esc",
+                        "When Alt is held, Grave Escape sends Esc instead of ` or ~",
+                    ),
+                    (
+                        1,
+                        "Control forces Esc",
+                        "When Control is held, Grave Escape sends Esc instead of ` or ~",
+                    ),
+                    (
+                        2,
+                        "GUI forces Esc",
+                        "When Win/Cmd/Super is held, Grave Escape sends Esc instead of ` or ~",
+                    ),
+                    (
+                        3,
+                        "Shift forces Esc",
+                        "When Shift is held, Grave Escape sends Esc instead of ` or ~",
+                    ),
                 ];
 
                 crate::ui_style::modal_content(
