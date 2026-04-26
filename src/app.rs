@@ -477,6 +477,8 @@ struct ConnectResult {
     mouse_keys_settings: MouseKeysSettingsState,
     /// Tap-Hold settings from QMK settings, if supported
     tap_hold_settings: TapHoldSettingsState,
+    /// Grave Escape settings from QMK settings, if supported (qsid 1 bits 0..=3)
+    grave_escape_settings: GraveEscapeSettingsState,
     /// Ergohaven per-layer LED settings from QMK settings, if supported (qsid 300..=317)
     layer_led_settings: LayerLedSettingsState,
     /// Runtime RGB settings, if supported by the current Vial/QMK lighting backend
@@ -714,6 +716,28 @@ struct TapHoldSettingsState {
     flow_tap: u16,
     /// Whether qsid 7 was readable (firmware support flag)
     supported: bool,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct GraveEscapeSettingsState {
+    /// qsid 1 bits 0..=3: force Esc when Alt/Ctrl/GUI/Shift is held for KC_GESC.
+    bits: u8,
+    /// Whether qsid 1 was readable (firmware support flag)
+    supported: bool,
+}
+
+impl GraveEscapeSettingsState {
+    fn bit(self, bit: u8) -> bool {
+        self.bits & (1 << bit) != 0
+    }
+
+    fn set_bit(&mut self, bit: u8, enabled: bool) {
+        if enabled {
+            self.bits |= 1 << bit;
+        } else {
+            self.bits &= !(1 << bit);
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1340,6 +1364,7 @@ enum SettingsTab {
     LayerLeds,
     Encoders,
     TapHold,
+    GraveEscape,
     Combo,
     KeyOverrides,
     AltRepeat,
@@ -1401,6 +1426,7 @@ pub struct EntropyApp {
     auto_shift_timeout_text: String,
     mouse_keys_settings: MouseKeysSettingsState,
     tap_hold_settings: TapHoldSettingsState,
+    grave_escape_settings: GraveEscapeSettingsState,
     layer_led_settings: LayerLedSettingsState,
     alt_repeat_entries: Vec<AltRepeatKeyEntry>,
     alt_repeat_names: Vec<String>,
@@ -1494,6 +1520,7 @@ impl EntropyApp {
             auto_shift_timeout_text: String::new(),
             mouse_keys_settings: MouseKeysSettingsState::default(),
             tap_hold_settings: TapHoldSettingsState::default(),
+            grave_escape_settings: GraveEscapeSettingsState::default(),
             layer_led_settings: LayerLedSettingsState::default(),
             alt_repeat_entries: vec![],
             alt_repeat_names: vec![],
@@ -1885,6 +1912,18 @@ impl EntropyApp {
                             th
                         };
 
+                        // Grave Escape settings (qsid 1 bits 0..=3). These affect KC_GESC,
+                        // not the physical Escape key.
+                        let grave_escape_settings = {
+                            match dev_conn.get_qmk_setting_u8(1) {
+                                Ok(bits) => GraveEscapeSettingsState { bits, supported: true },
+                                Err(e) => {
+                                    log::warn!("get_qmk_setting_u8(grave_escape qsid 1): {e}");
+                                    GraveEscapeSettingsState::default()
+                                }
+                            }
+                        };
+
                         // Ergohaven per-layer LED settings (qsid 300..=317). If qsid 300 is
                         // unsupported, we assume the whole group is unavailable.
                         let layer_led_settings = {
@@ -2046,6 +2085,7 @@ impl EntropyApp {
                             auto_shift_timeout,
                             mouse_keys_settings,
                             tap_hold_settings,
+                            grave_escape_settings,
                             layer_led_settings,
                             rgb_settings,
                             key_override_entries,
@@ -2101,6 +2141,7 @@ impl EntropyApp {
                                 auto_shift_timeout: None,
                                 mouse_keys_settings: MouseKeysSettingsState::default(),
                                 tap_hold_settings: TapHoldSettingsState::default(),
+                                grave_escape_settings: GraveEscapeSettingsState::default(),
                                 layer_led_settings: LayerLedSettingsState::default(),
                                 rgb_settings: RgbSettingsState::default(),
                                 key_override_entries: vec![],
@@ -2164,6 +2205,7 @@ impl EntropyApp {
                             auto_shift_timeout: None,
                             mouse_keys_settings: MouseKeysSettingsState::default(),
                             tap_hold_settings: TapHoldSettingsState::default(),
+                            grave_escape_settings: GraveEscapeSettingsState::default(),
                             layer_led_settings: LayerLedSettingsState::default(),
                             rgb_settings: RgbSettingsState::default(),
                             key_override_entries: vec![],
@@ -2244,6 +2286,7 @@ impl EntropyApp {
                     .unwrap_or_default();
                 self.mouse_keys_settings = r.mouse_keys_settings;
                 self.tap_hold_settings = r.tap_hold_settings;
+                self.grave_escape_settings = r.grave_escape_settings;
                 self.layer_led_settings = r.layer_led_settings;
                 self.rgb_settings = r.rgb_settings;
                 let highest_used_combo = self
@@ -2724,6 +2767,9 @@ impl EntropyApp {
             }
             SettingsTab::TapHold => {
                 self.draw_tap_hold_settings_page(ui, content_rect);
+            }
+            SettingsTab::GraveEscape => {
+                self.draw_grave_escape_settings_page(ui, content_rect);
             }
             SettingsTab::Combo => {
                 self.draw_combo_settings_page(ui, ctx, content_rect);
@@ -4984,6 +5030,11 @@ impl EntropyApp {
         self.main_menu_tab = MainMenuTab::Settings;
     }
 
+    fn open_grave_escape_settings_page(&mut self) {
+        self.settings_tab = SettingsTab::GraveEscape;
+        self.main_menu_tab = MainMenuTab::Settings;
+    }
+
     fn close_top_dropdowns(&self, ctx: &egui::Context) {
         ctx.data_mut(|d| {
             d.insert_temp(egui::Id::new("device_dropdown_open"), false);
@@ -6726,6 +6777,98 @@ impl EntropyApp {
         if let Err(e) = hid.set_qmk_setting_u8(317, value) {
             self.status_msg = format!("Failed to save Layer LED timeout: {}", e);
             log::warn!("set_qmk_setting_u8(layer_led timeout) failed: {e}");
+        }
+    }
+
+    fn draw_grave_escape_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
+        let dark = ui.visuals().dark_mode;
+        let hid_ready = {
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                self.hid_device.is_some()
+            }
+            #[cfg(target_arch = "wasm32")]
+            {
+                false
+            }
+        };
+
+        ui.allocate_ui_at_rect(content_rect, |ui| {
+            ui.vertical_centered(|ui| {
+                ui.add_space(18.0);
+                ui.label(RichText::new("Grave Escape").size(18.0).strong());
+                ui.add_space(6.0);
+                ui.label(
+                    RichText::new("Tune global KC_GESC behavior when modifiers are held")
+                        .size(13.0)
+                        .color(app_muted_text(dark)),
+                );
+                ui.add_space(24.0);
+
+                if !self.grave_escape_settings.supported {
+                    crate::ui_style::modal_empty_state(
+                        ui,
+                        "Grave Escape settings are not available on this firmware",
+                        Some("Enable QMK_SETTINGS and Grave Escape support in firmware to use this page"),
+                    );
+                    return;
+                }
+
+                if !hid_ready {
+                    crate::ui_style::modal_empty_state(
+                        ui,
+                        "Connect a Vial keyboard to edit Grave Escape settings",
+                        None,
+                    );
+                    return;
+                }
+
+                const CONTENT_WIDTH: f32 = 470.0;
+                const ROW_HEIGHT: f32 = 54.0;
+                const ROW_CONTENT_WIDTH: f32 = 452.0;
+                let rows: [(u8, &str, &str); 4] = [
+                    (0, "Alt forces Esc", "KC_GESC always sends Escape while Alt is held"),
+                    (1, "Control forces Esc", "KC_GESC always sends Escape while Control is held"),
+                    (2, "GUI forces Esc", "KC_GESC always sends Escape while GUI/Win/Cmd is held"),
+                    (3, "Shift forces Esc", "KC_GESC always sends Escape while Shift is held"),
+                ];
+
+                crate::ui_style::modal_content(
+                    ui,
+                    crate::ui_style::ModalLayout::new(CONTENT_WIDTH).with_top_padding(0.0),
+                    |ui| {
+                        for (bit, label, tooltip) in rows {
+                            let mut value = self.grave_escape_settings.bit(bit);
+                            crate::ui_style::settings_list_row_with_tooltip(
+                                ui,
+                                ROW_CONTENT_WIDTH,
+                                ROW_HEIGHT,
+                                label,
+                                true,
+                                Some(tooltip),
+                                46.0,
+                                |ui| {
+                                    let resp = crate::ui_style::settings_switch(ui, &mut value);
+                                    if resp.changed() {
+                                        self.grave_escape_settings.set_bit(bit, value);
+                                        self.write_grave_escape_settings();
+                                    }
+                                },
+                            );
+                        }
+                    },
+                );
+            });
+        });
+    }
+
+    fn write_grave_escape_settings(&mut self) {
+        let Some(hid) = &self.hid_device else {
+            return;
+        };
+        if let Err(e) = hid.set_qmk_setting_u8(1, self.grave_escape_settings.bits) {
+            self.status_msg = format!("Failed to save Grave Escape settings: {}", e);
+            log::warn!("set_qmk_setting_u8(grave_escape qsid 1) failed: {e}");
         }
     }
 
@@ -9741,6 +9884,11 @@ impl EntropyApp {
                     self.keycode_picker.firmware = self.firmware;
                     self.keycode_picker.selected_tab = crate::keycode_picker::KeycodeTab::TapDance;
                     self.keycode_picker.tap_dance_editor_open = Some(td_n);
+                    self.secondary_click_handled = true;
+                }
+                // Grave Escape — RClick opens Grave Escape settings page
+                if kc == 0x7C16 {
+                    self.open_grave_escape_settings_page();
                     self.secondary_click_handled = true;
                 }
                 // Mouse keys — RClick opens Mouse keys settings page
