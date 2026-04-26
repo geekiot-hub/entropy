@@ -94,7 +94,6 @@ pub struct KeycodePicker {
 pub enum KeycodeTab {
     Basic,
     Symbols,
-    SmartSymbols,
     Function,
     Navigation,
     Modifiers,
@@ -115,7 +114,6 @@ impl KeycodeTab {
     pub const VIAL_TABS: &'static [KeycodeTab] = &[
         KeycodeTab::Basic,
         KeycodeTab::Symbols,
-        KeycodeTab::SmartSymbols,
         KeycodeTab::Modifiers,
         KeycodeTab::Special,
         KeycodeTab::Rgb,
@@ -140,7 +138,6 @@ impl KeycodeTab {
         match self {
             KeycodeTab::Basic => "Basic",
             KeycodeTab::Symbols => "Symbols",
-            KeycodeTab::SmartSymbols => "Smart Symbols",
             KeycodeTab::Function => "F1-F24",
             KeycodeTab::Navigation => "Nav",
             KeycodeTab::Modifiers => "Mods",
@@ -177,10 +174,7 @@ impl KeycodeTab {
             }
             KeycodeTab::Mouse => matches!(kc.category, KeycodeCategory::Mouse),
             KeycodeTab::Numpad => matches!(kc.category, KeycodeCategory::Numpad),
-            KeycodeTab::Special => {
-                matches!(kc.category, KeycodeCategory::Special)
-                    || (matches!(kc.category, KeycodeCategory::Function) && kc.value >= 0x0068)
-            }
+            KeycodeTab::Special => matches!(kc.category, KeycodeCategory::Special),
             _ => false,
         }
     }
@@ -1497,7 +1491,7 @@ impl KeycodePicker {
     fn show_vial_tab_content(&mut self, ui: &mut egui::Ui) {
         match self.selected_tab {
             KeycodeTab::Basic => self.show_vial_basic(ui),
-            KeycodeTab::SmartSymbols => self.show_vial_smart_symbols(ui),
+            KeycodeTab::Symbols => self.show_vial_symbols(ui),
             KeycodeTab::Layers => self.show_vial_layers(ui),
             KeycodeTab::Modifiers => self.show_vial_modifiers(ui),
             KeycodeTab::Quantum => self.show_vial_quantum(ui),
@@ -1510,17 +1504,21 @@ impl KeycodePicker {
         }
     }
 
-    fn show_vial_smart_symbols(&mut self, ui: &mut egui::Ui) {
+    fn show_vial_symbols(&mut self, ui: &mut egui::Ui) {
+        let custom_pairs: Vec<crate::keyboard::CustomKeycode> = self
+            .custom_keycodes
+            .iter()
+            .map(|(name, label, title, _)| crate::keyboard::CustomKeycode {
+                name: name.clone(),
+                label: label.clone(),
+                title: title.clone(),
+            })
+            .collect();
+
         ui.label(
-            RichText::new("Entropy inserts these symbols while it is running")
+            RichText::new("Smart symbols — inserted by Entropy while it is running")
                 .size(11.0)
                 .color(Color32::from_gray(150)),
-        );
-        ui.add_space(4.0);
-        ui.label(
-            RichText::new(crate::smart_input::status_text())
-                .size(10.0)
-                .color(Color32::from_gray(120)),
         );
         ui.add_space(6.0);
         ui.horizontal_wrapped(|ui| {
@@ -1546,12 +1544,36 @@ impl KeycodePicker {
                 resp.on_hover_text(tip);
             }
         });
-        ui.add_space(10.0);
+
+        ui.add_space(12.0);
+        ui.separator();
+        ui.add_space(8.0);
         ui.label(
-            RichText::new("If Entropy is closed, these keys fall back to F13–F24")
+            RichText::new("Keyboard-layout symbols — physical keycodes")
                 .size(11.0)
-                .color(Color32::from_gray(130)),
+                .color(Color32::from_gray(150)),
         );
+        ui.add_space(6.0);
+        ui.horizontal_wrapped(|ui| {
+            for kc in KEYCODES.iter() {
+                if !self.selected_tab.vial_matches(kc) || !self.vial_keycode_supported(kc) {
+                    continue;
+                }
+                let tip = keycode_tooltip(kc.value, &custom_pairs, &self.layer_names);
+                let label = keycode_label_with_names(kc.value, &custom_pairs, &self.layer_names);
+                let resp = ui
+                    .add(
+                        egui::Button::new(RichText::new(label).size(11.0))
+                            .min_size(Vec2::new(52.0, 38.0)),
+                    )
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
+                if resp.clicked() {
+                    self.result = Some(kc.value);
+                    self.open = false;
+                }
+                resp.on_hover_text(tip);
+            }
+        });
     }
 
     fn show_vial_generic(&mut self, ui: &mut egui::Ui) {
