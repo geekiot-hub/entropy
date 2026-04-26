@@ -7453,7 +7453,7 @@ impl EntropyApp {
                 let device_rows = device_count.max(1) as f32;
                 let devices_h = 12.0 + device_rows * 30.0;
                 let lock_h = if has_lock_button { 36.0 } else { 0.0 };
-                let dropdown_size = Vec2::new(240.0, devices_h + lock_h + 12.0);
+                let dropdown_size = Vec2::new(152.0, devices_h + lock_h + 12.0);
                 let dropdown_rect = egui::Rect::from_min_size(
                     egui::pos2(
                         device_rect.center().x - dropdown_size.x / 2.0,
