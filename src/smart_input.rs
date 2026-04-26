@@ -35,7 +35,7 @@ pub fn start() {
     static START: Once = Once::new();
     START.call_once(|| {
         std::thread::spawn(|| unsafe {
-            install_windows_keyboard_hook();
+            run_windows_hotkey_loop();
         });
     });
 }
@@ -44,52 +44,60 @@ pub fn start() {
 pub fn start() {}
 
 #[cfg(target_os = "windows")]
-fn symbol_for_vk(vk: u32) -> Option<char> {
-    // Windows virtual key codes VK_F13..VK_F24 are 0x7C..0x87.
-    let keycode = match vk {
-        0x7C..=0x87 => 0x0068 + (vk - 0x7C) as u16,
-        _ => return None,
-    };
-    smart_symbol_for_keycode(keycode).map(|symbol| symbol.symbol)
+fn symbol_for_hotkey_id(id: i32) -> Option<char> {
+    let index = id.checked_sub(SMART_HOTKEY_BASE)? as usize;
+    SMART_SYMBOLS.get(index).map(|symbol| symbol.symbol)
 }
 
 #[cfg(target_os = "windows")]
-unsafe fn install_windows_keyboard_hook() {
-    let module = GetModuleHandleW(std::ptr::null());
-    let hook = SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_proc), module, 0);
-    if hook.is_null() {
-        log::warn!("Smart Input: failed to install keyboard hook");
+fn vk_for_smart_symbol(symbol: SmartSymbol) -> Option<u32> {
+    // QMK KC_F13..KC_F24 keycodes are HID usages 0x68..0x73.
+    // Windows virtual key codes VK_F13..VK_F24 are 0x7C..0x87.
+    match symbol.trigger_keycode {
+        0x0068..=0x0073 => Some(0x7C + (symbol.trigger_keycode - 0x0068) as u32),
+        _ => None,
+    }
+}
+
+#[cfg(target_os = "windows")]
+unsafe fn run_windows_hotkey_loop() {
+    let mut registered = Vec::new();
+    for (index, symbol) in SMART_SYMBOLS.iter().copied().enumerate() {
+        let Some(vk) = vk_for_smart_symbol(symbol) else {
+            continue;
+        };
+        let id = SMART_HOTKEY_BASE + index as i32;
+        if RegisterHotKey(std::ptr::null_mut(), id, MOD_NOREPEAT, vk) != 0 {
+            registered.push(id);
+        } else {
+            log::warn!(
+                "Smart Input: failed to register hotkey for {} ({})",
+                symbol.name,
+                symbol.symbol
+            );
+        }
+    }
+
+    if registered.is_empty() {
+        log::warn!("Smart Input: no smart symbol hotkeys were registered");
         return;
     }
 
     let mut msg = MSG::default();
     while GetMessageW(&mut msg as *mut MSG, std::ptr::null_mut(), 0, 0) > 0 {
-        TranslateMessage(&msg as *const MSG);
-        DispatchMessageW(&msg as *const MSG);
-    }
-
-    UnhookWindowsHookEx(hook);
-}
-
-#[cfg(target_os = "windows")]
-unsafe extern "system" fn keyboard_proc(n_code: i32, w_param: usize, l_param: isize) -> isize {
-    if n_code == HC_ACTION {
-        let info = &*(l_param as *const KBDLLHOOKSTRUCT);
-        let is_key_down = w_param == WM_KEYDOWN || w_param == WM_SYSKEYDOWN;
-        let is_key_up = w_param == WM_KEYUP || w_param == WM_SYSKEYUP;
-        let injected = info.flags & LLKHF_INJECTED != 0;
-        if !injected {
-            if let Some(symbol) = symbol_for_vk(info.vkCode) {
-                if is_key_down {
-                    send_unicode_char(symbol);
-                }
-                if is_key_down || is_key_up {
-                    return 1;
-                }
+        if msg.message == WM_HOTKEY {
+            if let Some(symbol) = symbol_for_hotkey_id(msg.wParam as i32) {
+                send_unicode_char(symbol);
             }
+        } else {
+            TranslateMessage(&msg as *const MSG);
+            DispatchMessageW(&msg as *const MSG);
         }
     }
-    CallNextHookEx(std::ptr::null_mut(), n_code, w_param, l_param)
+
+    for id in registered {
+        UnregisterHotKey(std::ptr::null_mut(), id);
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -110,19 +118,11 @@ unsafe fn send_unicode_char(symbol: char) {
 }
 
 #[cfg(target_os = "windows")]
-const WH_KEYBOARD_LL: i32 = 13;
+const SMART_HOTKEY_BASE: i32 = 0x5A00;
 #[cfg(target_os = "windows")]
-const HC_ACTION: i32 = 0;
+const WM_HOTKEY: u32 = 0x0312;
 #[cfg(target_os = "windows")]
-const WM_KEYDOWN: usize = 0x0100;
-#[cfg(target_os = "windows")]
-const WM_SYSKEYDOWN: usize = 0x0104;
-#[cfg(target_os = "windows")]
-const WM_KEYUP: usize = 0x0101;
-#[cfg(target_os = "windows")]
-const WM_SYSKEYUP: usize = 0x0105;
-#[cfg(target_os = "windows")]
-const LLKHF_INJECTED: u32 = 0x10;
+const MOD_NOREPEAT: u32 = 0x4000;
 #[cfg(target_os = "windows")]
 const INPUT_KEYBOARD: u32 = 1;
 #[cfg(target_os = "windows")]
@@ -131,22 +131,7 @@ const KEYEVENTF_KEYUP: u32 = 0x0002;
 const KEYEVENTF_UNICODE: u32 = 0x0004;
 
 #[cfg(target_os = "windows")]
-type HHOOK = *mut core::ffi::c_void;
-#[cfg(target_os = "windows")]
-type HINSTANCE = *mut core::ffi::c_void;
-#[cfg(target_os = "windows")]
 type HWND = *mut core::ffi::c_void;
-
-#[cfg(target_os = "windows")]
-#[repr(C)]
-#[derive(Clone, Copy, Default)]
-struct KBDLLHOOKSTRUCT {
-    vkCode: u32,
-    scanCode: u32,
-    flags: u32,
-    time: u32,
-    dwExtraInfo: usize,
-}
 
 #[cfg(target_os = "windows")]
 #[repr(C)]
@@ -209,22 +194,10 @@ struct KEYBDINPUT {
 #[cfg(target_os = "windows")]
 #[link(name = "user32")]
 extern "system" {
-    fn SetWindowsHookExW(
-        idHook: i32,
-        lpfn: Option<unsafe extern "system" fn(i32, usize, isize) -> isize>,
-        hmod: HINSTANCE,
-        dwThreadId: u32,
-    ) -> HHOOK;
-    fn CallNextHookEx(hhk: HHOOK, nCode: i32, wParam: usize, lParam: isize) -> isize;
-    fn UnhookWindowsHookEx(hhk: HHOOK) -> i32;
+    fn RegisterHotKey(hWnd: HWND, id: i32, fsModifiers: u32, vk: u32) -> i32;
+    fn UnregisterHotKey(hWnd: HWND, id: i32) -> i32;
     fn GetMessageW(lpMsg: *mut MSG, hWnd: HWND, wMsgFilterMin: u32, wMsgFilterMax: u32) -> i32;
     fn TranslateMessage(lpMsg: *const MSG) -> i32;
     fn DispatchMessageW(lpMsg: *const MSG) -> isize;
     fn SendInput(cInputs: u32, pInputs: *const INPUT, cbSize: i32) -> u32;
-}
-
-#[cfg(target_os = "windows")]
-#[link(name = "kernel32")]
-extern "system" {
-    fn GetModuleHandleW(lpModuleName: *const u16) -> HINSTANCE;
 }
