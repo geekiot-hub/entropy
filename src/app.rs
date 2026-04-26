@@ -5346,11 +5346,15 @@ impl EntropyApp {
             |ui| {
                 let list_height = ROW_HEIGHT * VISIBLE_ROWS as f32;
                 let scroll_id = ui.id().with("alt_repeat_settings_first_row");
+                let wheel_accum_id = ui.id().with("alt_repeat_settings_wheel_accum");
                 let max_first_row = TOTAL_ROWS.saturating_sub(VISIBLE_ROWS);
                 let mut first_row = ui
                     .ctx()
                     .data_mut(|d| d.get_persisted::<usize>(scroll_id).unwrap_or(0))
                     .min(max_first_row);
+                let mut wheel_accum = ui
+                    .ctx()
+                    .data_mut(|d| d.get_persisted::<f32>(wheel_accum_id).unwrap_or(0.0));
                 let (viewport, viewport_resp) = ui.allocate_exact_size(
                     egui::vec2(CONTENT_WIDTH, list_height),
                     Sense::hover(),
@@ -5371,16 +5375,26 @@ impl EntropyApp {
                 };
 
                 let scroll_delta = if viewport_resp.hovered() {
-                    ui.input(|i| i.raw_scroll_delta.y + i.smooth_scroll_delta.y)
+                    ui.input(|i| {
+                        if i.smooth_scroll_delta.y.abs() > 0.0 {
+                            i.smooth_scroll_delta.y
+                        } else {
+                            i.raw_scroll_delta.y
+                        }
+                    })
                 } else {
                     0.0
                 };
                 if scroll_delta.abs() > 0.0 && max_first_row > 0 {
-                    let step = if scroll_delta.abs() > ROW_HEIGHT { 2 } else { 1 };
-                    if scroll_delta < 0.0 {
-                        first_row = (first_row + step).min(max_first_row);
-                    } else {
-                        first_row = first_row.saturating_sub(step);
+                    const WHEEL_ROW_THRESHOLD: f32 = 96.0;
+                    wheel_accum = (wheel_accum + scroll_delta)
+                        .clamp(-WHEEL_ROW_THRESHOLD, WHEEL_ROW_THRESHOLD);
+                    if wheel_accum <= -WHEEL_ROW_THRESHOLD {
+                        first_row = (first_row + 1).min(max_first_row);
+                        wheel_accum = 0.0;
+                    } else if wheel_accum >= WHEEL_ROW_THRESHOLD {
+                        first_row = first_row.saturating_sub(1);
+                        wheel_accum = 0.0;
                     }
                 }
 
@@ -5397,11 +5411,15 @@ impl EntropyApp {
                                 / travel)
                                 .clamp(0.0, 1.0);
                             first_row = (t * max_first_row as f32).round() as usize;
+                            wheel_accum = 0.0;
                         }
                     }
                 }
                 first_row = first_row.min(max_first_row);
-                ui.ctx().data_mut(|d| d.insert_persisted(scroll_id, first_row));
+                ui.ctx().data_mut(|d| {
+                    d.insert_persisted(scroll_id, first_row);
+                    d.insert_persisted(wheel_accum_id, wheel_accum);
+                });
 
                 ui.allocate_ui_at_rect(viewport, |ui| {
                     ui.set_clip_rect(viewport);
@@ -5651,11 +5669,15 @@ impl EntropyApp {
                                                     edited.allowed_mods &= !(1 << right_bit);
                                                 }
                                             }
-                                            ui.label(
+                                            let right_label_resp = ui.label(
                                                 RichText::new("R")
                                                     .size(12.0)
                                                     .color(app_muted_text(ui.visuals().dark_mode)),
                                             );
+                                            if right_label_resp.hovered() {
+                                                ui.ctx().set_cursor_icon(egui::CursorIcon::Help);
+                                            }
+                                            right_label_resp.on_hover_text("Right-side modifier");
                                             ui.add_space(10.0);
                                             let mut left_checked = (edited.allowed_mods & (1 << left_bit)) != 0;
                                             let left_resp = crate::ui_style::settings_switch(ui, &mut left_checked);
@@ -5666,11 +5688,15 @@ impl EntropyApp {
                                                     edited.allowed_mods &= !(1 << left_bit);
                                                 }
                                             }
-                                            ui.label(
+                                            let left_label_resp = ui.label(
                                                 RichText::new("L")
                                                     .size(12.0)
                                                     .color(app_muted_text(ui.visuals().dark_mode)),
                                             );
+                                            if left_label_resp.hovered() {
+                                                ui.ctx().set_cursor_icon(egui::CursorIcon::Help);
+                                            }
+                                            left_label_resp.on_hover_text("Left-side modifier");
                                         });
                                     },
                                 );
