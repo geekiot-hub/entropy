@@ -332,6 +332,70 @@ fn app_inactive_entry_text(dark: bool) -> Color32 {
     }
 }
 
+fn top_dropdown_frame(dark: bool) -> egui::Frame {
+    egui::Frame::new()
+        .fill(app_surface_fill(dark))
+        .stroke(crate::ui_style::modal_outline_stroke(dark))
+        .corner_radius(12.0)
+        .inner_margin(egui::Margin::symmetric(8, 6))
+}
+
+fn top_dropdown_item(
+    ui: &mut egui::Ui,
+    width: f32,
+    label: &str,
+    enabled: bool,
+    selected: bool,
+) -> egui::Response {
+    let dark = ui.visuals().dark_mode;
+    let sense = if enabled { Sense::click() } else { Sense::hover() };
+    let (rect, resp) = ui.allocate_exact_size(egui::vec2(width, 30.0), sense);
+    let hovered = resp.hovered() && enabled;
+    if hovered {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+
+    if ui.is_rect_visible(rect) {
+        if selected || hovered {
+            let fill = if selected {
+                if dark {
+                    Color32::from_rgb(58, 52, 54)
+                } else {
+                    Color32::from_rgb(244, 236, 236)
+                }
+            } else {
+                app_hover_fill(dark)
+            };
+            ui.painter().rect_filled(rect, 8.0, fill);
+        }
+
+        let text_color = if !enabled {
+            app_muted_text(dark)
+        } else if selected {
+            app_accent()
+        } else {
+            ui.visuals().text_color()
+        };
+        ui.painter().text(
+            egui::pos2(rect.left() + 10.0, rect.center().y),
+            egui::Align2::LEFT_CENTER,
+            label,
+            egui::FontId::proportional(13.0),
+            text_color,
+        );
+
+        if selected {
+            ui.painter().circle_filled(
+                egui::pos2(rect.right() - 12.0, rect.center().y),
+                2.5,
+                app_accent(),
+            );
+        }
+    }
+
+    resp
+}
+
 fn keycode_label_with_macro_names(
     value: u16,
     custom: &[crate::keyboard::CustomKeycode],
@@ -7387,9 +7451,9 @@ impl EntropyApp {
                 };
                 let device_count = self.device_manager.devices().len();
                 let device_rows = device_count.max(1) as f32;
-                let devices_h = 8.0 + device_rows * 26.0;
-                let lock_h = if has_lock_button { 32.0 } else { 0.0 };
-                let dropdown_size = Vec2::new(240.0, devices_h + lock_h + 8.0);
+                let devices_h = 12.0 + device_rows * 30.0;
+                let lock_h = if has_lock_button { 36.0 } else { 0.0 };
+                let dropdown_size = Vec2::new(240.0, devices_h + lock_h + 12.0);
                 let dropdown_rect = egui::Rect::from_min_size(
                     egui::pos2(
                         device_rect.center().x - dropdown_size.x / 2.0,
@@ -7414,52 +7478,35 @@ impl EntropyApp {
                         .order(egui::Order::Foreground)
                         .fixed_pos(dropdown_rect.min)
                         .show(ctx, |ui| {
-                            let dropdown_fill = if ui.visuals().dark_mode {
-                                Color32::from_gray(32)
-                            } else {
-                                Color32::from_gray(248)
-                            };
-                            egui::Frame::new()
-                                .fill(dropdown_fill)
-                                .stroke(egui::Stroke::NONE)
-                                .corner_radius(8.0)
-                                .inner_margin(egui::Margin::same(8))
-                                .show(ui, |ui| {
-                                    ui.set_min_width(dropdown_size.x);
+                            let dark = ui.visuals().dark_mode;
+                            top_dropdown_frame(dark).show(ui, |ui| {
+                                    ui.set_min_width(dropdown_size.x - 16.0);
 
                                     let prev_selected = self.selected_device;
                                     if self.device_manager.devices().is_empty() {
-                                        ui.add_sized(
-                                            [dropdown_size.x - 16.0, 26.0],
-                                            egui::Label::new("No devices found"),
+                                        ui.allocate_ui_with_layout(
+                                            egui::vec2(dropdown_size.x - 16.0, 30.0),
+                                            egui::Layout::left_to_right(egui::Align::Center),
+                                            |ui| {
+                                                ui.add_space(10.0);
+                                                ui.label(
+                                                    RichText::new("No devices found")
+                                                        .size(13.0)
+                                                        .color(app_muted_text(ui.visuals().dark_mode)),
+                                                );
+                                            },
                                         );
                                     } else {
                                         for (i, dev) in
                                             self.device_manager.devices().iter().enumerate()
                                         {
                                             let is_selected = self.selected_device == Some(i);
-                                            let label = if is_selected {
-                                                format!("✓ {}", dev.name)
-                                            } else {
-                                                dev.name.clone()
-                                            };
-                                            let resp = ui.add_sized(
-                                                [dropdown_size.x - 16.0, 26.0],
-                                                egui::Button::new(RichText::new(label).color(
-                                                    if is_selected {
-                                                        ui.visuals()
-                                                            .widgets
-                                                            .inactive
-                                                            .fg_stroke
-                                                            .color
-                                                    } else if ui.visuals().dark_mode {
-                                                        Color32::from_gray(170)
-                                                    } else {
-                                                        Color32::from_gray(90)
-                                                    },
-                                                ))
-                                                .fill(Color32::TRANSPARENT)
-                                                .stroke(egui::Stroke::NONE),
+                                            let resp = top_dropdown_item(
+                                                ui,
+                                                dropdown_size.x - 16.0,
+                                                &dev.name,
+                                                true,
+                                                is_selected,
                                             );
                                             if resp.clicked() {
                                                 self.selected_device = Some(i);
@@ -7483,20 +7530,14 @@ impl EntropyApp {
                                         } else {
                                             "🔒 Unlock"
                                         };
-                                        let lock_text = if !is_unlocked {
-                                            RichText::new(lock_label)
-                                                .color(Color32::from_rgb(220, 120, 60))
-                                        } else {
-                                            RichText::new(lock_label)
-                                        };
-                                        if ui
-                                            .add_sized(
-                                                [dropdown_size.x - 16.0, 26.0],
-                                                egui::Button::new(lock_text)
-                                                    .fill(Color32::TRANSPARENT)
-                                                    .stroke(egui::Stroke::NONE),
-                                            )
-                                            .clicked()
+                                        if top_dropdown_item(
+                                            ui,
+                                            dropdown_size.x - 16.0,
+                                            lock_label,
+                                            true,
+                                            false,
+                                        )
+                                        .clicked()
                                         {
                                             if is_unlocked {
                                                 if let Some(hid) = &self.hid_device {
@@ -7555,60 +7596,73 @@ impl EntropyApp {
 
                 if show_dropdown {
                     let dark = ui.visuals().dark_mode;
-                    let dropdown_fill = if dark {
-                        Color32::from_gray(32)
-                    } else {
-                        Color32::from_gray(248)
-                    };
                     let auto_shift_supported = self.auto_shift_timeout.is_some();
-                    let (combo_hovered, auto_shift_hovered, key_override_hovered, advanced_clicked) = egui::Area::new(egui::Id::new("advanced_dropdown_area"))
-                        .order(egui::Order::Foreground)
-                        .fixed_pos(dropdown_rect.min)
-                        .show(ui.ctx(), |ui| {
-                            egui::Frame::NONE
-                                .fill(dropdown_fill)
-                                .corner_radius(8.0)
-                                .inner_margin(egui::Margin::symmetric(6, 4))
-                                .show(ui, |ui| {
-                                    ui.set_min_width(dropdown_rect.width() - 12.0);
-                                    let combo_resp = ui.add_sized([dropdown_rect.width() - 12.0, 30.0], egui::Button::new("Combo").frame(false));
-                                    let auto_shift_color = if auto_shift_supported { ui.visuals().widgets.inactive.fg_stroke.color } else { app_muted_text(dark) };
-                                    let auto_shift_resp = ui.add_sized([dropdown_rect.width() - 12.0, 30.0], egui::Button::new(RichText::new("Auto Shift").color(auto_shift_color)).frame(false));
-                                    let key_override_resp = ui.add_sized([dropdown_rect.width() - 12.0, 30.0], egui::Button::new("Key Overrides").frame(false));
-                                    if combo_resp.hovered() || auto_shift_resp.hovered() || key_override_resp.hovered() {
-                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                    }
-                                    if combo_resp.clicked() {
-                                        self.close_top_dropdowns(ui.ctx());
-                                        self.settings_tab = SettingsTab::Combo;
-                                        self.main_menu_tab = MainMenuTab::Advanced;
-                                        if self.combo_visible_count == 0 { self.combo_visible_count = 1; }
-                                    }
-                                    if auto_shift_resp.clicked() && auto_shift_supported {
-                                        self.close_top_dropdowns(ui.ctx());
-                                        self.settings_tab = SettingsTab::AutoShift;
-                                        self.main_menu_tab = MainMenuTab::Advanced;
-                                    }
-                                    if key_override_resp.clicked() {
-                                        self.close_top_dropdowns(ui.ctx());
-                                        self.settings_tab = SettingsTab::KeyOverrides;
-                                        self.main_menu_tab = MainMenuTab::Advanced;
-                                    }
-                                    if !auto_shift_supported {
-                                        let _ = auto_shift_resp.clone().on_hover_text("Auto Shift is not enabled in this keyboard firmware");
-                                    }
-                                    (
-                                        combo_resp.hovered(),
-                                        auto_shift_resp.hovered(),
-                                        key_override_resp.hovered(),
-                                        combo_resp.clicked()
-                                            || (auto_shift_resp.clicked() && auto_shift_supported)
-                                            || key_override_resp.clicked(),
-                                    )
-                                })
-                                .inner
-                        })
-                        .inner;
+                    let item_width = dropdown_rect.width() - 16.0;
+                    let (combo_hovered, auto_shift_hovered, key_override_hovered, advanced_clicked) =
+                        egui::Area::new(egui::Id::new("advanced_dropdown_area"))
+                            .order(egui::Order::Foreground)
+                            .fixed_pos(dropdown_rect.min)
+                            .show(ui.ctx(), |ui| {
+                                top_dropdown_frame(dark)
+                                    .show(ui, |ui| {
+                                        ui.set_min_width(item_width);
+                                        let combo_resp = top_dropdown_item(
+                                            ui,
+                                            item_width,
+                                            "Combo",
+                                            true,
+                                            self.main_menu_tab == MainMenuTab::Advanced
+                                                && self.settings_tab == SettingsTab::Combo,
+                                        );
+                                        let auto_shift_resp = top_dropdown_item(
+                                            ui,
+                                            item_width,
+                                            "Auto Shift",
+                                            auto_shift_supported,
+                                            self.main_menu_tab == MainMenuTab::Advanced
+                                                && self.settings_tab == SettingsTab::AutoShift,
+                                        );
+                                        let key_override_resp = top_dropdown_item(
+                                            ui,
+                                            item_width,
+                                            "Key Overrides",
+                                            true,
+                                            self.main_menu_tab == MainMenuTab::Advanced
+                                                && self.settings_tab == SettingsTab::KeyOverrides,
+                                        );
+                                        if combo_resp.clicked() {
+                                            self.close_top_dropdowns(ui.ctx());
+                                            self.settings_tab = SettingsTab::Combo;
+                                            self.main_menu_tab = MainMenuTab::Advanced;
+                                            if self.combo_visible_count == 0 { self.combo_visible_count = 1; }
+                                        }
+                                        if auto_shift_resp.clicked() && auto_shift_supported {
+                                            self.close_top_dropdowns(ui.ctx());
+                                            self.settings_tab = SettingsTab::AutoShift;
+                                            self.main_menu_tab = MainMenuTab::Advanced;
+                                        }
+                                        if key_override_resp.clicked() {
+                                            self.close_top_dropdowns(ui.ctx());
+                                            self.settings_tab = SettingsTab::KeyOverrides;
+                                            self.main_menu_tab = MainMenuTab::Advanced;
+                                        }
+                                        if !auto_shift_supported {
+                                            let _ = auto_shift_resp.clone().on_hover_text(
+                                                "Auto Shift is not enabled in this keyboard firmware",
+                                            );
+                                        }
+                                        (
+                                            combo_resp.hovered(),
+                                            auto_shift_resp.hovered(),
+                                            key_override_resp.hovered(),
+                                            combo_resp.clicked()
+                                                || (auto_shift_resp.clicked() && auto_shift_supported)
+                                                || key_override_resp.clicked(),
+                                        )
+                                    })
+                                    .inner
+                            })
+                            .inner;
                     ui.ctx().data_mut(|d| {
                         d.insert_temp(
                             dropdown_id,
@@ -7650,11 +7704,6 @@ impl EntropyApp {
 
                 if show_dropdown {
                     let dark = ui.visuals().dark_mode;
-                    let dropdown_fill = if dark {
-                        Color32::from_gray(32)
-                    } else {
-                        Color32::from_gray(248)
-                    };
                     let rgb_available = self.rgb_settings.supported
                         || self
                             .layout
@@ -7662,51 +7711,47 @@ impl EntropyApp {
                             .map(|l| l.supports_rgb)
                             .unwrap_or(false);
                     let tap_hold_available = self.tap_hold_settings.supported;
+                    let item_width = dropdown_rect.width() - 16.0;
                     let (matrix_hovered, rgb_hovered, encoders_hovered, tap_hold_hovered, settings_clicked) =
                         egui::Area::new(egui::Id::new("settings_dropdown_area"))
                             .order(egui::Order::Foreground)
                             .fixed_pos(dropdown_rect.min)
                             .show(ui.ctx(), |ui| {
-                                egui::Frame::NONE
-                                    .fill(dropdown_fill)
-                                    .corner_radius(8.0)
-                                    .inner_margin(egui::Margin::symmetric(6, 4))
+                                top_dropdown_frame(dark)
                                     .show(ui, |ui| {
-                                        ui.set_min_width(dropdown_rect.width() - 12.0);
-                                        let matrix_resp = ui.add_sized(
-                                            [dropdown_rect.width() - 12.0, 30.0],
-                                            egui::Button::new("Matrix Tester").frame(false),
+                                        ui.set_min_width(item_width);
+                                        let matrix_resp = top_dropdown_item(
+                                            ui,
+                                            item_width,
+                                            "Matrix Tester",
+                                            true,
+                                            self.main_menu_tab == MainMenuTab::Settings
+                                                && self.settings_tab == SettingsTab::MatrixTester,
                                         );
-                                        let rgb_color = if rgb_available {
-                                            ui.visuals().widgets.inactive.fg_stroke.color
-                                        } else {
-                                            app_muted_text(dark)
-                                        };
-                                        let rgb_resp = ui.add_sized(
-                                            [dropdown_rect.width() - 12.0, 30.0],
-                                            egui::Button::new(RichText::new("RGB").color(rgb_color)).frame(false),
+                                        let rgb_resp = top_dropdown_item(
+                                            ui,
+                                            item_width,
+                                            "RGB",
+                                            rgb_available,
+                                            self.main_menu_tab == MainMenuTab::Settings
+                                                && self.settings_tab == SettingsTab::Rgb,
                                         );
-                                        let encoders_resp = ui.add_sized(
-                                            [dropdown_rect.width() - 12.0, 30.0],
-                                            egui::Button::new("Encoders").frame(false),
+                                        let encoders_resp = top_dropdown_item(
+                                            ui,
+                                            item_width,
+                                            "Encoders",
+                                            true,
+                                            self.main_menu_tab == MainMenuTab::Settings
+                                                && self.settings_tab == SettingsTab::Encoders,
                                         );
-                                        let tap_hold_color = if tap_hold_available {
-                                            ui.visuals().widgets.inactive.fg_stroke.color
-                                        } else {
-                                            app_muted_text(dark)
-                                        };
-                                        let tap_hold_resp = ui.add_sized(
-                                            [dropdown_rect.width() - 12.0, 30.0],
-                                            egui::Button::new(RichText::new("Tap-Hold").color(tap_hold_color)).frame(false),
+                                        let tap_hold_resp = top_dropdown_item(
+                                            ui,
+                                            item_width,
+                                            "Tap-Hold",
+                                            tap_hold_available,
+                                            self.main_menu_tab == MainMenuTab::Settings
+                                                && self.settings_tab == SettingsTab::TapHold,
                                         );
-                                        if matrix_resp.hovered()
-                                            || rgb_resp.hovered()
-                                            || encoders_resp.hovered()
-                                            || tap_hold_resp.hovered()
-                                        {
-                                            ui.ctx()
-                                                .set_cursor_icon(egui::CursorIcon::PointingHand);
-                                        }
                                         if matrix_resp.clicked() {
                                             self.close_top_dropdowns(ui.ctx());
                                             self.settings_tab = SettingsTab::MatrixTester;
