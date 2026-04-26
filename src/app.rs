@@ -2982,7 +2982,9 @@ impl EntropyApp {
         content_rect: egui::Rect,
         dark: bool,
     ) {
-        let top_line_y = content_rect.top() + 18.0;
+        let title_y = content_rect.top() + 18.0;
+        let desc_y = title_y + 28.0;
+        let status_y = desc_y + 30.0;
         let supported = self.firmware == FirmwareProtocol::Vial;
         let hid_ready = {
             #[cfg(not(target_arch = "wasm32"))]
@@ -3019,40 +3021,53 @@ impl EntropyApp {
             })
             .count();
 
-        ui.painter().text(
-            egui::pos2(content_rect.left() + 4.0, top_line_y),
-            egui::Align2::LEFT_CENTER,
+        let painter = ui.painter().clone();
+        painter.text(
+            egui::pos2(content_rect.center().x, title_y),
+            egui::Align2::CENTER_CENTER,
+            "Matrix Tester",
+            FontId::proportional(18.0),
+            ui.visuals().text_color(),
+        );
+        painter.text(
+            egui::pos2(content_rect.center().x, desc_y),
+            egui::Align2::CENTER_CENTER,
             "Press switches on the keyboard to verify every matrix position",
             FontId::proportional(13.0),
             app_muted_text(dark),
         );
-        ui.painter().text(
-            egui::pos2(content_rect.left() + 4.0, top_line_y + 22.0),
-            egui::Align2::LEFT_CENTER,
-            format!("Tested: {tested_count}/{total_keys}"),
-            FontId::proportional(14.0),
-            if tested_count == total_keys && total_keys > 0 {
-                app_accent()
-            } else {
-                app_muted_text(dark)
-            },
+
+        let complete = tested_count == total_keys && total_keys > 0;
+        let status_text = format!("Tested: {tested_count}/{total_keys}");
+        let status_rect = egui::Rect::from_center_size(
+            egui::pos2(content_rect.center().x, status_y),
+            Vec2::new(132.0, 30.0),
+        );
+        painter.rect(
+            status_rect,
+            9.0,
+            app_surface_fill(dark),
+            crate::ui_style::modal_outline_stroke(dark),
+            egui::StrokeKind::Inside,
+        );
+        painter.text(
+            status_rect.center(),
+            egui::Align2::CENTER_CENTER,
+            status_text,
+            FontId::proportional(13.0),
+            if complete { app_accent() } else { app_muted_text(dark) },
         );
 
         let reset_rect = egui::Rect::from_min_size(
-            egui::pos2(content_rect.right() - 88.0, top_line_y - 15.0),
+            egui::pos2(content_rect.right() - 88.0, status_y - 15.0),
             Vec2::new(84.0, 30.0),
         );
-        if ui
-            .put(
-                reset_rect,
-                egui::Button::new("Reset").sense(egui::Sense::CLICK),
-            )
-            .clicked()
-        {
-            self.reset_matrix_tester_state();
-        }
-
-        let painter = ui.painter();
+        ui.allocate_ui_at_rect(reset_rect, |ui| {
+            let reset_resp = crate::ui_style::modern_button(ui, "Reset", reset_rect.size(), true);
+            if reset_resp.clicked() {
+                self.reset_matrix_tester_state();
+            }
+        });
         let idle_fill = if dark {
             Color32::from_rgb(34, 34, 38)
         } else {
@@ -3064,7 +3079,7 @@ impl EntropyApp {
             Color32::from_rgb(242, 230, 232)
         };
 
-        let board_top = content_rect.top() + 52.0;
+        let board_top = content_rect.top() + 92.0;
         let board_rect = egui::Rect::from_min_max(
             egui::pos2(content_rect.left(), board_top),
             egui::pos2(content_rect.right(), content_rect.bottom()),
@@ -3117,16 +3132,15 @@ impl EntropyApp {
         let span_x = max_x - min_x;
         let span_y = max_y - min_y;
         let margin = 40.0_f32;
-        let avail = ui.available_size();
-        let scale_x = (avail.x - margin) / (span_x * base_unit).max(1.0);
-        let scale_y = (avail.y - margin) / (span_y * base_unit).max(1.0);
+        let board_size = board_rect.size();
+        let scale_x = (board_size.x - margin) / (span_x * base_unit).max(1.0);
+        let scale_y = (board_size.y - margin) / (span_y * base_unit).max(1.0);
         let scale = scale_x.min(scale_y).min(1.0);
         let unit = base_unit * scale;
         let layout_w = span_x * unit;
         let layout_h = span_y * unit;
-        let offset_x = (avail.x - layout_w) / 2.0 + ui.min_rect().left() - min_x * unit;
-        let offset_y =
-            ((content_rect.top() + content_rect.bottom()) - layout_h) / 2.0 - min_y * unit;
+        let offset_x = board_rect.center().x - layout_w / 2.0 - min_x * unit;
+        let offset_y = board_rect.center().y - layout_h / 2.0 - min_y * unit;
 
         for key in &layout.keys {
             let matrix_idx = key.row as usize * layout.cols + key.col as usize;
