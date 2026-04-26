@@ -348,7 +348,11 @@ fn top_dropdown_item(
     selected: bool,
 ) -> egui::Response {
     let dark = ui.visuals().dark_mode;
-    let sense = if enabled { Sense::click() } else { Sense::hover() };
+    let sense = if enabled {
+        Sense::click()
+    } else {
+        Sense::hover()
+    };
     let (rect, resp) = ui.allocate_exact_size(egui::vec2(width, 30.0), sense);
     let hovered = resp.hovered() && enabled;
     if hovered {
@@ -770,6 +774,51 @@ fn layer_led_palette_name(index: u8) -> &'static str {
         .unwrap_or("Unknown")
 }
 
+const LAYER_LED_PALETTE_HSV: [(u8, u8, u8); 25] = [
+    (0, 0, 0),
+    (0, 0, 255),
+    (0, 255, 255),
+    (16, 255, 255),
+    (27, 255, 255),
+    (38, 255, 255),
+    (53, 255, 255),
+    (74, 255, 255),
+    (90, 255, 255),
+    (106, 255, 255),
+    (117, 255, 255),
+    (128, 255, 255),
+    (138, 255, 170),
+    (149, 255, 255),
+    (160, 255, 255),
+    (165, 255, 255),
+    (170, 255, 255),
+    (186, 255, 255),
+    (202, 255, 255),
+    (213, 255, 255),
+    (234, 180, 255),
+    (8, 176, 255),
+    (14, 128, 255),
+    (32, 64, 255),
+    (22, 255, 255),
+];
+
+fn layer_led_palette_color(index: u8) -> Color32 {
+    let (h, s, v) = LAYER_LED_PALETTE_HSV
+        .get(index as usize)
+        .copied()
+        .unwrap_or((0, 0, 0));
+    if v == 0 {
+        Color32::from_rgb(18, 18, 20)
+    } else {
+        Color32::from(egui::ecolor::Hsva::new(
+            h as f32 / 255.0,
+            s as f32 / 255.0,
+            v as f32 / 255.0,
+            1.0,
+        ))
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum RgbSupportKind {
     #[default]
@@ -1002,12 +1051,8 @@ fn compact_rgb_slider_1d(
             stroke,
             egui::StrokeKind::Inside,
         );
-        ui.painter().rect_stroke(
-            rect,
-            2.0,
-            visuals.bg_stroke,
-            egui::StrokeKind::Inside,
-        );
+        ui.painter()
+            .rect_stroke(rect, 2.0, visuals.bg_stroke, egui::StrokeKind::Inside);
     }
 
     changed
@@ -1062,12 +1107,8 @@ fn compact_rgb_slider_2d(
         let picked_color = color_at(*x_value, *y_value);
         let stroke = Stroke::new(1.6, rgb_picker_contrast(picked_color));
         ui.painter().circle_stroke(egui::pos2(x, y), 10.0, stroke);
-        ui.painter().rect_stroke(
-            rect,
-            2.0,
-            visuals.bg_stroke,
-            egui::StrokeKind::Inside,
-        );
+        ui.painter()
+            .rect_stroke(rect, 2.0, visuals.bg_stroke, egui::StrokeKind::Inside);
     }
 
     changed
@@ -1755,7 +1796,9 @@ impl EntropyApp {
                                         match dev_conn.get_qmk_setting_u8(qsid) {
                                             Ok(val) => val != 0,
                                             Err(e) => {
-                                                log::warn!("get_qmk_setting_u8(tap_hold qsid {qsid}): {e}");
+                                                log::warn!(
+                                                    "get_qmk_setting_u8(tap_hold qsid {qsid}): {e}"
+                                                );
                                                 false
                                             }
                                         }
@@ -1812,14 +1855,17 @@ impl EntropyApp {
                                     leds.brightness = dev_conn
                                         .get_qmk_setting_u16(316)
                                         .unwrap_or_else(|e| {
-                                            log::warn!("get_qmk_setting_u16(layer_led brightness): {e}");
+                                            log::warn!(
+                                                "get_qmk_setting_u16(layer_led brightness): {e}"
+                                            );
                                             0
                                         })
                                         .min(255);
-                                    leds.timeout_mins = dev_conn
-                                        .get_qmk_setting_u8(317)
-                                        .unwrap_or_else(|e| {
-                                            log::warn!("get_qmk_setting_u8(layer_led timeout): {e}");
+                                    leds.timeout_mins =
+                                        dev_conn.get_qmk_setting_u8(317).unwrap_or_else(|e| {
+                                            log::warn!(
+                                                "get_qmk_setting_u8(layer_led timeout): {e}"
+                                            );
                                             0
                                         });
                                 }
@@ -1911,7 +1957,9 @@ impl EntropyApp {
                                                 keycode,
                                                 alt_keycode,
                                                 allowed_mods,
-                                                options: AltRepeatKeyOptionsState::from_bits(options),
+                                                options: AltRepeatKeyOptionsState::from_bits(
+                                                    options,
+                                                ),
                                             });
                                         }
                                         Err(e) => {
@@ -2109,10 +2157,15 @@ impl EntropyApp {
                 self.key_override_entries = r.key_override_entries.clone();
                 self.alt_repeat_entries = r.alt_repeat_entries.clone();
                 self.alt_repeat_names = load_alt_repeat_names(&self.current_device_name);
-                self.alt_repeat_names.resize(self.alt_repeat_entries.len(), String::new());
+                self.alt_repeat_names
+                    .resize(self.alt_repeat_entries.len(), String::new());
                 self.alt_repeat_undo_stack.clear();
                 self.selected_alt_repeat = 0;
-                self.alt_repeat_visible_count = if self.alt_repeat_entries.is_empty() { 1 } else { 1.min(self.alt_repeat_entries.len()) };
+                self.alt_repeat_visible_count = if self.alt_repeat_entries.is_empty() {
+                    1
+                } else {
+                    1.min(self.alt_repeat_entries.len())
+                };
                 self.key_override_names = load_key_override_names(&self.current_device_name);
                 self.key_override_names
                     .resize(self.key_override_entries.len(), String::new());
@@ -2266,7 +2319,8 @@ impl EntropyApp {
 
                 // Populate picker based on firmware
                 self.keycode_picker.firmware = self.firmware;
-                self.keycode_picker.supports_rgb = r.layout.supports_rgb || self.rgb_settings.supported;
+                self.keycode_picker.supports_rgb =
+                    r.layout.supports_rgb || self.rgb_settings.supported;
                 self.keycode_picker.layer_count = r.layout.layers.len().max(1);
                 self.keycode_picker.tap_dance_names = load_tap_dance_names(&device_name);
                 if self.firmware == FirmwareProtocol::Vial {
@@ -2944,7 +2998,8 @@ impl EntropyApp {
         let layout_w = span_x * unit;
         let layout_h = span_y * unit;
         let offset_x = (avail.x - layout_w) / 2.0 + ui.min_rect().left() - min_x * unit;
-        let offset_y = ((content_rect.top() + content_rect.bottom()) - layout_h) / 2.0 - min_y * unit;
+        let offset_y =
+            ((content_rect.top() + content_rect.bottom()) - layout_h) / 2.0 - min_y * unit;
 
         for key in &layout.keys {
             let matrix_idx = key.row as usize * layout.cols + key.col as usize;
@@ -2994,12 +3049,7 @@ impl EntropyApp {
         }
     }
 
-    fn draw_rgb_settings_page(
-        &mut self,
-        ui: &mut egui::Ui,
-        content_rect: egui::Rect,
-        dark: bool,
-    ) {
+    fn draw_rgb_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect, dark: bool) {
         let hid_ready = {
             #[cfg(not(target_arch = "wasm32"))]
             {
@@ -3046,11 +3096,7 @@ impl EntropyApp {
         });
     }
 
-    fn draw_alt_repeat_settings_page(
-        &mut self,
-        ui: &mut egui::Ui,
-        content_rect: egui::Rect,
-    ) {
+    fn draw_alt_repeat_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
         const ALT_REPEAT_PAGE_WIDTH: f32 = 470.0;
         const ALT_REPEAT_TITLE_Y_OFFSET: f32 = 30.0;
         const ALT_REPEAT_DESC_GAP: f32 = 28.0;
@@ -3063,7 +3109,10 @@ impl EntropyApp {
         let block_top = desc_y + ALT_REPEAT_BLOCK_TOP_GAP;
         let block_rect = egui::Rect::from_min_max(
             egui::pos2(center_x - ALT_REPEAT_PAGE_WIDTH / 2.0, block_top),
-            egui::pos2(center_x + ALT_REPEAT_PAGE_WIDTH / 2.0, content_rect.bottom()),
+            egui::pos2(
+                center_x + ALT_REPEAT_PAGE_WIDTH / 2.0,
+                content_rect.bottom(),
+            ),
         );
 
         ui.painter().text(
@@ -3086,11 +3135,7 @@ impl EntropyApp {
         });
     }
 
-    fn draw_key_override_settings_page(
-        &mut self,
-        ui: &mut egui::Ui,
-        content_rect: egui::Rect,
-    ) {
+    fn draw_key_override_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
         const KEY_OVERRIDE_PAGE_WIDTH: f32 = 548.0;
         const KEY_OVERRIDE_TITLE_Y_OFFSET: f32 = 18.0;
         const KEY_OVERRIDE_DESC_GAP: f32 = 6.0;
@@ -3270,9 +3315,7 @@ impl EntropyApp {
                     crate::ui_style::modal_empty_state(
                         ui,
                         "Auto Shift is not enabled in this firmware",
-                        Some(
-                            "Enable AUTO_SHIFT_ENABLE in the keyboard rules.mk to use this page",
-                        ),
+                        Some("Enable AUTO_SHIFT_ENABLE in the keyboard rules.mk to use this page"),
                     );
                     return;
                 }
@@ -3357,12 +3400,36 @@ impl EntropyApp {
 
                 let mut options_changed = false;
                 options_changed |= checkbox_row(ui, "Enable", &mut self.auto_shift_options.enabled);
-                options_changed |= checkbox_row(ui, "Enable for modifiers", &mut self.auto_shift_options.enable_for_modifiers);
-                options_changed |= checkbox_row(ui, "Do not Auto Shift special keys", &mut self.auto_shift_options.no_special);
-                options_changed |= checkbox_row(ui, "Do not Auto Shift numeric keys", &mut self.auto_shift_options.no_numeric);
-                options_changed |= checkbox_row(ui, "Do not Auto Shift alpha characters", &mut self.auto_shift_options.no_alpha);
-                options_changed |= checkbox_row(ui, "Enable keyrepeat", &mut self.auto_shift_options.enable_keyrepeat);
-                options_changed |= checkbox_row(ui, "Disable keyrepeat when timeout is exceeded", &mut self.auto_shift_options.disable_keyrepeat_timeout);
+                options_changed |= checkbox_row(
+                    ui,
+                    "Enable for modifiers",
+                    &mut self.auto_shift_options.enable_for_modifiers,
+                );
+                options_changed |= checkbox_row(
+                    ui,
+                    "Do not Auto Shift special keys",
+                    &mut self.auto_shift_options.no_special,
+                );
+                options_changed |= checkbox_row(
+                    ui,
+                    "Do not Auto Shift numeric keys",
+                    &mut self.auto_shift_options.no_numeric,
+                );
+                options_changed |= checkbox_row(
+                    ui,
+                    "Do not Auto Shift alpha characters",
+                    &mut self.auto_shift_options.no_alpha,
+                );
+                options_changed |= checkbox_row(
+                    ui,
+                    "Enable keyrepeat",
+                    &mut self.auto_shift_options.enable_keyrepeat,
+                );
+                options_changed |= checkbox_row(
+                    ui,
+                    "Disable keyrepeat when timeout is exceeded",
+                    &mut self.auto_shift_options.disable_keyrepeat_timeout,
+                );
 
                 if options_changed {
                     self.write_auto_shift_flags();
@@ -4366,40 +4433,43 @@ impl eframe::App for EntropyApp {
                     // Draw layout keys with highlighted unlock keys
                     if let Some(layout) = &self.layout {
                         let base_unit = 54.0f32 * 1.15;
-                        let (off_x, off_y, unit, padding) = self.last_layout_geometry.unwrap_or_else(|| {
-                            let padding = 4.0f32;
-                            let mut min_x = f32::MAX;
-                            let mut min_y = f32::MAX;
-                            let mut max_x = f32::MIN;
-                            let mut max_y = f32::MIN;
-                            for key in &layout.keys {
-                                min_x = min_x.min(key.x);
-                                min_y = min_y.min(key.y);
-                                max_x = max_x.max(key.x + key.w);
-                                max_y = max_y.max(key.y + key.h);
-                            }
-                            for encoder in &layout.encoders {
-                                min_x = min_x.min(encoder.x);
-                                min_y = min_y.min(encoder.y);
-                                max_x = max_x.max(encoder.x + encoder.w);
-                                max_y = max_y.max(encoder.y + encoder.h);
-                            }
-                            let span_x = max_x - min_x;
-                            let span_y = max_y - min_y;
-                            let margin = 40.0f32;
-                            let scale_x = (screen.width() - margin) / (span_x * base_unit).max(1.0);
-                            let scale_y = (screen.height() - margin) / (span_y * base_unit).max(1.0);
-                            let scale = scale_x.min(scale_y).min(1.0);
-                            let unit = base_unit * scale;
-                            let layout_w = span_x * unit;
-                            let layout_h = span_y * unit;
-                            (
-                                center_x - layout_w / 2.0 - min_x * unit,
-                                screen.center().y - layout_h / 2.0 - min_y * unit,
-                                unit,
-                                padding,
-                            )
-                        });
+                        let (off_x, off_y, unit, padding) =
+                            self.last_layout_geometry.unwrap_or_else(|| {
+                                let padding = 4.0f32;
+                                let mut min_x = f32::MAX;
+                                let mut min_y = f32::MAX;
+                                let mut max_x = f32::MIN;
+                                let mut max_y = f32::MIN;
+                                for key in &layout.keys {
+                                    min_x = min_x.min(key.x);
+                                    min_y = min_y.min(key.y);
+                                    max_x = max_x.max(key.x + key.w);
+                                    max_y = max_y.max(key.y + key.h);
+                                }
+                                for encoder in &layout.encoders {
+                                    min_x = min_x.min(encoder.x);
+                                    min_y = min_y.min(encoder.y);
+                                    max_x = max_x.max(encoder.x + encoder.w);
+                                    max_y = max_y.max(encoder.y + encoder.h);
+                                }
+                                let span_x = max_x - min_x;
+                                let span_y = max_y - min_y;
+                                let margin = 40.0f32;
+                                let scale_x =
+                                    (screen.width() - margin) / (span_x * base_unit).max(1.0);
+                                let scale_y =
+                                    (screen.height() - margin) / (span_y * base_unit).max(1.0);
+                                let scale = scale_x.min(scale_y).min(1.0);
+                                let unit = base_unit * scale;
+                                let layout_w = span_x * unit;
+                                let layout_h = span_y * unit;
+                                (
+                                    center_x - layout_w / 2.0 - min_x * unit,
+                                    screen.center().y - layout_h / 2.0 - min_y * unit,
+                                    unit,
+                                    padding,
+                                )
+                            });
                         for key in &layout.keys {
                             let is_unlock = unlock_keys
                                 .iter()
@@ -4431,7 +4501,6 @@ impl eframe::App for EntropyApp {
                                 Stroke::new(1.0, border),
                                 egui::StrokeKind::Inside,
                             );
-
                         }
                     }
                 });
@@ -4644,10 +4713,8 @@ impl EntropyApp {
                     let has_unlock_key = self.zmk_conn.is_none(); // after poll the conn is taken
                     if has_unlock_key {
                         ui.label(
-                            RichText::new(
-                                "Press the unlock key on your keyboard to allow editing",
-                            )
-                            .size(14.0),
+                            RichText::new("Press the unlock key on your keyboard to allow editing")
+                                .size(14.0),
                         );
                     } else {
                         ui.label(
@@ -4883,8 +4950,10 @@ impl EntropyApp {
         combo_capture_open_at_frame_start: bool,
         keyboard_input_wanted_at_frame_start: bool,
     ) -> bool {
-        matches!(self.main_menu_tab, MainMenuTab::Settings | MainMenuTab::Advanced)
-            && self.settings_tab != SettingsTab::MatrixTester
+        matches!(
+            self.main_menu_tab,
+            MainMenuTab::Settings | MainMenuTab::Advanced
+        ) && self.settings_tab != SettingsTab::MatrixTester
             && !self.secondary_click_handled
             && !self.keycode_picker.open
             && !self.unlock_open
@@ -5145,12 +5214,7 @@ impl EntropyApp {
         }
     }
 
-    fn draw_rgb_editor_content(
-        &mut self,
-        ui: &mut egui::Ui,
-        dark: bool,
-        layout: &RgbModalLayout,
-    ) {
+    fn draw_rgb_editor_content(&mut self, ui: &mut egui::Ui, dark: bool, layout: &RgbModalLayout) {
         let options = rgb_effect_options(&self.rgb_settings);
         let mut enabled = self.rgb_settings.is_enabled();
         let mut selected_effect = self.rgb_settings.effect;
@@ -5244,7 +5308,8 @@ impl EntropyApp {
                                             Sense::click(),
                                         );
                                         if option_resp.hovered() {
-                                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                            ui.ctx()
+                                                .set_cursor_icon(egui::CursorIcon::PointingHand);
                                         }
                                         let option_fill = if selected {
                                             if dark {
@@ -5259,7 +5324,10 @@ impl EntropyApp {
                                         };
                                         ui.painter().rect_filled(option_rect, 7.0, option_fill);
                                         ui.painter().text(
-                                            egui::pos2(option_rect.left() + 10.0, option_rect.center().y),
+                                            egui::pos2(
+                                                option_rect.left() + 10.0,
+                                                option_rect.center().y,
+                                            ),
                                             egui::Align2::LEFT_CENTER,
                                             *label,
                                             FontId::proportional(12.0),
@@ -5304,14 +5372,19 @@ impl EntropyApp {
                         border
                     };
                     let swatch_color: Color32 = color_hsva.into();
-                    let swatch_sense = if color_enabled { Sense::click() } else { Sense::hover() };
+                    let swatch_sense = if color_enabled {
+                        Sense::click()
+                    } else {
+                        Sense::hover()
+                    };
                     let (swatch_rect, swatch_resp) =
                         ui.allocate_exact_size(Vec2::new(64.0, 34.0), swatch_sense);
                     if color_enabled && swatch_resp.hovered() {
                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                     }
                     if color_enabled && swatch_resp.clicked() {
-                        ui.ctx().data_mut(|d| d.insert_temp(popup_hsva_id, color_hsva));
+                        ui.ctx()
+                            .data_mut(|d| d.insert_temp(popup_hsva_id, color_hsva));
                         ui.memory_mut(|m| m.toggle_popup(popup_id));
                     }
                     ui.painter().rect(
@@ -5356,7 +5429,8 @@ impl EntropyApp {
                                         as u8;
                                     self.set_rgb_color(hue, saturation);
                                     color_hsva = picked_hsva;
-                                    ui.ctx().data_mut(|d| d.insert_temp(popup_hsva_id, picked_hsva));
+                                    ui.ctx()
+                                        .data_mut(|d| d.insert_temp(popup_hsva_id, picked_hsva));
                                 }
                             },
                         );
@@ -5412,7 +5486,8 @@ impl EntropyApp {
                             if resp.changed() {
                                 let raw_value = ((speed_percent / 100.0) * speed_max)
                                     .round()
-                                    .clamp(0.0, speed_max) as u8;
+                                    .clamp(0.0, speed_max)
+                                    as u8;
                                 self.set_rgb_speed(raw_value);
                             }
                         });
@@ -5465,7 +5540,8 @@ impl EntropyApp {
                                 .trailing_fill(true);
                             let resp = ui.add_sized(RGB_SLIDER_SIZE, slider);
                             if resp.changed() {
-                                let raw_value = ((brightness_percent / 100.0) * brightness_max as f32)
+                                let raw_value = ((brightness_percent / 100.0)
+                                    * brightness_max as f32)
                                     .round()
                                     .clamp(0.0, brightness_max as f32)
                                     as u8;
@@ -5585,10 +5661,8 @@ impl EntropyApp {
                     .ctx()
                     .data_mut(|d| d.get_persisted::<f32>(target_id).unwrap_or(scroll_offset))
                     .clamp(0.0, max_offset);
-                let (viewport, viewport_resp) = ui.allocate_exact_size(
-                    egui::vec2(CONTENT_WIDTH, list_height),
-                    Sense::hover(),
-                );
+                let (viewport, viewport_resp) =
+                    ui.allocate_exact_size(egui::vec2(CONTENT_WIDTH, list_height), Sense::hover());
                 let track_width = 6.0;
                 let track_rect = egui::Rect::from_min_max(
                     egui::pos2(viewport.right() - track_width, viewport.top()),
@@ -5620,7 +5694,8 @@ impl EntropyApp {
                 }
 
                 let handle_height = if max_offset > 0.0 {
-                    (list_height / content_height * viewport.height()).clamp(42.0, viewport.height())
+                    (list_height / content_height * viewport.height())
+                        .clamp(42.0, viewport.height())
                 } else {
                     viewport.height()
                 };
@@ -5674,7 +5749,8 @@ impl EntropyApp {
                                     Some("Select Alt Repeat slot"),
                                     CONTROL_WIDTH,
                                     |ui| {
-                                        let dropdown_id = ui.make_persistent_id("alt_repeat_entry_dropdown");
+                                        let dropdown_id =
+                                            ui.make_persistent_id("alt_repeat_entry_dropdown");
                                         let dropdown_resp = crate::ui_style::modern_dropdown_button(
                                             ui,
                                             dropdown_id,
@@ -5683,7 +5759,8 @@ impl EntropyApp {
                                             CONTROL_WIDTH,
                                         );
 
-                                        ui.style_mut().visuals.window_stroke = crate::ui_style::modal_outline_stroke(dark);
+                                        ui.style_mut().visuals.window_stroke =
+                                            crate::ui_style::modal_outline_stroke(dark);
                                         ui.style_mut().visuals.window_fill = app_surface_fill(dark);
                                         egui::popup_below_widget(
                                             ui,
@@ -5698,30 +5775,51 @@ impl EntropyApp {
                                                     .max_height(142.0)
                                                     .auto_shrink([false, true])
                                                     .show(ui, |ui| {
-                                                        for entry_idx in 0..self.alt_repeat_entries.len() {
+                                                        for entry_idx in
+                                                            0..self.alt_repeat_entries.len()
+                                                        {
                                                             let empty = self
                                                                 .alt_repeat_entries
                                                                 .get(entry_idx)
-                                                                .map(|entry| !Self::alt_repeat_entry_exists(entry))
+                                                                .map(|entry| {
+                                                                    !Self::alt_repeat_entry_exists(
+                                                                        entry,
+                                                                    )
+                                                                })
                                                                 .unwrap_or(true)
                                                                 && self
                                                                     .alt_repeat_names
                                                                     .get(entry_idx)
-                                                                    .map(|name| name.trim().is_empty())
+                                                                    .map(|name| {
+                                                                        name.trim().is_empty()
+                                                                    })
                                                                     .unwrap_or(true);
-                                                            let option_text = match self.alt_repeat_names.get(entry_idx) {
-                                                                Some(name) if !name.trim().is_empty() => {
-                                                                    format!("AR{}: {}", entry_idx, name.trim())
+                                                            let option_text = match self
+                                                                .alt_repeat_names
+                                                                .get(entry_idx)
+                                                            {
+                                                                Some(name)
+                                                                    if !name.trim().is_empty() =>
+                                                                {
+                                                                    format!(
+                                                                        "AR{}: {}",
+                                                                        entry_idx,
+                                                                        name.trim()
+                                                                    )
                                                                 }
                                                                 _ => format!("AR{}", entry_idx),
                                                             };
-                                                            let selected = entry_idx == self.selected_alt_repeat;
-                                                            let (option_rect, option_resp) = ui.allocate_exact_size(
-                                                                Vec2::new(CONTROL_WIDTH, 28.0),
-                                                                Sense::click(),
-                                                            );
+                                                            let selected = entry_idx
+                                                                == self.selected_alt_repeat;
+                                                            let (option_rect, option_resp) = ui
+                                                                .allocate_exact_size(
+                                                                    Vec2::new(CONTROL_WIDTH, 28.0),
+                                                                    Sense::click(),
+                                                                );
                                                             if option_resp.hovered() {
-                                                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                                                ui.ctx().set_cursor_icon(
+                                                                    egui::CursorIcon::PointingHand,
+                                                                );
                                                             }
                                                             let option_fill = if selected {
                                                                 if dark {
@@ -5734,22 +5832,34 @@ impl EntropyApp {
                                                             } else {
                                                                 Color32::TRANSPARENT
                                                             };
-                                                            ui.painter().rect_filled(option_rect, 7.0, option_fill);
+                                                            ui.painter().rect_filled(
+                                                                option_rect,
+                                                                7.0,
+                                                                option_fill,
+                                                            );
                                                             ui.painter().text(
-                                                                egui::pos2(option_rect.left() + 10.0, option_rect.center().y),
+                                                                egui::pos2(
+                                                                    option_rect.left() + 10.0,
+                                                                    option_rect.center().y,
+                                                                ),
                                                                 egui::Align2::LEFT_CENTER,
                                                                 option_text,
                                                                 FontId::proportional(12.0),
                                                                 if selected {
                                                                     ui.visuals().text_color()
                                                                 } else if empty {
-                                                                    app_inactive_entry_text(ui.visuals().dark_mode)
+                                                                    app_inactive_entry_text(
+                                                                        ui.visuals().dark_mode,
+                                                                    )
                                                                 } else {
-                                                                    app_muted_text(ui.visuals().dark_mode)
+                                                                    app_muted_text(
+                                                                        ui.visuals().dark_mode,
+                                                                    )
                                                                 },
                                                             );
                                                             if option_resp.clicked() {
-                                                                self.selected_alt_repeat = entry_idx;
+                                                                self.selected_alt_repeat =
+                                                                    entry_idx;
                                                                 ui.memory_mut(|m| m.close_popup());
                                                             }
                                                         }
@@ -5787,7 +5897,10 @@ impl EntropyApp {
                                 );
                                 if name_changed {
                                     self.push_alt_repeat_undo();
-                                    save_alt_repeat_names(&self.alt_repeat_names, &self.current_device_name);
+                                    save_alt_repeat_names(
+                                        &self.alt_repeat_names,
+                                        &self.current_device_name,
+                                    );
                                 }
                             }
                             2 => {
@@ -5807,7 +5920,9 @@ impl EntropyApp {
                                             true,
                                         );
                                         if resp.clicked() {
-                                            self.open_alt_repeat_picker(AltRepeatPickField::LastKey);
+                                            self.open_alt_repeat_picker(
+                                                AltRepeatPickField::LastKey,
+                                            );
                                         }
                                         resp.on_hover_text(last_key_tip.trim_end_matches('.'));
                                     },
@@ -5857,45 +5972,57 @@ impl EntropyApp {
                                     }),
                                     MOD_CONTROL_WIDTH,
                                     |ui| {
-                                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                            let mut right_checked = (edited.allowed_mods & (1 << right_bit)) != 0;
-                                            let right_resp = crate::ui_style::settings_switch(ui, &mut right_checked);
-                                            if right_resp.changed() {
-                                                if right_checked {
-                                                    edited.allowed_mods |= 1 << right_bit;
-                                                } else {
-                                                    edited.allowed_mods &= !(1 << right_bit);
+                                        ui.with_layout(
+                                            egui::Layout::right_to_left(egui::Align::Center),
+                                            |ui| {
+                                                let mut right_checked =
+                                                    (edited.allowed_mods & (1 << right_bit)) != 0;
+                                                let right_resp = crate::ui_style::settings_switch(
+                                                    ui,
+                                                    &mut right_checked,
+                                                );
+                                                if right_resp.changed() {
+                                                    if right_checked {
+                                                        edited.allowed_mods |= 1 << right_bit;
+                                                    } else {
+                                                        edited.allowed_mods &= !(1 << right_bit);
+                                                    }
                                                 }
-                                            }
-                                            let right_label_resp = ui.label(
-                                                RichText::new("R")
-                                                    .size(12.0)
-                                                    .color(app_muted_text(ui.visuals().dark_mode)),
-                                            );
-                                            if right_label_resp.hovered() {
-                                                ui.ctx().set_cursor_icon(egui::CursorIcon::Help);
-                                            }
-                                            right_label_resp.on_hover_text("Right-side modifier");
-                                            ui.add_space(10.0);
-                                            let mut left_checked = (edited.allowed_mods & (1 << left_bit)) != 0;
-                                            let left_resp = crate::ui_style::settings_switch(ui, &mut left_checked);
-                                            if left_resp.changed() {
-                                                if left_checked {
-                                                    edited.allowed_mods |= 1 << left_bit;
-                                                } else {
-                                                    edited.allowed_mods &= !(1 << left_bit);
+                                                let right_label_resp =
+                                                    ui.label(RichText::new("R").size(12.0).color(
+                                                        app_muted_text(ui.visuals().dark_mode),
+                                                    ));
+                                                if right_label_resp.hovered() {
+                                                    ui.ctx()
+                                                        .set_cursor_icon(egui::CursorIcon::Help);
                                                 }
-                                            }
-                                            let left_label_resp = ui.label(
-                                                RichText::new("L")
-                                                    .size(12.0)
-                                                    .color(app_muted_text(ui.visuals().dark_mode)),
-                                            );
-                                            if left_label_resp.hovered() {
-                                                ui.ctx().set_cursor_icon(egui::CursorIcon::Help);
-                                            }
-                                            left_label_resp.on_hover_text("Left-side modifier");
-                                        });
+                                                right_label_resp
+                                                    .on_hover_text("Right-side modifier");
+                                                ui.add_space(10.0);
+                                                let mut left_checked =
+                                                    (edited.allowed_mods & (1 << left_bit)) != 0;
+                                                let left_resp = crate::ui_style::settings_switch(
+                                                    ui,
+                                                    &mut left_checked,
+                                                );
+                                                if left_resp.changed() {
+                                                    if left_checked {
+                                                        edited.allowed_mods |= 1 << left_bit;
+                                                    } else {
+                                                        edited.allowed_mods &= !(1 << left_bit);
+                                                    }
+                                                }
+                                                let left_label_resp =
+                                                    ui.label(RichText::new("L").size(12.0).color(
+                                                        app_muted_text(ui.visuals().dark_mode),
+                                                    ));
+                                                if left_label_resp.hovered() {
+                                                    ui.ctx()
+                                                        .set_cursor_icon(egui::CursorIcon::Help);
+                                                }
+                                                left_label_resp.on_hover_text("Left-side modifier");
+                                            },
+                                        );
                                     },
                                 );
                             }
@@ -5978,43 +6105,44 @@ impl EntropyApp {
                 ui.allocate_ui_at_rect(actions_rect, |ui| {
                     ui.horizontal(|ui| {
                         ui.add_space(((CONTENT_WIDTH - action_width) / 2.0).max(0.0));
-                        let clear_enabled = Self::alt_repeat_entry_exists(&self.alt_repeat_entries[idx])
-                            || self
-                                .alt_repeat_names
-                                .get(idx)
-                                .map(|s| !s.trim().is_empty())
-                                .unwrap_or(false);
-                        let clear_resp = crate::ui_style::modern_button(
-                            ui,
-                            "Clear",
-                            action_size,
-                            clear_enabled,
-                        );
+                        let clear_enabled =
+                            Self::alt_repeat_entry_exists(&self.alt_repeat_entries[idx])
+                                || self
+                                    .alt_repeat_names
+                                    .get(idx)
+                                    .map(|s| !s.trim().is_empty())
+                                    .unwrap_or(false);
+                        let clear_resp =
+                            crate::ui_style::modern_button(ui, "Clear", action_size, clear_enabled);
                         if clear_resp.clicked() {
                             self.push_alt_repeat_undo();
                             self.alt_repeat_entries[idx] = AltRepeatKeyEntry::default();
                             if let Some(name) = self.alt_repeat_names.get_mut(idx) {
                                 name.clear();
                             }
-                            save_alt_repeat_names(&self.alt_repeat_names, &self.current_device_name);
+                            save_alt_repeat_names(
+                                &self.alt_repeat_names,
+                                &self.current_device_name,
+                            );
                             self.write_alt_repeat_entry(idx);
                             edited = self.alt_repeat_entries[idx].clone();
                         }
 
                         let undo_enabled = !self.alt_repeat_undo_stack.is_empty();
-                        let undo_resp = crate::ui_style::modern_button(
-                            ui,
-                            "Undo",
-                            action_size,
-                            undo_enabled,
-                        );
+                        let undo_resp =
+                            crate::ui_style::modern_button(ui, "Undo", action_size, undo_enabled);
                         if undo_resp.clicked() {
-                            if let Some((entries, names, selected)) = self.alt_repeat_undo_stack.pop() {
+                            if let Some((entries, names, selected)) =
+                                self.alt_repeat_undo_stack.pop()
+                            {
                                 self.alt_repeat_entries = entries;
                                 self.alt_repeat_names = names;
-                                self.selected_alt_repeat = selected
-                                    .min(self.alt_repeat_entries.len().saturating_sub(1));
-                                save_alt_repeat_names(&self.alt_repeat_names, &self.current_device_name);
+                                self.selected_alt_repeat =
+                                    selected.min(self.alt_repeat_entries.len().saturating_sub(1));
+                                save_alt_repeat_names(
+                                    &self.alt_repeat_names,
+                                    &self.current_device_name,
+                                );
                                 for entry_idx in 0..self.alt_repeat_entries.len() {
                                     self.write_alt_repeat_entry(entry_idx);
                                 }
@@ -6209,99 +6337,132 @@ impl EntropyApp {
         row_height: f32,
         suppress_tooltips: bool,
     ) {
-        const FIELD_WIDTH: f32 = 86.0;
-        const DROPDOWN_WIDTH: f32 = 168.0;
+        const SLIDER_WIDTH: f32 = 168.0;
+        const VALUE_WIDTH: f32 = 36.0;
+        const SLIDER_SIZE: [f32; 2] = [SLIDER_WIDTH, 18.0];
+        const SLIDER_CONTROL_WIDTH: f32 = SLIDER_WIDTH + VALUE_WIDTH;
+        const SWATCH_WIDTH: f32 = 64.0;
+
         for row_idx in row_range {
             match row_idx {
                 0 => {
-                    let current = self.layer_led_settings.brightness;
+                    let mut value = self.layer_led_settings.brightness as f32;
                     crate::ui_style::settings_list_row_with_tooltip(
                         ui,
                         content_width,
                         row_height,
                         "LED brightness",
                         true,
-                        if suppress_tooltips { None } else { Some("Global LED brightness for layer color lighting") },
-                        FIELD_WIDTH,
+                        if suppress_tooltips {
+                            None
+                        } else {
+                            Some("Global LED brightness for layer color lighting")
+                        },
+                        SLIDER_CONTROL_WIDTH,
                         |ui| {
-                            let edit_id = egui::Id::new("layer_led_brightness_edit");
-                            let mut text = ui.ctx().data_mut(|d| {
-                                d.get_temp::<String>(edit_id)
-                                    .unwrap_or_else(|| current.to_string())
-                            });
-                            if text.parse::<u16>().ok() != Some(current)
-                                && !ui.memory(|m| m.has_focus(edit_id))
-                            {
-                                text = current.to_string();
-                            }
-                            let resp = crate::ui_style::modern_text_field(
-                                ui,
-                                edit_id,
-                                &mut text,
-                                FIELD_WIDTH,
-                                "",
-                                3,
-                                egui::Align::RIGHT,
+                            ui.spacing_mut().item_spacing.x = 0.0;
+                            let dark = ui.visuals().dark_mode;
+                            let slider_fill = app_accent().gamma_multiply(0.5);
+                            ui.visuals_mut().selection.bg_fill = slider_fill;
+                            ui.visuals_mut().widgets.active.bg_fill = slider_fill;
+                            ui.visuals_mut().widgets.active.weak_bg_fill = slider_fill;
+                            ui.visuals_mut().widgets.hovered.bg_stroke =
+                                Stroke::new(1.0, slider_fill);
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    ui.add_sized(
+                                        [VALUE_WIDTH, row_height],
+                                        egui::Label::new(
+                                            RichText::new(format!("{}", value.round() as u16))
+                                                .size(12.0)
+                                                .color(if dark {
+                                                    Color32::from_gray(230)
+                                                } else {
+                                                    Color32::from_gray(55)
+                                                }),
+                                        )
+                                        .halign(egui::Align::RIGHT),
+                                    );
+                                    ui.spacing_mut().slider_width = SLIDER_WIDTH;
+                                    let slider = egui::Slider::new(&mut value, 0.0..=255.0)
+                                        .step_by(1.0)
+                                        .show_value(false)
+                                        .trailing_fill(true);
+                                    let resp = ui.add_sized(SLIDER_SIZE, slider);
+                                    if resp.changed() {
+                                        let new_value = value.round().clamp(0.0, 255.0) as u16;
+                                        if new_value != self.layer_led_settings.brightness {
+                                            self.layer_led_settings.brightness = new_value;
+                                            self.write_layer_led_brightness(new_value);
+                                        }
+                                    }
+                                },
                             );
-                            if resp.changed() {
-                                let filtered: String = text
-                                    .chars()
-                                    .filter(|c: &char| c.is_ascii_digit())
-                                    .collect();
-                                let new_value = filtered.parse::<u16>().unwrap_or(0).min(255);
-                                if new_value != current {
-                                    self.layer_led_settings.brightness = new_value;
-                                    self.write_layer_led_brightness(new_value);
-                                }
-                                text = filtered;
-                            }
-                            ui.ctx().data_mut(|d| d.insert_temp(edit_id, text));
                         },
                     );
                 }
                 1 => {
-                    let current = self.layer_led_settings.timeout_mins;
+                    let mut value = self.layer_led_settings.timeout_mins as f32;
                     crate::ui_style::settings_list_row_with_tooltip(
                         ui,
                         content_width,
                         row_height,
                         "LED timeout",
                         true,
-                        if suppress_tooltips { None } else { Some("Minutes before LEDs turn off automatically, 0 disables timeout") },
-                        FIELD_WIDTH,
+                        if suppress_tooltips {
+                            None
+                        } else {
+                            Some("Minutes before LEDs turn off automatically, 0 disables timeout")
+                        },
+                        SLIDER_CONTROL_WIDTH,
                         |ui| {
-                            let edit_id = egui::Id::new("layer_led_timeout_edit");
-                            let mut text = ui.ctx().data_mut(|d| {
-                                d.get_temp::<String>(edit_id)
-                                    .unwrap_or_else(|| current.to_string())
-                            });
-                            if text.parse::<u8>().ok() != Some(current)
-                                && !ui.memory(|m| m.has_focus(edit_id))
-                            {
-                                text = current.to_string();
-                            }
-                            let resp = crate::ui_style::modern_text_field(
-                                ui,
-                                edit_id,
-                                &mut text,
-                                FIELD_WIDTH,
-                                "",
-                                3,
-                                egui::Align::RIGHT,
+                            ui.spacing_mut().item_spacing.x = 0.0;
+                            let dark = ui.visuals().dark_mode;
+                            let slider_fill = if dark {
+                                Color32::from_rgb(92, 92, 96)
+                            } else {
+                                Color32::from_rgb(190, 184, 182)
+                            };
+                            ui.visuals_mut().selection.bg_fill = slider_fill;
+                            ui.visuals_mut().widgets.active.bg_fill = slider_fill;
+                            ui.visuals_mut().widgets.active.weak_bg_fill = slider_fill;
+                            ui.visuals_mut().widgets.hovered.bg_stroke =
+                                Stroke::new(1.0, slider_fill);
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    let value_text = if value.round() as u8 == 0 {
+                                        "Off".to_string()
+                                    } else {
+                                        format!("{}m", value.round() as u8)
+                                    };
+                                    ui.add_sized(
+                                        [VALUE_WIDTH, row_height],
+                                        egui::Label::new(
+                                            RichText::new(value_text).size(12.0).color(if dark {
+                                                Color32::from_gray(230)
+                                            } else {
+                                                Color32::from_gray(55)
+                                            }),
+                                        )
+                                        .halign(egui::Align::RIGHT),
+                                    );
+                                    ui.spacing_mut().slider_width = SLIDER_WIDTH;
+                                    let slider = egui::Slider::new(&mut value, 0.0..=255.0)
+                                        .step_by(1.0)
+                                        .show_value(false)
+                                        .trailing_fill(true);
+                                    let resp = ui.add_sized(SLIDER_SIZE, slider);
+                                    if resp.changed() {
+                                        let new_value = value.round().clamp(0.0, 255.0) as u8;
+                                        if new_value != self.layer_led_settings.timeout_mins {
+                                            self.layer_led_settings.timeout_mins = new_value;
+                                            self.write_layer_led_timeout(new_value);
+                                        }
+                                    }
+                                },
                             );
-                            if resp.changed() {
-                                let filtered: String = text
-                                    .chars()
-                                    .filter(|c: &char| c.is_ascii_digit())
-                                    .collect();
-                                let new_value = filtered.parse::<u16>().unwrap_or(0).min(255) as u8;
-                                if new_value != current {
-                                    self.layer_led_settings.timeout_mins = new_value;
-                                    self.write_layer_led_timeout(new_value);
-                                }
-                                text = filtered;
-                            }
-                            ui.ctx().data_mut(|d| d.insert_temp(edit_id, text));
                         },
                     );
                 }
@@ -6316,75 +6477,140 @@ impl EntropyApp {
                         row_height,
                         &label,
                         true,
-                        if suppress_tooltips { None } else { Some(tooltip.as_str()) },
-                        DROPDOWN_WIDTH,
+                        if suppress_tooltips {
+                            None
+                        } else {
+                            Some(tooltip.as_str())
+                        },
+                        SWATCH_WIDTH,
                         |ui| {
-                            let dropdown_id = ui.make_persistent_id(("layer_led_color_dropdown", layer));
-                            let selected_text = layer_led_palette_name(current);
-                            let dropdown_resp = crate::ui_style::modern_dropdown_button(
-                                ui,
-                                dropdown_id,
-                                selected_text,
-                                ui.visuals().text_color(),
-                                DROPDOWN_WIDTH,
+                            let dark = ui.visuals().dark_mode;
+                            let popup_id = ui.make_persistent_id(("layer_led_color_picker", layer));
+                            let popup_open = ui.memory(|m| m.is_popup_open(popup_id));
+                            let swatch_color = layer_led_palette_color(current);
+                            let swatch_border = if popup_open {
+                                app_accent()
+                            } else if dark {
+                                Color32::from_gray(95)
+                            } else {
+                                Color32::from_gray(185)
+                            };
+                            let (swatch_rect, swatch_resp) =
+                                ui.allocate_exact_size(Vec2::new(64.0, 34.0), Sense::click());
+                            if swatch_resp.hovered() {
+                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                            }
+                            if swatch_resp.clicked() {
+                                ui.memory_mut(|m| m.toggle_popup(popup_id));
+                            }
+                            ui.painter().rect(
+                                swatch_rect,
+                                9.0,
+                                app_surface_fill(dark),
+                                Stroke::new(1.0, swatch_border),
+                                egui::StrokeKind::Inside,
                             );
+                            ui.painter().rect(
+                                swatch_rect.shrink(5.0),
+                                6.0,
+                                swatch_color,
+                                Stroke::new(1.0, swatch_border.gamma_multiply(0.85)),
+                                egui::StrokeKind::Inside,
+                            );
+                            if current == 0 {
+                                ui.painter().line_segment(
+                                    [
+                                        swatch_rect.left_top() + egui::vec2(10.0, 10.0),
+                                        swatch_rect.right_bottom() - egui::vec2(10.0, 10.0),
+                                    ],
+                                    Stroke::new(1.2, app_muted_text(dark)),
+                                );
+                            }
+                            swatch_resp
+                                .clone()
+                                .on_hover_text(layer_led_palette_name(current));
 
-                            ui.style_mut().visuals.window_stroke = crate::ui_style::modal_outline_stroke(ui.visuals().dark_mode);
-                            ui.style_mut().visuals.window_fill = app_surface_fill(ui.visuals().dark_mode);
+                            ui.style_mut().visuals.window_stroke =
+                                crate::ui_style::modal_outline_stroke(dark);
+                            ui.style_mut().visuals.window_fill = app_surface_fill(dark);
                             egui::popup_below_widget(
                                 ui,
-                                dropdown_id,
-                                &dropdown_resp,
+                                popup_id,
+                                &swatch_resp,
                                 egui::PopupCloseBehavior::CloseOnClickOutside,
                                 |ui| {
-                                    let dark = ui.visuals().dark_mode;
-                                    ui.set_min_width(DROPDOWN_WIDTH);
-                                    ui.spacing_mut().item_spacing = Vec2::new(0.0, 2.0);
-                                    egui::ScrollArea::vertical()
-                                        .id_salt(("layer_led_color_dropdown_scroll", layer))
-                                        .max_height(142.0)
-                                        .auto_shrink([false, true])
-                                        .show(ui, |ui| {
-                                            for (color_idx, option_label) in LAYER_LED_PALETTE.iter().enumerate() {
-                                                let selected = color_idx as u8 == current;
-                                                let (option_rect, option_resp) = ui.allocate_exact_size(
-                                                    Vec2::new(DROPDOWN_WIDTH, 28.0),
-                                                    Sense::click(),
-                                                );
-                                                if option_resp.hovered() {
-                                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                                }
-                                                let option_fill = if selected {
-                                                    if dark {
-                                                        Color32::from_rgb(58, 58, 61)
-                                                    } else {
-                                                        Color32::from_rgb(236, 236, 238)
-                                                    }
-                                                } else if option_resp.hovered() {
-                                                    crate::ui_style::hover_fill(dark)
-                                                } else {
-                                                    Color32::TRANSPARENT
+                                    const CELL: f32 = 28.0;
+                                    const GAP: f32 = 6.0;
+                                    const COLS: usize = 5;
+                                    let picker_width = CELL * COLS as f32 + GAP * (COLS - 1) as f32;
+                                    ui.set_min_width(picker_width);
+                                    ui.spacing_mut().item_spacing = Vec2::new(GAP, GAP);
+                                    for row in 0..5 {
+                                        ui.horizontal(|ui| {
+                                            for col in 0..COLS {
+                                                let color_idx = row * COLS + col;
+                                                let Some(option_label) =
+                                                    LAYER_LED_PALETTE.get(color_idx)
+                                                else {
+                                                    continue;
                                                 };
-                                                ui.painter().rect_filled(option_rect, 7.0, option_fill);
-                                                ui.painter().text(
-                                                    egui::pos2(option_rect.left() + 10.0, option_rect.center().y),
-                                                    egui::Align2::LEFT_CENTER,
-                                                    *option_label,
-                                                    FontId::proportional(12.0),
-                                                    if selected {
-                                                        ui.visuals().text_color()
-                                                    } else {
-                                                        app_muted_text(dark)
-                                                    },
+                                                let color_idx_u8 = color_idx as u8;
+                                                let selected = color_idx_u8 == current;
+                                                let (cell_rect, cell_resp) = ui
+                                                    .allocate_exact_size(
+                                                        Vec2::splat(CELL),
+                                                        Sense::click(),
+                                                    );
+                                                if cell_resp.hovered() {
+                                                    ui.ctx().set_cursor_icon(
+                                                        egui::CursorIcon::PointingHand,
+                                                    );
+                                                }
+                                                let outline = if selected {
+                                                    app_accent()
+                                                } else if dark {
+                                                    Color32::from_rgb(72, 72, 76)
+                                                } else {
+                                                    Color32::from_rgb(210, 210, 214)
+                                                };
+                                                ui.painter().rect(
+                                                    cell_rect,
+                                                    7.0,
+                                                    app_surface_fill(dark),
+                                                    Stroke::new(
+                                                        if selected { 1.6 } else { 1.0 },
+                                                        outline,
+                                                    ),
+                                                    egui::StrokeKind::Inside,
                                                 );
-                                                if option_resp.clicked() {
-                                                    let new_value = color_idx as u8;
-                                                    self.layer_led_settings.layer_colors[layer] = new_value;
-                                                    self.write_layer_led_color(layer, new_value);
+                                                ui.painter().rect(
+                                                    cell_rect.shrink(4.5),
+                                                    5.0,
+                                                    layer_led_palette_color(color_idx_u8),
+                                                    Stroke::NONE,
+                                                    egui::StrokeKind::Inside,
+                                                );
+                                                if color_idx == 0 {
+                                                    ui.painter().line_segment(
+                                                        [
+                                                            cell_rect.left_top()
+                                                                + egui::vec2(8.0, 8.0),
+                                                            cell_rect.right_bottom()
+                                                                - egui::vec2(8.0, 8.0),
+                                                        ],
+                                                        Stroke::new(1.1, app_muted_text(dark)),
+                                                    );
+                                                }
+                                                cell_resp.clone().on_hover_text(*option_label);
+                                                if cell_resp.clicked() {
+                                                    self.layer_led_settings.layer_colors[layer] =
+                                                        color_idx_u8;
+                                                    self.write_layer_led_color(layer, color_idx_u8);
                                                     ui.memory_mut(|m| m.close_popup());
                                                 }
                                             }
                                         });
+                                    }
                                 },
                             );
                         },
@@ -6488,10 +6714,8 @@ impl EntropyApp {
                     .ctx()
                     .data_mut(|d| d.get_persisted::<f32>(target_id).unwrap_or(scroll_offset))
                     .clamp(0.0, max_offset);
-                let (viewport, viewport_resp) = ui.allocate_exact_size(
-                    egui::vec2(CONTENT_WIDTH, list_height),
-                    Sense::hover(),
-                );
+                let (viewport, viewport_resp) =
+                    ui.allocate_exact_size(egui::vec2(CONTENT_WIDTH, list_height), Sense::hover());
                 let track_width = 6.0;
                 let track_rect = egui::Rect::from_min_max(
                     egui::pos2(viewport.right() - track_width, viewport.top()),
@@ -6523,7 +6747,8 @@ impl EntropyApp {
                 }
 
                 let handle_height = if max_offset > 0.0 {
-                    (list_height / content_height * viewport.height()).clamp(42.0, viewport.height())
+                    (list_height / content_height * viewport.height())
+                        .clamp(42.0, viewport.height())
                 } else {
                     viewport.height()
                 };
@@ -6602,16 +6827,76 @@ impl EntropyApp {
         suppress_tooltips: bool,
     ) {
         let rows: [(u16, &str, &str, bool, u32); 10] = [
-            (7, "Tapping term", "Global tap-vs-hold decision window for dual-role keys", false, 10000),
-            (22, "Permissive hold", "Nested taps choose hold for Mod-Tap and Layer-Tap keys", true, 1),
-            (23, "Hold on other key", "Pressing another key immediately chooses hold for dual-role keys", true, 1),
-            (24, "Retro tapping", "A held-and-released-alone dual-role key still sends its tap action", true, 1),
-            (26, "Chordal hold", "Same-hand chords prefer tap to reduce home-row mod accidents", true, 1),
-            (25, "Quick tap term", "Tap-then-hold repeat window for dual-role key tap actions", false, 10000),
-            (18, "Tap code delay", "Delay between register and unregister in tap_code", false, 1000),
-            (19, "Tap hold caps delay", "Extra delay for LT/MT keys whose tap action is Caps Lock", false, 1000),
-            (20, "Tapping toggle", "Number of taps needed for TT layer toggle", false, 100),
-            (27, "Flow tap", "Fast typing timeout that forces MT/LT keys to tap", false, 10000),
+            (
+                7,
+                "Tapping term",
+                "Global tap-vs-hold decision window for dual-role keys",
+                false,
+                10000,
+            ),
+            (
+                22,
+                "Permissive hold",
+                "Nested taps choose hold for Mod-Tap and Layer-Tap keys",
+                true,
+                1,
+            ),
+            (
+                23,
+                "Hold on other key",
+                "Pressing another key immediately chooses hold for dual-role keys",
+                true,
+                1,
+            ),
+            (
+                24,
+                "Retro tapping",
+                "A held-and-released-alone dual-role key still sends its tap action",
+                true,
+                1,
+            ),
+            (
+                26,
+                "Chordal hold",
+                "Same-hand chords prefer tap to reduce home-row mod accidents",
+                true,
+                1,
+            ),
+            (
+                25,
+                "Quick tap term",
+                "Tap-then-hold repeat window for dual-role key tap actions",
+                false,
+                10000,
+            ),
+            (
+                18,
+                "Tap code delay",
+                "Delay between register and unregister in tap_code",
+                false,
+                1000,
+            ),
+            (
+                19,
+                "Tap hold caps delay",
+                "Extra delay for LT/MT keys whose tap action is Caps Lock",
+                false,
+                1000,
+            ),
+            (
+                20,
+                "Tapping toggle",
+                "Number of taps needed for TT layer toggle",
+                false,
+                100,
+            ),
+            (
+                27,
+                "Flow tap",
+                "Fast typing timeout that forces MT/LT keys to tap",
+                false,
+                10000,
+            ),
         ];
         const FIELD_WIDTH: f32 = 86.0;
 
@@ -6627,7 +6912,11 @@ impl EntropyApp {
                     row_height,
                     label,
                     true,
-                    if suppress_tooltips { None } else { Some(tooltip) },
+                    if suppress_tooltips {
+                        None
+                    } else {
+                        Some(tooltip)
+                    },
                     46.0,
                     |ui| {
                         let resp = crate::ui_style::settings_switch(ui, &mut value);
@@ -6645,7 +6934,11 @@ impl EntropyApp {
                     row_height,
                     label,
                     true,
-                    if suppress_tooltips { None } else { Some(tooltip) },
+                    if suppress_tooltips {
+                        None
+                    } else {
+                        Some(tooltip)
+                    },
                     FIELD_WIDTH,
                     |ui| {
                         let edit_id = egui::Id::new(("tap_hold_edit", qsid));
@@ -6668,10 +6961,8 @@ impl EntropyApp {
                             egui::Align::RIGHT,
                         );
                         if resp.changed() {
-                            let filtered: String = text
-                                .chars()
-                                .filter(|c: &char| c.is_ascii_digit())
-                                .collect();
+                            let filtered: String =
+                                text.chars().filter(|c: &char| c.is_ascii_digit()).collect();
                             let parsed = filtered.parse::<u32>().unwrap_or(0).min(max);
                             let new_value = parsed as u16;
                             if new_value != current {
@@ -6857,7 +7148,11 @@ impl EntropyApp {
                 ROW_HEIGHT,
                 label,
                 true,
-                if suppress_tooltips { None } else { Some(tooltip) },
+                if suppress_tooltips {
+                    None
+                } else {
+                    Some(tooltip)
+                },
                 FIELD_WIDTH,
                 |ui| {
                     let edit_id = egui::Id::new(("mouse_keys_edit", qsid));
@@ -6951,361 +7246,462 @@ impl EntropyApp {
                 },
             );
         }
-
     }
 
     fn draw_key_override_editor_content(&mut self, ui: &mut egui::Ui, two_column: bool) {
-                let dark = ui.visuals().dark_mode;
-                if self.key_override_entries.is_empty() {
-                    ui.label("Key Overrides are not supported by this keyboard");
-                    return;
-                }
+        let dark = ui.visuals().dark_mode;
+        if self.key_override_entries.is_empty() {
+            ui.label("Key Overrides are not supported by this keyboard");
+            return;
+        }
 
-                    if self.selected_key_override >= self.key_override_entries.len() {
-                        self.selected_key_override = 0;
-                    }
-                    self.key_override_names
-                        .resize(self.key_override_entries.len(), String::new());
-                    self.key_override_visible_count = self.key_override_visible_count
-                        .max(1)
-                        .min(self.key_override_entries.len().max(1));
-                    self.selected_key_override = self.selected_key_override.min(self.key_override_visible_count.saturating_sub(1));
+        if self.selected_key_override >= self.key_override_entries.len() {
+            self.selected_key_override = 0;
+        }
+        self.key_override_names
+            .resize(self.key_override_entries.len(), String::new());
+        self.key_override_visible_count = self
+            .key_override_visible_count
+            .max(1)
+            .min(self.key_override_entries.len().max(1));
+        self.selected_key_override = self
+            .selected_key_override
+            .min(self.key_override_visible_count.saturating_sub(1));
 
-                    self.key_override_visible_count = self.key_override_entries.len().max(1);
-                    self.selected_key_override = self
-                        .selected_key_override
-                        .min(self.key_override_entries.len().saturating_sub(1));
+        self.key_override_visible_count = self.key_override_entries.len().max(1);
+        self.selected_key_override = self
+            .selected_key_override
+            .min(self.key_override_entries.len().saturating_sub(1));
 
-                    let selected_override_empty = self
-                        .key_override_entries
-                        .get(self.selected_key_override)
-                        .map(|entry| !Self::key_override_entry_exists(entry))
-                        .unwrap_or(true)
-                        && self
-                            .key_override_names
-                            .get(self.selected_key_override)
-                            .map(|name| name.trim().is_empty())
-                            .unwrap_or(true);
-                    let selected_override_text = match self.key_override_names.get(self.selected_key_override) {
-                        Some(name) if !name.trim().is_empty() => {
-                            format!("KO{}: {}", self.selected_key_override, name.trim())
-                        }
-                        _ => format!("KO{}", self.selected_key_override),
-                    };
-                    let selected_override_text_color = if selected_override_empty {
-                        app_inactive_entry_text(ui.visuals().dark_mode)
-                    } else {
-                        ui.visuals().text_color()
-                    };
-                    let idx = self.selected_key_override;
-                    let current = self.key_override_entries[idx].clone();
-                    let mut edited = current.clone();
-                    let column_width = 260.0_f32;
-                    let column_gap = 28.0_f32;
-                    let content_width = if two_column {
-                        column_width * 2.0 + column_gap
-                    } else {
-                        column_width
-                    };
-                    let action_button_size = crate::ui_style::modal_action_button_size();
-                    let field_width = action_button_size.x * 2.0 + 8.0;
-                    let name_field_width = field_width;
-                    let top_field_inset = ((content_width - field_width) * 0.5).max(0.0);
-                    let field_inset = ((column_width - field_width) * 0.5).max(0.0);
-                    let combo_outline_stroke = crate::ui_style::modal_outline_stroke(ui.visuals().dark_mode);
+        let selected_override_empty = self
+            .key_override_entries
+            .get(self.selected_key_override)
+            .map(|entry| !Self::key_override_entry_exists(entry))
+            .unwrap_or(true)
+            && self
+                .key_override_names
+                .get(self.selected_key_override)
+                .map(|name| name.trim().is_empty())
+                .unwrap_or(true);
+        let selected_override_text = match self.key_override_names.get(self.selected_key_override) {
+            Some(name) if !name.trim().is_empty() => {
+                format!("KO{}: {}", self.selected_key_override, name.trim())
+            }
+            _ => format!("KO{}", self.selected_key_override),
+        };
+        let selected_override_text_color = if selected_override_empty {
+            app_inactive_entry_text(ui.visuals().dark_mode)
+        } else {
+            ui.visuals().text_color()
+        };
+        let idx = self.selected_key_override;
+        let current = self.key_override_entries[idx].clone();
+        let mut edited = current.clone();
+        let column_width = 260.0_f32;
+        let column_gap = 28.0_f32;
+        let content_width = if two_column {
+            column_width * 2.0 + column_gap
+        } else {
+            column_width
+        };
+        let action_button_size = crate::ui_style::modal_action_button_size();
+        let field_width = action_button_size.x * 2.0 + 8.0;
+        let name_field_width = field_width;
+        let top_field_inset = ((content_width - field_width) * 0.5).max(0.0);
+        let field_inset = ((column_width - field_width) * 0.5).max(0.0);
+        let combo_outline_stroke = crate::ui_style::modal_outline_stroke(ui.visuals().dark_mode);
 
-                    ui.add_space(2.0);
-                    ui.horizontal_centered(|ui| {
-                        ui.vertical(|ui| {
-                            ui.set_width(content_width);
-                            ui.horizontal(|ui| {
-                                ui.add_space(top_field_inset);
-                                egui::ComboBox::from_id_salt("key_override_entry_select")
-                                    .selected_text(
-                                        RichText::new(selected_override_text.clone())
-                                            .color(selected_override_text_color),
+        ui.add_space(2.0);
+        ui.horizontal_centered(|ui| {
+            ui.vertical(|ui| {
+                ui.set_width(content_width);
+                ui.horizontal(|ui| {
+                    ui.add_space(top_field_inset);
+                    egui::ComboBox::from_id_salt("key_override_entry_select")
+                        .selected_text(
+                            RichText::new(selected_override_text.clone())
+                                .color(selected_override_text_color),
+                        )
+                        .width(field_width)
+                        .show_ui(ui, |ui| {
+                            for idx in 0..self.key_override_entries.len() {
+                                let override_empty = self
+                                    .key_override_entries
+                                    .get(idx)
+                                    .map(|entry| !Self::key_override_entry_exists(entry))
+                                    .unwrap_or(true)
+                                    && self
+                                        .key_override_names
+                                        .get(idx)
+                                        .map(|name| name.trim().is_empty())
+                                        .unwrap_or(true);
+                                let label = match self.key_override_names.get(idx) {
+                                    Some(name) if !name.trim().is_empty() => RichText::new(
+                                        format!("KO{}: {}", idx, name.trim()),
                                     )
-                                    .width(field_width)
-                                    .show_ui(ui, |ui| {
-                                        for idx in 0..self.key_override_entries.len() {
-                                            let override_empty = self
-                                                .key_override_entries
-                                                .get(idx)
-                                                .map(|entry| !Self::key_override_entry_exists(entry))
-                                                .unwrap_or(true)
-                                                && self
-                                                    .key_override_names
-                                                    .get(idx)
-                                                    .map(|name| name.trim().is_empty())
-                                                    .unwrap_or(true);
-                                            let label = match self.key_override_names.get(idx) {
-                                                Some(name) if !name.trim().is_empty() => {
-                                                    RichText::new(format!("KO{}: {}", idx, name.trim()))
-                                                        .color(if override_empty {
-                                                            app_inactive_entry_text(ui.visuals().dark_mode)
-                                                        } else {
-                                                            ui.visuals().text_color()
-                                                        })
-                                                }
-                                                _ => RichText::new(format!("KO{}", idx)).color(if override_empty {
-                                                    app_inactive_entry_text(ui.visuals().dark_mode)
-                                                } else {
-                                                    ui.visuals().text_color()
-                                                }),
-                                            };
-                                            let resp = ui.selectable_value(
-                                                &mut self.selected_key_override,
-                                                idx,
-                                                label,
-                                            );
-                                            if resp.hovered() {
-                                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                            }
-                                        }
-                                    });
-                            });
-
-                            ui.add_space(6.0);
-                            if let Some(name) = self.key_override_names.get_mut(idx) {
-                                let resp = ui.horizontal(|ui| {
-                                    ui.add_space(top_field_inset);
-                                    ui.add_sized(
-                                        crate::ui_style::modal_field_button_size(name_field_width),
-                                        egui::TextEdit::singleline(name)
-                                            .desired_width(name_field_width)
-                                            .hint_text("Name")
-                                            .char_limit(12)
-                                            .horizontal_align(egui::Align::Center)
-                                            .vertical_align(egui::Align::Center),
-                                    )
-                                }).inner;
-                                if resp.changed() {
-                                    save_key_override_names(&self.key_override_names, &self.current_device_name);
-                                }
-                                resp.clone().on_hover_text("Stored locally in Entropy");
+                                    .color(if override_empty {
+                                        app_inactive_entry_text(ui.visuals().dark_mode)
+                                    } else {
+                                        ui.visuals().text_color()
+                                    }),
+                                    _ => RichText::new(format!("KO{}", idx)).color(
+                                        if override_empty {
+                                            app_inactive_entry_text(ui.visuals().dark_mode)
+                                        } else {
+                                            ui.visuals().text_color()
+                                        },
+                                    ),
+                                };
+                                let resp = ui.selectable_value(
+                                    &mut self.selected_key_override,
+                                    idx,
+                                    label,
+                                );
                                 if resp.hovered() {
-                                    ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
+                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                 }
                             }
+                        });
+                });
 
-                            let custom = self.layout.as_ref().map(|l| l.custom_keycodes.as_slice()).unwrap_or(&[]);
-                            let trigger_label = if edited.trigger == 0 {
-                                "Pick trigger".to_string()
-                            } else {
-                                keycode_label_with_macro_names(
-                                    edited.trigger,
-                                    custom,
-                                    &self.layer_names,
-                                    &self.keycode_picker.macro_names,
-                                    &self.keycode_picker.tap_dance_names,
-                                ).replace('\n', " ")
-                            };
-                            let replacement_label = if edited.replacement == 0 {
-                                "Pick replacement".to_string()
-                            } else {
-                                keycode_label_with_macro_names(
-                                    edited.replacement,
-                                    custom,
-                                    &self.layer_names,
-                                    &self.keycode_picker.macro_names,
-                                    &self.keycode_picker.tap_dance_names,
-                                ).replace('\n', " ")
-                            };
-                            let trigger_tip = keycode_tooltip_with_macro_names(
-                                edited.trigger,
-                                custom,
-                                &self.layer_names,
-                                &self.keycode_picker.macro_names,
-                                &self.keycode_picker.tap_dance_names,
-                            );
-                            let replacement_tip = keycode_tooltip_with_macro_names(
-                                edited.replacement,
-                                custom,
-                                &self.layer_names,
-                                &self.keycode_picker.macro_names,
-                                &self.keycode_picker.tap_dance_names,
-                            );
+                ui.add_space(6.0);
+                if let Some(name) = self.key_override_names.get_mut(idx) {
+                    let resp = ui
+                        .horizontal(|ui| {
+                            ui.add_space(top_field_inset);
+                            ui.add_sized(
+                                crate::ui_style::modal_field_button_size(name_field_width),
+                                egui::TextEdit::singleline(name)
+                                    .desired_width(name_field_width)
+                                    .hint_text("Name")
+                                    .char_limit(12)
+                                    .horizontal_align(egui::Align::Center)
+                                    .vertical_align(egui::Align::Center),
+                            )
+                        })
+                        .inner;
+                    if resp.changed() {
+                        save_key_override_names(
+                            &self.key_override_names,
+                            &self.current_device_name,
+                        );
+                    }
+                    resp.clone().on_hover_text("Stored locally in Entropy");
+                    if resp.hovered() {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
+                    }
+                }
 
-                            ui.add_space(4.0);
-                            let scroll_height = if two_column {
-                                (ui.available_height() - action_button_size.y - 18.0).max(250.0)
-                            } else {
-                                376.0
-                            };
-                            egui::ScrollArea::vertical()
-                                .id_salt(format!("ko_page_scroll_{}", idx))
-                                .max_height(scroll_height)
-                                .auto_shrink([false, false])
-                                .show(ui, |ui| {
-                                    ui.horizontal(|ui| {
-                                        ui.vertical(|ui| {
-                                            ui.set_width(column_width);
-                                    ui.horizontal(|ui| {
-                                        ui.add_space(field_inset);
-                                        ui.label(RichText::new("Trigger").size(12.0).strong());
-                                    });
-                                    ui.add_space(2.0);
-                                    ui.horizontal(|ui| {
-                                        ui.add_space(field_inset);
-                                        let trigger_resp = ui.add_sized(
+                let custom = self
+                    .layout
+                    .as_ref()
+                    .map(|l| l.custom_keycodes.as_slice())
+                    .unwrap_or(&[]);
+                let trigger_label = if edited.trigger == 0 {
+                    "Pick trigger".to_string()
+                } else {
+                    keycode_label_with_macro_names(
+                        edited.trigger,
+                        custom,
+                        &self.layer_names,
+                        &self.keycode_picker.macro_names,
+                        &self.keycode_picker.tap_dance_names,
+                    )
+                    .replace('\n', " ")
+                };
+                let replacement_label = if edited.replacement == 0 {
+                    "Pick replacement".to_string()
+                } else {
+                    keycode_label_with_macro_names(
+                        edited.replacement,
+                        custom,
+                        &self.layer_names,
+                        &self.keycode_picker.macro_names,
+                        &self.keycode_picker.tap_dance_names,
+                    )
+                    .replace('\n', " ")
+                };
+                let trigger_tip = keycode_tooltip_with_macro_names(
+                    edited.trigger,
+                    custom,
+                    &self.layer_names,
+                    &self.keycode_picker.macro_names,
+                    &self.keycode_picker.tap_dance_names,
+                );
+                let replacement_tip = keycode_tooltip_with_macro_names(
+                    edited.replacement,
+                    custom,
+                    &self.layer_names,
+                    &self.keycode_picker.macro_names,
+                    &self.keycode_picker.tap_dance_names,
+                );
+
+                ui.add_space(4.0);
+                let scroll_height = if two_column {
+                    (ui.available_height() - action_button_size.y - 18.0).max(250.0)
+                } else {
+                    376.0
+                };
+                egui::ScrollArea::vertical()
+                    .id_salt(format!("ko_page_scroll_{}", idx))
+                    .max_height(scroll_height)
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.vertical(|ui| {
+                                ui.set_width(column_width);
+                                ui.horizontal(|ui| {
+                                    ui.add_space(field_inset);
+                                    ui.label(RichText::new("Trigger").size(12.0).strong());
+                                });
+                                ui.add_space(2.0);
+                                ui.horizontal(|ui| {
+                                    ui.add_space(field_inset);
+                                    let trigger_resp = ui
+                                        .add_sized(
                                             crate::ui_style::modal_field_button_size(field_width),
-                                            egui::Button::new(RichText::new(trigger_label).size(13.0))
-                                                .frame(true)
-                                                .stroke(combo_outline_stroke),
-                                        ).on_hover_cursor(egui::CursorIcon::PointingHand);
-                                        if trigger_resp.clicked() {
-                                            self.open_key_override_picker(KeyOverridePickField::Trigger);
-                                        }
-                                        trigger_resp.on_hover_text(trigger_tip);
-                                    });
+                                            egui::Button::new(
+                                                RichText::new(trigger_label).size(13.0),
+                                            )
+                                            .frame(true)
+                                            .stroke(combo_outline_stroke),
+                                        )
+                                        .on_hover_cursor(egui::CursorIcon::PointingHand);
+                                    if trigger_resp.clicked() {
+                                        self.open_key_override_picker(
+                                            KeyOverridePickField::Trigger,
+                                        );
+                                    }
+                                    trigger_resp.on_hover_text(trigger_tip);
+                                });
 
-                                    ui.add_space(0.0);
-                                    let suppressed_resp = ui.horizontal(|ui| {
+                                ui.add_space(0.0);
+                                let suppressed_resp = ui
+                                    .horizontal(|ui| {
                                         ui.add_space(field_inset);
                                         egui::CollapsingHeader::new(
-                                            RichText::new("Suppressed mods").size(11.0).color(app_muted_text(dark))
+                                            RichText::new("Suppressed mods")
+                                                .size(11.0)
+                                                .color(app_muted_text(dark)),
                                         )
                                         .default_open(false)
                                         .id_salt(format!("ko_suppressed_mods_{}", idx))
                                         .show(ui, |ui| {
-                                            Self::draw_key_override_mod_mask(ui, &mut edited.suppressed_mods, "ko_suppressed_mods");
+                                            Self::draw_key_override_mod_mask(
+                                                ui,
+                                                &mut edited.suppressed_mods,
+                                                "ko_suppressed_mods",
+                                            );
                                         })
-                                    }).inner;
-                                    if suppressed_resp.header_response.hovered() {
-                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                    }
+                                    })
+                                    .inner;
+                                if suppressed_resp.header_response.hovered() {
+                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                }
 
-                                    ui.add_space(4.0);
-                                    let trigger_mods_resp = ui.horizontal(|ui| {
+                                ui.add_space(4.0);
+                                let trigger_mods_resp = ui
+                                    .horizontal(|ui| {
                                         ui.add_space(field_inset);
                                         egui::CollapsingHeader::new(
-                                            RichText::new("Trigger mods").size(11.0).color(app_muted_text(dark))
+                                            RichText::new("Trigger mods")
+                                                .size(11.0)
+                                                .color(app_muted_text(dark)),
                                         )
                                         .default_open(false)
                                         .id_salt(format!("ko_trigger_mods_{}", idx))
                                         .show(ui, |ui| {
-                                            Self::draw_key_override_mod_mask(ui, &mut edited.trigger_mods, "ko_trigger_mods");
+                                            Self::draw_key_override_mod_mask(
+                                                ui,
+                                                &mut edited.trigger_mods,
+                                                "ko_trigger_mods",
+                                            );
                                         })
-                                    }).inner;
-                                    if trigger_mods_resp.header_response.hovered() {
-                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                    }
+                                    })
+                                    .inner;
+                                if trigger_mods_resp.header_response.hovered() {
+                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                }
 
-                                    ui.add_space(4.0);
-                                    let negative_mods_resp = ui.horizontal(|ui| {
+                                ui.add_space(4.0);
+                                let negative_mods_resp = ui
+                                    .horizontal(|ui| {
                                         ui.add_space(field_inset);
                                         egui::CollapsingHeader::new(
-                                            RichText::new("Negative mods").size(11.0).color(app_muted_text(dark))
+                                            RichText::new("Negative mods")
+                                                .size(11.0)
+                                                .color(app_muted_text(dark)),
                                         )
                                         .default_open(false)
                                         .id_salt(format!("ko_negative_mods_{}", idx))
                                         .show(ui, |ui| {
-                                            Self::draw_key_override_mod_mask(ui, &mut edited.negative_mod_mask, "ko_negative_mods");
+                                            Self::draw_key_override_mod_mask(
+                                                ui,
+                                                &mut edited.negative_mod_mask,
+                                                "ko_negative_mods",
+                                            );
                                         })
-                                    }).inner;
-                                    if negative_mods_resp.header_response.hovered() {
-                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                    }
+                                    })
+                                    .inner;
+                                if negative_mods_resp.header_response.hovered() {
+                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                }
+                            });
+                            ui.add_space(column_gap);
+                            ui.vertical(|ui| {
+                                ui.set_width(column_width);
+                                ui.horizontal(|ui| {
+                                    ui.add_space(field_inset);
+                                    ui.label(RichText::new("Replacement").size(12.0).strong());
                                 });
-                                ui.add_space(column_gap);
-                                ui.vertical(|ui| {
-                                    ui.set_width(column_width);
-                                    ui.horizontal(|ui| {
-                                        ui.add_space(field_inset);
-                                        ui.label(RichText::new("Replacement").size(12.0).strong());
-                                    });
-                                    ui.add_space(2.0);
-                                    ui.horizontal(|ui| {
-                                        ui.add_space(field_inset);
-                                        let replacement_resp = ui.add_sized(
+                                ui.add_space(2.0);
+                                ui.horizontal(|ui| {
+                                    ui.add_space(field_inset);
+                                    let replacement_resp = ui
+                                        .add_sized(
                                             crate::ui_style::modal_field_button_size(field_width),
-                                            egui::Button::new(RichText::new(replacement_label).size(13.0))
-                                                .frame(true)
-                                                .stroke(combo_outline_stroke),
-                                        ).on_hover_cursor(egui::CursorIcon::PointingHand);
-                                        if replacement_resp.clicked() {
-                                            self.open_key_override_picker(KeyOverridePickField::Replacement);
-                                        }
-                                        replacement_resp.on_hover_text(replacement_tip);
-                                    });
+                                            egui::Button::new(
+                                                RichText::new(replacement_label).size(13.0),
+                                            )
+                                            .frame(true)
+                                            .stroke(combo_outline_stroke),
+                                        )
+                                        .on_hover_cursor(egui::CursorIcon::PointingHand);
+                                    if replacement_resp.clicked() {
+                                        self.open_key_override_picker(
+                                            KeyOverridePickField::Replacement,
+                                        );
+                                    }
+                                    replacement_resp.on_hover_text(replacement_tip);
+                                });
 
-                                    ui.add_space(0.0);
-                                    let layers_resp = ui.horizontal(|ui| {
+                                ui.add_space(0.0);
+                                let layers_resp = ui
+                                    .horizontal(|ui| {
                                         ui.add_space(field_inset);
                                         egui::CollapsingHeader::new(
-                                            RichText::new("Enable on layers").size(11.0).color(app_muted_text(dark))
+                                            RichText::new("Enable on layers")
+                                                .size(11.0)
+                                                .color(app_muted_text(dark)),
                                         )
                                         .default_open(false)
                                         .id_salt(format!("ko_layers_{}", idx))
                                         .show(ui, |ui| {
                                             Self::draw_key_override_layers(ui, &mut edited.layers);
                                         })
-                                    }).inner;
-                                    if layers_resp.header_response.hovered() {
-                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                    }
+                                    })
+                                    .inner;
+                                if layers_resp.header_response.hovered() {
+                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                }
 
-                                    ui.add_space(2.0);
-                                    ui.horizontal(|ui| {
-                                        ui.add_space(field_inset);
-                                        ui.vertical(|ui| {
-                                            ui.label(RichText::new("How this override behaves").size(12.0).color(app_muted_text(dark)));
-                                            ui.add_space(3.0);
-                                            ui.checkbox(&mut edited.options.activation_trigger_down, RichText::new("Activate on trigger press").size(11.5));
-                                            ui.checkbox(&mut edited.options.activation_required_mod_down, RichText::new("Activate on required mod press").size(11.5));
-                                            ui.checkbox(&mut edited.options.activation_negative_mod_up, RichText::new("Activate on blocked mod release").size(11.5));
-                                            ui.checkbox(&mut edited.options.one_mod, RichText::new("Any one trigger mod is enough").size(11.5));
-                                            ui.checkbox(&mut edited.options.no_reregister_trigger, RichText::new("Do not resend trigger after override ends").size(11.5));
-                                            ui.checkbox(&mut edited.options.no_unregister_on_other_key_down, RichText::new("Stay active when another key is pressed").size(11.5));
-                                        });
+                                ui.add_space(2.0);
+                                ui.horizontal(|ui| {
+                                    ui.add_space(field_inset);
+                                    ui.vertical(|ui| {
+                                        ui.label(
+                                            RichText::new("How this override behaves")
+                                                .size(12.0)
+                                                .color(app_muted_text(dark)),
+                                        );
+                                        ui.add_space(3.0);
+                                        ui.checkbox(
+                                            &mut edited.options.activation_trigger_down,
+                                            RichText::new("Activate on trigger press").size(11.5),
+                                        );
+                                        ui.checkbox(
+                                            &mut edited.options.activation_required_mod_down,
+                                            RichText::new("Activate on required mod press")
+                                                .size(11.5),
+                                        );
+                                        ui.checkbox(
+                                            &mut edited.options.activation_negative_mod_up,
+                                            RichText::new("Activate on blocked mod release")
+                                                .size(11.5),
+                                        );
+                                        ui.checkbox(
+                                            &mut edited.options.one_mod,
+                                            RichText::new("Any one trigger mod is enough")
+                                                .size(11.5),
+                                        );
+                                        ui.checkbox(
+                                            &mut edited.options.no_reregister_trigger,
+                                            RichText::new(
+                                                "Do not resend trigger after override ends",
+                                            )
+                                            .size(11.5),
+                                        );
+                                        ui.checkbox(
+                                            &mut edited.options.no_unregister_on_other_key_down,
+                                            RichText::new(
+                                                "Stay active when another key is pressed",
+                                            )
+                                            .size(11.5),
+                                        );
                                     });
                                 });
                             });
                         });
-
-                    ui.add_space(8.0);
-                    ui.horizontal(|ui| {
-                        ui.add_space(top_field_inset);
-                        let clear_btn = egui::Button::new(RichText::new("Clear").size(13.0))
-                            .min_size(action_button_size)
-                            .frame(true)
-                            .stroke(combo_outline_stroke);
-                        let clear_enabled = Self::key_override_entry_exists(&self.key_override_entries[idx])
-                            || self.key_override_names.get(idx).map(|s| !s.trim().is_empty()).unwrap_or(false);
-                        let clear_resp = ui.add_enabled(clear_enabled, clear_btn);
-                        if clear_resp.hovered() && clear_enabled {
-                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                        }
-                        if clear_resp.clicked() {
-                            self.push_key_override_undo();
-                            self.key_override_entries[idx] = KeyOverrideEntry::default();
-                            if let Some(name) = self.key_override_names.get_mut(idx) {
-                                name.clear();
-                            }
-                            save_key_override_names(&self.key_override_names, &self.current_device_name);
-                            self.write_key_override(idx);
-                        }
-
-                        let undo_btn = egui::Button::new(RichText::new("Undo").size(13.0))
-                            .min_size(action_button_size)
-                            .frame(true)
-                            .stroke(combo_outline_stroke);
-                        let undo_enabled = !self.key_override_undo_stack.is_empty();
-                        let undo_resp = ui.add_enabled(undo_enabled, undo_btn);
-                        if undo_resp.hovered() && undo_enabled {
-                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                        }
-                        if undo_resp.clicked() {
-                            if let Some((entries, names, selected, visible_count)) = self.key_override_undo_stack.pop() {
-                                self.key_override_entries = entries;
-                                self.key_override_names = names;
-                                self.key_override_visible_count = visible_count.clamp(1, self.key_override_entries.len().max(1));
-                                self.selected_key_override = selected.min(self.key_override_visible_count.saturating_sub(1));
-                                save_key_override_names(&self.key_override_names, &self.current_device_name);
-                                self.write_all_key_overrides();
-                            }
-                        }
                     });
+
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    ui.add_space(top_field_inset);
+                    let clear_btn = egui::Button::new(RichText::new("Clear").size(13.0))
+                        .min_size(action_button_size)
+                        .frame(true)
+                        .stroke(combo_outline_stroke);
+                    let clear_enabled =
+                        Self::key_override_entry_exists(&self.key_override_entries[idx])
+                            || self
+                                .key_override_names
+                                .get(idx)
+                                .map(|s| !s.trim().is_empty())
+                                .unwrap_or(false);
+                    let clear_resp = ui.add_enabled(clear_enabled, clear_btn);
+                    if clear_resp.hovered() && clear_enabled {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                    }
+                    if clear_resp.clicked() {
+                        self.push_key_override_undo();
+                        self.key_override_entries[idx] = KeyOverrideEntry::default();
+                        if let Some(name) = self.key_override_names.get_mut(idx) {
+                            name.clear();
+                        }
+                        save_key_override_names(
+                            &self.key_override_names,
+                            &self.current_device_name,
+                        );
+                        self.write_key_override(idx);
+                    }
+
+                    let undo_btn = egui::Button::new(RichText::new("Undo").size(13.0))
+                        .min_size(action_button_size)
+                        .frame(true)
+                        .stroke(combo_outline_stroke);
+                    let undo_enabled = !self.key_override_undo_stack.is_empty();
+                    let undo_resp = ui.add_enabled(undo_enabled, undo_btn);
+                    if undo_resp.hovered() && undo_enabled {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                    }
+                    if undo_resp.clicked() {
+                        if let Some((entries, names, selected, visible_count)) =
+                            self.key_override_undo_stack.pop()
+                        {
+                            self.key_override_entries = entries;
+                            self.key_override_names = names;
+                            self.key_override_visible_count =
+                                visible_count.clamp(1, self.key_override_entries.len().max(1));
+                            self.selected_key_override =
+                                selected.min(self.key_override_visible_count.saturating_sub(1));
+                            save_key_override_names(
+                                &self.key_override_names,
+                                &self.current_device_name,
+                            );
+                            self.write_all_key_overrides();
+                        }
+                    }
+                });
 
                 Self::normalize_key_override_entry(&mut edited);
                 if edited != current {
@@ -7359,417 +7755,435 @@ impl EntropyApp {
     }
 
     fn draw_combo_editor_content(&mut self, ui: &mut egui::Ui, show_intro: bool) {
-                ui.style_mut().visuals.button_frame = true;
-                if ui.visuals().dark_mode {
-                    ui.style_mut().visuals.widgets.inactive.bg_fill = app_surface_fill(true);
-                    ui.style_mut().visuals.widgets.inactive.weak_bg_fill = app_surface_fill(true);
-                    ui.style_mut().visuals.widgets.inactive.bg_stroke =
-                        crate::ui_style::modal_outline_stroke(true);
-                    ui.style_mut().visuals.widgets.hovered.bg_fill = app_hover_fill(true);
-                    ui.style_mut().visuals.widgets.hovered.weak_bg_fill = app_hover_fill(true);
-                    ui.style_mut().visuals.widgets.hovered.bg_stroke =
-                        crate::ui_style::modal_outline_stroke(true);
-                    ui.style_mut().visuals.widgets.active.bg_fill = app_accent();
-                    ui.style_mut().visuals.widgets.active.weak_bg_fill = app_accent();
-                    ui.style_mut().visuals.widgets.active.bg_stroke =
-                        Stroke::new(1.0, Color32::from_rgb(218, 164, 174));
-                } else {
-                    ui.style_mut().visuals.widgets.inactive.bg_fill = app_surface_fill(false);
-                    ui.style_mut().visuals.widgets.inactive.weak_bg_fill = app_surface_fill(false);
-                    ui.style_mut().visuals.widgets.inactive.bg_stroke =
-                        crate::ui_style::modal_outline_stroke(false);
-                    ui.style_mut().visuals.widgets.hovered.bg_fill = app_hover_fill(false);
-                    ui.style_mut().visuals.widgets.hovered.weak_bg_fill = app_hover_fill(false);
-                    ui.style_mut().visuals.widgets.hovered.bg_stroke =
-                        crate::ui_style::modal_outline_stroke(false);
-                    ui.style_mut().visuals.widgets.active.bg_fill = app_accent();
-                    ui.style_mut().visuals.widgets.active.weak_bg_fill = app_accent();
-                    ui.style_mut().visuals.widgets.active.bg_stroke =
-                        Stroke::new(1.0, Color32::from_rgb(204, 145, 158));
-                }
+        ui.style_mut().visuals.button_frame = true;
+        if ui.visuals().dark_mode {
+            ui.style_mut().visuals.widgets.inactive.bg_fill = app_surface_fill(true);
+            ui.style_mut().visuals.widgets.inactive.weak_bg_fill = app_surface_fill(true);
+            ui.style_mut().visuals.widgets.inactive.bg_stroke =
+                crate::ui_style::modal_outline_stroke(true);
+            ui.style_mut().visuals.widgets.hovered.bg_fill = app_hover_fill(true);
+            ui.style_mut().visuals.widgets.hovered.weak_bg_fill = app_hover_fill(true);
+            ui.style_mut().visuals.widgets.hovered.bg_stroke =
+                crate::ui_style::modal_outline_stroke(true);
+            ui.style_mut().visuals.widgets.active.bg_fill = app_accent();
+            ui.style_mut().visuals.widgets.active.weak_bg_fill = app_accent();
+            ui.style_mut().visuals.widgets.active.bg_stroke =
+                Stroke::new(1.0, Color32::from_rgb(218, 164, 174));
+        } else {
+            ui.style_mut().visuals.widgets.inactive.bg_fill = app_surface_fill(false);
+            ui.style_mut().visuals.widgets.inactive.weak_bg_fill = app_surface_fill(false);
+            ui.style_mut().visuals.widgets.inactive.bg_stroke =
+                crate::ui_style::modal_outline_stroke(false);
+            ui.style_mut().visuals.widgets.hovered.bg_fill = app_hover_fill(false);
+            ui.style_mut().visuals.widgets.hovered.weak_bg_fill = app_hover_fill(false);
+            ui.style_mut().visuals.widgets.hovered.bg_stroke =
+                crate::ui_style::modal_outline_stroke(false);
+            ui.style_mut().visuals.widgets.active.bg_fill = app_accent();
+            ui.style_mut().visuals.widgets.active.weak_bg_fill = app_accent();
+            ui.style_mut().visuals.widgets.active.bg_stroke =
+                Stroke::new(1.0, Color32::from_rgb(204, 145, 158));
+        }
 
-                ui.vertical_centered(|ui| {
-                    if show_intro {
-                        crate::ui_style::modal_hint(
-                            ui,
-                            "Press multiple keys together to send a separate keycode",
-                        );
-                    }
-                });
-
-                if self.firmware != FirmwareProtocol::Vial {
-                    crate::ui_style::modal_empty_state(
-                        ui,
-                        "Dynamic combos are not supported for this firmware",
-                        None,
-                    );
-                    return;
-                }
-
-                if self.combo_entries.is_empty() {
-                    crate::ui_style::modal_empty_state(
-                        ui,
-                        "This keyboard does not report any dynamic combo slots",
-                        None,
-                    );
-                    return;
-                }
-
-                self.selected_combo = self
-                    .selected_combo
-                    .min(self.combo_entries.len().saturating_sub(1));
-                self.combo_names
-                    .resize(self.combo_entries.len(), String::new());
-
-                let combo_undo_snapshot = (
-                    self.combo_entries.clone(),
-                    self.combo_names.clone(),
-                    self.combo_term,
-                    self.selected_combo,
-                    self.combo_visible_count,
-                );
-
-                self.combo_visible_count = self.combo_entries.len().max(1);
-                self.selected_combo = self
-                    .selected_combo
-                    .min(self.combo_entries.len().saturating_sub(1));
-
-                let combo_outline_stroke = crate::ui_style::modal_outline_stroke(ui.visuals().dark_mode);
-
-                let combo_idx = self.selected_combo;
-                let action_button_size = crate::ui_style::modal_action_button_size();
-                let content_width = action_button_size.x * 2.0 + 8.0;
-                let compact_field_width = content_width;
-                let name_field_width = content_width;
-
-                crate::ui_style::modal_content(
+        ui.vertical_centered(|ui| {
+            if show_intro {
+                crate::ui_style::modal_hint(
                     ui,
-                    crate::ui_style::ModalLayout::new(content_width).with_top_padding(0.0),
-                    |ui| {
-                        let selected_combo_empty = self.combo_entries.get(self.selected_combo)
-                            .map(|entry| entry.keys.iter().all(|&k| k == 0) && entry.output == 0)
-                            .unwrap_or(true)
-                            && self
-                                .combo_names
-                                .get(self.selected_combo)
-                                .map(|name| name.trim().is_empty())
-                                .unwrap_or(true);
-                        let selected_combo_label = match self.combo_names.get(self.selected_combo) {
-                            Some(name) if !name.trim().is_empty() => {
-                                RichText::new(format!("C{}: {}", self.selected_combo, name.trim()))
-                                    .color(if selected_combo_empty {
-                                        app_inactive_entry_text(ui.visuals().dark_mode)
-                                    } else {
-                                        ui.visuals().text_color()
-                                    })
-                            }
-                            _ => RichText::new(format!("C{}", self.selected_combo)).color(if selected_combo_empty {
+                    "Press multiple keys together to send a separate keycode",
+                );
+            }
+        });
+
+        if self.firmware != FirmwareProtocol::Vial {
+            crate::ui_style::modal_empty_state(
+                ui,
+                "Dynamic combos are not supported for this firmware",
+                None,
+            );
+            return;
+        }
+
+        if self.combo_entries.is_empty() {
+            crate::ui_style::modal_empty_state(
+                ui,
+                "This keyboard does not report any dynamic combo slots",
+                None,
+            );
+            return;
+        }
+
+        self.selected_combo = self
+            .selected_combo
+            .min(self.combo_entries.len().saturating_sub(1));
+        self.combo_names
+            .resize(self.combo_entries.len(), String::new());
+
+        let combo_undo_snapshot = (
+            self.combo_entries.clone(),
+            self.combo_names.clone(),
+            self.combo_term,
+            self.selected_combo,
+            self.combo_visible_count,
+        );
+
+        self.combo_visible_count = self.combo_entries.len().max(1);
+        self.selected_combo = self
+            .selected_combo
+            .min(self.combo_entries.len().saturating_sub(1));
+
+        let combo_outline_stroke = crate::ui_style::modal_outline_stroke(ui.visuals().dark_mode);
+
+        let combo_idx = self.selected_combo;
+        let action_button_size = crate::ui_style::modal_action_button_size();
+        let content_width = action_button_size.x * 2.0 + 8.0;
+        let compact_field_width = content_width;
+        let name_field_width = content_width;
+
+        crate::ui_style::modal_content(
+            ui,
+            crate::ui_style::ModalLayout::new(content_width).with_top_padding(0.0),
+            |ui| {
+                let selected_combo_empty = self
+                    .combo_entries
+                    .get(self.selected_combo)
+                    .map(|entry| entry.keys.iter().all(|&k| k == 0) && entry.output == 0)
+                    .unwrap_or(true)
+                    && self
+                        .combo_names
+                        .get(self.selected_combo)
+                        .map(|name| name.trim().is_empty())
+                        .unwrap_or(true);
+                let selected_combo_label = match self.combo_names.get(self.selected_combo) {
+                    Some(name) if !name.trim().is_empty() => {
+                        RichText::new(format!("C{}: {}", self.selected_combo, name.trim())).color(
+                            if selected_combo_empty {
                                 app_inactive_entry_text(ui.visuals().dark_mode)
                             } else {
                                 ui.visuals().text_color()
-                            }),
-                        };
-                        ui.horizontal_centered(|ui| {
-                            ui.allocate_ui_with_layout(
-                                Vec2::new(compact_field_width, 0.0),
-                                egui::Layout::left_to_right(egui::Align::Center),
-                                |ui| {
-                                    egui::ComboBox::from_id_salt("combo_entry_select")
-                                        .selected_text(selected_combo_label)
-                                        .width(compact_field_width)
-                                        .show_ui(ui, |ui| {
-                                            for idx in 0..self.combo_entries.len() {
-                                                let combo_empty = self.combo_entries.get(idx)
-                                                    .map(|entry| entry.keys.iter().all(|&k| k == 0) && entry.output == 0)
-                                                    .unwrap_or(true)
-                                                    && self
-                                                        .combo_names
-                                                        .get(idx)
-                                                        .map(|name| name.trim().is_empty())
-                                                        .unwrap_or(true);
-                                                let label = match self.combo_names.get(idx) {
-                                                    Some(name) if !name.trim().is_empty() => {
-                                                        RichText::new(format!("C{}: {}", idx, name.trim()))
-                                                            .color(if combo_empty {
-                                                                app_inactive_entry_text(ui.visuals().dark_mode)
-                                                            } else {
-                                                                ui.visuals().text_color()
-                                                            })
-                                                    }
-                                                    _ => RichText::new(format!("C{}", idx)).color(if combo_empty {
-                                                        app_inactive_entry_text(ui.visuals().dark_mode)
+                            },
+                        )
+                    }
+                    _ => RichText::new(format!("C{}", self.selected_combo)).color(
+                        if selected_combo_empty {
+                            app_inactive_entry_text(ui.visuals().dark_mode)
+                        } else {
+                            ui.visuals().text_color()
+                        },
+                    ),
+                };
+                ui.horizontal_centered(|ui| {
+                    ui.allocate_ui_with_layout(
+                        Vec2::new(compact_field_width, 0.0),
+                        egui::Layout::left_to_right(egui::Align::Center),
+                        |ui| {
+                            egui::ComboBox::from_id_salt("combo_entry_select")
+                                .selected_text(selected_combo_label)
+                                .width(compact_field_width)
+                                .show_ui(ui, |ui| {
+                                    for idx in 0..self.combo_entries.len() {
+                                        let combo_empty = self
+                                            .combo_entries
+                                            .get(idx)
+                                            .map(|entry| {
+                                                entry.keys.iter().all(|&k| k == 0)
+                                                    && entry.output == 0
+                                            })
+                                            .unwrap_or(true)
+                                            && self
+                                                .combo_names
+                                                .get(idx)
+                                                .map(|name| name.trim().is_empty())
+                                                .unwrap_or(true);
+                                        let label = match self.combo_names.get(idx) {
+                                            Some(name) if !name.trim().is_empty() => {
+                                                RichText::new(format!("C{}: {}", idx, name.trim()))
+                                                    .color(if combo_empty {
+                                                        app_inactive_entry_text(
+                                                            ui.visuals().dark_mode,
+                                                        )
                                                     } else {
                                                         ui.visuals().text_color()
-                                                    }),
-                                                };
-                                                let resp = ui.selectable_value(
-                                                    &mut self.selected_combo,
-                                                    idx,
-                                                    label,
-                                                );
-                                                if resp.hovered() {
-                                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                                }
+                                                    })
                                             }
-                                        });
-                                },
-                            );
-                        });
-
-                        ui.add_space(crate::ui_style::modal_space_md());
-                    },
-                );
-
-                ui.vertical_centered(|ui| {
-                    ui.allocate_ui_with_layout(
-                        Vec2::new(content_width, 0.0),
-                        egui::Layout::top_down(egui::Align::Min),
-                        |ui| {
-                            let mut combo_name_changed = false;
-                            if let Some(name) = self.combo_names.get_mut(combo_idx) {
-                                let resp = ui
-                                    .horizontal_centered(|ui| {
-                                        ui.add_sized(
-                                            crate::ui_style::modal_field_button_size(name_field_width),
-                                            egui::TextEdit::singleline(name)
-                                                .hint_text("Name")
-                                                .char_limit(12)
-                                                .horizontal_align(egui::Align::Center)
-                                                .vertical_align(egui::Align::Center),
-                                        )
-                                    })
-                                    .inner;
-                                combo_name_changed = resp.changed();
-                                resp.clone().on_hover_text("Stored locally in Entropy");
-                                if resp.hovered() {
-                                    ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
-                                }
-                            }
-                            if combo_name_changed {
-                                self.combo_undo_stack.push(combo_undo_snapshot.clone());
-                                self.combo_names_dirty = true;
-                            }
-
-                            let output_label = if self.combo_entries[combo_idx].output == 0 {
-                                "Pick output".to_string()
-                            } else {
-                                keycode_label_with_macro_names(
-                                    self.combo_entries[combo_idx].output,
-                                    self.layout
-                                        .as_ref()
-                                        .map(|l| l.custom_keycodes.as_slice())
-                                        .unwrap_or(&[]),
-                                    &self.layer_names,
-                                    &self.keycode_picker.macro_names,
-                                    &self.keycode_picker.tap_dance_names,
-                                )
-                                .replace('\n', " ")
-                            };
-
-                            ui.add_space(12.0);
-                            ui.horizontal_centered(|ui| {
-                                crate::ui_style::modal_section_title(ui, "Input keys");
-                            });
-                            ui.add_space(6.0);
-                            let input_summary = {
-                                let keys: Vec<String> = if self.combo_capture_open {
-                                    self.combo_capture_keys
-                                        .iter()
-                                        .copied()
-                                        .map(|kc| {
-                                            keycode_label_with_macro_names(
-                                                kc,
-                                                self.layout
-                                                    .as_ref()
-                                                    .map(|l| l.custom_keycodes.as_slice())
-                                                    .unwrap_or(&[]),
-                                                &self.layer_names,
-                                                &self.keycode_picker.macro_names,
-                                                &self.keycode_picker.tap_dance_names,
-                                            )
-                                            .replace('\n', " ")
-                                        })
-                                        .collect()
-                                } else {
-                                    self.combo_entries[combo_idx]
-                                        .keys
-                                        .iter()
-                                        .copied()
-                                        .filter(|&kc| kc != 0)
-                                        .map(|kc| {
-                                            keycode_label_with_macro_names(
-                                                kc,
-                                                self.layout
-                                                    .as_ref()
-                                                    .map(|l| l.custom_keycodes.as_slice())
-                                                    .unwrap_or(&[]),
-                                                &self.layer_names,
-                                                &self.keycode_picker.macro_names,
-                                                &self.keycode_picker.tap_dance_names,
-                                            )
-                                            .replace('\n', " ")
-                                        })
-                                        .collect()
-                                };
-                                if keys.is_empty() {
-                                    if self.combo_capture_open {
-                                        "Press 2-4 keys".to_string()
-                                    } else {
-                                        "Record 2-4 keys".to_string()
-                                    }
-                                } else {
-                                    keys.join(" + ")
-                                }
-                            };
-                            let field_resp = ui
-                                .horizontal_centered(|ui| {
-                                    let field_btn =
-                                        egui::Button::new(RichText::new(input_summary).size(13.0))
-                                            .frame(true)
-                                            .stroke(combo_outline_stroke);
-                                    ui.add_sized(crate::ui_style::modal_field_button_size(compact_field_width), field_btn)
-                                })
-                                .inner;
-                            if field_resp.hovered() {
-                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                            }
-                            if field_resp.clicked() {
-                                self.combo_capture_keys.clear();
-                                self.combo_capture_open = true;
-                            }
-                            if self.combo_capture_open {
-                                let clicked_outside_input = ui.ctx().input(|i| {
-                                    i.pointer.any_pressed()
-                                        && i.pointer
-                                            .interact_pos()
-                                            .map(|pos| !field_resp.rect.contains(pos))
-                                            .unwrap_or(false)
-                                });
-                                if clicked_outside_input {
-                                    self.apply_combo_capture();
-                                }
-                            }
-
-                            ui.add_space(10.0);
-                            ui.horizontal_centered(|ui| {
-                                crate::ui_style::modal_section_title(ui, "Output key");
-                            });
-                            ui.add_space(6.0);
-                            let resp = ui
-                                .horizontal_centered(|ui| {
-                                    let btn =
-                                        egui::Button::new(RichText::new(&output_label).size(13.0))
-                                            .frame(true)
-                                            .stroke(combo_outline_stroke);
-                                    ui.add_sized(crate::ui_style::modal_field_button_size(compact_field_width), btn)
-                                })
-                                .inner;
-                            if resp.hovered() {
-                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                            }
-                            if resp.clicked() {
-                                self.combo_pick_target = Some((combo_idx, ComboPickField::Output));
-                                                        self.keycode_picker.result = None;
-                                self.keycode_picker.selected_tab = KeycodeTab::Basic;
-                                self.keycode_picker.open = true;
-                            }
-
-                            if let Some(current_combo_term) = self.combo_term {
-                                ui.add_space(12.0);
-                                ui.horizontal_centered(|ui| {
-                                    ui.label(
-                                        RichText::new("Time out period for combos")
-                                            .size(13.0)
-                                            .strong(),
-                                    );
-                                });
-                                ui.add_space(4.0);
-                                let mut combo_term_text = current_combo_term.to_string();
-                                ui.horizontal_centered(|ui| {
-                                    let resp = ui.add_sized(
-                                        crate::ui_style::modal_small_button_size(54.0),
-                                        egui::TextEdit::singleline(&mut combo_term_text)
-                                            .hint_text("ms")
-                                            .desired_width(30.0)
-                                            .char_limit(4)
-                                            .vertical_align(egui::Align::Center),
-                                    );
-                                    if resp.hovered() {
-                                        ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
-                                    }
-                                    ui.label("ms");
-                                    if resp.changed() {
-                                        let filtered: String = combo_term_text
-                                            .chars()
-                                            .filter(|c| c.is_ascii_digit())
-                                            .take(4)
-                                            .collect();
-                                        if let Ok(parsed) = filtered.parse::<u16>() {
-                                            self.combo_undo_stack.push(combo_undo_snapshot.clone());
-                                            self.combo_term = Some(parsed.max(1));
-                                            self.combo_term_dirty = true;
+                                            _ => RichText::new(format!("C{}", idx)).color(
+                                                if combo_empty {
+                                                    app_inactive_entry_text(ui.visuals().dark_mode)
+                                                } else {
+                                                    ui.visuals().text_color()
+                                                },
+                                            ),
+                                        };
+                                        let resp = ui.selectable_value(
+                                            &mut self.selected_combo,
+                                            idx,
+                                            label,
+                                        );
+                                        if resp.hovered() {
+                                            ui.ctx()
+                                                .set_cursor_icon(egui::CursorIcon::PointingHand);
                                         }
                                     }
                                 });
-                            }
-                            ui.add_space(12.0);
-                            ui.horizontal_centered(|ui| {
-                                let clear_btn =
-                                    egui::Button::new(RichText::new("Clear").size(13.0))
-                                        .min_size(action_button_size)
-                                        .frame(true)
-                                        .stroke(combo_outline_stroke);
-                                let clear_enabled = combo_idx < self.combo_entries.len()
-                                    && (self.combo_entries[combo_idx].keys.iter().any(|&k| k != 0)
-                                        || self.combo_entries[combo_idx].output != 0
-                                        || self
-                                            .combo_names
-                                            .get(combo_idx)
-                                            .map(|s| !s.trim().is_empty())
-                                            .unwrap_or(false));
-                                let clear_resp = ui.add_enabled(clear_enabled, clear_btn);
-                                if clear_resp.hovered() && clear_enabled {
-                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                }
-                                if clear_resp.clicked() {
-                                    self.push_combo_undo();
-                                    self.combo_entries[combo_idx] = ComboEntry::default();
-                                    if let Some(name) = self.combo_names.get_mut(combo_idx) {
-                                        name.clear();
-                                    }
-                                    self.combo_dirty = true;
-                                    self.combo_names_dirty = true;
-                                }
-
-                                let undo_btn = egui::Button::new(RichText::new("Undo").size(13.0))
-                                    .min_size(action_button_size)
-                                    .frame(true)
-                                    .stroke(combo_outline_stroke);
-                                let undo_resp =
-                                    ui.add_enabled(!self.combo_undo_stack.is_empty(), undo_btn);
-                                if undo_resp.hovered() && !self.combo_undo_stack.is_empty() {
-                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                }
-                                if undo_resp.clicked() {
-                                    if let Some((entries, names, term, selected, visible_count)) =
-                                        self.combo_undo_stack.pop()
-                                    {
-                                        self.combo_entries = entries;
-                                        self.combo_names = names;
-                                        self.combo_term = term;
-                                        self.combo_visible_count =
-                                            visible_count.clamp(1, self.combo_entries.len().max(1));
-                                        self.selected_combo = selected
-                                            .min(self.combo_visible_count.saturating_sub(1));
-                                        self.combo_dirty = true;
-                                        self.combo_names_dirty = true;
-                                        self.combo_term_dirty = true;
-                                    }
-                                }
-                            });
                         },
                     );
                 });
+
+                ui.add_space(crate::ui_style::modal_space_md());
+            },
+        );
+
+        ui.vertical_centered(|ui| {
+            ui.allocate_ui_with_layout(
+                Vec2::new(content_width, 0.0),
+                egui::Layout::top_down(egui::Align::Min),
+                |ui| {
+                    let mut combo_name_changed = false;
+                    if let Some(name) = self.combo_names.get_mut(combo_idx) {
+                        let resp = ui
+                            .horizontal_centered(|ui| {
+                                ui.add_sized(
+                                    crate::ui_style::modal_field_button_size(name_field_width),
+                                    egui::TextEdit::singleline(name)
+                                        .hint_text("Name")
+                                        .char_limit(12)
+                                        .horizontal_align(egui::Align::Center)
+                                        .vertical_align(egui::Align::Center),
+                                )
+                            })
+                            .inner;
+                        combo_name_changed = resp.changed();
+                        resp.clone().on_hover_text("Stored locally in Entropy");
+                        if resp.hovered() {
+                            ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
+                        }
+                    }
+                    if combo_name_changed {
+                        self.combo_undo_stack.push(combo_undo_snapshot.clone());
+                        self.combo_names_dirty = true;
+                    }
+
+                    let output_label = if self.combo_entries[combo_idx].output == 0 {
+                        "Pick output".to_string()
+                    } else {
+                        keycode_label_with_macro_names(
+                            self.combo_entries[combo_idx].output,
+                            self.layout
+                                .as_ref()
+                                .map(|l| l.custom_keycodes.as_slice())
+                                .unwrap_or(&[]),
+                            &self.layer_names,
+                            &self.keycode_picker.macro_names,
+                            &self.keycode_picker.tap_dance_names,
+                        )
+                        .replace('\n', " ")
+                    };
+
+                    ui.add_space(12.0);
+                    ui.horizontal_centered(|ui| {
+                        crate::ui_style::modal_section_title(ui, "Input keys");
+                    });
+                    ui.add_space(6.0);
+                    let input_summary = {
+                        let keys: Vec<String> = if self.combo_capture_open {
+                            self.combo_capture_keys
+                                .iter()
+                                .copied()
+                                .map(|kc| {
+                                    keycode_label_with_macro_names(
+                                        kc,
+                                        self.layout
+                                            .as_ref()
+                                            .map(|l| l.custom_keycodes.as_slice())
+                                            .unwrap_or(&[]),
+                                        &self.layer_names,
+                                        &self.keycode_picker.macro_names,
+                                        &self.keycode_picker.tap_dance_names,
+                                    )
+                                    .replace('\n', " ")
+                                })
+                                .collect()
+                        } else {
+                            self.combo_entries[combo_idx]
+                                .keys
+                                .iter()
+                                .copied()
+                                .filter(|&kc| kc != 0)
+                                .map(|kc| {
+                                    keycode_label_with_macro_names(
+                                        kc,
+                                        self.layout
+                                            .as_ref()
+                                            .map(|l| l.custom_keycodes.as_slice())
+                                            .unwrap_or(&[]),
+                                        &self.layer_names,
+                                        &self.keycode_picker.macro_names,
+                                        &self.keycode_picker.tap_dance_names,
+                                    )
+                                    .replace('\n', " ")
+                                })
+                                .collect()
+                        };
+                        if keys.is_empty() {
+                            if self.combo_capture_open {
+                                "Press 2-4 keys".to_string()
+                            } else {
+                                "Record 2-4 keys".to_string()
+                            }
+                        } else {
+                            keys.join(" + ")
+                        }
+                    };
+                    let field_resp = ui
+                        .horizontal_centered(|ui| {
+                            let field_btn =
+                                egui::Button::new(RichText::new(input_summary).size(13.0))
+                                    .frame(true)
+                                    .stroke(combo_outline_stroke);
+                            ui.add_sized(
+                                crate::ui_style::modal_field_button_size(compact_field_width),
+                                field_btn,
+                            )
+                        })
+                        .inner;
+                    if field_resp.hovered() {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                    }
+                    if field_resp.clicked() {
+                        self.combo_capture_keys.clear();
+                        self.combo_capture_open = true;
+                    }
+                    if self.combo_capture_open {
+                        let clicked_outside_input = ui.ctx().input(|i| {
+                            i.pointer.any_pressed()
+                                && i.pointer
+                                    .interact_pos()
+                                    .map(|pos| !field_resp.rect.contains(pos))
+                                    .unwrap_or(false)
+                        });
+                        if clicked_outside_input {
+                            self.apply_combo_capture();
+                        }
+                    }
+
+                    ui.add_space(10.0);
+                    ui.horizontal_centered(|ui| {
+                        crate::ui_style::modal_section_title(ui, "Output key");
+                    });
+                    ui.add_space(6.0);
+                    let resp = ui
+                        .horizontal_centered(|ui| {
+                            let btn = egui::Button::new(RichText::new(&output_label).size(13.0))
+                                .frame(true)
+                                .stroke(combo_outline_stroke);
+                            ui.add_sized(
+                                crate::ui_style::modal_field_button_size(compact_field_width),
+                                btn,
+                            )
+                        })
+                        .inner;
+                    if resp.hovered() {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                    }
+                    if resp.clicked() {
+                        self.combo_pick_target = Some((combo_idx, ComboPickField::Output));
+                        self.keycode_picker.result = None;
+                        self.keycode_picker.selected_tab = KeycodeTab::Basic;
+                        self.keycode_picker.open = true;
+                    }
+
+                    if let Some(current_combo_term) = self.combo_term {
+                        ui.add_space(12.0);
+                        ui.horizontal_centered(|ui| {
+                            ui.label(
+                                RichText::new("Time out period for combos")
+                                    .size(13.0)
+                                    .strong(),
+                            );
+                        });
+                        ui.add_space(4.0);
+                        let mut combo_term_text = current_combo_term.to_string();
+                        ui.horizontal_centered(|ui| {
+                            let resp = ui.add_sized(
+                                crate::ui_style::modal_small_button_size(54.0),
+                                egui::TextEdit::singleline(&mut combo_term_text)
+                                    .hint_text("ms")
+                                    .desired_width(30.0)
+                                    .char_limit(4)
+                                    .vertical_align(egui::Align::Center),
+                            );
+                            if resp.hovered() {
+                                ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
+                            }
+                            ui.label("ms");
+                            if resp.changed() {
+                                let filtered: String = combo_term_text
+                                    .chars()
+                                    .filter(|c| c.is_ascii_digit())
+                                    .take(4)
+                                    .collect();
+                                if let Ok(parsed) = filtered.parse::<u16>() {
+                                    self.combo_undo_stack.push(combo_undo_snapshot.clone());
+                                    self.combo_term = Some(parsed.max(1));
+                                    self.combo_term_dirty = true;
+                                }
+                            }
+                        });
+                    }
+                    ui.add_space(12.0);
+                    ui.horizontal_centered(|ui| {
+                        let clear_btn = egui::Button::new(RichText::new("Clear").size(13.0))
+                            .min_size(action_button_size)
+                            .frame(true)
+                            .stroke(combo_outline_stroke);
+                        let clear_enabled = combo_idx < self.combo_entries.len()
+                            && (self.combo_entries[combo_idx].keys.iter().any(|&k| k != 0)
+                                || self.combo_entries[combo_idx].output != 0
+                                || self
+                                    .combo_names
+                                    .get(combo_idx)
+                                    .map(|s| !s.trim().is_empty())
+                                    .unwrap_or(false));
+                        let clear_resp = ui.add_enabled(clear_enabled, clear_btn);
+                        if clear_resp.hovered() && clear_enabled {
+                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                        }
+                        if clear_resp.clicked() {
+                            self.push_combo_undo();
+                            self.combo_entries[combo_idx] = ComboEntry::default();
+                            if let Some(name) = self.combo_names.get_mut(combo_idx) {
+                                name.clear();
+                            }
+                            self.combo_dirty = true;
+                            self.combo_names_dirty = true;
+                        }
+
+                        let undo_btn = egui::Button::new(RichText::new("Undo").size(13.0))
+                            .min_size(action_button_size)
+                            .frame(true)
+                            .stroke(combo_outline_stroke);
+                        let undo_resp = ui.add_enabled(!self.combo_undo_stack.is_empty(), undo_btn);
+                        if undo_resp.hovered() && !self.combo_undo_stack.is_empty() {
+                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                        }
+                        if undo_resp.clicked() {
+                            if let Some((entries, names, term, selected, visible_count)) =
+                                self.combo_undo_stack.pop()
+                            {
+                                self.combo_entries = entries;
+                                self.combo_names = names;
+                                self.combo_term = term;
+                                self.combo_visible_count =
+                                    visible_count.clamp(1, self.combo_entries.len().max(1));
+                                self.selected_combo =
+                                    selected.min(self.combo_visible_count.saturating_sub(1));
+                                self.combo_dirty = true;
+                                self.combo_names_dirty = true;
+                                self.combo_term_dirty = true;
+                            }
+                        }
+                    });
+                },
+            );
+        });
     }
 
     fn draw_layout(&mut self, ui: &mut egui::Ui, layout: &KeyboardLayout, ctx: &egui::Context) {
@@ -7988,84 +8402,82 @@ impl EntropyApp {
                         .show(ctx, |ui| {
                             let dark = ui.visuals().dark_mode;
                             top_dropdown_frame(dark).show(ui, |ui| {
-                                    ui.set_min_width(dropdown_size.x - 16.0);
+                                ui.set_min_width(dropdown_size.x - 16.0);
 
-                                    let prev_selected = self.selected_device;
-                                    if self.device_manager.devices().is_empty() {
-                                        ui.allocate_ui_with_layout(
-                                            egui::vec2(dropdown_size.x - 16.0, 30.0),
-                                            egui::Layout::left_to_right(egui::Align::Center),
-                                            |ui| {
-                                                ui.add_space(10.0);
-                                                ui.label(
-                                                    RichText::new("No devices found")
-                                                        .size(13.0)
-                                                        .color(app_muted_text(ui.visuals().dark_mode)),
-                                                );
-                                            },
-                                        );
-                                    } else {
-                                        for (i, dev) in
-                                            self.device_manager.devices().iter().enumerate()
-                                        {
-                                            let is_selected = self.selected_device == Some(i);
-                                            let resp = top_dropdown_item(
-                                                ui,
-                                                dropdown_size.x - 16.0,
-                                                &dev.name,
-                                                true,
-                                                is_selected,
+                                let prev_selected = self.selected_device;
+                                if self.device_manager.devices().is_empty() {
+                                    ui.allocate_ui_with_layout(
+                                        egui::vec2(dropdown_size.x - 16.0, 30.0),
+                                        egui::Layout::left_to_right(egui::Align::Center),
+                                        |ui| {
+                                            ui.add_space(10.0);
+                                            ui.label(
+                                                RichText::new("No devices found")
+                                                    .size(13.0)
+                                                    .color(app_muted_text(ui.visuals().dark_mode)),
                                             );
-                                            if resp.clicked() {
-                                                self.selected_device = Some(i);
-                                                self.main_menu_tab = MainMenuTab::Keyboard;
-                                                device_clicked = true;
-                                            }
-                                        }
-                                    }
-
-                                    #[cfg(not(target_arch = "wasm32"))]
-                                    if self.selected_device != prev_selected {
-                                        if let Some(idx) = self.selected_device {
-                                            self.start_connect(idx);
-                                        }
-                                    }
-
-                                    if has_lock_button {
-                                        ui.add_space(6.0);
-                                        let lock_label = if is_unlocked {
-                                            "🔓 Lock"
-                                        } else {
-                                            "🔒 Unlock"
-                                        };
-                                        if top_dropdown_item(
+                                        },
+                                    );
+                                } else {
+                                    for (i, dev) in self.device_manager.devices().iter().enumerate()
+                                    {
+                                        let is_selected = self.selected_device == Some(i);
+                                        let resp = top_dropdown_item(
                                             ui,
                                             dropdown_size.x - 16.0,
-                                            lock_label,
+                                            &dev.name,
                                             true,
-                                            false,
-                                        )
-                                        .clicked()
-                                        {
-                                            if is_unlocked {
-                                                if let Some(hid) = &self.hid_device {
-                                                    match hid.lock() {
-                                                        Ok(()) => {
-                                                            self.status_msg =
-                                                                "Keyboard locked".into()
-                                                        }
-                                                        Err(e) => {
-                                                            self.status_msg =
-                                                                format!("Lock failed: {e}")
-                                                        }
-                                                    }
-                                                }
-                                            } else {
-                                                self.unlock_open = true;
-                                            }
+                                            is_selected,
+                                        );
+                                        if resp.clicked() {
+                                            self.selected_device = Some(i);
+                                            self.main_menu_tab = MainMenuTab::Keyboard;
+                                            device_clicked = true;
                                         }
                                     }
-                                });
+                                }
+
+                                #[cfg(not(target_arch = "wasm32"))]
+                                if self.selected_device != prev_selected {
+                                    if let Some(idx) = self.selected_device {
+                                        self.start_connect(idx);
+                                    }
+                                }
+
+                                if has_lock_button {
+                                    ui.add_space(6.0);
+                                    let lock_label = if is_unlocked {
+                                        "🔓 Lock"
+                                    } else {
+                                        "🔒 Unlock"
+                                    };
+                                    if top_dropdown_item(
+                                        ui,
+                                        dropdown_size.x - 16.0,
+                                        lock_label,
+                                        true,
+                                        false,
+                                    )
+                                    .clicked()
+                                    {
+                                        if is_unlocked {
+                                            if let Some(hid) = &self.hid_device {
+                                                match hid.lock() {
+                                                    Ok(()) => {
+                                                        self.status_msg = "Keyboard locked".into()
+                                                    }
+                                                    Err(e) => {
+                                                        self.status_msg =
+                                                            format!("Lock failed: {e}")
+                                                    }
+                                                }
+                                            }
+                                        } else {
+                                            self.unlock_open = true;
+                                        }
+                                    }
+                                }
+                            });
                         });
 
                     ui.ctx().data_mut(|d| {
@@ -8221,112 +8633,118 @@ impl EntropyApp {
                     let layer_leds_available = self.layer_led_settings.supported;
                     let tap_hold_available = self.tap_hold_settings.supported;
                     let item_width = dropdown_rect.width() - 16.0;
-                    let (matrix_hovered, rgb_hovered, layer_leds_hovered, encoders_hovered, tap_hold_hovered, settings_clicked) =
-                        egui::Area::new(egui::Id::new("settings_dropdown_area"))
-                            .order(egui::Order::Foreground)
-                            .fixed_pos(dropdown_rect.min)
-                            .show(ui.ctx(), |ui| {
-                                top_dropdown_frame(dark)
-                                    .show(ui, |ui| {
-                                        ui.set_min_width(item_width);
-                                        let matrix_resp = top_dropdown_item(
-                                            ui,
-                                            item_width,
-                                            "Matrix Tester",
-                                            true,
-                                            self.main_menu_tab == MainMenuTab::Settings
-                                                && self.settings_tab == SettingsTab::MatrixTester,
+                    let (
+                        matrix_hovered,
+                        rgb_hovered,
+                        layer_leds_hovered,
+                        encoders_hovered,
+                        tap_hold_hovered,
+                        settings_clicked,
+                    ) = egui::Area::new(egui::Id::new("settings_dropdown_area"))
+                        .order(egui::Order::Foreground)
+                        .fixed_pos(dropdown_rect.min)
+                        .show(ui.ctx(), |ui| {
+                            top_dropdown_frame(dark)
+                                .show(ui, |ui| {
+                                    ui.set_min_width(item_width);
+                                    let matrix_resp = top_dropdown_item(
+                                        ui,
+                                        item_width,
+                                        "Matrix Tester",
+                                        true,
+                                        self.main_menu_tab == MainMenuTab::Settings
+                                            && self.settings_tab == SettingsTab::MatrixTester,
+                                    );
+                                    let rgb_resp = top_dropdown_item(
+                                        ui,
+                                        item_width,
+                                        "RGB",
+                                        rgb_available,
+                                        self.main_menu_tab == MainMenuTab::Settings
+                                            && self.settings_tab == SettingsTab::Rgb,
+                                    );
+                                    let layer_leds_resp = top_dropdown_item(
+                                        ui,
+                                        item_width,
+                                        "Layer LEDs",
+                                        layer_leds_available,
+                                        self.main_menu_tab == MainMenuTab::Settings
+                                            && self.settings_tab == SettingsTab::LayerLeds,
+                                    );
+                                    let encoders_resp = top_dropdown_item(
+                                        ui,
+                                        item_width,
+                                        "Encoders",
+                                        true,
+                                        self.main_menu_tab == MainMenuTab::Settings
+                                            && self.settings_tab == SettingsTab::Encoders,
+                                    );
+                                    let tap_hold_resp = top_dropdown_item(
+                                        ui,
+                                        item_width,
+                                        "Tap-Hold",
+                                        tap_hold_available,
+                                        self.main_menu_tab == MainMenuTab::Settings
+                                            && self.settings_tab == SettingsTab::TapHold,
+                                    );
+                                    if matrix_resp.clicked() {
+                                        self.close_top_dropdowns(ui.ctx());
+                                        self.settings_tab = SettingsTab::MatrixTester;
+                                        if self.main_menu_tab != MainMenuTab::Settings {
+                                            self.reset_matrix_tester_state();
+                                        }
+                                        self.matrix_tester_unlock_prompted = false;
+                                        self.main_menu_tab = MainMenuTab::Settings;
+                                    }
+                                    if rgb_resp.clicked() && rgb_available {
+                                        self.close_top_dropdowns(ui.ctx());
+                                        self.settings_tab = SettingsTab::Rgb;
+                                        self.main_menu_tab = MainMenuTab::Settings;
+                                    }
+                                    if !rgb_available {
+                                        let _ = rgb_resp.clone().on_hover_text(
+                                            "RGB settings are not available on this firmware",
                                         );
-                                        let rgb_resp = top_dropdown_item(
-                                            ui,
-                                            item_width,
-                                            "RGB",
-                                            rgb_available,
-                                            self.main_menu_tab == MainMenuTab::Settings
-                                                && self.settings_tab == SettingsTab::Rgb,
+                                    }
+                                    if layer_leds_resp.clicked() && layer_leds_available {
+                                        self.close_top_dropdowns(ui.ctx());
+                                        self.open_layer_led_settings_page();
+                                    }
+                                    if !layer_leds_available {
+                                        let _ = layer_leds_resp.clone().on_hover_text(
+                                            "Layer LED settings are not available on this firmware",
                                         );
-                                        let layer_leds_resp = top_dropdown_item(
-                                            ui,
-                                            item_width,
-                                            "Layer LEDs",
-                                            layer_leds_available,
-                                            self.main_menu_tab == MainMenuTab::Settings
-                                                && self.settings_tab == SettingsTab::LayerLeds,
+                                    }
+                                    if encoders_resp.clicked() {
+                                        self.close_top_dropdowns(ui.ctx());
+                                        self.settings_tab = SettingsTab::Encoders;
+                                        self.main_menu_tab = MainMenuTab::Settings;
+                                    }
+                                    if tap_hold_resp.clicked() && tap_hold_available {
+                                        self.close_top_dropdowns(ui.ctx());
+                                        self.open_tap_hold_settings_page();
+                                    }
+                                    if !tap_hold_available {
+                                        let _ = tap_hold_resp.clone().on_hover_text(
+                                            "Tap-Hold settings are not available on this firmware",
                                         );
-                                        let encoders_resp = top_dropdown_item(
-                                            ui,
-                                            item_width,
-                                            "Encoders",
-                                            true,
-                                            self.main_menu_tab == MainMenuTab::Settings
-                                                && self.settings_tab == SettingsTab::Encoders,
-                                        );
-                                        let tap_hold_resp = top_dropdown_item(
-                                            ui,
-                                            item_width,
-                                            "Tap-Hold",
-                                            tap_hold_available,
-                                            self.main_menu_tab == MainMenuTab::Settings
-                                                && self.settings_tab == SettingsTab::TapHold,
-                                        );
-                                        if matrix_resp.clicked() {
-                                            self.close_top_dropdowns(ui.ctx());
-                                            self.settings_tab = SettingsTab::MatrixTester;
-                                            if self.main_menu_tab != MainMenuTab::Settings {
-                                                self.reset_matrix_tester_state();
-                                            }
-                                            self.matrix_tester_unlock_prompted = false;
-                                            self.main_menu_tab = MainMenuTab::Settings;
-                                        }
-                                        if rgb_resp.clicked() && rgb_available {
-                                            self.close_top_dropdowns(ui.ctx());
-                                            self.settings_tab = SettingsTab::Rgb;
-                                            self.main_menu_tab = MainMenuTab::Settings;
-                                        }
-                                        if !rgb_available {
-                                            let _ = rgb_resp.clone().on_hover_text(
-                                                "RGB settings are not available on this firmware",
-                                            );
-                                        }
-                                        if layer_leds_resp.clicked() && layer_leds_available {
-                                            self.close_top_dropdowns(ui.ctx());
-                                            self.open_layer_led_settings_page();
-                                        }
-                                        if !layer_leds_available {
-                                            let _ = layer_leds_resp.clone().on_hover_text(
-                                                "Layer LED settings are not available on this firmware",
-                                            );
-                                        }
-                                        if encoders_resp.clicked() {
-                                            self.close_top_dropdowns(ui.ctx());
-                                            self.settings_tab = SettingsTab::Encoders;
-                                            self.main_menu_tab = MainMenuTab::Settings;
-                                        }
-                                        if tap_hold_resp.clicked() && tap_hold_available {
-                                            self.close_top_dropdowns(ui.ctx());
-                                            self.open_tap_hold_settings_page();
-                                        }
-                                        if !tap_hold_available {
-                                            let _ = tap_hold_resp.clone().on_hover_text(
-                                                "Tap-Hold settings are not available on this firmware",
-                                            );
-                                        }
-                                        (
-                                            matrix_resp.hovered(),
-                                            rgb_resp.hovered(),
-                                            layer_leds_resp.hovered(),
-                                            encoders_resp.hovered(),
-                                            tap_hold_resp.hovered(),
-                                            matrix_resp.clicked()
-                                                || (rgb_resp.clicked() && rgb_available)
-                                                || (layer_leds_resp.clicked() && layer_leds_available)
-                                                || encoders_resp.clicked()
-                                                || (tap_hold_resp.clicked() && tap_hold_available),
-                                        )
-                                    })
-                                    .inner
-                            })
-                            .inner;
+                                    }
+                                    (
+                                        matrix_resp.hovered(),
+                                        rgb_resp.hovered(),
+                                        layer_leds_resp.hovered(),
+                                        encoders_resp.hovered(),
+                                        tap_hold_resp.hovered(),
+                                        matrix_resp.clicked()
+                                            || (rgb_resp.clicked() && rgb_available)
+                                            || (layer_leds_resp.clicked() && layer_leds_available)
+                                            || encoders_resp.clicked()
+                                            || (tap_hold_resp.clicked() && tap_hold_available),
+                                    )
+                                })
+                                .inner
+                        })
+                        .inner;
                     ui.ctx().data_mut(|d| {
                         d.insert_temp(
                             dropdown_id,
@@ -8344,7 +8762,10 @@ impl EntropyApp {
                     ui.ctx().data_mut(|d| d.insert_temp(dropdown_id, false));
                 }
             }
-            if matches!(self.main_menu_tab, MainMenuTab::Settings | MainMenuTab::Advanced) {
+            if matches!(
+                self.main_menu_tab,
+                MainMenuTab::Settings | MainMenuTab::Advanced
+            ) {
                 self.draw_settings_screen(ui, layout, ctx, ui.min_rect().top() + top_reserved_h);
                 return;
             }
