@@ -9759,6 +9759,17 @@ impl EntropyApp {
         } else {
             self.selected_layer
         };
+        let layer_led_outline = if self.layer_led_settings.supported {
+            let color_idx = self
+                .layer_led_settings
+                .layer_colors
+                .get(layer.min(15))
+                .copied()
+                .unwrap_or(0);
+            Some(layer_led_palette_color(color_idx))
+        } else {
+            None
+        };
         for (ki, rect, _) in &rects {
             let key = &layout.keys[*ki];
             let is_selected = self.selected_key == Some((layer, *ki));
@@ -9816,11 +9827,13 @@ impl EntropyApp {
                     .find(|b| b.id == binding.behavior_id as u32)
                     .map(|b| b.display_name == "Transparent")
                     .unwrap_or(false);
-                let border = if dark {
-                    Color32::from_rgb(54, 54, 58)
-                } else {
-                    Color32::from_rgb(230, 230, 233)
-                };
+                let border = layer_led_outline.unwrap_or_else(|| {
+                    if dark {
+                        Color32::from_rgb(54, 54, 58)
+                    } else {
+                        Color32::from_rgb(230, 230, 233)
+                    }
+                });
                 painter.rect(
                     draw_rect,
                     6.0,
@@ -9866,11 +9879,13 @@ impl EntropyApp {
                         bg,
                         Stroke::new(
                             1.0,
-                            if dark {
-                                Color32::from_rgb(54, 54, 58)
-                            } else {
-                                Color32::from_rgb(230, 230, 233)
-                            },
+                            layer_led_outline.unwrap_or_else(|| {
+                                if dark {
+                                    Color32::from_rgb(54, 54, 58)
+                                } else {
+                                    Color32::from_rgb(230, 230, 233)
+                                }
+                            }),
                         ),
                         egui::StrokeKind::Inside,
                     );
@@ -9899,11 +9914,13 @@ impl EntropyApp {
                     } else {
                         Color32::from_rgb(255, 255, 255)
                     };
-                    let no_border = if dark {
-                        Color32::from_rgb(40, 40, 44)
-                    } else {
-                        Color32::from_rgb(230, 230, 233)
-                    };
+                    let no_border = layer_led_outline.unwrap_or_else(|| {
+                        if dark {
+                            Color32::from_rgb(40, 40, 44)
+                        } else {
+                            Color32::from_rgb(230, 230, 233)
+                        }
+                    });
                     let fill = if is_selected || is_hovered { bg } else { no_bg };
                     painter.rect(
                         draw_rect,
@@ -9913,11 +9930,13 @@ impl EntropyApp {
                         egui::StrokeKind::Inside,
                     );
                 } else {
-                    let border = if dark {
-                        Color32::from_rgb(54, 54, 58)
-                    } else {
-                        Color32::from_rgb(230, 230, 233)
-                    };
+                    let border = layer_led_outline.unwrap_or_else(|| {
+                        if dark {
+                            Color32::from_rgb(54, 54, 58)
+                        } else {
+                            Color32::from_rgb(230, 230, 233)
+                        }
+                    });
                     painter.rect(
                         draw_rect,
                         6.0,
