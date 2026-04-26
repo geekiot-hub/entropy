@@ -6799,11 +6799,17 @@ impl EntropyApp {
                 ui.label(RichText::new("Grave Escape").size(18.0).strong());
                 ui.add_space(6.0);
                 ui.label(
-                    RichText::new("Tune global KC_GESC behavior when modifiers are held")
+                    RichText::new("Choose when Grave Escape should stay Escape instead of ` / ~")
                         .size(13.0)
                         .color(app_muted_text(dark)),
                 );
-                ui.add_space(24.0);
+                ui.add_space(4.0);
+                ui.label(
+                    RichText::new("Tip: right-click a key assigned Grave Escape to open this page")
+                        .size(11.0)
+                        .color(app_muted_text(dark)),
+                );
+                ui.add_space(20.0);
 
                 if !self.grave_escape_settings.supported {
                     crate::ui_style::modal_empty_state(
