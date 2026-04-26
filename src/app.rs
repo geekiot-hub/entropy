@@ -6485,7 +6485,17 @@ impl EntropyApp {
                 2..=17 => {
                     let layer = row_idx - 2;
                     let current = self.layer_led_settings.layer_colors[layer];
-                    let label = format!("Layer {layer} color");
+                    let layer_name = self
+                        .layer_names
+                        .get(layer)
+                        .map(|name| name.trim())
+                        .filter(|name| !name.is_empty() && *name != layer.to_string())
+                        .map(|name| {
+                            let visible: String = name.chars().take(22).collect();
+                            format!("Layer {layer}: {visible}")
+                        })
+                        .unwrap_or_else(|| format!("Layer {layer} color"));
+                    let label = layer_name;
                     let tooltip = format!("LED palette color used when layer {layer} is active");
                     crate::ui_style::settings_list_row_with_tooltip(
                         ui,
@@ -9766,7 +9776,13 @@ impl EntropyApp {
                 .get(layer.min(15))
                 .copied()
                 .unwrap_or(0);
-            Some(layer_led_palette_color(color_idx))
+            // Off and White should keep the standard neutral outline so disabled/uncolored
+            // layers do not look artificially tinted.
+            if matches!(color_idx, 0 | 1) {
+                None
+            } else {
+                Some(layer_led_palette_color(color_idx))
+            }
         } else {
             None
         };
