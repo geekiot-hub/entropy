@@ -332,6 +332,39 @@ fn app_inactive_entry_text(dark: bool) -> Color32 {
     }
 }
 
+fn universal_symbols_setup_steps() -> &'static [&'static str] {
+    #[cfg(target_os = "windows")]
+    {
+        &[
+            "No extra setup is required on Windows",
+            "Keep Entropy running while using Universal Symbols",
+            "Assign symbols from Symbols → Universal symbols in the key picker",
+        ]
+    }
+    #[cfg(target_os = "macos")]
+    {
+        &[
+            "Open Privacy & Security and allow Entropy in Accessibility",
+            "If prompted, also allow Entropy in Input Monitoring",
+            "Restart Entropy after changing permissions",
+            "Keep Entropy running while using Universal Symbols",
+        ]
+    }
+    #[cfg(target_os = "linux")]
+    {
+        &[
+            "X11: install xdotool, then keep Entropy running",
+            "Wayland with IBus: install Entropy Universal Symbols and select it as an input source",
+            "Wayland with Fcitx5: install the addon, restart Fcitx5, and enable Entropy Universal Symbols",
+            "Assign symbols from Symbols → Universal symbols in the key picker",
+        ]
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    {
+        &["Universal Symbols are not supported on this OS yet"]
+    }
+}
+
 fn top_dropdown_frame(dark: bool) -> egui::Frame {
     egui::Frame::new()
         .fill(app_surface_fill(dark))
@@ -1405,6 +1438,7 @@ enum ComboPickField {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum SettingsTab {
     MatrixTester,
+    UniversalSymbolsSetup,
     AutoShift,
     Rgb,
     LayerLeds,
@@ -2924,6 +2958,9 @@ impl EntropyApp {
             SettingsTab::MatrixTester => {
                 self.draw_matrix_tester_settings(ui, layout, content_rect, dark);
             }
+            SettingsTab::UniversalSymbolsSetup => {
+                self.draw_universal_symbols_setup_page(ui, content_rect);
+            }
             SettingsTab::AutoShift => {
                 self.draw_auto_shift_settings_page(ui, content_rect, dark);
             }
@@ -2980,6 +3017,113 @@ impl EntropyApp {
             FontId::proportional(11.0),
             hint_color,
         );
+    }
+
+    fn draw_universal_symbols_setup_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
+        let dark = ui.visuals().dark_mode;
+        let content_width = 470.0_f32;
+        ui.allocate_ui_at_rect(content_rect, |ui| {
+            ui.vertical_centered(|ui| {
+                ui.add_space(4.0);
+                ui.allocate_ui_with_layout(
+                    Vec2::new(content_width, 0.0),
+                    egui::Layout::top_down(egui::Align::Min),
+                    |ui| {
+                        ui.label(RichText::new("Universal Symbols Setup").size(18.0).strong());
+                        ui.add_space(8.0);
+                        ui.label(
+                            RichText::new(crate::smart_input::universal_output_status())
+                                .size(12.5)
+                                .color(app_muted_text(dark)),
+                        );
+                        if let Some(hint) = crate::smart_input::universal_output_setup_hint() {
+                            ui.add_space(4.0);
+                            ui.label(RichText::new(hint).size(11.0).color(app_muted_text(dark)));
+                        }
+                        ui.add_space(16.0);
+
+                        for step in universal_symbols_setup_steps() {
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new("•").size(13.0).color(app_accent()));
+                                ui.label(RichText::new(*step).size(12.0));
+                            });
+                            ui.add_space(5.0);
+                        }
+
+                        ui.add_space(14.0);
+                        self.draw_universal_symbols_setup_actions(ui);
+                    },
+                );
+            });
+        });
+    }
+
+    fn draw_universal_symbols_setup_actions(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal_centered(|ui| {
+            #[cfg(target_os = "macos")]
+            {
+                if crate::ui_style::modern_button(
+                    ui,
+                    "Open Privacy Settings",
+                    Vec2::new(184.0, 34.0),
+                    true,
+                )
+                .clicked()
+                {
+                    let result = std::process::Command::new("open")
+                        .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+                        .status();
+                    self.status_msg = if matches!(result, Ok(status) if status.success()) {
+                        "Opened macOS Privacy settings".to_string()
+                    } else {
+                        "Could not open macOS Privacy settings".to_string()
+                    };
+                }
+            }
+
+            #[cfg(target_os = "linux")]
+            {
+                if crate::ui_style::modern_button(ui, "Install IBus", Vec2::new(132.0, 34.0), true)
+                    .clicked()
+                {
+                    self.run_linux_universal_symbols_setup("linux/ibus/install-user.sh", "IBus");
+                }
+                ui.add_space(8.0);
+                if crate::ui_style::modern_button(ui, "Install Fcitx5", Vec2::new(142.0, 34.0), true)
+                    .clicked()
+                {
+                    self.run_linux_universal_symbols_setup("linux/fcitx5/install-user.sh", "Fcitx5");
+                }
+            }
+
+            #[cfg(target_os = "windows")]
+            {
+                ui.label(
+                    RichText::new("Windows backend is active while Entropy is running")
+                        .size(11.0)
+                        .color(app_muted_text(ui.visuals().dark_mode)),
+                );
+            }
+
+            #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+            {
+                ui.label(
+                    RichText::new("No setup action is available for this OS")
+                        .size(11.0)
+                        .color(app_muted_text(ui.visuals().dark_mode)),
+                );
+            }
+        });
+    }
+
+    #[cfg(target_os = "linux")]
+    fn run_linux_universal_symbols_setup(&mut self, script: &str, backend: &str) {
+        let result = std::process::Command::new("sh").arg(script).status();
+        self.status_msg = if matches!(result, Ok(status) if status.success()) {
+            format!("{backend} backend installed; restart/select it in your input method")
+        } else {
+            format!("Could not run {script}; run it from the Entropy folder")
+        };
     }
 
     fn draw_mouse_keys_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
@@ -5371,6 +5515,11 @@ impl EntropyApp {
 
     fn open_mouse_keys_settings_page(&mut self) {
         self.settings_tab = SettingsTab::MouseKeys;
+        self.main_menu_tab = MainMenuTab::Settings;
+    }
+
+    fn open_universal_symbols_setup_page(&mut self) {
+        self.settings_tab = SettingsTab::UniversalSymbolsSetup;
         self.main_menu_tab = MainMenuTab::Settings;
     }
 
@@ -9751,7 +9900,7 @@ impl EntropyApp {
                 let show_magic_item = self.magic_settings.supported;
                 let show_tap_hold_item = self.tap_hold_settings.supported;
                 let show_one_shot_item = self.one_shot_settings.supported;
-                let settings_item_count = 1
+                let settings_item_count = 2
                     + show_rgb_item as usize
                     + show_layer_leds_item as usize
                     + show_encoders_item as usize
@@ -9782,6 +9931,7 @@ impl EntropyApp {
                     let item_width = dropdown_rect.width() - 16.0;
                     let (
                         matrix_hovered,
+                        universal_symbols_hovered,
                         rgb_hovered,
                         layer_leds_hovered,
                         encoders_hovered,
@@ -9803,6 +9953,14 @@ impl EntropyApp {
                                         true,
                                         self.main_menu_tab == MainMenuTab::Settings
                                             && self.settings_tab == SettingsTab::MatrixTester,
+                                    );
+                                    let universal_symbols_resp = top_dropdown_item(
+                                        ui,
+                                        item_width,
+                                        "Universal Symbols",
+                                        true,
+                                        self.main_menu_tab == MainMenuTab::Settings
+                                            && self.settings_tab == SettingsTab::UniversalSymbolsSetup,
                                     );
                                     let rgb_resp = if show_rgb_item {
                                         Some(top_dropdown_item(
@@ -9875,6 +10033,10 @@ impl EntropyApp {
                                         self.matrix_tester_unlock_prompted = false;
                                         self.main_menu_tab = MainMenuTab::Settings;
                                     }
+                                    if universal_symbols_resp.clicked() {
+                                        self.close_top_dropdowns(ui.ctx());
+                                        self.open_universal_symbols_setup_page();
+                                    }
                                     if let Some(rgb_resp) = &rgb_resp {
                                         if rgb_resp.clicked() && rgb_available {
                                             self.close_top_dropdowns(ui.ctx());
@@ -9910,6 +10072,7 @@ impl EntropyApp {
                                     }
                                     (
                                         matrix_resp.hovered(),
+                                        universal_symbols_resp.hovered(),
                                         rgb_resp.as_ref().map(|resp| resp.hovered()).unwrap_or(false),
                                         layer_leds_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         encoders_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
@@ -9917,6 +10080,7 @@ impl EntropyApp {
                                         tap_hold_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         one_shot_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         matrix_resp.clicked()
+                                            || universal_symbols_resp.clicked()
                                             || rgb_resp
                                                 .as_ref()
                                                 .map(|resp| resp.clicked() && rgb_available)
@@ -9937,6 +10101,7 @@ impl EntropyApp {
                             !settings_clicked
                                 && (settings_tab_hovered
                                     || matrix_hovered
+                                    || universal_symbols_hovered
                                     || rgb_hovered
                                     || layer_leds_hovered
                                     || encoders_hovered
