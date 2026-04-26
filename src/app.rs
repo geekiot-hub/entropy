@@ -6799,17 +6799,11 @@ impl EntropyApp {
                 ui.label(RichText::new("Grave Escape").size(18.0).strong());
                 ui.add_space(6.0);
                 ui.label(
-                    RichText::new("Choose when Grave Escape should stay Escape instead of ` / ~")
+                    RichText::new("Choose which modifiers make Grave Escape send Esc")
                         .size(13.0)
                         .color(app_muted_text(dark)),
                 );
-                ui.add_space(4.0);
-                ui.label(
-                    RichText::new("Tip: right-click a key assigned Grave Escape to open this page")
-                        .size(11.0)
-                        .color(app_muted_text(dark)),
-                );
-                ui.add_space(20.0);
+                ui.add_space(24.0);
 
                 if !self.grave_escape_settings.supported {
                     crate::ui_style::modal_empty_state(
@@ -9483,6 +9477,7 @@ impl EntropyApp {
                             hovered_is_tap_dance,
                             hovered_is_mouse,
                             hovered_is_alt_repeat,
+                            hovered_is_grave_escape,
                             hovered_is_layer,
                         ) = if self.firmware == FirmwareProtocol::Vial {
                             let hint_kc = self
@@ -9528,6 +9523,7 @@ impl EntropyApp {
                                     let is_tap_dance = kc >= 0x5700 && kc <= 0x57FF;
                                     let is_mouse = is_mouse_keycode(kc);
                                     let is_alt_repeat = is_alt_repeat_keycode(kc);
+                                    let is_grave_escape = kc == 0x7C16;
                                     let is_layer =
                                         (kc >= 0x5200 && kc < 0x5300) || (kc & 0xF000 == 0x4000);
                                     (
@@ -9537,12 +9533,13 @@ impl EntropyApp {
                                         is_tap_dance,
                                         is_mouse,
                                         is_alt_repeat,
+                                        is_grave_escape,
                                         is_layer,
                                     )
                                 })
-                                .unwrap_or((false, false, false, false, false, false, false))
+                                .unwrap_or((false, false, false, false, false, false, false, false))
                         } else {
-                            (false, false, false, false, false, false, false)
+                            (false, false, false, false, false, false, false, false)
                         };
                         if hovered_is_mod {
                             if hovered_can_swap_side {
@@ -9640,6 +9637,21 @@ impl EntropyApp {
                                 egui::pos2(center_x, hint_y + 4.0),
                                 egui::Align2::CENTER_CENTER,
                                 "Right click to open Alt Repeat settings",
+                                secondary_hint_font,
+                                hint_color,
+                            );
+                        } else if hovered_is_grave_escape {
+                            ui.painter().text(
+                                egui::pos2(center_x, hint_y - 14.0),
+                                egui::Align2::CENTER_CENTER,
+                                "Left click to change this key",
+                                hint_font.clone(),
+                                hint_color,
+                            );
+                            ui.painter().text(
+                                egui::pos2(center_x, hint_y + 4.0),
+                                egui::Align2::CENTER_CENTER,
+                                "Right click to open Grave Escape settings",
                                 secondary_hint_font,
                                 hint_color,
                             );
