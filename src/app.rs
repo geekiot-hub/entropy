@@ -8413,15 +8413,9 @@ impl EntropyApp {
                     Color32::from_gray(178)
                 }
             } else if undo_resp.hovered() {
-                if ui.visuals().dark_mode {
-                    Color32::from_gray(190)
-                } else {
-                    Color32::from_gray(64)
-                }
-            } else if ui.visuals().dark_mode {
-                Color32::from_gray(112)
+                app_accent()
             } else {
-                Color32::from_gray(132)
+                ui.visuals().widgets.inactive.fg_stroke.color
             };
             let undo_text_pos = egui::pos2(undo_rect.left() + 6.0, undo_rect.center().y);
             ui.painter().text(
@@ -8431,16 +8425,6 @@ impl EntropyApp {
                 undo_font,
                 undo_color,
             );
-            if undo_resp.hovered() && undo_enabled {
-                let underline_y = undo_rect.center().y + 10.0;
-                ui.painter().line_segment(
-                    [
-                        egui::pos2(undo_rect.left() + 6.0, underline_y),
-                        egui::pos2(undo_rect.left() + 6.0 + undo_text_w, underline_y),
-                    ],
-                    egui::Stroke::new(1.0, undo_color.linear_multiply(0.72)),
-                );
-            }
 
             let divider_color = if ui.visuals().dark_mode {
                 Color32::from_gray(105)
