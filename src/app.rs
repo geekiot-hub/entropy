@@ -3656,6 +3656,7 @@ impl EntropyApp {
             ),
             _ => return,
         };
+        let enabled = row_idx == 0 || self.auto_shift_options.enabled;
         let tooltip = if suppress_tooltips { None } else { Some(row.1) };
         if row.2 {
             let mut value = match row_idx {
@@ -3673,11 +3674,15 @@ impl EntropyApp {
                 content_width,
                 row_height,
                 row.0,
-                true,
+                enabled,
                 tooltip,
                 46.0,
                 |ui| {
-                    let resp = crate::ui_style::settings_switch(ui, &mut value);
+                    let resp = ui
+                        .add_enabled_ui(enabled, |ui| {
+                            crate::ui_style::settings_switch(ui, &mut value)
+                        })
+                        .inner;
                     if resp.changed() {
                         match row_idx {
                             0 => self.auto_shift_options.enabled = value,
@@ -3703,20 +3708,24 @@ impl EntropyApp {
                 content_width,
                 row_height,
                 row.0,
-                true,
+                enabled,
                 tooltip,
                 field_width,
                 |ui| {
                     let edit_id = egui::Id::new("auto_shift_timeout");
-                    let resp = crate::ui_style::modern_text_field(
+                    let resp = ui
+                        .add_enabled_ui(enabled, |ui| {
+                            crate::ui_style::modern_text_field(
                         ui,
                         edit_id,
                         &mut self.auto_shift_timeout_text,
                         field_width,
                         "ms",
                         5,
-                        egui::Align::RIGHT,
-                    );
+                                egui::Align::RIGHT,
+                            )
+                        })
+                        .inner;
                     if resp.changed() {
                         let filtered: String = self
                             .auto_shift_timeout_text
