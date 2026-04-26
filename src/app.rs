@@ -5275,6 +5275,8 @@ impl EntropyApp {
         let mut edited = current.clone();
         const CONTENT_WIDTH: f32 = 470.0;
         const ROW_HEIGHT: f32 = 54.0;
+        const VISIBLE_ROWS: usize = 6;
+        const TOTAL_ROWS: usize = 11;
         const CONTROL_WIDTH: f32 = 168.0;
         const MOD_CONTROL_WIDTH: f32 = 210.0;
         let custom = self
@@ -5335,228 +5337,437 @@ impl EntropyApp {
         } else {
             ui.visuals().text_color()
         };
+        let gui = crate::keycode::gui_mod_name();
 
         crate::ui_style::modal_content(
             ui,
             crate::ui_style::ModalLayout::new(CONTENT_WIDTH).with_top_padding(4.0),
             |ui| {
-                crate::ui_style::settings_list_row(
-                    ui,
-                    CONTENT_WIDTH,
-                    ROW_HEIGHT,
-                    "Entry",
-                    true,
-                    CONTROL_WIDTH,
-                    |ui| {
-                        egui::ComboBox::from_id_salt("alt_repeat_entry_select")
-                            .selected_text(RichText::new(selected_text).color(selected_text_color))
-                            .width(CONTROL_WIDTH)
-                            .show_ui(ui, |ui| {
-                                for entry_idx in 0..self.alt_repeat_entries.len() {
-                                    let empty = self
-                                        .alt_repeat_entries
-                                        .get(entry_idx)
-                                        .map(|entry| !Self::alt_repeat_entry_exists(entry))
-                                        .unwrap_or(true)
-                                        && self
-                                            .alt_repeat_names
-                                            .get(entry_idx)
-                                            .map(|name| name.trim().is_empty())
-                                            .unwrap_or(true);
-                                    let label = match self.alt_repeat_names.get(entry_idx) {
-                                        Some(name) if !name.trim().is_empty() => RichText::new(
-                                            format!("AR{}: {}", entry_idx, name.trim()),
-                                        )
-                                        .color(if empty {
-                                            app_inactive_entry_text(ui.visuals().dark_mode)
-                                        } else {
-                                            ui.visuals().text_color()
-                                        }),
-                                        _ => RichText::new(format!("AR{}", entry_idx)).color(
-                                            if empty {
-                                                app_inactive_entry_text(ui.visuals().dark_mode)
-                                            } else {
-                                                ui.visuals().text_color()
-                                            },
-                                        ),
-                                    };
-                                    let resp = ui.selectable_value(
-                                        &mut self.selected_alt_repeat,
-                                        entry_idx,
-                                        label,
-                                    );
-                                    if resp.hovered() {
-                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                    }
-                                }
-                            });
-                    },
+                let list_height = ROW_HEIGHT * VISIBLE_ROWS as f32;
+                let scroll_id = ui.id().with("alt_repeat_settings_first_row");
+                let max_first_row = TOTAL_ROWS.saturating_sub(VISIBLE_ROWS);
+                let mut first_row = ui
+                    .ctx()
+                    .data_mut(|d| d.get_persisted::<usize>(scroll_id).unwrap_or(0))
+                    .min(max_first_row);
+                let (viewport, viewport_resp) = ui.allocate_exact_size(
+                    egui::vec2(CONTENT_WIDTH, list_height),
+                    Sense::hover(),
                 );
+                let track_width = 6.0;
+                let track_rect = egui::Rect::from_min_max(
+                    egui::pos2(viewport.right() - track_width, viewport.top()),
+                    egui::pos2(viewport.right(), viewport.bottom()),
+                );
+                let scrollbar_resp = if max_first_row > 0 {
+                    Some(ui.interact(
+                        track_rect.expand2(egui::vec2(5.0, 0.0)),
+                        ui.id().with("alt_repeat_settings_scrollbar"),
+                        Sense::click_and_drag(),
+                    ))
+                } else {
+                    None
+                };
 
-                let mut name_changed = false;
-                crate::ui_style::settings_list_row(
-                    ui,
-                    CONTENT_WIDTH,
-                    ROW_HEIGHT,
-                    "Name",
-                    true,
-                    CONTROL_WIDTH,
-                    |ui| {
-                        if let Some(name) = self.alt_repeat_names.get_mut(idx) {
-                            let resp = ui.add_sized(
-                                [CONTROL_WIDTH, 32.0],
-                                egui::TextEdit::singleline(name)
-                                    .desired_width(CONTROL_WIDTH)
-                                    .hint_text("Name")
-                                    .char_limit(12)
-                                    .horizontal_align(egui::Align::Center)
-                                    .vertical_align(egui::Align::Center),
-                            );
-                            name_changed = resp.changed();
-                            resp.clone().on_hover_text("Stored locally in Entropy");
-                            if resp.hovered() {
-                                ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
-                            }
-                        }
-                    },
-                );
-                if name_changed {
-                    self.push_alt_repeat_undo();
-                    save_alt_repeat_names(&self.alt_repeat_names, &self.current_device_name);
+                let scroll_delta = if viewport_resp.hovered() {
+                    ui.input(|i| i.raw_scroll_delta.y + i.smooth_scroll_delta.y)
+                } else {
+                    0.0
+                };
+                if scroll_delta.abs() > 0.0 && max_first_row > 0 {
+                    let step = if scroll_delta.abs() > ROW_HEIGHT { 2 } else { 1 };
+                    if scroll_delta < 0.0 {
+                        first_row = (first_row + step).min(max_first_row);
+                    } else {
+                        first_row = first_row.saturating_sub(step);
+                    }
                 }
 
-                crate::ui_style::settings_list_row(
-                    ui,
-                    CONTENT_WIDTH,
-                    ROW_HEIGHT,
-                    "Last key",
-                    true,
-                    CONTROL_WIDTH,
-                    |ui| {
-                        let resp = ui
-                            .add_sized(
-                                [CONTROL_WIDTH, 32.0],
-                                egui::Button::new(RichText::new(last_key_label).size(12.0)),
-                            )
-                            .on_hover_cursor(egui::CursorIcon::PointingHand);
-                        if resp.clicked() {
-                            self.open_alt_repeat_picker(AltRepeatPickField::LastKey);
+                let handle_height = if max_first_row > 0 {
+                    (VISIBLE_ROWS as f32 / TOTAL_ROWS as f32) * viewport.height()
+                } else {
+                    viewport.height()
+                };
+                if let Some(resp) = &scrollbar_resp {
+                    if (resp.dragged() || resp.clicked()) && max_first_row > 0 {
+                        if let Some(pointer_pos) = ui.input(|i| i.pointer.interact_pos()) {
+                            let travel = (track_rect.height() - handle_height).max(1.0);
+                            let t = ((pointer_pos.y - track_rect.top() - handle_height / 2.0)
+                                / travel)
+                                .clamp(0.0, 1.0);
+                            first_row = (t * max_first_row as f32).round() as usize;
                         }
-                        resp.on_hover_text(last_key_tip.trim_end_matches('.'));
-                    },
-                );
+                    }
+                }
+                first_row = first_row.min(max_first_row);
+                ui.ctx().data_mut(|d| d.insert_persisted(scroll_id, first_row));
 
-                crate::ui_style::settings_list_row(
-                    ui,
-                    CONTENT_WIDTH,
-                    ROW_HEIGHT,
-                    "Alt key",
-                    true,
-                    CONTROL_WIDTH,
-                    |ui| {
-                        let resp = ui
-                            .add_sized(
-                                [CONTROL_WIDTH, 32.0],
-                                egui::Button::new(RichText::new(alt_key_label).size(12.0)),
-                            )
-                            .on_hover_cursor(egui::CursorIcon::PointingHand);
-                        if resp.clicked() {
-                            self.open_alt_repeat_picker(AltRepeatPickField::AltKey);
+                ui.allocate_ui_at_rect(viewport, |ui| {
+                    ui.set_clip_rect(viewport);
+                    ui.set_min_size(egui::vec2(CONTENT_WIDTH, list_height));
+                    ui.spacing_mut().item_spacing.y = 0.0;
+                    for row_idx in first_row..(first_row + VISIBLE_ROWS).min(TOTAL_ROWS) {
+                        match row_idx {
+                            0 => {
+                                crate::ui_style::settings_list_row(
+                                    ui,
+                                    CONTENT_WIDTH,
+                                    ROW_HEIGHT,
+                                    "Entry",
+                                    true,
+                                    CONTROL_WIDTH,
+                                    |ui| {
+                                        let dropdown_id = ui.make_persistent_id("alt_repeat_entry_dropdown");
+                                        let dropdown_open = ui.memory(|m| m.is_popup_open(dropdown_id));
+                                        let (dropdown_rect, dropdown_resp) = ui.allocate_exact_size(
+                                            Vec2::new(CONTROL_WIDTH, 32.0),
+                                            Sense::click(),
+                                        );
+                                        if dropdown_resp.hovered() {
+                                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                        }
+                                        if dropdown_resp.clicked() {
+                                            ui.memory_mut(|m| m.toggle_popup(dropdown_id));
+                                        }
+
+                                        let dropdown_fill = if dropdown_open || dropdown_resp.hovered() {
+                                            crate::ui_style::hover_fill(dark)
+                                        } else {
+                                            app_surface_fill(dark)
+                                        };
+                                        let dropdown_stroke = if dropdown_open {
+                                            Stroke::new(1.0, Color32::from_rgb(126, 126, 130))
+                                        } else if dropdown_resp.hovered() {
+                                            Stroke::new(1.0, Color32::from_rgb(112, 112, 116))
+                                        } else {
+                                            crate::ui_style::modal_outline_stroke(dark)
+                                        };
+                                        ui.painter().rect(
+                                            dropdown_rect,
+                                            9.0,
+                                            dropdown_fill,
+                                            dropdown_stroke,
+                                            egui::StrokeKind::Inside,
+                                        );
+                                        ui.painter().text(
+                                            egui::pos2(dropdown_rect.left() + 12.0, dropdown_rect.center().y),
+                                            egui::Align2::LEFT_CENTER,
+                                            selected_text.as_str(),
+                                            FontId::proportional(12.5),
+                                            selected_text_color,
+                                        );
+                                        let chevron_x = dropdown_rect.right() - 15.0;
+                                        let chevron_y = dropdown_rect.center().y + 1.0;
+                                        let chevron_color = app_muted_text(dark);
+                                        ui.painter().line_segment(
+                                            [
+                                                egui::pos2(chevron_x - 4.5, chevron_y - 2.0),
+                                                egui::pos2(chevron_x, chevron_y + 2.5),
+                                            ],
+                                            Stroke::new(1.4, chevron_color),
+                                        );
+                                        ui.painter().line_segment(
+                                            [
+                                                egui::pos2(chevron_x, chevron_y + 2.5),
+                                                egui::pos2(chevron_x + 4.5, chevron_y - 2.0),
+                                            ],
+                                            Stroke::new(1.4, chevron_color),
+                                        );
+
+                                        egui::popup_below_widget(
+                                            ui,
+                                            dropdown_id,
+                                            &dropdown_resp,
+                                            egui::PopupCloseBehavior::CloseOnClickOutside,
+                                            |ui| {
+                                                ui.set_min_width(CONTROL_WIDTH);
+                                                ui.spacing_mut().item_spacing = Vec2::new(0.0, 2.0);
+                                                egui::ScrollArea::vertical()
+                                                    .id_salt("alt_repeat_entry_dropdown_scroll")
+                                                    .max_height(142.0)
+                                                    .auto_shrink([false, true])
+                                                    .show(ui, |ui| {
+                                                        for entry_idx in 0..self.alt_repeat_entries.len() {
+                                                            let empty = self
+                                                                .alt_repeat_entries
+                                                                .get(entry_idx)
+                                                                .map(|entry| !Self::alt_repeat_entry_exists(entry))
+                                                                .unwrap_or(true)
+                                                                && self
+                                                                    .alt_repeat_names
+                                                                    .get(entry_idx)
+                                                                    .map(|name| name.trim().is_empty())
+                                                                    .unwrap_or(true);
+                                                            let option_text = match self.alt_repeat_names.get(entry_idx) {
+                                                                Some(name) if !name.trim().is_empty() => {
+                                                                    format!("AR{}: {}", entry_idx, name.trim())
+                                                                }
+                                                                _ => format!("AR{}", entry_idx),
+                                                            };
+                                                            let selected = entry_idx == self.selected_alt_repeat;
+                                                            let (option_rect, option_resp) = ui.allocate_exact_size(
+                                                                Vec2::new(CONTROL_WIDTH, 28.0),
+                                                                Sense::click(),
+                                                            );
+                                                            if option_resp.hovered() {
+                                                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                                            }
+                                                            let option_fill = if selected {
+                                                                if dark {
+                                                                    Color32::from_rgb(58, 58, 61)
+                                                                } else {
+                                                                    Color32::from_rgb(236, 236, 238)
+                                                                }
+                                                            } else if option_resp.hovered() {
+                                                                crate::ui_style::hover_fill(dark)
+                                                            } else {
+                                                                Color32::TRANSPARENT
+                                                            };
+                                                            ui.painter().rect_filled(option_rect, 7.0, option_fill);
+                                                            ui.painter().text(
+                                                                egui::pos2(option_rect.left() + 10.0, option_rect.center().y),
+                                                                egui::Align2::LEFT_CENTER,
+                                                                option_text,
+                                                                FontId::proportional(12.0),
+                                                                if selected {
+                                                                    ui.visuals().text_color()
+                                                                } else if empty {
+                                                                    app_inactive_entry_text(ui.visuals().dark_mode)
+                                                                } else {
+                                                                    app_muted_text(ui.visuals().dark_mode)
+                                                                },
+                                                            );
+                                                            if option_resp.clicked() {
+                                                                self.selected_alt_repeat = entry_idx;
+                                                                ui.memory_mut(|m| m.close_popup());
+                                                            }
+                                                        }
+                                                    });
+                                            },
+                                        );
+                                    },
+                                );
+                            }
+                            1 => {
+                                let mut name_changed = false;
+                                crate::ui_style::settings_list_row(
+                                    ui,
+                                    CONTENT_WIDTH,
+                                    ROW_HEIGHT,
+                                    "Name",
+                                    true,
+                                    CONTROL_WIDTH,
+                                    |ui| {
+                                        if let Some(name) = self.alt_repeat_names.get_mut(idx) {
+                                            let resp = ui.add_sized(
+                                                [CONTROL_WIDTH, 32.0],
+                                                egui::TextEdit::singleline(name)
+                                                    .desired_width(CONTROL_WIDTH)
+                                                    .hint_text("Name")
+                                                    .char_limit(12)
+                                                    .horizontal_align(egui::Align::Center)
+                                                    .vertical_align(egui::Align::Center),
+                                            );
+                                            name_changed = resp.changed();
+                                            resp.clone().on_hover_text("Stored locally in Entropy");
+                                            if resp.hovered() {
+                                                ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
+                                            }
+                                        }
+                                    },
+                                );
+                                if name_changed {
+                                    self.push_alt_repeat_undo();
+                                    save_alt_repeat_names(&self.alt_repeat_names, &self.current_device_name);
+                                }
+                            }
+                            2 => {
+                                crate::ui_style::settings_list_row(
+                                    ui,
+                                    CONTENT_WIDTH,
+                                    ROW_HEIGHT,
+                                    "Last key",
+                                    true,
+                                    CONTROL_WIDTH,
+                                    |ui| {
+                                        let resp = ui
+                                            .add_sized(
+                                                [CONTROL_WIDTH, 32.0],
+                                                egui::Button::new(RichText::new(last_key_label.as_str()).size(12.0)),
+                                            )
+                                            .on_hover_cursor(egui::CursorIcon::PointingHand);
+                                        if resp.clicked() {
+                                            self.open_alt_repeat_picker(AltRepeatPickField::LastKey);
+                                        }
+                                        resp.on_hover_text(last_key_tip.trim_end_matches('.'));
+                                    },
+                                );
+                            }
+                            3 => {
+                                crate::ui_style::settings_list_row(
+                                    ui,
+                                    CONTENT_WIDTH,
+                                    ROW_HEIGHT,
+                                    "Alt key",
+                                    true,
+                                    CONTROL_WIDTH,
+                                    |ui| {
+                                        let resp = ui
+                                            .add_sized(
+                                                [CONTROL_WIDTH, 32.0],
+                                                egui::Button::new(RichText::new(alt_key_label.as_str()).size(12.0)),
+                                            )
+                                            .on_hover_cursor(egui::CursorIcon::PointingHand);
+                                        if resp.clicked() {
+                                            self.open_alt_repeat_picker(AltRepeatPickField::AltKey);
+                                        }
+                                        resp.on_hover_text(alt_key_tip.trim_end_matches('.'));
+                                    },
+                                );
+                            }
+                            4..=7 => {
+                                let (row_label, left_bit, right_bit) = match row_idx {
+                                    4 => ("Ctrl mods".to_string(), 0, 4),
+                                    5 => ("Shift mods".to_string(), 1, 5),
+                                    6 => ("Alt mods".to_string(), 2, 6),
+                                    _ => (format!("{} mods", gui), 3, 7),
+                                };
+                                crate::ui_style::settings_list_row(
+                                    ui,
+                                    CONTENT_WIDTH,
+                                    ROW_HEIGHT,
+                                    row_label.as_str(),
+                                    true,
+                                    MOD_CONTROL_WIDTH,
+                                    |ui| {
+                                        let mut left_checked = (edited.allowed_mods & (1 << left_bit)) != 0;
+                                        ui.label(
+                                            RichText::new("L")
+                                                .size(12.0)
+                                                .color(app_muted_text(ui.visuals().dark_mode)),
+                                        );
+                                        let left_resp = crate::ui_style::settings_switch(ui, &mut left_checked);
+                                        if left_resp.changed() {
+                                            if left_checked {
+                                                edited.allowed_mods |= 1 << left_bit;
+                                            } else {
+                                                edited.allowed_mods &= !(1 << left_bit);
+                                            }
+                                        }
+                                        ui.add_space(10.0);
+                                        let mut right_checked = (edited.allowed_mods & (1 << right_bit)) != 0;
+                                        ui.label(
+                                            RichText::new("R")
+                                                .size(12.0)
+                                                .color(app_muted_text(ui.visuals().dark_mode)),
+                                        );
+                                        let right_resp = crate::ui_style::settings_switch(ui, &mut right_checked);
+                                        if right_resp.changed() {
+                                            if right_checked {
+                                                edited.allowed_mods |= 1 << right_bit;
+                                            } else {
+                                                edited.allowed_mods &= !(1 << right_bit);
+                                            }
+                                        }
+                                    },
+                                );
+                            }
+                            8 => {
+                                crate::ui_style::settings_list_row(
+                                    ui,
+                                    CONTENT_WIDTH,
+                                    ROW_HEIGHT,
+                                    "Default alt key",
+                                    true,
+                                    46.0,
+                                    |ui| {
+                                        crate::ui_style::settings_switch(
+                                            ui,
+                                            &mut edited.options.default_to_this_alt_key,
+                                        );
+                                    },
+                                );
+                            }
+                            9 => {
+                                crate::ui_style::settings_list_row(
+                                    ui,
+                                    CONTENT_WIDTH,
+                                    ROW_HEIGHT,
+                                    "Bidirectional",
+                                    true,
+                                    46.0,
+                                    |ui| {
+                                        crate::ui_style::settings_switch(
+                                            ui,
+                                            &mut edited.options.bidirectional,
+                                        );
+                                    },
+                                );
+                            }
+                            10 => {
+                                crate::ui_style::settings_list_row(
+                                    ui,
+                                    CONTENT_WIDTH,
+                                    ROW_HEIGHT,
+                                    "Ignore handedness",
+                                    true,
+                                    46.0,
+                                    |ui| {
+                                        crate::ui_style::settings_switch(
+                                            ui,
+                                            &mut edited.options.ignore_mod_handedness,
+                                        );
+                                    },
+                                );
+                            }
+                            _ => {}
                         }
-                        resp.on_hover_text(alt_key_tip.trim_end_matches('.'));
-                    },
-                );
+                    }
+                });
 
-                let gui = crate::keycode::gui_mod_name();
-                let mut mod_pair_row =
-                    |ui: &mut egui::Ui, row_label: &str, left_label: &str, left_bit: u8, right_label: &str, right_bit: u8| {
-                        crate::ui_style::settings_list_row(
-                            ui,
-                            CONTENT_WIDTH,
-                            ROW_HEIGHT,
-                            row_label,
-                            true,
-                            MOD_CONTROL_WIDTH,
-                            |ui| {
-                                let mut left_checked = (edited.allowed_mods & (1 << left_bit)) != 0;
-                                ui.label(
-                                    RichText::new(left_label)
-                                        .size(12.0)
-                                        .color(app_muted_text(ui.visuals().dark_mode)),
-                                );
-                                let left_resp = crate::ui_style::settings_switch(ui, &mut left_checked);
-                                if left_resp.changed() {
-                                    if left_checked {
-                                        edited.allowed_mods |= 1 << left_bit;
-                                    } else {
-                                        edited.allowed_mods &= !(1 << left_bit);
-                                    }
-                                }
-                                ui.add_space(10.0);
-                                let mut right_checked = (edited.allowed_mods & (1 << right_bit)) != 0;
-                                ui.label(
-                                    RichText::new(right_label)
-                                        .size(12.0)
-                                        .color(app_muted_text(ui.visuals().dark_mode)),
-                                );
-                                let right_resp = crate::ui_style::settings_switch(ui, &mut right_checked);
-                                if right_resp.changed() {
-                                    if right_checked {
-                                        edited.allowed_mods |= 1 << right_bit;
-                                    } else {
-                                        edited.allowed_mods &= !(1 << right_bit);
-                                    }
-                                }
-                            },
-                        );
+                if max_first_row > 0 {
+                    let track_hovered = scrollbar_resp
+                        .as_ref()
+                        .map(|resp| resp.hovered() || resp.dragged())
+                        .unwrap_or(false);
+                    let track_fill = if dark {
+                        if track_hovered {
+                            Color32::from_rgb(46, 46, 49)
+                        } else {
+                            Color32::from_rgb(40, 40, 43)
+                        }
+                    } else if track_hovered {
+                        Color32::from_rgb(228, 228, 231)
+                    } else {
+                        Color32::from_rgb(236, 236, 238)
                     };
-                mod_pair_row(ui, "Ctrl mods", "L", 0, "R", 4);
-                mod_pair_row(ui, "Shift mods", "L", 1, "R", 5);
-                mod_pair_row(ui, "Alt mods", "L", 2, "R", 6);
-                mod_pair_row(ui, &format!("{} mods", gui), "L", 3, "R", 7);
-
-                crate::ui_style::settings_list_row(
-                    ui,
-                    CONTENT_WIDTH,
-                    ROW_HEIGHT,
-                    "Default alt key",
-                    true,
-                    46.0,
-                    |ui| {
-                        crate::ui_style::settings_switch(
-                            ui,
-                            &mut edited.options.default_to_this_alt_key,
-                        );
-                    },
-                );
-                crate::ui_style::settings_list_row(
-                    ui,
-                    CONTENT_WIDTH,
-                    ROW_HEIGHT,
-                    "Bidirectional",
-                    true,
-                    46.0,
-                    |ui| {
-                        crate::ui_style::settings_switch(
-                            ui,
-                            &mut edited.options.bidirectional,
-                        );
-                    },
-                );
-                crate::ui_style::settings_list_row(
-                    ui,
-                    CONTENT_WIDTH,
-                    ROW_HEIGHT,
-                    "Ignore handedness",
-                    true,
-                    46.0,
-                    |ui| {
-                        crate::ui_style::settings_switch(
-                            ui,
-                            &mut edited.options.ignore_mod_handedness,
-                        );
-                    },
-                );
+                    ui.painter().rect_filled(track_rect, 3.0, track_fill);
+                    let t = if max_first_row == 0 {
+                        0.0
+                    } else {
+                        first_row as f32 / max_first_row as f32
+                    };
+                    let handle_top = egui::lerp(
+                        track_rect.top()..=(track_rect.bottom() - handle_height),
+                        t,
+                    );
+                    let handle_rect = egui::Rect::from_min_max(
+                        egui::pos2(track_rect.left(), handle_top),
+                        egui::pos2(track_rect.right(), handle_top + handle_height),
+                    );
+                    let handle_fill = if dark {
+                        if track_hovered {
+                            Color32::from_rgb(98, 98, 102)
+                        } else {
+                            Color32::from_rgb(82, 82, 86)
+                        }
+                    } else if track_hovered {
+                        Color32::from_rgb(174, 174, 178)
+                    } else {
+                        Color32::from_rgb(188, 188, 192)
+                    };
+                    ui.painter().rect_filled(handle_rect, 3.0, handle_fill);
+                }
 
                 ui.add_space(12.0);
                 ui.horizontal_centered(|ui| {
