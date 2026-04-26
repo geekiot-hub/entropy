@@ -3054,7 +3054,19 @@ impl EntropyApp {
         if status_resp.clicked() {
             self.reset_matrix_tester_state();
         }
+        let status_hovered = status_resp.hovered();
         status_resp.on_hover_text("Click to reset Matrix Tester");
+        painter.rect(
+            status_rect,
+            9.0,
+            if status_hovered {
+                crate::ui_style::hover_fill(dark)
+            } else {
+                app_surface_fill(dark)
+            },
+            crate::ui_style::modal_outline_stroke(dark),
+            egui::StrokeKind::Inside,
+        );
         painter.text(
             status_rect.center(),
             egui::Align2::CENTER_CENTER,
