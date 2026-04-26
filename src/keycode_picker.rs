@@ -1515,6 +1515,34 @@ impl KeycodePicker {
             })
             .collect();
 
+        let is_extra_smart_symbol = |symbol: char| {
+            matches!(
+                symbol,
+                '«' | '»'
+                    | '€'
+                    | '—'
+                    | '–'
+                    | '•'
+                    | '×'
+                    | '±'
+                    | '≠'
+                    | '≈'
+                    | '✓'
+                    | '§'
+                    | '°'
+                    | '‰'
+                    | '′'
+                    | '″'
+                    | '‘'
+                    | '’'
+                    | '„'
+                    | '“'
+                    | '”'
+                    | '™'
+            )
+        };
+
+
         ui.label(
             RichText::new("Smart symbols — inserted by Entropy while it is running")
                 .size(11.0)
@@ -1523,9 +1551,10 @@ impl KeycodePicker {
         ui.add_space(6.0);
         ui.horizontal_wrapped(|ui| {
             for smart in crate::smart_input::SMART_SYMBOLS.iter().copied() {
-                let trigger = crate::keycode::find_keycode(smart.trigger_keycode)
-                    .map(|kc| kc.label)
-                    .unwrap_or("trigger");
+                if is_extra_smart_symbol(smart.symbol) {
+                    continue;
+                }
+                let trigger = crate::smart_input::trigger_label(smart.trigger_keycode);
                 let label = smart.symbol.to_string();
                 let tip = format!(
                     "Smart Symbol: {} — Entropy catches {} and inserts {} directly into the OS text field",
@@ -1569,6 +1598,40 @@ impl KeycodePicker {
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
                 if resp.clicked() {
                     self.result = Some(kc.value);
+                    self.open = false;
+                }
+                resp.on_hover_text(tip);
+            }
+        });
+
+        ui.add_space(12.0);
+        ui.separator();
+        ui.add_space(8.0);
+        ui.label(
+            RichText::new("Extra smart symbols — typography and math")
+                .size(11.0)
+                .color(Color32::from_gray(150)),
+        );
+        ui.add_space(6.0);
+        ui.horizontal_wrapped(|ui| {
+            for smart in crate::smart_input::SMART_SYMBOLS.iter().copied() {
+                if !is_extra_smart_symbol(smart.symbol) {
+                    continue;
+                }
+                let trigger = crate::smart_input::trigger_label(smart.trigger_keycode);
+                let label = smart.symbol.to_string();
+                let tip = format!(
+                    "Smart Symbol: {} — Entropy catches {} and inserts {} directly into the OS text field",
+                    smart.name, trigger, smart.symbol
+                );
+                let resp = ui
+                    .add(
+                        egui::Button::new(RichText::new(label).size(14.0))
+                            .min_size(Vec2::new(42.0, 34.0)),
+                    )
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
+                if resp.clicked() {
+                    self.result = Some(smart.trigger_keycode);
                     self.open = false;
                 }
                 resp.on_hover_text(tip);
