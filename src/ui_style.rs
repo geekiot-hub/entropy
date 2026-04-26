@@ -383,9 +383,9 @@ pub fn settings_switch(ui: &mut Ui, checked: &mut bool) -> egui::Response {
                 Color32::from_rgb(214, 214, 218)
             }
         } else if dark {
-            Color32::from_rgb(35, 35, 38)
+            Color32::from_rgb(46, 46, 49)
         } else {
-            Color32::from_rgb(244, 244, 246)
+            Color32::from_rgb(232, 232, 235)
         };
         let track_fill = if ui.is_enabled() {
             track_fill

@@ -5604,6 +5604,8 @@ impl EntropyApp {
                                             Stroke::new(1.4, chevron_color),
                                         );
 
+                                        ui.style_mut().visuals.window_stroke = crate::ui_style::modal_outline_stroke(dark);
+                                        ui.style_mut().visuals.window_fill = app_surface_fill(dark);
                                         egui::popup_below_widget(
                                             ui,
                                             dropdown_id,
