@@ -4516,9 +4516,7 @@ impl eframe::App for EntropyApp {
                 ui.horizontal(|ui| {
                     let muted = app_muted_text(self.dark_mode);
                     ui.spacing_mut().item_spacing.x = 3.0;
-                    ui.label(RichText::new("Made with").size(11.0).color(muted));
-                    ui.label(RichText::new("♥").size(11.0).color(app_accent()));
-                    ui.label(RichText::new("by").size(11.0).color(muted));
+                    ui.label(RichText::new("Tools of the future by").size(11.0).color(muted));
                     ui.add(egui::Hyperlink::from_label_and_url(
                         RichText::new("eh.industries").size(11.0),
                         "https://eh.industries",
