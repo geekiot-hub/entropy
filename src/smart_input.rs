@@ -76,19 +76,6 @@ pub fn smart_symbol_for_keycode(keycode: u16) -> Option<SmartSymbol> {
         .find(|symbol| symbol.trigger_keycode == keycode)
 }
 
-pub fn trigger_label(keycode: u16) -> String {
-    let base = keycode & 0x00FF;
-    let mut parts = Vec::new();
-    if keycode & MOD_CTRL != 0 {
-        parts.push("Ctrl".to_string());
-    }
-    if keycode & MOD_SHIFT != 0 {
-        parts.push("Shift".to_string());
-    }
-    parts.push(format!("F{}", 13 + base.saturating_sub(KC_F13)));
-    parts.join("+")
-}
-
 #[cfg(target_os = "windows")]
 pub fn start() {
     use std::sync::Once;

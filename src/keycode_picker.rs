@@ -1542,7 +1542,7 @@ impl KeycodePicker {
 
 
         ui.label(
-            RichText::new("Smart symbols — inserted by Entropy while it is running")
+            RichText::new("Universal symbols — same output in any language")
                 .size(11.0)
                 .color(Color32::from_gray(150)),
         );
@@ -1552,11 +1552,10 @@ impl KeycodePicker {
                 if is_extra_smart_symbol(smart.symbol) {
                     continue;
                 }
-                let trigger = crate::smart_input::trigger_label(smart.trigger_keycode);
                 let label = smart.symbol.to_string();
                 let tip = format!(
-                    "Smart Symbol: {} — Entropy catches {} and inserts {} directly into the OS text field",
-                    smart.name, trigger, smart.symbol
+                    "Universal symbol: {} — types {} consistently regardless of the active keyboard language",
+                    smart.name, smart.symbol
                 );
                 let resp = ui
                     .add(
@@ -1576,7 +1575,7 @@ impl KeycodePicker {
         ui.separator();
         ui.add_space(8.0);
         ui.label(
-            RichText::new("Keyboard-layout symbols — physical keycodes")
+            RichText::new("Layout symbols — follow the active keyboard language")
                 .size(11.0)
                 .color(Color32::from_gray(150)),
         );
@@ -1606,7 +1605,7 @@ impl KeycodePicker {
         ui.separator();
         ui.add_space(8.0);
         ui.label(
-            RichText::new("Extra smart symbols — typography and math")
+            RichText::new("Extra universal symbols — typography and math")
                 .size(11.0)
                 .color(Color32::from_gray(150)),
         );
@@ -1616,11 +1615,10 @@ impl KeycodePicker {
                 if !is_extra_smart_symbol(smart.symbol) {
                     continue;
                 }
-                let trigger = crate::smart_input::trigger_label(smart.trigger_keycode);
                 let label = smart.symbol.to_string();
                 let tip = format!(
-                    "Smart Symbol: {} — Entropy catches {} and inserts {} directly into the OS text field",
-                    smart.name, trigger, smart.symbol
+                    "Universal symbol: {} — types {} consistently regardless of the active keyboard language",
+                    smart.name, smart.symbol
                 );
                 let resp = ui
                     .add(

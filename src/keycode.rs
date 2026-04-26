@@ -434,10 +434,8 @@ fn smart_symbol_label(value: u16) -> Option<String> {
 fn smart_symbol_tooltip(value: u16) -> Option<String> {
     crate::smart_input::smart_symbol_for_keycode(value).map(|smart| {
         format!(
-            "Entropy Smart Symbol: {} — inserts {} while Entropy is running; without Entropy this key is {}",
-            smart.name,
-            smart.symbol,
-            crate::smart_input::trigger_label(smart.trigger_keycode)
+            "Universal symbol: {} — types {} consistently regardless of the active keyboard language",
+            smart.name, smart.symbol
         )
     })
 }
