@@ -400,13 +400,7 @@ fn alt_repeat_modern_text_field(
     } else {
         app_surface_fill(dark)
     };
-    let field_stroke = if field_focused {
-        Stroke::new(1.0, Color32::from_rgb(126, 126, 130))
-    } else if field_hovered {
-        Stroke::new(1.0, Color32::from_rgb(112, 112, 116))
-    } else {
-        crate::ui_style::modal_outline_stroke(dark)
-    };
+    let field_stroke = Stroke::new(0.0, Color32::TRANSPARENT);
     ui.painter().rect(
         field_rect,
         9.0,
@@ -5458,16 +5452,18 @@ impl EntropyApp {
             crate::ui_style::ModalLayout::new(CONTENT_WIDTH).with_top_padding(4.0),
             |ui| {
                 let list_height = ROW_HEIGHT * VISIBLE_ROWS as f32;
-                let scroll_id = ui.id().with("alt_repeat_settings_first_row");
-                let wheel_accum_id = ui.id().with("alt_repeat_settings_wheel_accum");
-                let max_first_row = TOTAL_ROWS.saturating_sub(VISIBLE_ROWS);
-                let mut first_row = ui
+                let content_height = ROW_HEIGHT * TOTAL_ROWS as f32;
+                let max_offset = (content_height - list_height).max(0.0);
+                let offset_id = ui.id().with("alt_repeat_settings_smooth_offset");
+                let target_id = ui.id().with("alt_repeat_settings_smooth_target");
+                let mut scroll_offset = ui
                     .ctx()
-                    .data_mut(|d| d.get_persisted::<usize>(scroll_id).unwrap_or(0))
-                    .min(max_first_row);
-                let mut wheel_accum = ui
+                    .data_mut(|d| d.get_persisted::<f32>(offset_id).unwrap_or(0.0))
+                    .clamp(0.0, max_offset);
+                let mut target_offset = ui
                     .ctx()
-                    .data_mut(|d| d.get_persisted::<f32>(wheel_accum_id).unwrap_or(0.0));
+                    .data_mut(|d| d.get_persisted::<f32>(target_id).unwrap_or(scroll_offset))
+                    .clamp(0.0, max_offset);
                 let (viewport, viewport_resp) = ui.allocate_exact_size(
                     egui::vec2(CONTENT_WIDTH, list_height),
                     Sense::hover(),
@@ -5477,7 +5473,7 @@ impl EntropyApp {
                     egui::pos2(viewport.right() - track_width, viewport.top()),
                     egui::pos2(viewport.right(), viewport.bottom()),
                 );
-                let scrollbar_resp = if max_first_row > 0 {
+                let scrollbar_resp = if max_offset > 0.0 {
                     Some(ui.interact(
                         track_rect.expand2(egui::vec2(5.0, 0.0)),
                         ui.id().with("alt_repeat_settings_scrollbar"),
@@ -5498,47 +5494,54 @@ impl EntropyApp {
                 } else {
                     0.0
                 };
-                if scroll_delta.abs() > 0.0 && max_first_row > 0 {
-                    const WHEEL_ROW_THRESHOLD: f32 = 48.0;
-                    wheel_accum = (wheel_accum + scroll_delta)
-                        .clamp(-WHEEL_ROW_THRESHOLD, WHEEL_ROW_THRESHOLD);
-                    if wheel_accum <= -WHEEL_ROW_THRESHOLD {
-                        first_row = (first_row + 1).min(max_first_row);
-                        wheel_accum = 0.0;
-                    } else if wheel_accum >= WHEEL_ROW_THRESHOLD {
-                        first_row = first_row.saturating_sub(1);
-                        wheel_accum = 0.0;
-                    }
+                if scroll_delta.abs() > 0.0 && max_offset > 0.0 {
+                    target_offset = (target_offset - scroll_delta * 0.72).clamp(0.0, max_offset);
                 }
 
-                let handle_height = if max_first_row > 0 {
-                    (VISIBLE_ROWS as f32 / TOTAL_ROWS as f32) * viewport.height()
+                let handle_height = if max_offset > 0.0 {
+                    (list_height / content_height * viewport.height()).clamp(42.0, viewport.height())
                 } else {
                     viewport.height()
                 };
                 if let Some(resp) = &scrollbar_resp {
-                    if (resp.dragged() || resp.clicked()) && max_first_row > 0 {
+                    if (resp.dragged() || resp.clicked()) && max_offset > 0.0 {
                         if let Some(pointer_pos) = ui.input(|i| i.pointer.interact_pos()) {
                             let travel = (track_rect.height() - handle_height).max(1.0);
                             let t = ((pointer_pos.y - track_rect.top() - handle_height / 2.0)
                                 / travel)
                                 .clamp(0.0, 1.0);
-                            first_row = (t * max_first_row as f32).round() as usize;
-                            wheel_accum = 0.0;
+                            target_offset = t * max_offset;
+                            scroll_offset = target_offset;
                         }
                     }
                 }
-                first_row = first_row.min(max_first_row);
+
+                if (scroll_offset - target_offset).abs() > 0.35 {
+                    scroll_offset += (target_offset - scroll_offset) * 0.42;
+                    ui.ctx().request_repaint();
+                } else {
+                    scroll_offset = target_offset;
+                }
+                scroll_offset = scroll_offset.clamp(0.0, max_offset);
+                target_offset = target_offset.clamp(0.0, max_offset);
                 ui.ctx().data_mut(|d| {
-                    d.insert_persisted(scroll_id, first_row);
-                    d.insert_persisted(wheel_accum_id, wheel_accum);
+                    d.insert_persisted(offset_id, scroll_offset);
+                    d.insert_persisted(target_id, target_offset);
                 });
 
-                ui.allocate_ui_at_rect(viewport, |ui| {
+                let first_visible_row = (scroll_offset / ROW_HEIGHT).floor() as usize;
+                let row_y_offset = scroll_offset - first_visible_row as f32 * ROW_HEIGHT;
+                let last_visible_row = (first_visible_row + VISIBLE_ROWS + 1).min(TOTAL_ROWS);
+                let visible_row_count = last_visible_row.saturating_sub(first_visible_row);
+                let content_rect = egui::Rect::from_min_size(
+                    egui::pos2(viewport.left(), viewport.top() - row_y_offset),
+                    egui::vec2(CONTENT_WIDTH, ROW_HEIGHT * visible_row_count as f32),
+                );
+                ui.allocate_ui_at_rect(content_rect, |ui| {
                     ui.set_clip_rect(viewport);
-                    ui.set_min_size(egui::vec2(CONTENT_WIDTH, list_height));
+                    ui.set_min_size(content_rect.size());
                     ui.spacing_mut().item_spacing.y = 0.0;
-                    for row_idx in first_row..(first_row + VISIBLE_ROWS).min(TOTAL_ROWS) {
+                    for row_idx in first_visible_row..last_visible_row {
                         match row_idx {
                             0 => {
                                 crate::ui_style::settings_list_row(
@@ -5567,13 +5570,7 @@ impl EntropyApp {
                                         } else {
                                             app_surface_fill(dark)
                                         };
-                                        let dropdown_stroke = if dropdown_open {
-                                            Stroke::new(1.0, Color32::from_rgb(126, 126, 130))
-                                        } else if dropdown_resp.hovered() {
-                                            Stroke::new(1.0, Color32::from_rgb(112, 112, 116))
-                                        } else {
-                                            crate::ui_style::modal_outline_stroke(dark)
-                                        };
+                                        let dropdown_stroke = Stroke::new(0.0, Color32::TRANSPARENT);
                                         ui.painter().rect(
                                             dropdown_rect,
                                             9.0,
@@ -5863,16 +5860,12 @@ impl EntropyApp {
                     }
                 });
 
-                if max_first_row > 0 {
+                if max_offset > 0.0 {
                     let track_hovered = scrollbar_resp
                         .as_ref()
                         .map(|resp| resp.hovered() || resp.dragged())
                         .unwrap_or(false);
-                    let t = if max_first_row == 0 {
-                        0.0
-                    } else {
-                        first_row as f32 / max_first_row as f32
-                    };
+                    let t = (scroll_offset / max_offset).clamp(0.0, 1.0);
                     let handle_top = egui::lerp(
                         track_rect.top()..=(track_rect.bottom() - handle_height),
                         t,

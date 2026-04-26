@@ -378,36 +378,21 @@ pub fn settings_switch(ui: &mut Ui, checked: &mut bool) -> egui::Response {
         let radius = rect.height() / 2.0;
         let track_fill = if *checked {
             if dark {
-                Color32::from_rgb(70, 76, 72)
+                Color32::from_rgb(66, 66, 70)
             } else {
-                Color32::from_rgb(218, 221, 215)
+                Color32::from_rgb(214, 214, 218)
             }
         } else if dark {
-            Color32::from_rgb(50, 50, 53)
+            Color32::from_rgb(40, 40, 43)
         } else {
-            Color32::from_rgb(226, 226, 229)
+            Color32::from_rgb(238, 238, 240)
         };
         let track_fill = if ui.is_enabled() {
             track_fill
         } else {
             track_fill.gamma_multiply(0.62)
         };
-        let stroke = if response.hovered() && ui.is_enabled() {
-            Stroke::new(
-                1.0,
-                if *checked {
-                    if dark {
-                        Color32::from_rgb(118, 130, 120)
-                    } else {
-                        Color32::from_rgb(132, 142, 134)
-                    }
-                } else {
-                    border_color(dark)
-                },
-            )
-        } else {
-            Stroke::new(1.0, border_color(dark))
-        };
+        let stroke = Stroke::new(0.0, Color32::TRANSPARENT);
         ui.painter().rect(
             rect,
             radius,
@@ -420,14 +405,14 @@ pub fn settings_switch(ui: &mut Ui, checked: &mut bool) -> egui::Response {
         let x = egui::lerp((rect.left() + radius)..=(rect.right() - radius), t);
         let knob_fill = if *checked {
             if dark {
-                Color32::from_rgb(220, 224, 217)
+                Color32::from_rgb(220, 220, 224)
             } else {
-                Color32::from_rgb(78, 84, 80)
+                Color32::from_rgb(74, 74, 78)
             }
         } else if dark {
-            Color32::from_rgb(126, 126, 130)
+            Color32::from_rgb(104, 104, 108)
         } else {
-            Color32::from_rgb(150, 150, 154)
+            Color32::from_rgb(166, 166, 170)
         };
         ui.painter().circle_filled(
             egui::pos2(x, rect.center().y),
