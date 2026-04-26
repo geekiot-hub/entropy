@@ -1,0 +1,65 @@
+# Entropy Design Language
+
+## Core style
+
+- Use a centered sleek settings list for Settings/Advanced pages
+- Baseline page width: `470px`
+- Baseline row height: `54px`
+- Show at most 6 settings rows in a viewport when a page needs scrolling
+- Keep page title/description positions stable unless explicitly requested
+- No cards for settings pages; use thin graphite separators between rows
+- Labels on the left, controls anchored to the right edge
+- Controls are vertically centered between separators
+- Reserve a right gutter for custom scrollbars so they never overlap controls
+
+## Palette
+
+- Accent: muted pastel maroon, not blue/purple/green
+- Outlines: soft graphite only
+- Hover: neutral taupe/maroon fill changes; avoid darkening outlines on hover
+- Switches: neutral grayscale active state, muted inactive state, no green/sage tint
+- Matrix Tester completed keys use muted maroon/taupe, not green
+
+## Controls
+
+Reusable components live in `src/ui_style.rs`:
+
+- `settings_list_row(...)`
+- `settings_list_row_with_tooltip(...)`
+- `settings_switch(...)`
+- `modern_button(...)`
+- `modern_text_field(...)`
+- `modern_dropdown_button(...)`
+- `paint_floating_scrollbar_handle(...)`
+
+Rules:
+
+- Checkboxes on modernized settings pages become `settings_switch`
+- Dropdowns use `modern_dropdown_button`, not default `egui::ComboBox`
+- Buttons use `modern_button`
+- Text inputs use `modern_text_field`
+- Floating scrollbar shows only the handle, no track/path, unless a page explicitly needs a track
+- Custom popup lists should be compact, scrollable, and use the same graphite outline/surface style as their dropdown button
+
+## Tooltips and copy
+
+- Tooltips must not end with a period
+- Settings row labels should have text-sized hover hitboxes for tooltips
+- Suppress tooltips while actively scrolling or dragging where applicable
+- Win/Cmd/Super/GUI-related labels and tooltips must be OS-dependent by target binary:
+  - macOS: Cmd / ⌘
+  - Windows: Win
+  - Linux/other: Super
+
+## Scrolling
+
+- Keep action buttons outside scrollable content; they must not move with list scrolling
+- Smooth scroll is allowed on simple settings lists, but if microfreezes appear around `TextEdit`, prefer stable row-based scrolling
+- Scrollbar drag/click should remain direct and responsive
+
+## Versioning and release hygiene
+
+- Use two-digit version components only: after `v1.6.99` comes `v1.7.00`, not `v1.6.100`
+- One task = one versioned binary, one commit, one push
+- Root repo should contain only one current `entropy-vX.Y.Z.exe`
+- Build gate: `cargo build --release --target x86_64-pc-windows-gnu`

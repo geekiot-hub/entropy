@@ -324,112 +324,6 @@ fn app_muted_text(dark: bool) -> Color32 {
     crate::ui_style::muted_text(dark)
 }
 
-fn alt_repeat_modern_button(
-    ui: &mut egui::Ui,
-    label: &str,
-    size: Vec2,
-    enabled: bool,
-) -> egui::Response {
-    let dark = ui.visuals().dark_mode;
-    let sense = if enabled { Sense::click() } else { Sense::hover() };
-    let (rect, resp) = ui.allocate_exact_size(size, sense);
-    let active = enabled && resp.is_pointer_button_down_on();
-    let hovered = enabled && resp.hovered();
-    let fill = if active {
-        if dark {
-            Color32::from_rgb(56, 56, 59)
-        } else {
-            Color32::from_rgb(232, 232, 235)
-        }
-    } else if hovered {
-        crate::ui_style::hover_fill(dark)
-    } else {
-        app_surface_fill(dark)
-    };
-    let stroke = crate::ui_style::modal_outline_stroke(dark);
-    ui.painter().rect(
-        rect,
-        9.0,
-        fill,
-        stroke,
-        egui::StrokeKind::Inside,
-    );
-    ui.painter().text(
-        rect.center(),
-        egui::Align2::CENTER_CENTER,
-        label,
-        FontId::proportional(12.5),
-        if enabled {
-            ui.visuals().text_color()
-        } else {
-            app_muted_text(dark)
-        },
-    );
-    if hovered {
-        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-    }
-    resp
-}
-
-fn alt_repeat_modern_text_field(
-    ui: &mut egui::Ui,
-    id: egui::Id,
-    text: &mut String,
-    width: f32,
-    hint: &str,
-    char_limit: usize,
-) -> egui::Response {
-    let dark = ui.visuals().dark_mode;
-    let field_size = Vec2::new(width, 32.0);
-    let (field_rect, _) = ui.allocate_exact_size(field_size, Sense::hover());
-    let field_hovered = ui.input(|i| {
-        i.pointer
-            .hover_pos()
-            .map(|pos| field_rect.contains(pos))
-            .unwrap_or(false)
-    });
-    let field_focused = ui.memory(|m| m.has_focus(id));
-    let field_fill = if field_focused {
-        if dark {
-            Color32::from_rgb(52, 52, 55)
-        } else {
-            Color32::from_rgb(244, 244, 246)
-        }
-    } else if field_hovered {
-        crate::ui_style::hover_fill(dark)
-    } else {
-        app_surface_fill(dark)
-    };
-    let field_stroke = crate::ui_style::modal_outline_stroke(dark);
-    ui.painter().rect(
-        field_rect,
-        9.0,
-        field_fill,
-        field_stroke,
-        egui::StrokeKind::Inside,
-    );
-
-    let mut edit_resp = None;
-    ui.allocate_ui_at_rect(field_rect.shrink2(Vec2::new(10.0, 0.0)), |ui| {
-        let resp = ui.add_sized(
-            [width - 20.0, 32.0],
-            egui::TextEdit::singleline(text)
-                .id(id)
-                .desired_width(width - 20.0)
-                .hint_text(hint)
-                .char_limit(char_limit)
-                .frame(false)
-                .horizontal_align(egui::Align::Center)
-                .vertical_align(egui::Align::Center),
-        );
-        edit_resp = Some(resp);
-    });
-    let resp = edit_resp.expect("alt repeat TextEdit response");
-    if resp.hovered() {
-        ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
-    }
-    resp
-}
 fn app_inactive_entry_text(dark: bool) -> Color32 {
     if dark {
         Color32::from_gray(105)
@@ -5047,60 +4941,12 @@ impl EntropyApp {
                 RGB_SLIDER_SIZE[0],
                 |ui| {
                     let dropdown_id = ui.make_persistent_id("rgb_effect_dropdown");
-                    let dropdown_open = ui.memory(|m| m.is_popup_open(dropdown_id));
-                    let (dropdown_rect, dropdown_resp) = ui.allocate_exact_size(
-                        Vec2::new(RGB_SLIDER_SIZE[0], 32.0),
-                        Sense::click(),
-                    );
-                    if dropdown_resp.hovered() {
-                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                    }
-                    if dropdown_resp.clicked() {
-                        ui.memory_mut(|m| m.toggle_popup(dropdown_id));
-                    }
-
-                    let dropdown_fill = if dropdown_open || dropdown_resp.hovered() {
-                        crate::ui_style::hover_fill(dark)
-                    } else {
-                        app_surface_fill(dark)
-                    };
-                    let dropdown_stroke = if dropdown_open {
-                        Stroke::new(1.0, Color32::from_rgb(126, 126, 130))
-                    } else if dropdown_resp.hovered() {
-                        Stroke::new(1.0, Color32::from_rgb(112, 112, 116))
-                    } else {
-                        crate::ui_style::modal_outline_stroke(dark)
-                    };
-                    ui.painter().rect(
-                        dropdown_rect,
-                        9.0,
-                        dropdown_fill,
-                        dropdown_stroke,
-                        egui::StrokeKind::Inside,
-                    );
-                    ui.painter().text(
-                        egui::pos2(dropdown_rect.left() + 12.0, dropdown_rect.center().y),
-                        egui::Align2::LEFT_CENTER,
+                    let dropdown_resp = crate::ui_style::modern_dropdown_button(
+                        ui,
+                        dropdown_id,
                         selected_effect_name,
-                        FontId::proportional(12.5),
                         ui.visuals().text_color(),
-                    );
-                    let chevron_x = dropdown_rect.right() - 15.0;
-                    let chevron_y = dropdown_rect.center().y + 1.0;
-                    let chevron_color = app_muted_text(dark);
-                    ui.painter().line_segment(
-                        [
-                            egui::pos2(chevron_x - 4.5, chevron_y - 2.0),
-                            egui::pos2(chevron_x, chevron_y + 2.5),
-                        ],
-                        Stroke::new(1.4, chevron_color),
-                    );
-                    ui.painter().line_segment(
-                        [
-                            egui::pos2(chevron_x, chevron_y + 2.5),
-                            egui::pos2(chevron_x + 4.5, chevron_y - 2.0),
-                        ],
-                        Stroke::new(1.4, chevron_color),
+                        RGB_SLIDER_SIZE[0],
                     );
 
                     egui::popup_below_widget(
@@ -5554,54 +5400,12 @@ impl EntropyApp {
                                     CONTROL_WIDTH,
                                     |ui| {
                                         let dropdown_id = ui.make_persistent_id("alt_repeat_entry_dropdown");
-                                        let dropdown_open = ui.memory(|m| m.is_popup_open(dropdown_id));
-                                        let (dropdown_rect, dropdown_resp) = ui.allocate_exact_size(
-                                            Vec2::new(CONTROL_WIDTH, 32.0),
-                                            Sense::click(),
-                                        );
-                                        if dropdown_resp.hovered() {
-                                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                        }
-                                        if dropdown_resp.clicked() {
-                                            ui.memory_mut(|m| m.toggle_popup(dropdown_id));
-                                        }
-
-                                        let dropdown_fill = if dropdown_open || dropdown_resp.hovered() {
-                                            crate::ui_style::hover_fill(dark)
-                                        } else {
-                                            app_surface_fill(dark)
-                                        };
-                                        let dropdown_stroke = crate::ui_style::modal_outline_stroke(dark);
-                                        ui.painter().rect(
-                                            dropdown_rect,
-                                            9.0,
-                                            dropdown_fill,
-                                            dropdown_stroke,
-                                            egui::StrokeKind::Inside,
-                                        );
-                                        ui.painter().text(
-                                            egui::pos2(dropdown_rect.left() + 12.0, dropdown_rect.center().y),
-                                            egui::Align2::LEFT_CENTER,
+                                        let dropdown_resp = crate::ui_style::modern_dropdown_button(
+                                            ui,
+                                            dropdown_id,
                                             selected_text.as_str(),
-                                            FontId::proportional(12.5),
                                             selected_text_color,
-                                        );
-                                        let chevron_x = dropdown_rect.right() - 15.0;
-                                        let chevron_y = dropdown_rect.center().y + 1.0;
-                                        let chevron_color = app_muted_text(dark);
-                                        ui.painter().line_segment(
-                                            [
-                                                egui::pos2(chevron_x - 4.5, chevron_y - 2.0),
-                                                egui::pos2(chevron_x, chevron_y + 2.5),
-                                            ],
-                                            Stroke::new(1.4, chevron_color),
-                                        );
-                                        ui.painter().line_segment(
-                                            [
-                                                egui::pos2(chevron_x, chevron_y + 2.5),
-                                                egui::pos2(chevron_x + 4.5, chevron_y - 2.0),
-                                            ],
-                                            Stroke::new(1.4, chevron_color),
+                                            CONTROL_WIDTH,
                                         );
 
                                         ui.style_mut().visuals.window_stroke = crate::ui_style::modal_outline_stroke(dark);
@@ -5692,13 +5496,14 @@ impl EntropyApp {
                                     CONTROL_WIDTH,
                                     |ui| {
                                         if let Some(name) = self.alt_repeat_names.get_mut(idx) {
-                                            let resp = alt_repeat_modern_text_field(
+                                            let resp = crate::ui_style::modern_text_field(
                                                 ui,
                                                 egui::Id::new(("alt_repeat_name", idx)),
                                                 name,
                                                 CONTROL_WIDTH,
                                                 "Name",
                                                 12,
+                                                egui::Align::Center,
                                             );
                                             name_changed = resp.changed();
                                             resp.clone().on_hover_text("Stored locally in Entropy");
@@ -5720,7 +5525,7 @@ impl EntropyApp {
                                     Some("Key that triggers alternate repeat behavior"),
                                     CONTROL_WIDTH,
                                     |ui| {
-                                        let resp = alt_repeat_modern_button(
+                                        let resp = crate::ui_style::modern_button(
                                             ui,
                                             last_key_label.as_str(),
                                             Vec2::new(CONTROL_WIDTH, 32.0),
@@ -5743,7 +5548,7 @@ impl EntropyApp {
                                     Some("Key repeated when alternate repeat activates"),
                                     CONTROL_WIDTH,
                                     |ui| {
-                                        let resp = alt_repeat_modern_button(
+                                        let resp = crate::ui_style::modern_button(
                                             ui,
                                             alt_key_label.as_str(),
                                             Vec2::new(CONTROL_WIDTH, 32.0),
@@ -5880,27 +5685,13 @@ impl EntropyApp {
                         .as_ref()
                         .map(|resp| resp.hovered() || resp.dragged())
                         .unwrap_or(false);
-                    let t = (scroll_offset / max_offset).clamp(0.0, 1.0);
-                    let handle_top = egui::lerp(
-                        track_rect.top()..=(track_rect.bottom() - handle_height),
-                        t,
+                    crate::ui_style::paint_floating_scrollbar_handle(
+                        ui,
+                        track_rect,
+                        handle_height,
+                        scroll_offset / max_offset,
+                        track_hovered,
                     );
-                    let handle_rect = egui::Rect::from_min_max(
-                        egui::pos2(track_rect.left(), handle_top),
-                        egui::pos2(track_rect.right(), handle_top + handle_height),
-                    );
-                    let handle_fill = if dark {
-                        if track_hovered {
-                            Color32::from_rgb(74, 74, 78)
-                        } else {
-                            Color32::from_rgb(62, 62, 66)
-                        }
-                    } else if track_hovered {
-                        Color32::from_rgb(198, 198, 202)
-                    } else {
-                        Color32::from_rgb(212, 212, 216)
-                    };
-                    ui.painter().rect_filled(handle_rect, 3.0, handle_fill);
                 }
 
                 let action_size = crate::ui_style::modal_action_button_size();
@@ -5918,7 +5709,7 @@ impl EntropyApp {
                                 .get(idx)
                                 .map(|s| !s.trim().is_empty())
                                 .unwrap_or(false);
-                        let clear_resp = alt_repeat_modern_button(
+                        let clear_resp = crate::ui_style::modern_button(
                             ui,
                             "Clear",
                             action_size,
@@ -5936,7 +5727,7 @@ impl EntropyApp {
                         }
 
                         let undo_enabled = !self.alt_repeat_undo_stack.is_empty();
-                        let undo_resp = alt_repeat_modern_button(
+                        let undo_resp = crate::ui_style::modern_button(
                             ui,
                             "Undo",
                             action_size,

@@ -1,4 +1,4 @@
-use egui::{Color32, RichText, Stroke, Ui, Vec2};
+use egui::{Color32, FontId, RichText, Sense, Stroke, Ui, Vec2};
 
 pub fn accent() -> Color32 {
     Color32::from_rgb(196, 132, 144)
@@ -58,6 +58,201 @@ pub fn modal_outline_stroke(dark: bool) -> Stroke {
     } else {
         Stroke::new(1.0, Color32::from_rgb(230, 230, 233))
     }
+}
+
+pub fn modern_button(
+    ui: &mut Ui,
+    label: &str,
+    size: Vec2,
+    enabled: bool,
+) -> egui::Response {
+    let dark = ui.visuals().dark_mode;
+    let sense = if enabled { Sense::click() } else { Sense::hover() };
+    let (rect, resp) = ui.allocate_exact_size(size, sense);
+    let active = enabled && resp.is_pointer_button_down_on();
+    let hovered = enabled && resp.hovered();
+    let fill = if active {
+        if dark {
+            Color32::from_rgb(56, 56, 59)
+        } else {
+            Color32::from_rgb(232, 232, 235)
+        }
+    } else if hovered {
+        hover_fill(dark)
+    } else {
+        surface_fill(dark)
+    };
+    ui.painter().rect(
+        rect,
+        9.0,
+        fill,
+        modal_outline_stroke(dark),
+        egui::StrokeKind::Inside,
+    );
+    ui.painter().text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        label,
+        FontId::proportional(12.5),
+        if enabled {
+            ui.visuals().text_color()
+        } else {
+            muted_text(dark)
+        },
+    );
+    if hovered {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    resp
+}
+
+pub fn modern_text_field(
+    ui: &mut Ui,
+    id: egui::Id,
+    text: &mut String,
+    width: f32,
+    hint: &str,
+    char_limit: usize,
+    horizontal_align: egui::Align,
+) -> egui::Response {
+    let dark = ui.visuals().dark_mode;
+    let field_size = Vec2::new(width, 32.0);
+    let (field_rect, _) = ui.allocate_exact_size(field_size, Sense::hover());
+    let field_hovered = ui.input(|i| {
+        i.pointer
+            .hover_pos()
+            .map(|pos| field_rect.contains(pos))
+            .unwrap_or(false)
+    });
+    let field_focused = ui.memory(|m| m.has_focus(id));
+    let field_fill = if field_focused {
+        if dark {
+            Color32::from_rgb(52, 52, 55)
+        } else {
+            Color32::from_rgb(244, 244, 246)
+        }
+    } else if field_hovered {
+        hover_fill(dark)
+    } else {
+        surface_fill(dark)
+    };
+    ui.painter().rect(
+        field_rect,
+        9.0,
+        field_fill,
+        modal_outline_stroke(dark),
+        egui::StrokeKind::Inside,
+    );
+
+    let mut edit_resp = None;
+    ui.allocate_ui_at_rect(field_rect.shrink2(Vec2::new(10.0, 0.0)), |ui| {
+        let resp = ui.add_sized(
+            [width - 20.0, 32.0],
+            egui::TextEdit::singleline(text)
+                .id(id)
+                .desired_width(width - 20.0)
+                .hint_text(hint)
+                .char_limit(char_limit)
+                .frame(false)
+                .horizontal_align(horizontal_align)
+                .vertical_align(egui::Align::Center),
+        );
+        edit_resp = Some(resp);
+    });
+    let resp = edit_resp.expect("modern TextEdit response");
+    if resp.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
+    }
+    resp
+}
+
+pub fn modern_dropdown_button(
+    ui: &mut Ui,
+    id: egui::Id,
+    selected_text: &str,
+    text_color: Color32,
+    width: f32,
+) -> egui::Response {
+    let dark = ui.visuals().dark_mode;
+    let dropdown_open = ui.memory(|m| m.is_popup_open(id));
+    let (dropdown_rect, dropdown_resp) = ui.allocate_exact_size(
+        Vec2::new(width, 32.0),
+        Sense::click(),
+    );
+    if dropdown_resp.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    if dropdown_resp.clicked() {
+        ui.memory_mut(|m| m.toggle_popup(id));
+    }
+
+    let dropdown_fill = if dropdown_open || dropdown_resp.hovered() {
+        hover_fill(dark)
+    } else {
+        surface_fill(dark)
+    };
+    ui.painter().rect(
+        dropdown_rect,
+        9.0,
+        dropdown_fill,
+        modal_outline_stroke(dark),
+        egui::StrokeKind::Inside,
+    );
+    ui.painter().text(
+        egui::pos2(dropdown_rect.left() + 12.0, dropdown_rect.center().y),
+        egui::Align2::LEFT_CENTER,
+        selected_text,
+        FontId::proportional(12.5),
+        text_color,
+    );
+    let chevron_x = dropdown_rect.right() - 15.0;
+    let chevron_y = dropdown_rect.center().y + 1.0;
+    let chevron_color = muted_text(dark);
+    ui.painter().line_segment(
+        [
+            egui::pos2(chevron_x - 4.5, chevron_y - 2.0),
+            egui::pos2(chevron_x, chevron_y + 2.5),
+        ],
+        Stroke::new(1.4, chevron_color),
+    );
+    ui.painter().line_segment(
+        [
+            egui::pos2(chevron_x, chevron_y + 2.5),
+            egui::pos2(chevron_x + 4.5, chevron_y - 2.0),
+        ],
+        Stroke::new(1.4, chevron_color),
+    );
+    dropdown_resp
+}
+
+pub fn paint_floating_scrollbar_handle(
+    ui: &mut Ui,
+    track_rect: egui::Rect,
+    handle_height: f32,
+    t: f32,
+    hovered: bool,
+) {
+    let dark = ui.visuals().dark_mode;
+    let handle_top = egui::lerp(
+        track_rect.top()..=(track_rect.bottom() - handle_height),
+        t.clamp(0.0, 1.0),
+    );
+    let handle_rect = egui::Rect::from_min_max(
+        egui::pos2(track_rect.left(), handle_top),
+        egui::pos2(track_rect.right(), handle_top + handle_height),
+    );
+    let handle_fill = if dark {
+        if hovered {
+            Color32::from_rgb(74, 74, 78)
+        } else {
+            Color32::from_rgb(62, 62, 66)
+        }
+    } else if hovered {
+        Color32::from_rgb(198, 198, 202)
+    } else {
+        Color32::from_rgb(212, 212, 216)
+    };
+    ui.painter().rect_filled(handle_rect, 3.0, handle_fill);
 }
 
 pub fn modal_action_button_size() -> Vec2 {
