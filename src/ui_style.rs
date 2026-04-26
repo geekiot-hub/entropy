@@ -383,9 +383,9 @@ pub fn settings_switch(ui: &mut Ui, checked: &mut bool) -> egui::Response {
                 Color32::from_rgb(214, 214, 218)
             }
         } else if dark {
-            Color32::from_rgb(40, 40, 43)
+            Color32::from_rgb(35, 35, 38)
         } else {
-            Color32::from_rgb(238, 238, 240)
+            Color32::from_rgb(244, 244, 246)
         };
         let track_fill = if ui.is_enabled() {
             track_fill
@@ -410,9 +410,9 @@ pub fn settings_switch(ui: &mut Ui, checked: &mut bool) -> egui::Response {
                 Color32::from_rgb(74, 74, 78)
             }
         } else if dark {
-            Color32::from_rgb(104, 104, 108)
+            Color32::from_rgb(82, 82, 86)
         } else {
-            Color32::from_rgb(166, 166, 170)
+            Color32::from_rgb(188, 188, 192)
         };
         ui.painter().circle_filled(
             egui::pos2(x, rect.center().y),

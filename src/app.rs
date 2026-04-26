@@ -400,7 +400,7 @@ fn alt_repeat_modern_text_field(
     } else {
         app_surface_fill(dark)
     };
-    let field_stroke = Stroke::new(0.0, Color32::TRANSPARENT);
+    let field_stroke = crate::ui_style::modal_outline_stroke(dark);
     ui.painter().rect(
         field_rect,
         9.0,
@@ -5544,12 +5544,13 @@ impl EntropyApp {
                     for row_idx in first_visible_row..last_visible_row {
                         match row_idx {
                             0 => {
-                                crate::ui_style::settings_list_row(
+                                crate::ui_style::settings_list_row_with_tooltip(
                                     ui,
                                     ROW_CONTENT_WIDTH,
                                     ROW_HEIGHT,
                                     "Entry",
                                     true,
+                                    Some("Select Alt Repeat slot"),
                                     CONTROL_WIDTH,
                                     |ui| {
                                         let dropdown_id = ui.make_persistent_id("alt_repeat_entry_dropdown");
@@ -5570,7 +5571,7 @@ impl EntropyApp {
                                         } else {
                                             app_surface_fill(dark)
                                         };
-                                        let dropdown_stroke = Stroke::new(0.0, Color32::TRANSPARENT);
+                                        let dropdown_stroke = crate::ui_style::modal_outline_stroke(dark);
                                         ui.painter().rect(
                                             dropdown_rect,
                                             9.0,
@@ -5679,12 +5680,13 @@ impl EntropyApp {
                             }
                             1 => {
                                 let mut name_changed = false;
-                                crate::ui_style::settings_list_row(
+                                crate::ui_style::settings_list_row_with_tooltip(
                                     ui,
                                     ROW_CONTENT_WIDTH,
                                     ROW_HEIGHT,
                                     "Name",
                                     true,
+                                    Some("Local name for this slot"),
                                     CONTROL_WIDTH,
                                     |ui| {
                                         if let Some(name) = self.alt_repeat_names.get_mut(idx) {
@@ -5707,12 +5709,13 @@ impl EntropyApp {
                                 }
                             }
                             2 => {
-                                crate::ui_style::settings_list_row(
+                                crate::ui_style::settings_list_row_with_tooltip(
                                     ui,
                                     ROW_CONTENT_WIDTH,
                                     ROW_HEIGHT,
                                     "Last key",
                                     true,
+                                    Some("Key that triggers alternate repeat behavior"),
                                     CONTROL_WIDTH,
                                     |ui| {
                                         let resp = alt_repeat_modern_button(
@@ -5729,12 +5732,13 @@ impl EntropyApp {
                                 );
                             }
                             3 => {
-                                crate::ui_style::settings_list_row(
+                                crate::ui_style::settings_list_row_with_tooltip(
                                     ui,
                                     ROW_CONTENT_WIDTH,
                                     ROW_HEIGHT,
                                     "Alt key",
                                     true,
+                                    Some("Key repeated when alternate repeat activates"),
                                     CONTROL_WIDTH,
                                     |ui| {
                                         let resp = alt_repeat_modern_button(
@@ -5757,12 +5761,18 @@ impl EntropyApp {
                                     6 => ("Alt mods".to_string(), 2, 6),
                                     _ => (format!("{} mods", gui), 3, 7),
                                 };
-                                crate::ui_style::settings_list_row(
+                                crate::ui_style::settings_list_row_with_tooltip(
                                     ui,
                                     ROW_CONTENT_WIDTH,
                                     ROW_HEIGHT,
                                     row_label.as_str(),
                                     true,
+                                    Some(match row_idx {
+                                        4 => "Allowed Ctrl modifiers",
+                                        5 => "Allowed Shift modifiers",
+                                        6 => "Allowed Alt modifiers",
+                                        _ => "Allowed GUI modifiers",
+                                    }),
                                     MOD_CONTROL_WIDTH,
                                     |ui| {
                                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -5808,12 +5818,13 @@ impl EntropyApp {
                                 );
                             }
                             8 => {
-                                crate::ui_style::settings_list_row(
+                                crate::ui_style::settings_list_row_with_tooltip(
                                     ui,
                                     ROW_CONTENT_WIDTH,
                                     ROW_HEIGHT,
                                     "Default alt key",
                                     true,
+                                    Some("Use this alt key by default"),
                                     46.0,
                                     |ui| {
                                         crate::ui_style::settings_switch(
@@ -5824,12 +5835,13 @@ impl EntropyApp {
                                 );
                             }
                             9 => {
-                                crate::ui_style::settings_list_row(
+                                crate::ui_style::settings_list_row_with_tooltip(
                                     ui,
                                     ROW_CONTENT_WIDTH,
                                     ROW_HEIGHT,
                                     "Bidirectional",
                                     true,
+                                    Some("Allow both keys to alternate each other"),
                                     46.0,
                                     |ui| {
                                         crate::ui_style::settings_switch(
@@ -5840,12 +5852,13 @@ impl EntropyApp {
                                 );
                             }
                             10 => {
-                                crate::ui_style::settings_list_row(
+                                crate::ui_style::settings_list_row_with_tooltip(
                                     ui,
                                     ROW_CONTENT_WIDTH,
                                     ROW_HEIGHT,
                                     "Ignore handedness",
                                     true,
+                                    Some("Treat left and right modifiers as equivalent"),
                                     46.0,
                                     |ui| {
                                         crate::ui_style::settings_switch(
