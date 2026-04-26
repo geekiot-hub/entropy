@@ -3043,13 +3043,18 @@ impl EntropyApp {
             egui::pos2(content_rect.center().x, status_y),
             Vec2::new(132.0, 30.0),
         );
-        painter.rect(
+        let status_resp = ui.interact(
             status_rect,
-            9.0,
-            app_surface_fill(dark),
-            crate::ui_style::modal_outline_stroke(dark),
-            egui::StrokeKind::Inside,
+            ui.id().with("matrix_tester_status_reset"),
+            egui::Sense::click(),
         );
+        if status_resp.hovered() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+        }
+        if status_resp.clicked() {
+            self.reset_matrix_tester_state();
+        }
+        status_resp.on_hover_text("Click to reset Matrix Tester");
         painter.text(
             status_rect.center(),
             egui::Align2::CENTER_CENTER,
@@ -3057,17 +3062,6 @@ impl EntropyApp {
             FontId::proportional(13.0),
             if complete { app_accent() } else { app_muted_text(dark) },
         );
-
-        let reset_rect = egui::Rect::from_min_size(
-            egui::pos2(content_rect.right() - 88.0, status_y - 15.0),
-            Vec2::new(84.0, 30.0),
-        );
-        ui.allocate_ui_at_rect(reset_rect, |ui| {
-            let reset_resp = crate::ui_style::modern_button(ui, "Reset", reset_rect.size(), true);
-            if reset_resp.clicked() {
-                self.reset_matrix_tester_state();
-            }
-        });
         let idle_fill = if dark {
             Color32::from_rgb(34, 34, 38)
         } else {
@@ -3080,9 +3074,10 @@ impl EntropyApp {
         };
 
         let board_top = content_rect.top() + 92.0;
+        let hint_y = content_rect.bottom() - 12.0;
         let board_rect = egui::Rect::from_min_max(
             egui::pos2(content_rect.left(), board_top),
-            egui::pos2(content_rect.right(), content_rect.bottom()),
+            egui::pos2(content_rect.right(), content_rect.bottom() - 28.0),
         );
 
         if !supported {
@@ -3141,6 +3136,14 @@ impl EntropyApp {
         let layout_h = span_y * unit;
         let offset_x = board_rect.center().x - layout_w / 2.0 - min_x * unit;
         let offset_y = board_rect.center().y - layout_h / 2.0 - min_y * unit;
+
+        painter.text(
+            egui::pos2(content_rect.center().x, hint_y),
+            egui::Align2::CENTER_CENTER,
+            "Click Tested to reset Matrix Tester",
+            FontId::proportional(12.0),
+            app_muted_text(dark),
+        );
 
         for key in &layout.keys {
             let matrix_idx = key.row as usize * layout.cols + key.col as usize;
