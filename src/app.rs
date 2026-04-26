@@ -3473,7 +3473,7 @@ impl EntropyApp {
                     ui.add_space(18.0);
                 }
 
-                self.draw_auto_shift_editor_content(ui, dark, 360.0);
+                self.draw_auto_shift_editor_content(ui, dark, 470.0);
             });
         });
     }
@@ -3484,117 +3484,238 @@ impl EntropyApp {
         dark: bool,
         content_width: f32,
     ) {
-        let timeout_value = self.auto_shift_timeout.unwrap_or(175);
-        if self.auto_shift_timeout_text.is_empty() {
-            self.auto_shift_timeout_text = timeout_value.to_string();
-        }
-        let row_height = 28.0_f32;
-        let checkbox_slot_width = 24.0_f32;
-        let timeout_input_width = 52.0_f32;
-        let timeout_unit_gap = 12.0_f32;
-        let timeout_group_width = timeout_input_width + timeout_unit_gap + 18.0;
+        const VISIBLE_ROWS: usize = 6;
+        const TOTAL_ROWS: usize = 8;
+        const ROW_HEIGHT: f32 = 54.0;
+        const ROW_CONTENT_WIDTH: f32 = 452.0;
+        const FIELD_WIDTH: f32 = 86.0;
 
-        crate::ui_style::modal_content(
-            ui,
-            crate::ui_style::ModalLayout::new(content_width).with_top_padding(8.0),
-            |ui| {
-                let checkbox_row = |ui: &mut egui::Ui, label: &str, value: &mut bool| -> bool {
-                    let mut changed = false;
-                    ui.horizontal_centered(|ui| {
-                        let (row_rect, _) = ui.allocate_exact_size(
-                            egui::vec2(content_width, row_height),
-                            egui::Sense::hover(),
-                        );
-                        let checkbox_rect = egui::Rect::from_min_size(
-                            egui::pos2(row_rect.right() - checkbox_slot_width, row_rect.top()),
-                            egui::vec2(checkbox_slot_width, row_height),
-                        );
-                        ui.painter().text(
-                            egui::pos2(row_rect.left(), row_rect.center().y),
-                            egui::Align2::LEFT_CENTER,
-                            label,
-                            FontId::proportional(12.5),
-                            ui.visuals().widgets.inactive.fg_stroke.color,
-                        );
-                        let resp = ui.put(checkbox_rect, egui::Checkbox::without_text(value));
-                        if resp.hovered() {
-                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                        }
-                        changed = resp.changed();
-                    });
-                    changed
-                };
+        let list_height = ROW_HEIGHT * VISIBLE_ROWS as f32;
+        let content_height = ROW_HEIGHT * TOTAL_ROWS as f32;
+        let max_offset = (content_height - list_height).max(0.0);
+        let offset_id = ui.id().with("auto_shift_settings_smooth_offset");
+        let target_id = ui.id().with("auto_shift_settings_smooth_target");
+        let mut scroll_offset = ui
+            .ctx()
+            .data_mut(|d| d.get_persisted::<f32>(offset_id).unwrap_or(0.0))
+            .clamp(0.0, max_offset);
+        let mut target_offset = ui
+            .ctx()
+            .data_mut(|d| d.get_persisted::<f32>(target_id).unwrap_or(scroll_offset))
+            .clamp(0.0, max_offset);
+        let (viewport, viewport_resp) =
+            ui.allocate_exact_size(egui::vec2(content_width, list_height), Sense::hover());
+        let track_width = 6.0;
+        let track_rect = egui::Rect::from_min_max(
+            egui::pos2(viewport.right() - track_width, viewport.top()),
+            egui::pos2(viewport.right(), viewport.bottom()),
+        );
+        let scrollbar_resp = if max_offset > 0.0 {
+            Some(ui.interact(
+                track_rect.expand2(egui::vec2(5.0, 0.0)),
+                ui.id().with("auto_shift_settings_scrollbar"),
+                Sense::click_and_drag(),
+            ))
+        } else {
+            None
+        };
 
-                let mut options_changed = false;
-                options_changed |= checkbox_row(ui, "Enable", &mut self.auto_shift_options.enabled);
-                options_changed |= checkbox_row(
-                    ui,
-                    "Enable for modifiers",
-                    &mut self.auto_shift_options.enable_for_modifiers,
-                );
-                options_changed |= checkbox_row(
-                    ui,
-                    "Do not Auto Shift special keys",
-                    &mut self.auto_shift_options.no_special,
-                );
-                options_changed |= checkbox_row(
-                    ui,
-                    "Do not Auto Shift numeric keys",
-                    &mut self.auto_shift_options.no_numeric,
-                );
-                options_changed |= checkbox_row(
-                    ui,
-                    "Do not Auto Shift alpha characters",
-                    &mut self.auto_shift_options.no_alpha,
-                );
-                options_changed |= checkbox_row(
-                    ui,
-                    "Enable keyrepeat",
-                    &mut self.auto_shift_options.enable_keyrepeat,
-                );
-                options_changed |= checkbox_row(
-                    ui,
-                    "Disable keyrepeat when timeout is exceeded",
-                    &mut self.auto_shift_options.disable_keyrepeat_timeout,
-                );
-
-                if options_changed {
-                    self.write_auto_shift_flags();
+        let scroll_delta = if viewport_resp.hovered() {
+            ui.input(|i| {
+                if i.smooth_scroll_delta.y.abs() > 0.0 {
+                    i.smooth_scroll_delta.y
+                } else {
+                    i.raw_scroll_delta.y
                 }
+            })
+        } else {
+            0.0
+        };
+        if scroll_delta.abs() > 0.0 && max_offset > 0.0 {
+            target_offset = (target_offset - scroll_delta * 0.72).clamp(0.0, max_offset);
+        }
 
-                ui.add_space(10.0);
-                ui.horizontal_centered(|ui| {
-                    let (row_rect, _) = ui.allocate_exact_size(
-                        egui::vec2(content_width, row_height),
-                        egui::Sense::hover(),
-                    );
-                    let input_rect = egui::Rect::from_min_size(
-                        egui::pos2(row_rect.right() - timeout_group_width, row_rect.top()),
-                        egui::vec2(timeout_input_width, row_height),
-                    );
-                    ui.painter().text(
-                        egui::pos2(row_rect.left(), row_rect.center().y),
-                        egui::Align2::LEFT_CENTER,
-                        "Timeout",
-                        FontId::proportional(12.5),
-                        ui.visuals().widgets.inactive.fg_stroke.color,
-                    );
-                    let resp = ui.put(
-                        input_rect,
-                        egui::TextEdit::singleline(&mut self.auto_shift_timeout_text)
-                            .desired_width(timeout_input_width)
-                            .horizontal_align(egui::Align::Center)
-                            .vertical_align(egui::Align::Center),
-                    );
-                    if resp.hovered() {
-                        ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
+        let handle_height = if max_offset > 0.0 {
+            (list_height / content_height * viewport.height()).clamp(42.0, viewport.height())
+        } else {
+            viewport.height()
+        };
+        if let Some(resp) = &scrollbar_resp {
+            if (resp.dragged() || resp.clicked()) && max_offset > 0.0 {
+                if let Some(pointer_pos) = ui.input(|i| i.pointer.interact_pos()) {
+                    let travel = (track_rect.height() - handle_height).max(1.0);
+                    let t = ((pointer_pos.y - track_rect.top() - handle_height / 2.0) / travel)
+                        .clamp(0.0, 1.0);
+                    target_offset = t * max_offset;
+                    scroll_offset = target_offset;
+                }
+            }
+        }
+
+        if (scroll_offset - target_offset).abs() > 0.35 {
+            scroll_offset += (target_offset - scroll_offset) * 0.42;
+            ui.ctx().request_repaint();
+        } else {
+            scroll_offset = target_offset;
+        }
+        scroll_offset = scroll_offset.clamp(0.0, max_offset);
+        target_offset = target_offset.clamp(0.0, max_offset);
+        ui.ctx().data_mut(|d| {
+            d.insert_persisted(offset_id, scroll_offset);
+            d.insert_persisted(target_id, target_offset);
+        });
+
+        let first_visible_row = (scroll_offset / ROW_HEIGHT).floor() as usize;
+        let row_y_offset = scroll_offset - first_visible_row as f32 * ROW_HEIGHT;
+        let last_visible_row = (first_visible_row + VISIBLE_ROWS + 1).min(TOTAL_ROWS);
+        let visible_row_count = last_visible_row.saturating_sub(first_visible_row);
+        let content_rect = egui::Rect::from_min_size(
+            egui::pos2(viewport.left(), viewport.top() - row_y_offset),
+            egui::vec2(content_width, ROW_HEIGHT * visible_row_count as f32),
+        );
+        let suppress_tooltips =
+            (scroll_offset - target_offset).abs() > 0.35 || ui.input(|i| i.pointer.primary_down());
+        ui.allocate_ui_at_rect(content_rect, |ui| {
+            ui.set_clip_rect(viewport);
+            ui.set_min_size(content_rect.size());
+            ui.spacing_mut().item_spacing.y = 0.0;
+            for row_idx in first_visible_row..last_visible_row {
+                self.draw_auto_shift_row(
+                    ui,
+                    row_idx,
+                    ROW_CONTENT_WIDTH,
+                    ROW_HEIGHT,
+                    FIELD_WIDTH,
+                    dark,
+                    suppress_tooltips,
+                );
+            }
+        });
+
+        if max_offset > 0.0 {
+            let track_hovered = scrollbar_resp
+                .as_ref()
+                .map(|resp| resp.hovered() || resp.dragged())
+                .unwrap_or(false);
+            crate::ui_style::paint_floating_scrollbar_handle(
+                ui,
+                track_rect,
+                handle_height,
+                scroll_offset / max_offset,
+                track_hovered,
+            );
+        }
+    }
+
+    fn draw_auto_shift_row(
+        &mut self,
+        ui: &mut egui::Ui,
+        row_idx: usize,
+        content_width: f32,
+        row_height: f32,
+        field_width: f32,
+        _dark: bool,
+        suppress_tooltips: bool,
+    ) {
+        let row = match row_idx {
+            0 => ("Enable", "Turn Auto Shift on or off", true),
+            1 => (
+                "Enable for modifiers",
+                "Allow Auto Shift behavior on modifier keys",
+                true,
+            ),
+            2 => (
+                "No special keys",
+                "Do not Auto Shift special keys such as Enter, Esc, Tab or Backspace",
+                true,
+            ),
+            3 => (
+                "No numeric keys",
+                "Do not Auto Shift number keys",
+                true,
+            ),
+            4 => (
+                "No alpha keys",
+                "Do not Auto Shift letter keys",
+                true,
+            ),
+            5 => (
+                "Enable keyrepeat",
+                "Allow held Auto Shift keys to repeat",
+                true,
+            ),
+            6 => (
+                "Stop repeat after timeout",
+                "Disable key repeat after the Auto Shift timeout is exceeded",
+                true,
+            ),
+            7 => (
+                "Timeout",
+                "Hold time before Auto Shift sends the shifted key",
+                false,
+            ),
+            _ => return,
+        };
+        let tooltip = if suppress_tooltips { None } else { Some(row.1) };
+        if row.2 {
+            let mut value = match row_idx {
+                0 => self.auto_shift_options.enabled,
+                1 => self.auto_shift_options.enable_for_modifiers,
+                2 => self.auto_shift_options.no_special,
+                3 => self.auto_shift_options.no_numeric,
+                4 => self.auto_shift_options.no_alpha,
+                5 => self.auto_shift_options.enable_keyrepeat,
+                6 => self.auto_shift_options.disable_keyrepeat_timeout,
+                _ => false,
+            };
+            crate::ui_style::settings_list_row_with_tooltip(
+                ui,
+                content_width,
+                row_height,
+                row.0,
+                true,
+                tooltip,
+                46.0,
+                |ui| {
+                    let resp = crate::ui_style::settings_switch(ui, &mut value);
+                    if resp.changed() {
+                        match row_idx {
+                            0 => self.auto_shift_options.enabled = value,
+                            1 => self.auto_shift_options.enable_for_modifiers = value,
+                            2 => self.auto_shift_options.no_special = value,
+                            3 => self.auto_shift_options.no_numeric = value,
+                            4 => self.auto_shift_options.no_alpha = value,
+                            5 => self.auto_shift_options.enable_keyrepeat = value,
+                            6 => self.auto_shift_options.disable_keyrepeat_timeout = value,
+                            _ => {}
+                        }
+                        self.write_auto_shift_flags();
                     }
-                    ui.painter().text(
-                        egui::pos2(input_rect.right() + timeout_unit_gap, row_rect.center().y),
-                        egui::Align2::LEFT_CENTER,
+                },
+            );
+        } else {
+            let timeout_value = self.auto_shift_timeout.unwrap_or(175);
+            if self.auto_shift_timeout_text.is_empty() {
+                self.auto_shift_timeout_text = timeout_value.to_string();
+            }
+            crate::ui_style::settings_list_row_with_tooltip(
+                ui,
+                content_width,
+                row_height,
+                row.0,
+                true,
+                tooltip,
+                field_width,
+                |ui| {
+                    let edit_id = egui::Id::new("auto_shift_timeout");
+                    let resp = crate::ui_style::modern_text_field(
+                        ui,
+                        edit_id,
+                        &mut self.auto_shift_timeout_text,
+                        field_width,
                         "ms",
-                        FontId::proportional(11.5),
-                        app_muted_text(dark),
+                        5,
+                        egui::Align::RIGHT,
                     );
                     if resp.changed() {
                         let filtered: String = self
@@ -3612,9 +3733,9 @@ impl EntropyApp {
                             self.write_auto_shift_timeout();
                         }
                     }
-                });
-            },
-        );
+                },
+            );
+        }
     }
 
     fn apply_picker_results(&mut self) {
