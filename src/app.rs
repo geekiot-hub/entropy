@@ -346,11 +346,7 @@ fn alt_repeat_modern_button(
     } else {
         app_surface_fill(dark)
     };
-    let stroke = if active || hovered {
-        Stroke::new(1.0, Color32::from_rgb(112, 112, 116))
-    } else {
-        crate::ui_style::modal_outline_stroke(dark)
-    };
+    let stroke = crate::ui_style::modal_outline_stroke(dark);
     ui.painter().rect(
         rect,
         9.0,
@@ -5872,18 +5868,6 @@ impl EntropyApp {
                         .as_ref()
                         .map(|resp| resp.hovered() || resp.dragged())
                         .unwrap_or(false);
-                    let track_fill = if dark {
-                        if track_hovered {
-                            Color32::from_rgb(46, 46, 49)
-                        } else {
-                            Color32::from_rgb(40, 40, 43)
-                        }
-                    } else if track_hovered {
-                        Color32::from_rgb(228, 228, 231)
-                    } else {
-                        Color32::from_rgb(236, 236, 238)
-                    };
-                    ui.painter().rect_filled(track_rect, 3.0, track_fill);
                     let t = if max_first_row == 0 {
                         0.0
                     } else {
@@ -5899,14 +5883,14 @@ impl EntropyApp {
                     );
                     let handle_fill = if dark {
                         if track_hovered {
-                            Color32::from_rgb(98, 98, 102)
+                            Color32::from_rgb(74, 74, 78)
                         } else {
-                            Color32::from_rgb(82, 82, 86)
+                            Color32::from_rgb(62, 62, 66)
                         }
                     } else if track_hovered {
-                        Color32::from_rgb(174, 174, 178)
+                        Color32::from_rgb(198, 198, 202)
                     } else {
-                        Color32::from_rgb(188, 188, 192)
+                        Color32::from_rgb(212, 212, 216)
                     };
                     ui.painter().rect_filled(handle_rect, 3.0, handle_fill);
                 }
