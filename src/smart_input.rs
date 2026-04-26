@@ -104,6 +104,25 @@ pub fn smart_symbol_for_keycode(keycode: u16) -> Option<SmartSymbol> {
         .find(|symbol| symbol.trigger_keycode == keycode)
 }
 
+fn smart_symbol_for_transport(
+    base_keycode: u16,
+    ctrl: bool,
+    shift: bool,
+    alt: bool,
+) -> Option<(char, u16)> {
+    let mut trigger_keycode = base_keycode;
+    if ctrl {
+        trigger_keycode |= MOD_CTRL;
+    }
+    if shift {
+        trigger_keycode |= MOD_SHIFT;
+    }
+    if alt {
+        trigger_keycode |= MOD_ALT;
+    }
+    smart_symbol_for_keycode(trigger_keycode).map(|symbol| (symbol.symbol, trigger_keycode))
+}
+
 #[cfg(target_os = "windows")]
 pub fn start() {
     use std::sync::Once;
@@ -115,7 +134,27 @@ pub fn start() {
     });
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(target_os = "macos")]
+pub fn start() {
+    use std::sync::Once;
+    static START: Once = Once::new();
+    START.call_once(|| {
+        std::thread::spawn(|| unsafe {
+            macos::run_event_tap();
+        });
+    });
+}
+
+#[cfg(target_os = "linux")]
+pub fn start() {
+    use std::sync::Once;
+    static START: Once = Once::new();
+    START.call_once(|| {
+        std::thread::spawn(linux_x11::run_x11_loop);
+    });
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
 pub fn start() {}
 
 #[cfg(target_os = "windows")]
@@ -124,17 +163,12 @@ fn symbol_for_vk(vk: u32) -> Option<(char, u16)> {
         0x7C..=0x87 => KC_F13 + (vk - 0x7C) as u16,
         _ => return None,
     };
-    let mut trigger_keycode = base_keycode;
-    if modifier_down(VK_CONTROL) {
-        trigger_keycode |= MOD_CTRL;
-    }
-    if modifier_down(VK_SHIFT) {
-        trigger_keycode |= MOD_SHIFT;
-    }
-    if modifier_down(VK_MENU) {
-        trigger_keycode |= MOD_ALT;
-    }
-    smart_symbol_for_keycode(trigger_keycode).map(|symbol| (symbol.symbol, trigger_keycode))
+    smart_symbol_for_transport(
+        base_keycode,
+        modifier_down(VK_CONTROL),
+        modifier_down(VK_SHIFT),
+        modifier_down(VK_MENU),
+    )
 }
 
 #[cfg(target_os = "windows")]
@@ -215,7 +249,11 @@ unsafe fn release_transport_modifiers(trigger_keycode: u16) {
 #[cfg(target_os = "windows")]
 unsafe fn send_vk_keyup(vk: u16) {
     let input = INPUT::keyboard_vk(vk, true);
-    let sent = SendInput(1, &input as *const INPUT, std::mem::size_of::<INPUT>() as i32);
+    let sent = SendInput(
+        1,
+        &input as *const INPUT,
+        std::mem::size_of::<INPUT>() as i32,
+    );
     if sent != 1 {
         log::warn!("Smart Input: SendInput failed for VK keyup 0x{:02X}", vk);
     }
@@ -380,4 +418,269 @@ extern "system" {
 #[link(name = "kernel32")]
 extern "system" {
     fn GetModuleHandleW(lpModuleName: *const u16) -> HINSTANCE;
+}
+
+#[cfg(target_os = "macos")]
+mod macos {
+    use super::*;
+    use std::ffi::c_void;
+    use std::ptr::null_mut;
+
+    type CGEventTapProxy = *mut c_void;
+    type CGEventRef = *mut c_void;
+    type CFMachPortRef = *mut c_void;
+    type CFRunLoopSourceRef = *mut c_void;
+    type CFRunLoopRef = *mut c_void;
+    type CFStringRef = *const c_void;
+
+    const K_CG_HID_EVENT_TAP: u32 = 0;
+    const K_CG_HEAD_INSERT_EVENT_TAP: u32 = 0;
+    const K_CG_EVENT_TAP_OPTION_DEFAULT: u32 = 0;
+    const K_CG_EVENT_KEY_DOWN: u32 = 10;
+    const K_CG_EVENT_KEY_UP: u32 = 11;
+    const K_CG_KEYBOARD_EVENT_KEYCODE: i32 = 9;
+    const K_CG_EVENT_FLAG_MASK_SHIFT: u64 = 1 << 17;
+    const K_CG_EVENT_FLAG_MASK_CONTROL: u64 = 1 << 18;
+    const K_CG_EVENT_FLAG_MASK_ALTERNATE: u64 = 1 << 19;
+    const K_CG_ANNOTATED_SESSION_EVENT_TAP: u32 = 1;
+
+    pub unsafe fn run_event_tap() {
+        let mask = (1u64 << K_CG_EVENT_KEY_DOWN) | (1u64 << K_CG_EVENT_KEY_UP);
+        let tap = CGEventTapCreate(
+            K_CG_HID_EVENT_TAP,
+            K_CG_HEAD_INSERT_EVENT_TAP,
+            K_CG_EVENT_TAP_OPTION_DEFAULT,
+            mask,
+            Some(event_tap_callback),
+            null_mut(),
+        );
+        if tap.is_null() {
+            log::warn!("Smart Input: macOS event tap failed; Accessibility/Input Monitoring permission may be required");
+            return;
+        }
+
+        let source = CFMachPortCreateRunLoopSource(null_mut(), tap, 0);
+        if source.is_null() {
+            log::warn!("Smart Input: macOS run-loop source creation failed");
+            CFRelease(tap as *const c_void);
+            return;
+        }
+
+        let run_loop = CFRunLoopGetCurrent();
+        CFRunLoopAddSource(run_loop, source, kCFRunLoopCommonModes);
+        CGEventTapEnable(tap, true);
+        CFRunLoopRun();
+    }
+
+    unsafe extern "C" fn event_tap_callback(
+        _proxy: CGEventTapProxy,
+        event_type: u32,
+        event: CGEventRef,
+        _user_info: *mut c_void,
+    ) -> CGEventRef {
+        if event_type != K_CG_EVENT_KEY_DOWN && event_type != K_CG_EVENT_KEY_UP {
+            return event;
+        }
+        let keycode = CGEventGetIntegerValueField(event, K_CG_KEYBOARD_EVENT_KEYCODE) as u16;
+        let Some(base_keycode) = mac_keycode_to_qmk_f_key(keycode) else {
+            return event;
+        };
+        let flags = CGEventGetFlags(event);
+        let ctrl = flags & K_CG_EVENT_FLAG_MASK_CONTROL != 0;
+        let shift = flags & K_CG_EVENT_FLAG_MASK_SHIFT != 0;
+        let alt = flags & K_CG_EVENT_FLAG_MASK_ALTERNATE != 0;
+        if let Some((symbol, _trigger_keycode)) =
+            smart_symbol_for_transport(base_keycode, ctrl, shift, alt)
+        {
+            if event_type == K_CG_EVENT_KEY_DOWN {
+                send_unicode_char(symbol);
+            }
+            return null_mut();
+        }
+        event
+    }
+
+    fn mac_keycode_to_qmk_f_key(keycode: u16) -> Option<u16> {
+        let offset = match keycode {
+            0x69 => 0, // F13
+            0x6B => 1, // F14
+            0x71 => 2, // F15
+            0x6A => 3, // F16
+            0x40 => 4, // F17
+            0x4F => 5, // F18
+            0x50 => 6, // F19
+            0x5A => 7, // F20
+            // F21..F24 are not declared by HIToolbox, but external keyboards
+            // may still surface them through CGEvent with these adjacent codes.
+            0x5B => 8,
+            0x5C => 9,
+            0x5D => 10,
+            0x5E => 11,
+            _ => return None,
+        };
+        Some(KC_F13 + offset)
+    }
+
+    unsafe fn send_unicode_char(symbol: char) {
+        let mut buffer = [0u16; 2];
+        let units = symbol.encode_utf16(&mut buffer);
+        let event = CGEventCreateKeyboardEvent(null_mut(), 0, true);
+        if event.is_null() {
+            return;
+        }
+        CGEventSetFlags(event, 0);
+        CGEventKeyboardSetUnicodeString(event, units.len(), units.as_ptr());
+        CGEventPost(K_CG_ANNOTATED_SESSION_EVENT_TAP, event);
+        CFRelease(event as *const c_void);
+    }
+
+    #[link(name = "ApplicationServices", kind = "framework")]
+    extern "C" {
+        fn CGEventTapCreate(
+            tap: u32,
+            place: u32,
+            options: u32,
+            eventsOfInterest: u64,
+            callback: Option<
+                unsafe extern "C" fn(CGEventTapProxy, u32, CGEventRef, *mut c_void) -> CGEventRef,
+            >,
+            userInfo: *mut c_void,
+        ) -> CFMachPortRef;
+        fn CGEventTapEnable(tap: CFMachPortRef, enable: bool);
+        fn CGEventGetIntegerValueField(event: CGEventRef, field: i32) -> i64;
+        fn CGEventGetFlags(event: CGEventRef) -> u64;
+        fn CGEventSetFlags(event: CGEventRef, flags: u64);
+        fn CGEventCreateKeyboardEvent(
+            source: *mut c_void,
+            virtualKey: u16,
+            keyDown: bool,
+        ) -> CGEventRef;
+        fn CGEventKeyboardSetUnicodeString(
+            event: CGEventRef,
+            stringLength: usize,
+            unicodeString: *const u16,
+        );
+        fn CGEventPost(tap: u32, event: CGEventRef);
+    }
+
+    #[link(name = "CoreFoundation", kind = "framework")]
+    extern "C" {
+        static kCFRunLoopCommonModes: CFStringRef;
+        fn CFMachPortCreateRunLoopSource(
+            allocator: *mut c_void,
+            port: CFMachPortRef,
+            order: isize,
+        ) -> CFRunLoopSourceRef;
+        fn CFRunLoopGetCurrent() -> CFRunLoopRef;
+        fn CFRunLoopAddSource(rl: CFRunLoopRef, source: CFRunLoopSourceRef, mode: CFStringRef);
+        fn CFRunLoopRun();
+        fn CFRelease(cf: *const c_void);
+    }
+}
+
+#[cfg(target_os = "linux")]
+mod linux_x11 {
+    use super::*;
+    use std::process::Command;
+
+    const XK_F13: u64 = 0xffca;
+    const SHIFT_MASK: u32 = 1;
+    const LOCK_MASK: u32 = 2;
+    const CONTROL_MASK: u32 = 4;
+    const MOD1_MASK: u32 = 8;
+    const KEY_PRESS: i32 = 2;
+    const KEY_RELEASE: i32 = 3;
+
+    pub fn run_x11_loop() {
+        unsafe {
+            let Ok(xlib) = x11_dl::xlib::Xlib::open() else {
+                log::warn!("Smart Input: Xlib is unavailable");
+                return;
+            };
+            let display = (xlib.XOpenDisplay)(std::ptr::null());
+            if display.is_null() {
+                log::warn!("Smart Input: X11 display is unavailable; Wayland is not supported yet");
+                return;
+            }
+            let root = (xlib.XDefaultRootWindow)(display);
+            let mut keycodes = Vec::new();
+            for idx in 0..12u16 {
+                let keycode = (xlib.XKeysymToKeycode)(display, XK_F13 + idx as u64);
+                if keycode == 0 {
+                    continue;
+                }
+                keycodes.push((keycode, KC_F13 + idx));
+                for modifiers in transport_modifier_masks() {
+                    (xlib.XGrabKey)(
+                        display,
+                        keycode as i32,
+                        modifiers,
+                        root,
+                        1,
+                        x11_dl::xlib::GrabModeAsync,
+                        x11_dl::xlib::GrabModeAsync,
+                    );
+                }
+            }
+            (xlib.XFlush)(display);
+
+            loop {
+                let mut event: x11_dl::xlib::XEvent = std::mem::zeroed();
+                (xlib.XNextEvent)(display, &mut event);
+                let event_type = event.get_type();
+                if event_type != KEY_PRESS && event_type != KEY_RELEASE {
+                    continue;
+                }
+                let xkey = event.key;
+                let Some((_, base_keycode)) = keycodes
+                    .iter()
+                    .find(|(keycode, _)| *keycode == xkey.keycode as u8)
+                else {
+                    continue;
+                };
+                let ctrl = xkey.state & CONTROL_MASK != 0;
+                let shift = xkey.state & SHIFT_MASK != 0;
+                let alt = xkey.state & MOD1_MASK != 0;
+                if let Some((symbol, _trigger_keycode)) =
+                    smart_symbol_for_transport(*base_keycode, ctrl, shift, alt)
+                {
+                    if event_type == KEY_PRESS {
+                        type_unicode(symbol);
+                    }
+                }
+            }
+        }
+    }
+
+    fn transport_modifier_masks() -> Vec<u32> {
+        let base_masks = [
+            0,
+            SHIFT_MASK,
+            CONTROL_MASK,
+            MOD1_MASK,
+            CONTROL_MASK | SHIFT_MASK,
+            CONTROL_MASK | MOD1_MASK,
+            SHIFT_MASK | MOD1_MASK,
+            CONTROL_MASK | SHIFT_MASK | MOD1_MASK,
+        ];
+        let lock_masks = [0, LOCK_MASK];
+        let mut masks = Vec::with_capacity(base_masks.len() * lock_masks.len());
+        for base in base_masks {
+            for lock in lock_masks {
+                masks.push(base | lock);
+            }
+        }
+        masks
+    }
+
+    fn type_unicode(symbol: char) {
+        let status = Command::new("xdotool")
+            .arg("type")
+            .arg("--clearmodifiers")
+            .arg(symbol.to_string())
+            .status();
+        if !matches!(status, Ok(status) if status.success()) {
+            log::warn!("Smart Input: xdotool failed or is not installed");
+        }
+    }
 }
