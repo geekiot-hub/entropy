@@ -6050,19 +6050,19 @@ impl EntropyApp {
     ) {
         let rows: [(u16, Option<u8>, &str, &str, bool, u32); 14] = [
             (7, None, "Tapping term", "Global tap-vs-hold decision window for dual-role keys", false, 10000),
-            (8, Some(0), "Permissive hold (legacy)", "Legacy QMK flag used by older firmware builds", true, 1),
-            (8, Some(1), "Ignore mod-tap interrupt", "Legacy QMK flag for mod-tap interrupt handling", true, 1),
-            (8, Some(2), "Tapping force hold", "Legacy QMK flag that makes tap-then-hold choose hold", true, 1),
-            (8, Some(3), "Retro tapping (legacy)", "Legacy QMK flag for held-and-released-alone tap behavior", true, 1),
             (22, None, "Permissive hold", "Nested taps choose hold for Mod-Tap and Layer-Tap keys", true, 1),
             (23, None, "Hold on other key", "Pressing another key immediately chooses hold for dual-role keys", true, 1),
             (24, None, "Retro tapping", "A held-and-released-alone dual-role key still sends its tap action", true, 1),
+            (26, None, "Chordal hold", "Same-hand chords prefer tap to reduce home-row mod accidents", true, 1),
             (25, None, "Quick tap term", "Tap-then-hold repeat window for dual-role key tap actions", false, 10000),
             (18, None, "Tap code delay", "Delay between register and unregister in tap_code", false, 1000),
             (19, None, "Tap hold caps delay", "Extra delay for LT/MT keys whose tap action is Caps Lock", false, 1000),
             (20, None, "Tapping toggle", "Number of taps needed for TT layer toggle", false, 100),
-            (26, None, "Chordal hold", "Same-hand chords prefer tap to reduce home-row mod accidents", true, 1),
             (27, None, "Flow tap", "Fast typing timeout that forces MT/LT keys to tap", false, 10000),
+            (8, Some(0), "Permissive hold (legacy)", "Legacy QMK flag used by older firmware builds", true, 1),
+            (8, Some(1), "Ignore mod-tap interrupt", "Legacy QMK flag for mod-tap interrupt handling", true, 1),
+            (8, Some(2), "Tapping force hold", "Legacy QMK flag that makes tap-then-hold choose hold", true, 1),
+            (8, Some(3), "Retro tapping (legacy)", "Legacy QMK flag for held-and-released-alone tap behavior", true, 1),
         ];
         const FIELD_WIDTH: f32 = 86.0;
 
