@@ -3027,26 +3027,48 @@ impl EntropyApp {
                 ui.add_space(4.0);
                 ui.allocate_ui_with_layout(
                     Vec2::new(content_width, 0.0),
-                    egui::Layout::top_down(egui::Align::Min),
+                    egui::Layout::top_down(egui::Align::Center),
                     |ui| {
-                        ui.label(RichText::new("Universal Symbols Setup").size(18.0).strong());
+                        ui.add_sized(
+                            Vec2::new(content_width, 24.0),
+                            egui::Label::new(
+                                RichText::new("Universal Symbols Setup").size(18.0).strong(),
+                            )
+                            .halign(egui::Align::Center),
+                        );
                         ui.add_space(8.0);
-                        ui.label(
-                            RichText::new(crate::smart_input::universal_output_status())
-                                .size(12.5)
-                                .color(app_muted_text(dark)),
+                        ui.add_sized(
+                            Vec2::new(content_width, 18.0),
+                            egui::Label::new(
+                                RichText::new(crate::smart_input::universal_output_status())
+                                    .size(12.5)
+                                    .color(app_muted_text(dark)),
+                            )
+                            .wrap()
+                            .halign(egui::Align::Center),
                         );
                         if let Some(hint) = crate::smart_input::universal_output_setup_hint() {
                             ui.add_space(4.0);
-                            ui.label(RichText::new(hint).size(11.0).color(app_muted_text(dark)));
+                            ui.add_sized(
+                                Vec2::new(content_width, 18.0),
+                                egui::Label::new(
+                                    RichText::new(hint).size(11.0).color(app_muted_text(dark)),
+                                )
+                                .wrap()
+                                .halign(egui::Align::Center),
+                            );
                         }
                         ui.add_space(16.0);
 
                         for step in universal_symbols_setup_steps() {
-                            ui.horizontal(|ui| {
-                                ui.label(RichText::new("•").size(13.0).color(app_accent()));
-                                ui.label(RichText::new(*step).size(12.0));
-                            });
+                            ui.add_sized(
+                                Vec2::new(content_width, 20.0),
+                                egui::Label::new(
+                                    RichText::new(format!("• {step}")).size(12.0),
+                                )
+                                .wrap()
+                                .halign(egui::Align::Center),
+                            );
                             ui.add_space(5.0);
                         }
 
