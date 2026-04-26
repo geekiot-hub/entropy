@@ -1925,7 +1925,7 @@ impl KeycodePicker {
         raw_n: u8,
         grid_id: &'static str,
         _add_action_id: &'static str,
-        footer_text: &'static str,
+        _footer_text: &'static str,
     ) -> u8 {
         let mut selected_macro = raw_n;
         crate::ui_style::modal_section_title(ui, "Choose macro");
@@ -1980,7 +1980,6 @@ impl KeycodePicker {
         self.ensure_macro_meta_len(n);
 
         let macro_font_size = 14.0;
-        let macro_hint_font_size = 13.0;
         ui.add_space(4.0);
         if let Some(name) = self.macro_names.get_mut(n) {
             let resp = crate::ui_style::modern_text_field(
@@ -2208,7 +2207,10 @@ impl KeycodePicker {
             {
                 self.macro_actions[n].push(MacroAction::Delay(100));
             }
+        });
 
+        ui.add_space(8.0);
+        ui.horizontal(|ui| {
             let can_clear_macro = self.macro_has_content(n)
                 || self
                     .macro_names
@@ -2252,13 +2254,6 @@ impl KeycodePicker {
                 }
             }
         });
-
-        ui.add_space(4.0);
-        ui.label(
-            RichText::new(footer_text)
-                .size(macro_hint_font_size)
-                .color(Color32::from_gray(120)),
-        );
 
         selected_macro
     }
@@ -2330,7 +2325,6 @@ impl KeycodePicker {
         let n = self.tap_dance_editor_open.unwrap_or(0) as usize;
         self.ensure_tap_dance_name_len(n);
         let td_font_size = 14.0;
-        let td_hint_font_size = 13.0;
         ui.add_space(4.0);
         let prev_name = self.tap_dance_names.get(n).cloned().unwrap_or_default();
         let mut edited_name = prev_name.clone();
@@ -2502,13 +2496,6 @@ impl KeycodePicker {
                 }
             }
         });
-
-        ui.add_space(4.0);
-        ui.label(
-            RichText::new("Saved to keyboard when you close the keycode picker")
-                .size(td_hint_font_size)
-                .color(Color32::from_gray(120)),
-        );
     }
 
     fn show_tap_dance_editor(&mut self, ctx: &egui::Context, active_td: u8) {
