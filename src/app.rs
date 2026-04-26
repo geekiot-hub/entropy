@@ -7342,6 +7342,14 @@ impl EntropyApp {
                             5,
                             egui::Align::RIGHT,
                         );
+                        if !suppress_tooltips {
+                            match qsid {
+                                7 | 25 | 18 | 19 | 27 => {
+                                    resp.clone().on_hover_text("Value is in milliseconds");
+                                }
+                                _ => {}
+                            }
+                        }
                         if resp.changed() {
                             let filtered: String =
                                 text.chars().filter(|c: &char| c.is_ascii_digit()).collect();
