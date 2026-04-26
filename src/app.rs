@@ -821,6 +821,25 @@ fn layer_led_palette_color(index: u8) -> Color32 {
     }
 }
 
+fn layer_led_outline_color(index: u8) -> Color32 {
+    let (h, s, v) = LAYER_LED_PALETTE_HSV
+        .get(index as usize)
+        .copied()
+        .unwrap_or((0, 0, 0));
+    if v == 0 {
+        Color32::from_rgb(18, 18, 20)
+    } else {
+        let pastel_s = (s as f32 / 255.0 * 0.42).clamp(0.0, 1.0);
+        let pastel_v = (v as f32 / 255.0 * 0.66 + 0.20).clamp(0.0, 0.86);
+        Color32::from(egui::ecolor::Hsva::new(
+            h as f32 / 255.0,
+            pastel_s,
+            pastel_v,
+            1.0,
+        ))
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum RgbSupportKind {
     #[default]
@@ -9781,7 +9800,7 @@ impl EntropyApp {
             if matches!(color_idx, 0 | 1) {
                 None
             } else {
-                Some(layer_led_palette_color(color_idx))
+                Some(layer_led_outline_color(color_idx))
             }
         } else {
             None
