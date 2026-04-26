@@ -407,6 +407,8 @@ struct ConnectResult {
     auto_shift_timeout: Option<u16>,
     /// Mouse Keys settings from QMK settings, if supported (qsid 9..=17)
     mouse_keys_settings: MouseKeysSettingsState,
+    /// Tap-Hold settings from QMK settings, if supported
+    tap_hold_settings: TapHoldSettingsState,
     /// Runtime RGB settings, if supported by the current Vial/QMK lighting backend
     rgb_settings: RgbSettingsState,
     /// Key Override entries
@@ -614,6 +616,21 @@ struct MouseKeysSettingsState {
     /// qsid 17: Time until maximum scroll speed is reached
     wheel_time_to_max: u16,
     /// Whether any of the qsids were readable (firmware support flag)
+    supported: bool,
+}
+
+/// Mirrors Vial GUI Tap-Hold settings. Values are QMK settings qsids.
+#[derive(Clone, Copy, Debug, Default)]
+struct TapHoldSettingsState {
+    /// qsid 7: Global tap-vs-hold decision window in milliseconds
+    tapping_term: u16,
+    /// qsid 22: Prefer hold for nested taps
+    permissive_hold: bool,
+    /// qsid 23: Prefer hold as soon as another key is pressed
+    hold_on_other_key_press: bool,
+    /// qsid 24: Send tap when a dual-role key is held and released alone
+    retro_tapping: bool,
+    /// Whether qsid 7 was readable (firmware support flag)
     supported: bool,
 }
 
@@ -1090,6 +1107,7 @@ enum SettingsTab {
     AutoShift,
     Rgb,
     Encoders,
+    TapHold,
     Combo,
     KeyOverrides,
     AltRepeat,
@@ -1150,6 +1168,7 @@ pub struct EntropyApp {
     auto_shift_timeout: Option<u16>,
     auto_shift_timeout_text: String,
     mouse_keys_settings: MouseKeysSettingsState,
+    tap_hold_settings: TapHoldSettingsState,
     alt_repeat_entries: Vec<AltRepeatKeyEntry>,
     alt_repeat_names: Vec<String>,
     alt_repeat_undo_stack: Vec<(Vec<AltRepeatKeyEntry>, Vec<String>, usize)>,
@@ -1241,6 +1260,7 @@ impl EntropyApp {
             auto_shift_timeout: None,
             auto_shift_timeout_text: String::new(),
             mouse_keys_settings: MouseKeysSettingsState::default(),
+            tap_hold_settings: TapHoldSettingsState::default(),
             alt_repeat_entries: vec![],
             alt_repeat_names: vec![],
             alt_repeat_undo_stack: Vec::new(),
@@ -1582,6 +1602,33 @@ impl EntropyApp {
                             mk
                         };
 
+                        // Tap-Hold settings. If qsid 7 is unsupported, we treat the page as unavailable.
+                        let tap_hold_settings = {
+                            let mut th = TapHoldSettingsState::default();
+                            match dev_conn.get_qmk_setting_u16(7) {
+                                Ok(v) => {
+                                    th.tapping_term = v;
+                                    th.supported = true;
+                                    let read_bool = |qsid: u16| -> bool {
+                                        match dev_conn.get_qmk_setting_u8(qsid) {
+                                            Ok(val) => val != 0,
+                                            Err(e) => {
+                                                log::warn!("get_qmk_setting_u8(tap_hold qsid {qsid}): {e}");
+                                                false
+                                            }
+                                        }
+                                    };
+                                    th.permissive_hold = read_bool(22);
+                                    th.hold_on_other_key_press = read_bool(23);
+                                    th.retro_tapping = read_bool(24);
+                                }
+                                Err(e) => {
+                                    log::warn!("get_qmk_setting_u16(tap_hold tapping_term): {e}");
+                                }
+                            }
+                            th
+                        };
+
                         // Read tap dance entries
                         let tap_dance_entries = match dev_conn.get_tap_dance_count() {
                             Ok(count) => {
@@ -1689,6 +1736,7 @@ impl EntropyApp {
                             auto_shift_options: auto_shift_options.unwrap_or_default(),
                             auto_shift_timeout,
                             mouse_keys_settings,
+                            tap_hold_settings,
                             rgb_settings,
                             key_override_entries,
                             alt_repeat_entries,
@@ -1742,6 +1790,7 @@ impl EntropyApp {
                                 auto_shift_options: AutoShiftOptionsState::default(),
                                 auto_shift_timeout: None,
                                 mouse_keys_settings: MouseKeysSettingsState::default(),
+                                tap_hold_settings: TapHoldSettingsState::default(),
                                 rgb_settings: RgbSettingsState::default(),
                                 key_override_entries: vec![],
                                 alt_repeat_entries: vec![],
@@ -1803,6 +1852,7 @@ impl EntropyApp {
                             auto_shift_options: AutoShiftOptionsState::default(),
                             auto_shift_timeout: None,
                             mouse_keys_settings: MouseKeysSettingsState::default(),
+                            tap_hold_settings: TapHoldSettingsState::default(),
                             rgb_settings: RgbSettingsState::default(),
                             key_override_entries: vec![],
                             alt_repeat_entries: vec![],
@@ -1876,6 +1926,7 @@ impl EntropyApp {
                     .map(|timeout| timeout.to_string())
                     .unwrap_or_default();
                 self.mouse_keys_settings = r.mouse_keys_settings;
+                self.tap_hold_settings = r.tap_hold_settings;
                 self.rgb_settings = r.rgb_settings;
                 let highest_used_combo = self
                     .combo_entries
@@ -2348,6 +2399,9 @@ impl EntropyApp {
             }
             SettingsTab::Encoders => {
                 self.draw_encoder_visibility_settings_page(ui, content_rect, dark);
+            }
+            SettingsTab::TapHold => {
+                self.draw_tap_hold_settings_page(ui, content_rect);
             }
             SettingsTab::Combo => {
                 self.draw_combo_settings_page(ui, ctx, content_rect);
@@ -4585,6 +4639,11 @@ impl EntropyApp {
         self.main_menu_tab = MainMenuTab::Settings;
     }
 
+    fn open_tap_hold_settings_page(&mut self) {
+        self.settings_tab = SettingsTab::TapHold;
+        self.main_menu_tab = MainMenuTab::Settings;
+    }
+
     fn close_top_dropdowns(&self, ctx: &egui::Context) {
         ctx.data_mut(|d| {
             d.insert_temp(egui::Id::new("device_dropdown_open"), false);
@@ -5760,6 +5819,212 @@ impl EntropyApp {
                 *slot = edited;
             }
             self.write_alt_repeat_entry(idx);
+        }
+    }
+
+    fn draw_tap_hold_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
+        let dark = ui.visuals().dark_mode;
+        let hid_ready = {
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                self.hid_device.is_some()
+            }
+            #[cfg(target_arch = "wasm32")]
+            {
+                false
+            }
+        };
+
+        ui.allocate_ui_at_rect(content_rect, |ui| {
+            ui.vertical_centered(|ui| {
+                ui.add_space(18.0);
+                ui.label(RichText::new("Tap-Hold").size(18.0).strong());
+                ui.add_space(6.0);
+                ui.label(
+                    RichText::new("Tune dual-role Mod-Tap, Layer-Tap and Tap-Toggle behavior")
+                        .size(13.0)
+                        .color(app_muted_text(dark)),
+                );
+                ui.add_space(24.0);
+
+                if !self.tap_hold_settings.supported {
+                    crate::ui_style::modal_empty_state(
+                        ui,
+                        "Tap-Hold settings are not available on this firmware",
+                        Some("Enable QMK_SETTINGS in the keyboard rules.mk to use this page"),
+                    );
+                    return;
+                }
+
+                if !hid_ready {
+                    crate::ui_style::modal_empty_state(
+                        ui,
+                        "Connect a Vial keyboard to edit Tap-Hold settings",
+                        None,
+                    );
+                    return;
+                }
+
+                const TOTAL_ROWS: usize = 4;
+                let visible_rows = TOTAL_ROWS.min(6);
+                const CONTENT_WIDTH: f32 = 470.0;
+                const ROW_CONTENT_WIDTH: f32 = 452.0;
+                const ROW_HEIGHT: f32 = 54.0;
+                let list_height = ROW_HEIGHT * visible_rows as f32;
+                let (viewport, _) = ui.allocate_exact_size(
+                    egui::vec2(CONTENT_WIDTH, list_height),
+                    Sense::hover(),
+                );
+                let content_rect = egui::Rect::from_min_size(
+                    viewport.min,
+                    egui::vec2(CONTENT_WIDTH, ROW_HEIGHT * TOTAL_ROWS as f32),
+                );
+                ui.allocate_ui_at_rect(content_rect, |ui| {
+                    ui.set_clip_rect(viewport);
+                    ui.set_min_size(content_rect.size());
+                    ui.spacing_mut().item_spacing.y = 0.0;
+                    self.draw_tap_hold_editor_content(ui, 0..TOTAL_ROWS, ROW_CONTENT_WIDTH, ROW_HEIGHT);
+                });
+            });
+        });
+    }
+
+    fn draw_tap_hold_editor_content(
+        &mut self,
+        ui: &mut egui::Ui,
+        row_range: std::ops::Range<usize>,
+        content_width: f32,
+        row_height: f32,
+    ) {
+        let rows: [(u16, &str, &str, bool, u32); 4] = [
+            (7, "Tapping term", "Global tap-vs-hold decision window for dual-role keys", false, 10000),
+            (22, "Permissive hold", "Nested taps choose hold for Mod-Tap and Layer-Tap keys", true, 1),
+            (23, "Hold on other key", "Pressing another key immediately chooses hold for dual-role keys", true, 1),
+            (24, "Retro tapping", "A held-and-released-alone dual-role key still sends its tap action", true, 1),
+        ];
+        const FIELD_WIDTH: f32 = 86.0;
+
+        for row_idx in row_range {
+            let Some((qsid, label, tooltip, is_bool, max)) = rows.get(row_idx).copied() else {
+                continue;
+            };
+            if is_bool {
+                let mut value = self.tap_hold_bool_value(qsid);
+                crate::ui_style::settings_list_row_with_tooltip(
+                    ui,
+                    content_width,
+                    row_height,
+                    label,
+                    true,
+                    Some(tooltip),
+                    46.0,
+                    |ui| {
+                        let resp = crate::ui_style::settings_switch(ui, &mut value);
+                        if resp.changed() {
+                            self.set_tap_hold_bool_value(qsid, value);
+                            self.write_tap_hold_bool_setting(qsid, value);
+                        }
+                    },
+                );
+            } else {
+                let current = self.tap_hold_numeric_value(qsid);
+                crate::ui_style::settings_list_row_with_tooltip(
+                    ui,
+                    content_width,
+                    row_height,
+                    label,
+                    true,
+                    Some(tooltip),
+                    FIELD_WIDTH,
+                    |ui| {
+                        let edit_id = egui::Id::new(("tap_hold_edit", qsid));
+                        let mut text = ui.ctx().data_mut(|d| {
+                            d.get_temp::<String>(edit_id)
+                                .unwrap_or_else(|| current.to_string())
+                        });
+                        if text.parse::<u16>().ok() != Some(current)
+                            && !ui.memory(|m| m.has_focus(edit_id))
+                        {
+                            text = current.to_string();
+                        }
+                        let resp = crate::ui_style::modern_text_field(
+                            ui,
+                            edit_id,
+                            &mut text,
+                            FIELD_WIDTH,
+                            "",
+                            5,
+                            egui::Align::RIGHT,
+                        );
+                        if resp.changed() {
+                            let filtered: String = text
+                                .chars()
+                                .filter(|c: &char| c.is_ascii_digit())
+                                .collect();
+                            let parsed = filtered.parse::<u32>().unwrap_or(0).min(max);
+                            let new_value = parsed as u16;
+                            if new_value != current {
+                                self.set_tap_hold_numeric_value(qsid, new_value);
+                                self.write_tap_hold_numeric_setting(qsid, new_value);
+                            }
+                            text = filtered;
+                        }
+                        ui.ctx().data_mut(|d| d.insert_temp(edit_id, text));
+                    },
+                );
+            }
+        }
+    }
+
+    fn tap_hold_numeric_value(&self, qsid: u16) -> u16 {
+        match qsid {
+            7 => self.tap_hold_settings.tapping_term,
+            _ => 0,
+        }
+    }
+
+    fn set_tap_hold_numeric_value(&mut self, qsid: u16, value: u16) {
+        match qsid {
+            7 => self.tap_hold_settings.tapping_term = value,
+            _ => {}
+        }
+    }
+
+    fn tap_hold_bool_value(&self, qsid: u16) -> bool {
+        match qsid {
+            22 => self.tap_hold_settings.permissive_hold,
+            23 => self.tap_hold_settings.hold_on_other_key_press,
+            24 => self.tap_hold_settings.retro_tapping,
+            _ => false,
+        }
+    }
+
+    fn set_tap_hold_bool_value(&mut self, qsid: u16, value: bool) {
+        match qsid {
+            22 => self.tap_hold_settings.permissive_hold = value,
+            23 => self.tap_hold_settings.hold_on_other_key_press = value,
+            24 => self.tap_hold_settings.retro_tapping = value,
+            _ => {}
+        }
+    }
+
+    fn write_tap_hold_numeric_setting(&mut self, qsid: u16, value: u16) {
+        let Some(hid) = &self.hid_device else {
+            return;
+        };
+        if let Err(e) = hid.set_qmk_setting_u16(qsid, value) {
+            self.status_msg = format!("Failed to save Tap-Hold setting (qsid {qsid}): {}", e);
+            log::warn!("set_qmk_setting_u16(tap_hold qsid {qsid}) failed: {e}");
+        }
+    }
+
+    fn write_tap_hold_bool_setting(&mut self, qsid: u16, value: bool) {
+        let Some(hid) = &self.hid_device else {
+            return;
+        };
+        if let Err(e) = hid.set_qmk_setting_u8(qsid, u8::from(value)) {
+            self.status_msg = format!("Failed to save Tap-Hold setting (qsid {qsid}): {}", e);
+            log::warn!("set_qmk_setting_u8(tap_hold qsid {qsid}) failed: {e}");
         }
     }
 
@@ -7215,7 +7480,7 @@ impl EntropyApp {
                         settings_rect.center().x - 76.0,
                         settings_rect.bottom() + 6.0,
                     ),
-                    Vec2::new(152.0, 102.0),
+                    Vec2::new(152.0, 134.0),
                 );
                 let hover_bridge_rect = settings_rect.union(dropdown_rect).expand(3.0);
                 let pointer_over_bridge = ui
@@ -7240,7 +7505,8 @@ impl EntropyApp {
                             .as_ref()
                             .map(|l| l.supports_rgb)
                             .unwrap_or(false);
-                    let (matrix_hovered, rgb_hovered, encoders_hovered, settings_clicked) =
+                    let tap_hold_available = self.tap_hold_settings.supported;
+                    let (matrix_hovered, rgb_hovered, encoders_hovered, tap_hold_hovered, settings_clicked) =
                         egui::Area::new(egui::Id::new("settings_dropdown_area"))
                             .order(egui::Order::Foreground)
                             .fixed_pos(dropdown_rect.min)
@@ -7268,9 +7534,19 @@ impl EntropyApp {
                                             [dropdown_rect.width() - 12.0, 30.0],
                                             egui::Button::new("Encoders").frame(false),
                                         );
+                                        let tap_hold_color = if tap_hold_available {
+                                            ui.visuals().widgets.inactive.fg_stroke.color
+                                        } else {
+                                            app_muted_text(dark)
+                                        };
+                                        let tap_hold_resp = ui.add_sized(
+                                            [dropdown_rect.width() - 12.0, 30.0],
+                                            egui::Button::new(RichText::new("Tap-Hold").color(tap_hold_color)).frame(false),
+                                        );
                                         if matrix_resp.hovered()
                                             || rgb_resp.hovered()
                                             || encoders_resp.hovered()
+                                            || tap_hold_resp.hovered()
                                         {
                                             ui.ctx()
                                                 .set_cursor_icon(egui::CursorIcon::PointingHand);
@@ -7299,13 +7575,24 @@ impl EntropyApp {
                                             self.settings_tab = SettingsTab::Encoders;
                                             self.main_menu_tab = MainMenuTab::Settings;
                                         }
+                                        if tap_hold_resp.clicked() && tap_hold_available {
+                                            self.close_top_dropdowns(ui.ctx());
+                                            self.open_tap_hold_settings_page();
+                                        }
+                                        if !tap_hold_available {
+                                            let _ = tap_hold_resp.clone().on_hover_text(
+                                                "Tap-Hold settings are not available on this firmware",
+                                            );
+                                        }
                                         (
                                             matrix_resp.hovered(),
                                             rgb_resp.hovered(),
                                             encoders_resp.hovered(),
+                                            tap_hold_resp.hovered(),
                                             matrix_resp.clicked()
                                                 || (rgb_resp.clicked() && rgb_available)
-                                                || encoders_resp.clicked(),
+                                                || encoders_resp.clicked()
+                                                || (tap_hold_resp.clicked() && tap_hold_available),
                                         )
                                     })
                                     .inner
@@ -7319,6 +7606,7 @@ impl EntropyApp {
                                     || matrix_hovered
                                     || rgb_hovered
                                     || encoders_hovered
+                                    || tap_hold_hovered
                                     || pointer_over_bridge),
                         )
                     });
