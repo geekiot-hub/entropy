@@ -1628,8 +1628,72 @@ impl EntropyApp {
         app
     }
 
-    /// Spawn background thread to connect + load layout/keycodes.
     #[cfg(not(target_arch = "wasm32"))]
+    fn clear_connected_keyboard_state(&mut self, status_msg: impl Into<String>) {
+        self.layout = None;
+        self.selected_key = None;
+        self.selected_encoder = None;
+        self.selected_layer = 0;
+        self.layer_count = 0;
+        self.hid_device = None;
+        self.zmk_conn = None;
+        self.zmk_op_rx = None;
+        self.connect_state = ConnectState::Idle;
+        self.zmk_has_unsaved = false;
+        self.zmk_lock_state = 1;
+        self.zmk_no_extra_layers = false;
+        self.unlock_open = false;
+        self.vial_unlock_polling = false;
+        self.keycode_picker.open = false;
+        self.current_device_name.clear();
+        self.mouse_keys_settings = MouseKeysSettingsState::default();
+        self.tap_hold_settings = TapHoldSettingsState::default();
+        self.magic_settings = MagicSettingsState::default();
+        self.one_shot_settings = OneShotSettingsState::default();
+        self.grave_escape_settings = GraveEscapeSettingsState::default();
+        self.layer_led_settings = LayerLedSettingsState::default();
+        self.rgb_settings = RgbSettingsState::default();
+        self.status_msg = status_msg.into();
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn rescan_and_autoselect_device(&mut self) {
+        let previous_path = self
+            .selected_device
+            .and_then(|idx| self.device_manager.devices().get(idx))
+            .map(|dev| dev.path.clone());
+        let was_loading = matches!(self.connect_state, ConnectState::Loading(_));
+
+        self.device_manager.scan();
+
+        if self.device_manager.devices().is_empty() {
+            if self.selected_device.is_some() || self.layout.is_some() || was_loading {
+                self.selected_device = None;
+                self.clear_connected_keyboard_state("No keyboard detected");
+            }
+            return;
+        }
+
+        if let Some(path) = previous_path {
+            if let Some(idx) = self
+                .device_manager
+                .devices()
+                .iter()
+                .position(|dev| dev.path == path)
+            {
+                self.selected_device = Some(idx);
+                if self.layout.is_none() && !was_loading {
+                    self.start_connect(idx);
+                }
+                return;
+            }
+        }
+
+        self.selected_device = Some(0);
+        self.start_connect(0);
+    }
+
+    /// Spawn background thread to connect + load layout/keycodes.
     fn start_connect(&mut self, device_idx: usize) {
         let dev = match self.device_manager.devices().get(device_idx) {
             Some(d) => d.clone(),
@@ -4432,15 +4496,7 @@ impl eframe::App for EntropyApp {
         self.scan_frame += 1;
         if self.scan_frame >= 120 && !self.vial_unlock_polling {
             self.scan_frame = 0;
-            let prev_count = self.device_manager.devices().len();
-            self.device_manager.scan();
-            // Auto-connect if a new device appeared and nothing is connected
-            if self.device_manager.devices().len() > prev_count
-                && self.layout.is_none()
-                && !matches!(self.connect_state, ConnectState::Loading(_))
-            {
-                self.start_connect(0);
-            }
+            self.rescan_and_autoselect_device();
         }
 
         #[cfg(not(target_arch = "wasm32"))]
@@ -4567,11 +4623,24 @@ impl eframe::App for EntropyApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             if self.selected_device.is_none() {
                 ui.centered_and_justified(|ui| {
-                    ui.label(
-                        RichText::new("Connect a keyboard and press Refresh")
-                            .size(16.0)
-                            .color(Color32::GRAY),
-                    );
+                    ui.vertical_centered(|ui| {
+                        ui.label(
+                            RichText::new("No keyboard detected")
+                                .size(18.0)
+                                .strong()
+                                .color(if self.dark_mode {
+                                    Color32::from_rgb(235, 235, 235)
+                                } else {
+                                    Color32::from_rgb(42, 42, 44)
+                                }),
+                        );
+                        ui.add_space(6.0);
+                        ui.label(
+                            RichText::new("Connect a Vial or ZMK keyboard — Entropy will switch automatically")
+                                .size(13.0)
+                                .color(app_muted_text(self.dark_mode)),
+                        );
+                    });
                 });
                 return;
             }
@@ -5363,7 +5432,7 @@ impl EntropyApp {
         }
         self.last_single_instance_signal = signal;
         self.status_msg = "Entropy refreshed from a repeated launch".into();
-        self.device_manager.scan();
+        self.rescan_and_autoselect_device();
         if let Some(device_idx) = self.selected_device {
             if !matches!(self.connect_state, ConnectState::Loading(_)) {
                 self.start_connect(device_idx);
