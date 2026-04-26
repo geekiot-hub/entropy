@@ -15,8 +15,9 @@
 ## Palette
 
 - Accent: muted pastel maroon, not blue/purple/green
+- Do not use green as a regular UI accent/state; reserve it only for explicit success status when needed
 - Outlines: soft graphite only
-- Hover: neutral taupe/maroon fill changes; avoid darkening outlines on hover
+- Hover: neutral taupe/maroon fill changes; never darken outlines/contours on hover
 - Switches: neutral grayscale active state, muted inactive state, no green/sage tint
 - Matrix Tester completed keys use muted maroon/taupe, not green
 
@@ -37,8 +38,10 @@ Rules:
 - Checkboxes on modernized settings pages become `settings_switch`
 - Dropdowns use `modern_dropdown_button`, not default `egui::ComboBox`
 - Buttons use `modern_button`
-- Text inputs use `modern_text_field`
+- Text inputs use `modern_text_field`, not default framed `TextEdit`
 - Floating scrollbar shows only the handle, no track/path, unless a page explicitly needs a track
+- Final modern Settings/Advanced code should not keep page-local painters/helpers for standard controls; reusable controls belong in `src/ui_style.rs`
+- Page-local control helpers are acceptable only as temporary prototypes, not final commits
 - Custom popup lists should be compact, scrollable, and use the same graphite outline/surface style as their dropdown button
 
 ## Tooltips and copy
@@ -55,8 +58,16 @@ Rules:
 ## Scrolling
 
 - Keep action buttons outside scrollable content; they must not move with list scrolling
+- Action buttons (`Clear`, `Undo`, `Save`, etc.) should be fixed below the viewport, centered, and outside the scrolled layout
 - Smooth scroll is allowed on simple settings lists, but if microfreezes appear around `TextEdit`, prefer stable row-based scrolling
+- Scrollable Settings/Advanced lists should render only visible rows plus at most one overscan row; avoid rendering off-screen rows with `TextEdit`, tooltips, or custom paint
 - Scrollbar drag/click should remain direct and responsive
+- Modern settings scrollbars use one pattern: reusable floating handle, no track/path, and a reserved right gutter
+
+## Behavior
+
+- Settings that already use immediate writes or autosave should not regain a manual `Save` button unless explicitly requested
+- Successful autosave/immediate writes should stay quiet unless the page already needs visible status feedback
 
 ## Versioning and release hygiene
 
