@@ -810,8 +810,8 @@ fn layer_led_palette_color(index: u8) -> Color32 {
     if v == 0 {
         Color32::from_rgb(18, 18, 20)
     } else {
-        let pastel_s = (s as f32 / 255.0 * 0.38).clamp(0.0, 1.0);
-        let pastel_v = (v as f32 / 255.0 * 0.72 + 0.22).clamp(0.0, 0.94);
+        let pastel_s = (s as f32 / 255.0 * 0.68).clamp(0.0, 1.0);
+        let pastel_v = (v as f32 / 255.0 * 0.82 + 0.12).clamp(0.0, 0.96);
         Color32::from(egui::ecolor::Hsva::new(
             h as f32 / 255.0,
             pastel_s,
@@ -6343,13 +6343,15 @@ impl EntropyApp {
         const VALUE_WIDTH: f32 = 36.0;
         const SLIDER_SIZE: [f32; 2] = [SLIDER_WIDTH, 18.0];
         const SLIDER_CONTROL_WIDTH: f32 = SLIDER_WIDTH + VALUE_WIDTH;
-        const FIELD_WIDTH: f32 = 86.0;
         const SWATCH_WIDTH: f32 = 64.0;
 
         for row_idx in row_range {
             match row_idx {
                 0 => {
-                    let mut value = self.layer_led_settings.brightness as f32;
+                    let brightness_max = 255.0_f32;
+                    let mut value = (self.layer_led_settings.brightness as f32 / brightness_max * 100.0)
+                        .round()
+                        .clamp(0.0, 100.0);
                     crate::ui_style::settings_list_row_with_tooltip(
                         ui,
                         content_width,
@@ -6377,7 +6379,7 @@ impl EntropyApp {
                                     ui.add_sized(
                                         [VALUE_WIDTH, row_height],
                                         egui::Label::new(
-                                            RichText::new(format!("{}", value.round() as u16))
+                                            RichText::new(format!("{}%", value.round() as u8))
                                                 .size(12.0)
                                                 .color(if dark {
                                                     Color32::from_gray(230)
@@ -6388,13 +6390,16 @@ impl EntropyApp {
                                         .halign(egui::Align::RIGHT),
                                     );
                                     ui.spacing_mut().slider_width = SLIDER_WIDTH;
-                                    let slider = egui::Slider::new(&mut value, 0.0..=255.0)
+                                    let slider = egui::Slider::new(&mut value, 0.0..=100.0)
                                         .step_by(1.0)
                                         .show_value(false)
                                         .trailing_fill(true);
                                     let resp = ui.add_sized(SLIDER_SIZE, slider);
                                     if resp.changed() {
-                                        let new_value = value.round().clamp(0.0, 255.0) as u16;
+                                        let new_value = ((value / 100.0) * brightness_max)
+                                            .round()
+                                            .clamp(0.0, brightness_max)
+                                            as u16;
                                         if new_value != self.layer_led_settings.brightness {
                                             self.layer_led_settings.brightness = new_value;
                                             self.write_layer_led_brightness(new_value);
@@ -6406,7 +6411,7 @@ impl EntropyApp {
                     );
                 }
                 1 => {
-                    let current = self.layer_led_settings.timeout_mins;
+                    let mut value = self.layer_led_settings.timeout_mins as f32;
                     crate::ui_style::settings_list_row_with_tooltip(
                         ui,
                         content_width,
@@ -6418,40 +6423,54 @@ impl EntropyApp {
                         } else {
                             Some("Minutes before LEDs turn off automatically, 0 disables timeout")
                         },
-                        FIELD_WIDTH,
+                        SLIDER_CONTROL_WIDTH,
                         |ui| {
-                            let edit_id = egui::Id::new("layer_led_timeout_edit");
-                            let mut text = ui.ctx().data_mut(|d| {
-                                d.get_temp::<String>(edit_id)
-                                    .unwrap_or_else(|| current.to_string())
-                            });
-                            if text.parse::<u8>().ok() != Some(current)
-                                && !ui.memory(|m| m.has_focus(edit_id))
-                            {
-                                text = current.to_string();
-                            }
-                            let resp = crate::ui_style::modern_text_field(
-                                ui,
-                                edit_id,
-                                &mut text,
-                                FIELD_WIDTH,
-                                "",
-                                3,
-                                egui::Align::RIGHT,
+                            ui.spacing_mut().item_spacing.x = 0.0;
+                            let dark = ui.visuals().dark_mode;
+                            let slider_fill = if dark {
+                                Color32::from_rgb(92, 92, 96)
+                            } else {
+                                Color32::from_rgb(190, 184, 182)
+                            };
+                            ui.visuals_mut().selection.bg_fill = slider_fill;
+                            ui.visuals_mut().widgets.active.bg_fill = slider_fill;
+                            ui.visuals_mut().widgets.active.weak_bg_fill = slider_fill;
+                            ui.visuals_mut().widgets.hovered.bg_stroke =
+                                Stroke::new(1.0, slider_fill);
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    let value_text = if value.round() as u8 == 0 {
+                                        "Off".to_string()
+                                    } else {
+                                        format!("{}m", value.round() as u8)
+                                    };
+                                    ui.add_sized(
+                                        [VALUE_WIDTH, row_height],
+                                        egui::Label::new(
+                                            RichText::new(value_text).size(12.0).color(if dark {
+                                                Color32::from_gray(230)
+                                            } else {
+                                                Color32::from_gray(55)
+                                            }),
+                                        )
+                                        .halign(egui::Align::RIGHT),
+                                    );
+                                    ui.spacing_mut().slider_width = SLIDER_WIDTH;
+                                    let slider = egui::Slider::new(&mut value, 0.0..=255.0)
+                                        .step_by(1.0)
+                                        .show_value(false)
+                                        .trailing_fill(true);
+                                    let resp = ui.add_sized(SLIDER_SIZE, slider);
+                                    if resp.changed() {
+                                        let new_value = value.round().clamp(0.0, 255.0) as u8;
+                                        if new_value != self.layer_led_settings.timeout_mins {
+                                            self.layer_led_settings.timeout_mins = new_value;
+                                            self.write_layer_led_timeout(new_value);
+                                        }
+                                    }
+                                },
                             );
-                            if resp.changed() {
-                                let filtered: String = text
-                                    .chars()
-                                    .filter(|c: &char| c.is_ascii_digit())
-                                    .collect();
-                                let new_value = filtered.parse::<u16>().unwrap_or(0).min(255) as u8;
-                                if new_value != current {
-                                    self.layer_led_settings.timeout_mins = new_value;
-                                    self.write_layer_led_timeout(new_value);
-                                }
-                                text = filtered;
-                            }
-                            ui.ctx().data_mut(|d| d.insert_temp(edit_id, text));
                         },
                     );
                 }
