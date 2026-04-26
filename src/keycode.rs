@@ -256,74 +256,6 @@ pub const KEYCODES: &[Keycode] = &[
     Keycode { value: 0x0237, name: "KC_GT",    label: ">",  category: KeycodeCategory::Basic },
     Keycode { value: 0x0238, name: "KC_QUES",  label: "?",  category: KeycodeCategory::Basic },
 
-    // ── Layout-independent Unicode symbols ──────────────────────────────────
-    // QK_UNICODE = 0x8000; these type the glyph by codepoint instead of relying
-    // on the active OS keyboard layout.
-    Keycode { value: 0x8021, name: "UC_EXCLAMATION_MARK", label: "!", category: KeycodeCategory::Basic },
-    Keycode { value: 0x8022, name: "UC_QUOTATION_MARK",   label: "\"", category: KeycodeCategory::Basic },
-    Keycode { value: 0x8023, name: "UC_NUMBER_SIGN",      label: "#", category: KeycodeCategory::Basic },
-    Keycode { value: 0x8024, name: "UC_DOLLAR_SIGN",      label: "$", category: KeycodeCategory::Basic },
-    Keycode { value: 0x8025, name: "UC_PERCENT_SIGN",     label: "%", category: KeycodeCategory::Basic },
-    Keycode { value: 0x8026, name: "UC_AMPERSAND",        label: "&", category: KeycodeCategory::Basic },
-    Keycode { value: 0x8027, name: "UC_APOSTROPHE",       label: "'", category: KeycodeCategory::Basic },
-    Keycode { value: 0x8028, name: "UC_LEFT_PARENTHESIS", label: "(", category: KeycodeCategory::Basic },
-    Keycode { value: 0x8029, name: "UC_RIGHT_PARENTHESIS",label: ")", category: KeycodeCategory::Basic },
-    Keycode { value: 0x802A, name: "UC_ASTERISK",         label: "*", category: KeycodeCategory::Basic },
-    Keycode { value: 0x802B, name: "UC_PLUS_SIGN",        label: "+", category: KeycodeCategory::Basic },
-    Keycode { value: 0x802C, name: "UC_COMMA",            label: ",", category: KeycodeCategory::Basic },
-    Keycode { value: 0x802D, name: "UC_HYPHEN_MINUS",     label: "-", category: KeycodeCategory::Basic },
-    Keycode { value: 0x802E, name: "UC_FULL_STOP",        label: ".", category: KeycodeCategory::Basic },
-    Keycode { value: 0x802F, name: "UC_SOLIDUS",          label: "/", category: KeycodeCategory::Basic },
-    Keycode { value: 0x803A, name: "UC_COLON",            label: ":", category: KeycodeCategory::Basic },
-    Keycode { value: 0x803B, name: "UC_SEMICOLON",        label: ";", category: KeycodeCategory::Basic },
-    Keycode { value: 0x803C, name: "UC_LESS_THAN_SIGN",   label: "<", category: KeycodeCategory::Basic },
-    Keycode { value: 0x803D, name: "UC_EQUALS_SIGN",      label: "=", category: KeycodeCategory::Basic },
-    Keycode { value: 0x803E, name: "UC_GREATER_THAN_SIGN",label: ">", category: KeycodeCategory::Basic },
-    Keycode { value: 0x803F, name: "UC_QUESTION_MARK",    label: "?", category: KeycodeCategory::Basic },
-    Keycode { value: 0x8040, name: "UC_COMMERCIAL_AT",    label: "@", category: KeycodeCategory::Basic },
-    Keycode { value: 0x805B, name: "UC_LEFT_SQUARE_BRACKET",  label: "[", category: KeycodeCategory::Basic },
-    Keycode { value: 0x805C, name: "UC_REVERSE_SOLIDUS",      label: "\\", category: KeycodeCategory::Basic },
-    Keycode { value: 0x805D, name: "UC_RIGHT_SQUARE_BRACKET", label: "]", category: KeycodeCategory::Basic },
-    Keycode { value: 0x805E, name: "UC_CIRCUMFLEX_ACCENT",    label: "^", category: KeycodeCategory::Basic },
-    Keycode { value: 0x805F, name: "UC_LOW_LINE",             label: "_", category: KeycodeCategory::Basic },
-    Keycode { value: 0x8060, name: "UC_GRAVE_ACCENT",         label: "`", category: KeycodeCategory::Basic },
-    Keycode { value: 0x807B, name: "UC_LEFT_CURLY_BRACKET",   label: "{", category: KeycodeCategory::Basic },
-    Keycode { value: 0x807C, name: "UC_VERTICAL_LINE",        label: "|", category: KeycodeCategory::Basic },
-    Keycode { value: 0x807D, name: "UC_RIGHT_CURLY_BRACKET",  label: "}", category: KeycodeCategory::Basic },
-    Keycode { value: 0x807E, name: "UC_TILDE",                label: "~", category: KeycodeCategory::Basic },
-    Keycode { value: 0x80AB, name: "UC_LEFT_POINTING_DOUBLE_ANGLE_QUOTATION_MARK",  label: "«", category: KeycodeCategory::Basic },
-    Keycode { value: 0x80BB, name: "UC_RIGHT_POINTING_DOUBLE_ANGLE_QUOTATION_MARK", label: "»", category: KeycodeCategory::Basic },
-    Keycode { value: 0x80A7, name: "UC_SECTION_SIGN",         label: "§", category: KeycodeCategory::Basic },
-    Keycode { value: 0x80B0, name: "UC_DEGREE_SIGN",          label: "°", category: KeycodeCategory::Basic },
-    Keycode { value: 0x80B1, name: "UC_PLUS_MINUS_SIGN",      label: "±", category: KeycodeCategory::Basic },
-    Keycode { value: 0x80D7, name: "UC_MULTIPLICATION_SIGN",  label: "×", category: KeycodeCategory::Basic },
-    Keycode { value: 0xA030, name: "UC_PER_MILLE_SIGN",       label: "‰", category: KeycodeCategory::Basic },
-    Keycode { value: 0xA032, name: "UC_PRIME",                label: "′", category: KeycodeCategory::Basic },
-    Keycode { value: 0xA033, name: "UC_DOUBLE_PRIME",         label: "″", category: KeycodeCategory::Basic },
-    Keycode { value: 0xA013, name: "UC_EN_DASH",              label: "–", category: KeycodeCategory::Basic },
-    Keycode { value: 0xA014, name: "UC_EM_DASH",              label: "—", category: KeycodeCategory::Basic },
-    Keycode { value: 0xA018, name: "UC_LEFT_SINGLE_QUOTATION_MARK", label: "‘", category: KeycodeCategory::Basic },
-    Keycode { value: 0xA019, name: "UC_RIGHT_SINGLE_QUOTATION_MARK",label: "’", category: KeycodeCategory::Basic },
-    Keycode { value: 0xA022, name: "UC_BULLET",               label: "•", category: KeycodeCategory::Basic },
-    Keycode { value: 0xA01E, name: "UC_DOUBLE_LOW_9_QUOTATION_MARK", label: "„", category: KeycodeCategory::Basic },
-    Keycode { value: 0xA01C, name: "UC_LEFT_DOUBLE_QUOTATION_MARK", label: "“", category: KeycodeCategory::Basic },
-    Keycode { value: 0xA01D, name: "UC_RIGHT_DOUBLE_QUOTATION_MARK",label: "”", category: KeycodeCategory::Basic },
-    Keycode { value: 0xA0BD, name: "UC_RUBLE_SIGN",           label: "₽", category: KeycodeCategory::Basic },
-    Keycode { value: 0xA0AC, name: "UC_EURO_SIGN",            label: "€", category: KeycodeCategory::Basic },
-    Keycode { value: 0xA116, name: "UC_NUMERO_SIGN",          label: "№", category: KeycodeCategory::Basic },
-    Keycode { value: 0xA122, name: "UC_TRADE_MARK_SIGN",      label: "™", category: KeycodeCategory::Basic },
-    Keycode { value: 0xA248, name: "UC_ALMOST_EQUAL_TO",      label: "≈", category: KeycodeCategory::Basic },
-    Keycode { value: 0xA260, name: "UC_NOT_EQUAL_TO",         label: "≠", category: KeycodeCategory::Basic },
-    Keycode { value: 0xA713, name: "UC_CHECK_MARK",           label: "✓", category: KeycodeCategory::Basic },
-
-    // ── Unicode input mode controls ──────────────────────────────────────────
-    Keycode { value: 0x7C30, name: "UC_NEXT", label: "UC\nNext", category: KeycodeCategory::Special },
-    Keycode { value: 0x7C31, name: "UC_PREV", label: "UC\nPrev", category: KeycodeCategory::Special },
-    Keycode { value: 0x7C32, name: "UC_MAC",  label: "UC\nMac",  category: KeycodeCategory::Special },
-    Keycode { value: 0x7C33, name: "UC_LINX", label: "UC\nLinux",category: KeycodeCategory::Special },
-    Keycode { value: 0x7C34, name: "UC_WIN",  label: "UC\nWin",  category: KeycodeCategory::Special },
-    Keycode { value: 0x7C36, name: "UC_WINC", label: "UC\nWinC", category: KeycodeCategory::Special },
-
     // ── Function keys ─────────────────────────────────────────────────────────
     Keycode { value: 0x003A, name: "KC_F1",  label: "F1",  category: KeycodeCategory::Function },
     Keycode { value: 0x003B, name: "KC_F2",  label: "F2",  category: KeycodeCategory::Function },
@@ -495,27 +427,19 @@ pub fn find_keycode(value: u16) -> Option<&'static Keycode> {
     KEYCODES.iter().find(|k| k.value == value)
 }
 
-pub fn is_unicode_keycode(value: u16) -> bool {
-    value >= 0x8000
+fn smart_symbol_label(value: u16) -> Option<String> {
+    crate::smart_input::smart_symbol_for_keycode(value).map(|smart| smart.symbol.to_string())
 }
 
-fn unicode_symbol(value: u16) -> Option<char> {
-    if is_unicode_keycode(value) {
-        char::from_u32((value - 0x8000) as u32)
-    } else {
-        None
-    }
-}
-
-fn unicode_keycode_label(value: u16) -> Option<String> {
-    unicode_symbol(value).map(|ch| ch.to_string())
-}
-
-fn unicode_keycode_tooltip(value: u16) -> Option<String> {
-    unicode_symbol(value).map(|ch| {
+fn smart_symbol_tooltip(value: u16) -> Option<String> {
+    crate::smart_input::smart_symbol_for_keycode(value).map(|smart| {
         format!(
-            "Unicode symbol {} — types the same glyph regardless of the active OS keyboard layout",
-            ch
+            "Entropy Smart Symbol: {} — inserts {} while Entropy is running; without Entropy this key is {}",
+            smart.name,
+            smart.symbol,
+            find_keycode(smart.trigger_keycode)
+                .map(|kc| kc.label)
+                .unwrap_or("reserved trigger")
         )
     })
 }
@@ -621,7 +545,7 @@ pub fn keycode_label_with_names(value: u16, custom: &[CustomKeycode], layer_name
     if let Some(label) = magic_keycode_label(value) {
         return label;
     }
-    if let Some(label) = unicode_keycode_label(value) {
+    if let Some(label) = smart_symbol_label(value) {
         return label;
     }
     if let Some(kc) = find_keycode(value) {
@@ -826,7 +750,7 @@ pub fn keycode_tooltip(value: u16, custom: &[CustomKeycode], layer_names: &[Stri
     if let Some(tip) = magic_keycode_tooltip(value) {
         return tip;
     }
-    if let Some(tip) = unicode_keycode_tooltip(value) {
+    if let Some(tip) = smart_symbol_tooltip(value) {
         return tip;
     }
 
@@ -962,13 +886,6 @@ fn simple_key_name(kc: &Keycode) -> String {
 /// Full tooltip for a plain keycode.
 fn simple_key_tooltip(kc: &Keycode) -> String {
     let desc: &str = match kc.name {
-        // Unicode controls
-        "UC_NEXT" => "Switch to the next QMK Unicode input mode",
-        "UC_PREV" => "Switch to the previous QMK Unicode input mode",
-        "UC_MAC" => "Set QMK Unicode input mode to macOS",
-        "UC_LINX" => "Set QMK Unicode input mode to Linux",
-        "UC_WIN" => "Set QMK Unicode input mode to Windows Alt-code input",
-        "UC_WINC" => "Set QMK Unicode input mode to Windows WinCompose input",
         // Special
         "KC_NO"          => "No key — this key does nothing",
         "KC_TRNS"        => "Transparent — uses the key assigned on the layer below",

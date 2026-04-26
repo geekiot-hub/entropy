@@ -10,8 +10,8 @@ fn inactive_picker_entry_text(dark: bool) -> egui::Color32 {
 
 use crate::firmware::FirmwareProtocol;
 use crate::keycode::{
-    gui_label, gui_mod_name, gui_sym, is_unicode_keycode, key_label_font_sizes,
-    keycode_label_with_names, keycode_tooltip, KeycodeCategory, KEYCODES,
+    gui_label, gui_mod_name, gui_sym, key_label_font_sizes, keycode_label_with_names,
+    keycode_tooltip, KeycodeCategory, KEYCODES,
 };
 use crate::popup_state::{PopupKey, PopupState};
 use crate::zmk::{BehaviorInfo, ZmkBinding};
@@ -94,6 +94,7 @@ pub struct KeycodePicker {
 pub enum KeycodeTab {
     Basic,
     Symbols,
+    SmartSymbols,
     Function,
     Navigation,
     Modifiers,
@@ -114,6 +115,7 @@ impl KeycodeTab {
     pub const VIAL_TABS: &'static [KeycodeTab] = &[
         KeycodeTab::Basic,
         KeycodeTab::Symbols,
+        KeycodeTab::SmartSymbols,
         KeycodeTab::Modifiers,
         KeycodeTab::Special,
         KeycodeTab::Rgb,
@@ -138,6 +140,7 @@ impl KeycodeTab {
         match self {
             KeycodeTab::Basic => "Basic",
             KeycodeTab::Symbols => "Symbols",
+            KeycodeTab::SmartSymbols => "Smart Symbols",
             KeycodeTab::Function => "F1-F24",
             KeycodeTab::Navigation => "Nav",
             KeycodeTab::Modifiers => "Mods",
@@ -184,12 +187,11 @@ impl KeycodeTab {
 }
 
 fn is_symbol(value: u16) -> bool {
-    is_unicode_keycode(value)
-        || matches!(value,
-            0x002D..=0x0038 |
-            0x0064 |
-            0x021E..=0x0238
-        )
+    matches!(value,
+        0x002D..=0x0038 |
+        0x0064 |
+        0x021E..=0x0238
+    )
 }
 
 impl Default for KeycodePicker {
@@ -1495,7 +1497,7 @@ impl KeycodePicker {
     fn show_vial_tab_content(&mut self, ui: &mut egui::Ui) {
         match self.selected_tab {
             KeycodeTab::Basic => self.show_vial_basic(ui),
-            KeycodeTab::Symbols => self.show_vial_symbols(ui),
+            KeycodeTab::SmartSymbols => self.show_vial_smart_symbols(ui),
             KeycodeTab::Layers => self.show_vial_layers(ui),
             KeycodeTab::Modifiers => self.show_vial_modifiers(ui),
             KeycodeTab::Quantum => self.show_vial_quantum(ui),
@@ -1508,75 +1510,42 @@ impl KeycodePicker {
         }
     }
 
-    fn show_vial_symbols(&mut self, ui: &mut egui::Ui) {
-        let custom_pairs: Vec<crate::keyboard::CustomKeycode> = self
-            .custom_keycodes
-            .iter()
-            .map(|(name, label, title, _)| crate::keyboard::CustomKeycode {
-                name: name.clone(),
-                label: label.clone(),
-                title: title.clone(),
-            })
-            .collect();
-
+    fn show_vial_smart_symbols(&mut self, ui: &mut egui::Ui) {
         ui.label(
-            RichText::new("Layout-independent symbols — Unicode glyphs")
+            RichText::new("Entropy inserts these symbols while it is running")
                 .size(11.0)
                 .color(Color32::from_gray(150)),
         );
         ui.add_space(6.0);
         ui.horizontal_wrapped(|ui| {
-            for kc in KEYCODES.iter() {
-                if !matches!(kc.category, KeycodeCategory::Basic) || !is_unicode_keycode(kc.value) {
-                    continue;
-                }
-                let label = keycode_label_with_names(kc.value, &custom_pairs, &self.layer_names);
-                let tip = keycode_tooltip(kc.value, &custom_pairs, &self.layer_names);
+            for smart in crate::smart_input::SMART_SYMBOLS.iter().copied() {
+                let trigger = crate::keycode::find_keycode(smart.trigger_keycode)
+                    .map(|kc| kc.label)
+                    .unwrap_or("trigger");
+                let label = smart.symbol.to_string();
+                let tip = format!(
+                    "Smart Symbol: {} — Entropy catches {} and inserts {} directly into the OS text field",
+                    smart.name, trigger, smart.symbol
+                );
                 let resp = ui
                     .add(
-                        egui::Button::new(RichText::new(label).size(13.0))
+                        egui::Button::new(RichText::new(label).size(14.0))
                             .min_size(Vec2::new(42.0, 34.0)),
                     )
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
                 if resp.clicked() {
-                    self.result = Some(kc.value);
+                    self.result = Some(smart.trigger_keycode);
                     self.open = false;
                 }
                 resp.on_hover_text(tip);
             }
         });
-
-        ui.add_space(14.0);
+        ui.add_space(10.0);
         ui.label(
-            RichText::new("Keyboard-layout symbols — physical keycodes")
+            RichText::new("If Entropy is closed, these keys fall back to F13–F24")
                 .size(11.0)
-                .color(Color32::from_gray(150)),
+                .color(Color32::from_gray(130)),
         );
-        ui.add_space(6.0);
-        ui.horizontal_wrapped(|ui| {
-            for kc in KEYCODES.iter() {
-                if !matches!(kc.category, KeycodeCategory::Basic)
-                    || !is_symbol(kc.value)
-                    || is_unicode_keycode(kc.value)
-                    || !self.vial_keycode_supported(kc)
-                {
-                    continue;
-                }
-                let tip = keycode_tooltip(kc.value, &custom_pairs, &self.layer_names);
-                let label = keycode_label_with_names(kc.value, &custom_pairs, &self.layer_names);
-                let resp = ui
-                    .add(
-                        egui::Button::new(RichText::new(label).size(11.0))
-                            .min_size(Vec2::new(52.0, 38.0)),
-                    )
-                    .on_hover_cursor(egui::CursorIcon::PointingHand);
-                if resp.clicked() {
-                    self.result = Some(kc.value);
-                    self.open = false;
-                }
-                resp.on_hover_text(tip);
-            }
-        });
     }
 
     fn show_vial_generic(&mut self, ui: &mut egui::Ui) {

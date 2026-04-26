@@ -8,6 +8,7 @@ mod keycode;
 mod keycode_picker;
 mod layouts;
 mod popup_state;
+mod smart_input;
 mod ui_style;
 #[cfg(not(target_arch = "wasm32"))]
 mod hid;
@@ -97,6 +98,8 @@ fn main() -> eframe::Result<()> {
         notify_existing_instance();
         return Ok(());
     }
+
+    smart_input::start();
 
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
