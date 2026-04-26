@@ -1046,7 +1046,7 @@ impl KeycodePicker {
             (4, 12, 1, "/", 0x0038),
             (4, 13, 2, "Shift", 0x00E5),
             (5, 0, 2, "Ctrl", 0x00E0),
-            (5, 2, 1, "Win", 0x00E3),
+            (5, 2, 1, gui_label(false), 0x00E3),
             (5, 3, 1, "Alt", 0x00E2),
             (5, 4, 7, "Space", 0x002C),
             (5, 11, 1, "Alt", 0x00E6),
@@ -1103,8 +1103,9 @@ impl KeycodePicker {
             for kc in KEYCODES.iter() {
                 if !self.selected_tab.vial_matches(kc) { continue; }
                 let tip = keycode_tooltip(kc.value, &custom_pairs, &self.layer_names);
+                let label = keycode_label_with_names(kc.value, &custom_pairs, &self.layer_names);
                 let resp = ui.add(
-                    egui::Button::new(RichText::new(kc.label).size(11.0))
+                    egui::Button::new(RichText::new(label).size(11.0))
                         .min_size(Vec2::new(52.0, 38.0)),
                 ).on_hover_cursor(egui::CursorIcon::PointingHand);
                 if resp.clicked() { self.result = Some(kc.value); self.open = false; }
@@ -1201,7 +1202,7 @@ impl KeycodePicker {
             ("Shift+Alt+key".into(),   0x0600, "Shift+Alt+key (LSA)".into()),
             ("Meh+key".into(),         0x0700, "Ctrl+Shift+Alt+key".into()),
             (format!("{}+Sh+key", gui), 0x0A00, format!("{}+Shift+key", lgui)),
-            ("Hyper+key".into(),       0x0F00, "Ctrl+Shift+Alt+Win+key".into()),
+            ("Hyper+key".into(),       0x0F00, format!("Ctrl+Shift+Alt+{}+key", gui_mod_name())),
         ];
         ui.horizontal_wrapped(|ui| {
             for (label, value, tip) in &mk {
@@ -1228,7 +1229,7 @@ impl KeycodePicker {
             ("MT C+A".into(),          0x2500, "Mod-Tap: hold=Ctrl+Alt".into()),
             ("MT S+A".into(),          0x2600, "Mod-Tap: hold=Shift+Alt (LSA)".into()),
             ("MT Meh".into(),          0x2700, "Mod-Tap: hold=Meh (Ctrl+Shift+Alt)".into()),
-            ("MT Hyper".into(),        0x2F00, "Mod-Tap: hold=Hyper (Ctrl+Shift+Alt+Win)".into()),
+            ("MT Hyper".into(),        0x2F00, format!("Mod-Tap: hold=Hyper (Ctrl+Shift+Alt+{})", gui_mod_name())),
         ];
         ui.horizontal_wrapped(|ui| {
             for (label, value, tip) in &mt {
@@ -1251,7 +1252,7 @@ impl KeycodePicker {
             ("OSM Alt".into(),          0x52A4, "One-Shot Left Alt".into()),
             (format!("OSM {}", lgui),   0x52A8, format!("One-Shot Left {}", lgui)),
             ("OSM Meh".into(),          0x52A7, "One-Shot Meh (Ctrl+Shift+Alt)".into()),
-            ("OSM Hyper".into(),        0x52AF, "One-Shot Hyper (Ctrl+Shift+Alt+Win)".into()),
+            ("OSM Hyper".into(),        0x52AF, format!("One-Shot Hyper (Ctrl+Shift+Alt+{})", gui_mod_name())),
         ];
         ui.horizontal_wrapped(|ui| {
             for (label, value, tip) in &osm {
@@ -1328,7 +1329,7 @@ impl KeycodePicker {
             ("C+A+…".into(),       0x0500, "Ctrl+Alt + next key".into()),
             ("S+A+…".into(),       0x0600, "Shift+Alt + next key".into()),
             ("Meh+…".into(),       0x0700, "Ctrl+Shift+Alt + next key".into()),
-            ("Hyper+…".into(),     0x0F00, "Ctrl+Shift+Alt+Win + next key".into()),
+            ("Hyper+…".into(),     0x0F00, format!("Ctrl+Shift+Alt+{} + next key", gui_mod_name())),
         ];
         ui.horizontal_wrapped(|ui| {
             for (label, base, tip) in &mod_bases {

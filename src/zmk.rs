@@ -692,7 +692,7 @@ pub fn zmk_binding_tooltip(binding: &ZmkBinding, behaviors: &[BehaviorInfo], lay
         "Key Press"        => format!("Press {}", key_name(p1)),
         "Transparent"      => "Transparent — uses the binding from the layer below".to_string(),
         "None"             => "No key — does nothing".to_string(),
-        "Grave/Escape"     => "Grave/Escape — sends Esc normally, ` when Shift or GUI held".to_string(),
+        "Grave/Escape"     => format!("Grave/Escape — sends Esc normally, ` when Shift or {} held", crate::keycode::gui_mod_name()),
         "Key Repeat"       => "Repeat — repeats the last pressed key".to_string(),
         "Key Toggle"       => format!("Key Toggle — toggles {} on/off", key_name(p1)),
         "Caps Word"        => "Caps Word — capitalises next word, then deactivates".to_string(),

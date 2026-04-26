@@ -5773,7 +5773,7 @@ impl EntropyApp {
                                         4 => "Allowed Ctrl modifiers",
                                         5 => "Allowed Shift modifiers",
                                         6 => "Allowed Alt modifiers",
-                                        _ => "Allowed GUI modifiers",
+                                        _ => "Allowed OS modifiers",
                                     }),
                                     MOD_CONTROL_WIDTH,
                                     |ui| {
@@ -5903,53 +5903,58 @@ impl EntropyApp {
                     ui.painter().rect_filled(handle_rect, 3.0, handle_fill);
                 }
 
-                ui.add_space(24.0);
-                ui.horizontal(|ui| {
-                    let action_width = crate::ui_style::modal_action_button_size().x * 2.0
-                        + ui.spacing().item_spacing.x;
-                    ui.add_space(((CONTENT_WIDTH - action_width) / 2.0).max(0.0));
-                    let clear_enabled = Self::alt_repeat_entry_exists(&self.alt_repeat_entries[idx])
-                        || self
-                            .alt_repeat_names
-                            .get(idx)
-                            .map(|s| !s.trim().is_empty())
-                            .unwrap_or(false);
-                    let clear_resp = alt_repeat_modern_button(
-                        ui,
-                        "Clear",
-                        crate::ui_style::modal_action_button_size(),
-                        clear_enabled,
-                    );
-                    if clear_resp.clicked() {
-                        self.push_alt_repeat_undo();
-                        self.alt_repeat_entries[idx] = AltRepeatKeyEntry::default();
-                        if let Some(name) = self.alt_repeat_names.get_mut(idx) {
-                            name.clear();
-                        }
-                        save_alt_repeat_names(&self.alt_repeat_names, &self.current_device_name);
-                        self.write_alt_repeat_entry(idx);
-                        edited = self.alt_repeat_entries[idx].clone();
-                    }
-
-                    let undo_enabled = !self.alt_repeat_undo_stack.is_empty();
-                    let undo_resp = alt_repeat_modern_button(
-                        ui,
-                        "Undo",
-                        crate::ui_style::modal_action_button_size(),
-                        undo_enabled,
-                    );
-                    if undo_resp.clicked() {
-                        if let Some((entries, names, selected)) = self.alt_repeat_undo_stack.pop() {
-                            self.alt_repeat_entries = entries;
-                            self.alt_repeat_names = names;
-                            self.selected_alt_repeat = selected
-                                .min(self.alt_repeat_entries.len().saturating_sub(1));
+                let action_size = crate::ui_style::modal_action_button_size();
+                let action_width = action_size.x * 2.0 + ui.spacing().item_spacing.x;
+                let actions_rect = egui::Rect::from_min_size(
+                    egui::pos2(viewport.left(), viewport.bottom() + 24.0),
+                    egui::vec2(CONTENT_WIDTH, action_size.y),
+                );
+                ui.allocate_ui_at_rect(actions_rect, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.add_space(((CONTENT_WIDTH - action_width) / 2.0).max(0.0));
+                        let clear_enabled = Self::alt_repeat_entry_exists(&self.alt_repeat_entries[idx])
+                            || self
+                                .alt_repeat_names
+                                .get(idx)
+                                .map(|s| !s.trim().is_empty())
+                                .unwrap_or(false);
+                        let clear_resp = alt_repeat_modern_button(
+                            ui,
+                            "Clear",
+                            action_size,
+                            clear_enabled,
+                        );
+                        if clear_resp.clicked() {
+                            self.push_alt_repeat_undo();
+                            self.alt_repeat_entries[idx] = AltRepeatKeyEntry::default();
+                            if let Some(name) = self.alt_repeat_names.get_mut(idx) {
+                                name.clear();
+                            }
                             save_alt_repeat_names(&self.alt_repeat_names, &self.current_device_name);
-                            for entry_idx in 0..self.alt_repeat_entries.len() {
-                                self.write_alt_repeat_entry(entry_idx);
+                            self.write_alt_repeat_entry(idx);
+                            edited = self.alt_repeat_entries[idx].clone();
+                        }
+
+                        let undo_enabled = !self.alt_repeat_undo_stack.is_empty();
+                        let undo_resp = alt_repeat_modern_button(
+                            ui,
+                            "Undo",
+                            action_size,
+                            undo_enabled,
+                        );
+                        if undo_resp.clicked() {
+                            if let Some((entries, names, selected)) = self.alt_repeat_undo_stack.pop() {
+                                self.alt_repeat_entries = entries;
+                                self.alt_repeat_names = names;
+                                self.selected_alt_repeat = selected
+                                    .min(self.alt_repeat_entries.len().saturating_sub(1));
+                                save_alt_repeat_names(&self.alt_repeat_names, &self.current_device_name);
+                                for entry_idx in 0..self.alt_repeat_entries.len() {
+                                    self.write_alt_repeat_entry(entry_idx);
+                                }
                             }
                         }
-                    }
+                    });
                 });
             },
         );

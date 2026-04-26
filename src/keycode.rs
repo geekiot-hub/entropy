@@ -427,47 +427,71 @@ pub fn find_keycode(value: u16) -> Option<&'static Keycode> {
     KEYCODES.iter().find(|k| k.value == value)
 }
 
-fn magic_keycode_tooltip(value: u16) -> Option<&'static str> {
+fn magic_keycode_label(value: u16) -> Option<String> {
+    let gui = gui_mod_name();
     match value {
-        0x7000 => Some("Swap Caps Lock and Left Control"),
-        0x7001 => Some("Unswap Caps Lock and Left Control"),
-        0x7002 => Some("Toggle Caps Lock and Left Control swap"),
-        0x7003 => Some("Stop treating Caps Lock as Control"),
-        0x7004 => Some("Treat Caps Lock as Control"),
-        0x7005 => Some("Swap Left Alt and GUI"),
-        0x7006 => Some("Unswap Left Alt and GUI"),
-        0x7007 => Some("Swap Right Alt and GUI"),
-        0x7008 => Some("Unswap Right Alt and GUI"),
-        0x7009 => Some("Enable the GUI keys"),
-        0x700A => Some("Disable the GUI keys"),
-        0x700B => Some("Toggles the status of the GUI keys"),
-        0x700C => Some("Swap ` and Escape"),
-        0x700D => Some("Unswap ` and Escape"),
-        0x700E => Some("Swap \\ and Backspace"),
-        0x700F => Some("Unswap \\ and Backspace"),
-        0x7010 => Some("Toggle \\ and Backspace swap state"),
-        0x7011 => Some("Enable N-key rollover"),
-        0x7012 => Some("Disable N-key rollover"),
-        0x7013 => Some("Toggle N-key rollover"),
-        0x7014 => Some("Swap Alt and GUI on both sides"),
-        0x7015 => Some("Unswap Alt and GUI on both sides"),
-        0x7016 => Some("Toggle Alt and GUI swap on both sides"),
-        0x7017 => Some("Swap Left Control and GUI"),
-        0x7018 => Some("Unswap Left Control and GUI"),
-        0x7019 => Some("Swap Right Control and GUI"),
-        0x701A => Some("Unswap Right Control and GUI"),
-        0x701B => Some("Swap Control and GUI on both sides"),
-        0x701C => Some("Unswap Control and GUI on both sides"),
-        0x701D => Some("Toggle Control and GUI swap on both sides"),
-        0x701E => Some("Set the master half of a split keyboard as the left hand (for EE_HANDS)"),
-        0x701F => Some("Set the master half of a split keyboard as the right hand (for EE_HANDS)"),
-        0x7020 => Some("Swap Caps Lock and Escape"),
-        0x7021 => Some("Unswap Caps Lock and Escape"),
-        0x7022 => Some("Toggle Caps Lock and Escape swap"),
+        0x7005 => Some(format!("LAlt/{}\nSwap", gui)),
+        0x7006 => Some(format!("LAlt/{}\nRestore", gui)),
+        0x7007 => Some(format!("RAlt/{}\nSwap", gui)),
+        0x7008 => Some(format!("RAlt/{}\nRestore", gui)),
+        0x7009 => Some(format!("{} Keys\nOn", gui)),
+        0x700A => Some(format!("{} Keys\nOff", gui)),
+        0x700B => Some(format!("{} Keys\nToggle", gui)),
+        0x7014 => Some(format!("Alt/{}\nSwap", gui)),
+        0x7015 => Some(format!("Alt/{}\nRestore", gui)),
+        0x7016 => Some(format!("Alt/{}\nToggle", gui)),
+        0x7017 => Some(format!("LCtrl/{}\nSwap", gui)),
+        0x7018 => Some(format!("LCtrl/{}\nRestore", gui)),
+        0x7019 => Some(format!("RCtrl/{}\nSwap", gui)),
+        0x701A => Some(format!("RCtrl/{}\nRestore", gui)),
+        0x701B => Some(format!("Ctrl/{}\nSwap", gui)),
+        0x701C => Some(format!("Ctrl/{}\nRestore", gui)),
+        0x701D => Some(format!("Ctrl/{}\nToggle", gui)),
         _ => None,
     }
 }
 
+fn magic_keycode_tooltip(value: u16) -> Option<String> {
+    let gui = gui_mod_name();
+    match value {
+        0x7000 => Some("Swap Caps Lock and Left Control".to_string()),
+        0x7001 => Some("Unswap Caps Lock and Left Control".to_string()),
+        0x7002 => Some("Toggle Caps Lock and Left Control swap".to_string()),
+        0x7003 => Some("Stop treating Caps Lock as Control".to_string()),
+        0x7004 => Some("Treat Caps Lock as Control".to_string()),
+        0x7005 => Some(format!("Swap Left Alt and {}", gui)),
+        0x7006 => Some(format!("Unswap Left Alt and {}", gui)),
+        0x7007 => Some(format!("Swap Right Alt and {}", gui)),
+        0x7008 => Some(format!("Unswap Right Alt and {}", gui)),
+        0x7009 => Some(format!("Enable the {} keys", gui)),
+        0x700A => Some(format!("Disable the {} keys", gui)),
+        0x700B => Some(format!("Toggles the status of the {} keys", gui)),
+        0x700C => Some("Swap ` and Escape".to_string()),
+        0x700D => Some("Unswap ` and Escape".to_string()),
+        0x700E => Some("Swap \\ and Backspace".to_string()),
+        0x700F => Some("Unswap \\ and Backspace".to_string()),
+        0x7010 => Some("Toggle \\ and Backspace swap state".to_string()),
+        0x7011 => Some("Enable N-key rollover".to_string()),
+        0x7012 => Some("Disable N-key rollover".to_string()),
+        0x7013 => Some("Toggle N-key rollover".to_string()),
+        0x7014 => Some(format!("Swap Alt and {} on both sides", gui)),
+        0x7015 => Some(format!("Unswap Alt and {} on both sides", gui)),
+        0x7016 => Some(format!("Toggle Alt and {} swap on both sides", gui)),
+        0x7017 => Some(format!("Swap Left Control and {}", gui)),
+        0x7018 => Some(format!("Unswap Left Control and {}", gui)),
+        0x7019 => Some(format!("Swap Right Control and {}", gui)),
+        0x701A => Some(format!("Unswap Right Control and {}", gui)),
+        0x701B => Some(format!("Swap Control and {} on both sides", gui)),
+        0x701C => Some(format!("Unswap Control and {} on both sides", gui)),
+        0x701D => Some(format!("Toggle Control and {} swap on both sides", gui)),
+        0x701E => Some("Set the master half of a split keyboard as the left hand (for EE_HANDS)".to_string()),
+        0x701F => Some("Set the master half of a split keyboard as the right hand (for EE_HANDS)".to_string()),
+        0x7020 => Some("Swap Caps Lock and Escape".to_string()),
+        0x7021 => Some("Unswap Caps Lock and Escape".to_string()),
+        0x7022 => Some("Toggle Caps Lock and Escape swap".to_string()),
+        _ => None,
+    }
+}
 use crate::keyboard::CustomKeycode;
 
 /// Returns a human-readable label for a keycode.
@@ -497,10 +521,13 @@ pub fn keycode_label_with_names(value: u16, custom: &[CustomKeycode], layer_name
         0x00E1 | 0x00E5 => return "Shift".to_string(),
         0x00E2 | 0x00E6 => return "Alt".to_string(),
         0x00E3 => return gui_label(false).to_string(),
-        0x00E7 => return gui_label(false).to_string(),
+        0x00E7 => return gui_label(true).to_string(),
         _ => {}
     }
 
+    if let Some(label) = magic_keycode_label(value) {
+        return label;
+    }
     if let Some(kc) = find_keycode(value) {
         return kc.label.to_string();
     }
@@ -711,7 +738,7 @@ pub fn keycode_tooltip(value: u16, custom: &[CustomKeycode], layer_names: &[Stri
         return "Transparent — uses the key assigned on the layer below".to_string();
     }
     if let Some(tip) = magic_keycode_tooltip(value) {
-        return tip.to_string();
+        return tip;
     }
 
     // ── One-shot mod: 0x52A0/0x52B0 range ───────────────────────────────────
