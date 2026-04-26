@@ -6826,26 +6826,27 @@ impl EntropyApp {
                 const CONTENT_WIDTH: f32 = 470.0;
                 const ROW_HEIGHT: f32 = 54.0;
                 const ROW_CONTENT_WIDTH: f32 = 452.0;
-                let rows: [(u8, &str, &str); 4] = [
+                let gui_name = crate::keycode::gui_mod_name();
+                let rows: Vec<(u8, String, String)> = vec![
                     (
                         0,
-                        "Alt forces Esc",
-                        "When Alt is held, Grave Escape sends Esc instead of ` or ~",
+                        "Alt forces Esc".to_string(),
+                        "When Alt is held, Grave Escape sends Esc instead of ` or ~".to_string(),
                     ),
                     (
                         1,
-                        "Control forces Esc",
-                        "When Control is held, Grave Escape sends Esc instead of ` or ~",
+                        "Control forces Esc".to_string(),
+                        "When Control is held, Grave Escape sends Esc instead of ` or ~".to_string(),
                     ),
                     (
                         2,
-                        "GUI forces Esc",
-                        "When Win/Cmd/Super is held, Grave Escape sends Esc instead of ` or ~",
+                        format!("{gui_name} forces Esc"),
+                        format!("When {gui_name} is held, Grave Escape sends Esc instead of ` or ~"),
                     ),
                     (
                         3,
-                        "Shift forces Esc",
-                        "When Shift is held, Grave Escape sends Esc instead of ` or ~",
+                        "Shift forces Esc".to_string(),
+                        "When Shift is held, Grave Escape sends Esc instead of ` or ~".to_string(),
                     ),
                 ];
 
@@ -6859,9 +6860,9 @@ impl EntropyApp {
                                 ui,
                                 ROW_CONTENT_WIDTH,
                                 ROW_HEIGHT,
-                                label,
+                                &label,
                                 true,
-                                Some(tooltip),
+                                Some(&tooltip),
                                 46.0,
                                 |ui| {
                                     let resp = crate::ui_style::settings_switch(ui, &mut value);
