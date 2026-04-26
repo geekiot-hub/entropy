@@ -8621,12 +8621,17 @@ impl EntropyApp {
                     .ctx()
                     .data(|d| d.get_temp::<bool>(dropdown_id))
                     .unwrap_or(false);
+                let rgb_available_for_menu =
+                    self.rgb_settings.supported || layout.supports_rgb;
+                let layer_leds_available_for_menu = self.layer_led_settings.supported;
+                let show_rgb_item = rgb_available_for_menu || !layer_leds_available_for_menu;
+                let dropdown_height = if show_rgb_item { 162.0 } else { 134.0 };
                 let dropdown_rect = egui::Rect::from_min_size(
                     egui::pos2(
                         settings_rect.center().x - 76.0,
                         settings_rect.bottom() + 6.0,
                     ),
-                    Vec2::new(152.0, 162.0),
+                    Vec2::new(152.0, dropdown_height),
                 );
                 let hover_bridge_rect = settings_rect.union(dropdown_rect).expand(3.0);
                 let pointer_over_bridge = ui
@@ -8640,13 +8645,8 @@ impl EntropyApp {
 
                 if show_dropdown {
                     let dark = ui.visuals().dark_mode;
-                    let rgb_available = self.rgb_settings.supported
-                        || self
-                            .layout
-                            .as_ref()
-                            .map(|l| l.supports_rgb)
-                            .unwrap_or(false);
-                    let layer_leds_available = self.layer_led_settings.supported;
+                    let rgb_available = rgb_available_for_menu;
+                    let layer_leds_available = layer_leds_available_for_menu;
                     let tap_hold_available = self.tap_hold_settings.supported;
                     let item_width = dropdown_rect.width() - 16.0;
                     let (
@@ -8671,14 +8671,18 @@ impl EntropyApp {
                                         self.main_menu_tab == MainMenuTab::Settings
                                             && self.settings_tab == SettingsTab::MatrixTester,
                                     );
-                                    let rgb_resp = top_dropdown_item(
-                                        ui,
-                                        item_width,
-                                        "RGB",
-                                        rgb_available,
-                                        self.main_menu_tab == MainMenuTab::Settings
-                                            && self.settings_tab == SettingsTab::Rgb,
-                                    );
+                                    let rgb_resp = if show_rgb_item {
+                                        Some(top_dropdown_item(
+                                            ui,
+                                            item_width,
+                                            "RGB",
+                                            rgb_available,
+                                            self.main_menu_tab == MainMenuTab::Settings
+                                                && self.settings_tab == SettingsTab::Rgb,
+                                        ))
+                                    } else {
+                                        None
+                                    };
                                     let layer_leds_resp = top_dropdown_item(
                                         ui,
                                         item_width,
@@ -8712,15 +8716,17 @@ impl EntropyApp {
                                         self.matrix_tester_unlock_prompted = false;
                                         self.main_menu_tab = MainMenuTab::Settings;
                                     }
-                                    if rgb_resp.clicked() && rgb_available {
-                                        self.close_top_dropdowns(ui.ctx());
-                                        self.settings_tab = SettingsTab::Rgb;
-                                        self.main_menu_tab = MainMenuTab::Settings;
-                                    }
-                                    if !rgb_available {
-                                        let _ = rgb_resp.clone().on_hover_text(
-                                            "RGB settings are not available on this firmware",
-                                        );
+                                    if let Some(rgb_resp) = &rgb_resp {
+                                        if rgb_resp.clicked() && rgb_available {
+                                            self.close_top_dropdowns(ui.ctx());
+                                            self.settings_tab = SettingsTab::Rgb;
+                                            self.main_menu_tab = MainMenuTab::Settings;
+                                        }
+                                        if !rgb_available {
+                                            let _ = rgb_resp.clone().on_hover_text(
+                                                "RGB settings are not available on this firmware",
+                                            );
+                                        }
                                     }
                                     if layer_leds_resp.clicked() && layer_leds_available {
                                         self.close_top_dropdowns(ui.ctx());
@@ -8747,12 +8753,15 @@ impl EntropyApp {
                                     }
                                     (
                                         matrix_resp.hovered(),
-                                        rgb_resp.hovered(),
+                                        rgb_resp.as_ref().map(|resp| resp.hovered()).unwrap_or(false),
                                         layer_leds_resp.hovered(),
                                         encoders_resp.hovered(),
                                         tap_hold_resp.hovered(),
                                         matrix_resp.clicked()
-                                            || (rgb_resp.clicked() && rgb_available)
+                                            || rgb_resp
+                                                .as_ref()
+                                                .map(|resp| resp.clicked() && rgb_available)
+                                                .unwrap_or(false)
                                             || (layer_leds_resp.clicked() && layer_leds_available)
                                             || encoders_resp.clicked()
                                             || (tap_hold_resp.clicked() && tap_hold_available),
