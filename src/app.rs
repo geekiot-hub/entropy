@@ -1445,6 +1445,8 @@ pub struct EntropyApp {
     undo_stack: Vec<UndoAction>,
     /// Frame counter for periodic device scan
     scan_frame: u32,
+    /// Last device scan timestamp in egui seconds
+    last_device_scan_at: f64,
     /// Layer to preview on hover (None = show selected_layer)
     hover_layer: Option<usize>,
     /// Last main keyboard layout geometry: offset_x, offset_y, unit, padding
@@ -1539,6 +1541,7 @@ impl EntropyApp {
             zmk_no_extra_layers: false,
             undo_stack: Vec::new(),
             scan_frame: 0,
+            last_device_scan_at: 0.0,
             hover_layer: None,
             last_layout_geometry: None,
             prev_hovered_key: None,
@@ -4480,7 +4483,11 @@ impl eframe::App for EntropyApp {
             || self.top_dropdown_open(ctx)
             || ctx.memory(|m| m.any_popup_open());
 
-        // Auto-scan for new devices every ~2 seconds (120 frames at 60fps)
+        // Keep lightweight device detection alive even when the UI is otherwise idle.
+        #[cfg(not(target_arch = "wasm32"))]
+        ctx.request_repaint_after(std::time::Duration::from_millis(250));
+
+        // Auto-scan for device connect/disconnect changes.
         self.secondary_click_handled = false;
         if let Some((layer, ki, kc)) = self.pending_handed_swap {
             if !ctx.input(|i| i.modifiers.ctrl) {
@@ -4493,9 +4500,12 @@ impl eframe::App for EntropyApp {
                 self.pending_handed_swap = None;
             }
         }
-        self.scan_frame += 1;
-        if self.scan_frame >= 120 && !self.vial_unlock_polling {
-            self.scan_frame = 0;
+        let now = ctx.input(|i| i.time);
+        if (self.last_device_scan_at == 0.0 || now - self.last_device_scan_at >= 0.25)
+            && !self.vial_unlock_polling
+        {
+            self.scan_frame = self.scan_frame.wrapping_add(1);
+            self.last_device_scan_at = now;
             self.rescan_and_autoselect_device();
         }
 
@@ -4622,11 +4632,19 @@ impl eframe::App for EntropyApp {
         // Main canvas
         egui::CentralPanel::default().show(ctx, |ui| {
             if self.selected_device.is_none() {
-                ui.centered_and_justified(|ui| {
+                let rect = ui.max_rect();
+                let empty_rect = egui::Rect::from_center_size(
+                    rect.center(),
+                    egui::vec2(rect.width().min(520.0), 150.0),
+                );
+                ui.allocate_ui_at_rect(empty_rect, |ui| {
                     ui.vertical_centered(|ui| {
+                        ui.add_space(4.0);
+                        ui.label(RichText::new("✦").size(28.0).color(app_accent()));
+                        ui.add_space(10.0);
                         ui.label(
-                            RichText::new("No keyboard detected")
-                                .size(18.0)
+                            RichText::new("Waiting for a keyboard")
+                                .size(20.0)
                                 .strong()
                                 .color(if self.dark_mode {
                                     Color32::from_rgb(235, 235, 235)
@@ -4634,9 +4652,9 @@ impl eframe::App for EntropyApp {
                                     Color32::from_rgb(42, 42, 44)
                                 }),
                         );
-                        ui.add_space(6.0);
+                        ui.add_space(7.0);
                         ui.label(
-                            RichText::new("Connect a Vial or ZMK keyboard — Entropy will switch automatically")
+                            RichText::new("Connect a Vial or ZMK device — Entropy will switch automatically")
                                 .size(13.0)
                                 .color(app_muted_text(self.dark_mode)),
                         );
