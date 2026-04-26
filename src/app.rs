@@ -485,6 +485,8 @@ struct ConnectResult {
     mouse_keys_settings: MouseKeysSettingsState,
     /// Tap-Hold settings from QMK settings, if supported
     tap_hold_settings: TapHoldSettingsState,
+    /// Magic settings from QMK settings, if supported
+    magic_settings: MagicSettingsState,
     /// One Shot Keys settings from QMK settings, if supported
     one_shot_settings: OneShotSettingsState,
     /// Grave Escape settings from QMK settings, if supported (qsid 1 bits 0..=3)
@@ -728,6 +730,28 @@ struct TapHoldSettingsState {
     flow_tap: u16,
     /// Whether qsid 7 was readable (firmware support flag)
     supported: bool,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct MagicSettingsState {
+    /// qsid 21 bits 0..=9: QMK Magic runtime swaps/options
+    bits: u16,
+    /// Whether qsid 21 was readable (firmware support flag)
+    supported: bool,
+}
+
+impl MagicSettingsState {
+    fn bit(self, bit: u8) -> bool {
+        self.bits & (1u16 << bit) != 0
+    }
+
+    fn set_bit(&mut self, bit: u8, enabled: bool) {
+        if enabled {
+            self.bits |= 1u16 << bit;
+        } else {
+            self.bits &= !(1u16 << bit);
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -1385,6 +1409,7 @@ enum SettingsTab {
     Rgb,
     LayerLeds,
     Encoders,
+    Magic,
     TapHold,
     OneShotKeys,
     GraveEscape,
@@ -1449,6 +1474,7 @@ pub struct EntropyApp {
     auto_shift_timeout_text: String,
     mouse_keys_settings: MouseKeysSettingsState,
     tap_hold_settings: TapHoldSettingsState,
+    magic_settings: MagicSettingsState,
     one_shot_settings: OneShotSettingsState,
     grave_escape_settings: GraveEscapeSettingsState,
     layer_led_settings: LayerLedSettingsState,
@@ -1544,6 +1570,7 @@ impl EntropyApp {
             auto_shift_timeout_text: String::new(),
             mouse_keys_settings: MouseKeysSettingsState::default(),
             tap_hold_settings: TapHoldSettingsState::default(),
+            magic_settings: MagicSettingsState::default(),
             one_shot_settings: OneShotSettingsState::default(),
             grave_escape_settings: GraveEscapeSettingsState::default(),
             layer_led_settings: LayerLedSettingsState::default(),
@@ -1635,6 +1662,7 @@ impl EntropyApp {
         self.auto_shift_timeout_text.clear();
         self.mouse_keys_settings = MouseKeysSettingsState::default();
         self.tap_hold_settings = TapHoldSettingsState::default();
+        self.magic_settings = MagicSettingsState::default();
         self.one_shot_settings = OneShotSettingsState::default();
         self.layer_led_settings = LayerLedSettingsState::default();
         self.alt_repeat_entries.clear();
@@ -1949,6 +1977,17 @@ impl EntropyApp {
                             th
                         };
 
+                        // Magic settings (qsid 21 bits 0..=9). These are global QMK runtime swaps/options.
+                        let magic_settings = {
+                            match dev_conn.get_qmk_setting_u16(21) {
+                                Ok(bits) => MagicSettingsState { bits, supported: true },
+                                Err(e) => {
+                                    log::warn!("get_qmk_setting_u16(magic qsid 21): {e}");
+                                    MagicSettingsState::default()
+                                }
+                            }
+                        };
+
                         // One Shot Keys settings (qsid 5..=6). These affect OSM(...) and OSL(...).
                         let one_shot_settings = {
                             let mut os = OneShotSettingsState::default();
@@ -2126,6 +2165,7 @@ impl EntropyApp {
                             auto_shift_timeout,
                             mouse_keys_settings,
                             tap_hold_settings,
+                            magic_settings,
                             one_shot_settings,
                             grave_escape_settings,
                             layer_led_settings,
@@ -2184,6 +2224,7 @@ impl EntropyApp {
                                 auto_shift_timeout: None,
                                 mouse_keys_settings: MouseKeysSettingsState::default(),
                                 tap_hold_settings: TapHoldSettingsState::default(),
+                                magic_settings: MagicSettingsState::default(),
                                 one_shot_settings: OneShotSettingsState::default(),
                                 grave_escape_settings: GraveEscapeSettingsState::default(),
                                 layer_led_settings: LayerLedSettingsState::default(),
@@ -2250,6 +2291,7 @@ impl EntropyApp {
                             auto_shift_timeout: None,
                             mouse_keys_settings: MouseKeysSettingsState::default(),
                             tap_hold_settings: TapHoldSettingsState::default(),
+                            magic_settings: MagicSettingsState::default(),
                             one_shot_settings: OneShotSettingsState::default(),
                             grave_escape_settings: GraveEscapeSettingsState::default(),
                             layer_led_settings: LayerLedSettingsState::default(),
@@ -2333,6 +2375,7 @@ impl EntropyApp {
                     .unwrap_or_default();
                 self.mouse_keys_settings = r.mouse_keys_settings;
                 self.tap_hold_settings = r.tap_hold_settings;
+                self.magic_settings = r.magic_settings;
                 self.one_shot_settings = r.one_shot_settings;
                 self.grave_escape_settings = r.grave_escape_settings;
                 self.layer_led_settings = r.layer_led_settings;
@@ -2828,6 +2871,9 @@ impl EntropyApp {
             }
             SettingsTab::TapHold => {
                 self.draw_tap_hold_settings_page(ui, content_rect);
+            }
+            SettingsTab::Magic => {
+                self.draw_magic_settings_page(ui, content_rect);
             }
             SettingsTab::OneShotKeys => {
                 self.draw_one_shot_settings_page(ui, content_rect);
@@ -5251,6 +5297,11 @@ impl EntropyApp {
         self.main_menu_tab = MainMenuTab::Settings;
     }
 
+    fn open_magic_settings_page(&mut self) {
+        self.settings_tab = SettingsTab::Magic;
+        self.main_menu_tab = MainMenuTab::Settings;
+    }
+
     fn open_one_shot_settings_page(&mut self) {
         self.settings_tab = SettingsTab::OneShotKeys;
         self.main_menu_tab = MainMenuTab::Settings;
@@ -7029,6 +7080,268 @@ impl EntropyApp {
         if let Err(e) = hid.set_qmk_setting_u8(1, self.grave_escape_settings.bits) {
             self.status_msg = format!("Failed to save Grave Escape settings: {}", e);
             log::warn!("set_qmk_setting_u8(grave_escape qsid 1) failed: {e}");
+        }
+    }
+
+    fn draw_magic_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
+        let dark = ui.visuals().dark_mode;
+        let hid_ready = {
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                self.hid_device.is_some()
+            }
+            #[cfg(target_arch = "wasm32")]
+            {
+                false
+            }
+        };
+
+        ui.allocate_ui_at_rect(content_rect, |ui| {
+            ui.vertical_centered(|ui| {
+                ui.add_space(18.0);
+                ui.label(RichText::new("Magic").size(18.0).strong());
+                ui.add_space(6.0);
+                ui.label(
+                    RichText::new("Tune global QMK keyboard behavior swaps")
+                        .size(13.0)
+                        .color(app_muted_text(dark)),
+                );
+                ui.add_space(24.0);
+
+                if !self.magic_settings.supported {
+                    crate::ui_style::modal_empty_state(
+                        ui,
+                        "Magic settings are not available on this firmware",
+                        Some("Enable QMK_SETTINGS and Magic in the keyboard firmware to use this page"),
+                    );
+                    return;
+                }
+
+                if !hid_ready {
+                    crate::ui_style::modal_empty_state(
+                        ui,
+                        "Connect a Vial keyboard to edit Magic settings",
+                        None,
+                    );
+                    return;
+                }
+
+                const VISIBLE_ROWS: usize = 6;
+                const TOTAL_ROWS: usize = 10;
+                const CONTENT_WIDTH: f32 = 470.0;
+                const ROW_CONTENT_WIDTH: f32 = 452.0;
+                const ROW_HEIGHT: f32 = 54.0;
+                let list_height = ROW_HEIGHT * VISIBLE_ROWS as f32;
+                let content_height = ROW_HEIGHT * TOTAL_ROWS as f32;
+                let max_offset = (content_height - list_height).max(0.0);
+                let offset_id = ui.id().with("magic_settings_smooth_offset");
+                let target_id = ui.id().with("magic_settings_smooth_target");
+                let mut scroll_offset = ui
+                    .ctx()
+                    .data_mut(|d| d.get_persisted::<f32>(offset_id).unwrap_or(0.0))
+                    .clamp(0.0, max_offset);
+                let mut target_offset = ui
+                    .ctx()
+                    .data_mut(|d| d.get_persisted::<f32>(target_id).unwrap_or(scroll_offset))
+                    .clamp(0.0, max_offset);
+                let (viewport, viewport_resp) =
+                    ui.allocate_exact_size(egui::vec2(CONTENT_WIDTH, list_height), Sense::hover());
+                let track_width = 6.0;
+                let track_rect = egui::Rect::from_min_max(
+                    egui::pos2(viewport.right() - track_width, viewport.top()),
+                    egui::pos2(viewport.right(), viewport.bottom()),
+                );
+                let scrollbar_resp = if max_offset > 0.0 {
+                    Some(ui.interact(
+                        track_rect.expand2(egui::vec2(5.0, 0.0)),
+                        ui.id().with("magic_settings_scrollbar"),
+                        Sense::click_and_drag(),
+                    ))
+                } else {
+                    None
+                };
+
+                let scroll_delta = if viewport_resp.hovered() {
+                    ui.input(|i| {
+                        if i.smooth_scroll_delta.y.abs() > 0.0 {
+                            i.smooth_scroll_delta.y
+                        } else {
+                            i.raw_scroll_delta.y
+                        }
+                    })
+                } else {
+                    0.0
+                };
+                if scroll_delta.abs() > 0.0 && max_offset > 0.0 {
+                    target_offset = (target_offset - scroll_delta * 0.72).clamp(0.0, max_offset);
+                }
+
+                let handle_height = if max_offset > 0.0 {
+                    (list_height / content_height * viewport.height())
+                        .clamp(42.0, viewport.height())
+                } else {
+                    viewport.height()
+                };
+                if let Some(resp) = &scrollbar_resp {
+                    if (resp.dragged() || resp.clicked()) && max_offset > 0.0 {
+                        if let Some(pointer_pos) = ui.input(|i| i.pointer.interact_pos()) {
+                            let travel = (track_rect.height() - handle_height).max(1.0);
+                            let t = ((pointer_pos.y - track_rect.top() - handle_height / 2.0)
+                                / travel)
+                                .clamp(0.0, 1.0);
+                            target_offset = t * max_offset;
+                            scroll_offset = target_offset;
+                        }
+                    }
+                }
+
+                if (scroll_offset - target_offset).abs() > 0.35 {
+                    scroll_offset += (target_offset - scroll_offset) * 0.42;
+                    ui.ctx().request_repaint();
+                } else {
+                    scroll_offset = target_offset;
+                }
+                scroll_offset = scroll_offset.clamp(0.0, max_offset);
+                target_offset = target_offset.clamp(0.0, max_offset);
+                ui.ctx().data_mut(|d| {
+                    d.insert_persisted(offset_id, scroll_offset);
+                    d.insert_persisted(target_id, target_offset);
+                });
+
+                let first_visible_row = (scroll_offset / ROW_HEIGHT).floor() as usize;
+                let row_y_offset = scroll_offset - first_visible_row as f32 * ROW_HEIGHT;
+                let last_visible_row = (first_visible_row + VISIBLE_ROWS + 1).min(TOTAL_ROWS);
+                let visible_row_count = last_visible_row.saturating_sub(first_visible_row);
+                let content_rect = egui::Rect::from_min_size(
+                    egui::pos2(viewport.left(), viewport.top() - row_y_offset),
+                    egui::vec2(CONTENT_WIDTH, ROW_HEIGHT * visible_row_count as f32),
+                );
+                let suppress_tooltips = (scroll_offset - target_offset).abs() > 0.35
+                    || ui.input(|i| i.pointer.primary_down());
+                ui.allocate_ui_at_rect(content_rect, |ui| {
+                    ui.set_clip_rect(viewport);
+                    ui.set_min_size(content_rect.size());
+                    ui.spacing_mut().item_spacing.y = 0.0;
+                    self.draw_magic_editor_content(
+                        ui,
+                        first_visible_row..last_visible_row,
+                        ROW_CONTENT_WIDTH,
+                        ROW_HEIGHT,
+                        suppress_tooltips,
+                    );
+                });
+
+                if max_offset > 0.0 {
+                    let track_hovered = scrollbar_resp
+                        .as_ref()
+                        .map(|resp| resp.hovered() || resp.dragged())
+                        .unwrap_or(false);
+                    crate::ui_style::paint_floating_scrollbar_handle(
+                        ui,
+                        track_rect,
+                        handle_height,
+                        scroll_offset / max_offset,
+                        track_hovered,
+                    );
+                }
+            });
+        });
+    }
+
+    fn draw_magic_editor_content(
+        &mut self,
+        ui: &mut egui::Ui,
+        row_range: std::ops::Range<usize>,
+        content_width: f32,
+        row_height: f32,
+        suppress_tooltips: bool,
+    ) {
+        let gui = crate::keycode::gui_mod_name();
+        for row_idx in row_range {
+            let (bit, label, tooltip) = match row_idx {
+                0 => (
+                    0,
+                    "Swap Caps Lock and Left Control".to_owned(),
+                    "Caps Lock sends Left Control and Left Control sends Caps Lock".to_owned(),
+                ),
+                1 => (
+                    1,
+                    "Treat Caps Lock as Control".to_owned(),
+                    "Caps Lock sends Control without swapping Left Control".to_owned(),
+                ),
+                2 => (
+                    2,
+                    format!("Swap Left Alt and {gui}"),
+                    format!("Left Alt sends {gui} and Left {gui} sends Alt"),
+                ),
+                3 => (
+                    3,
+                    format!("Swap Right Alt and {gui}"),
+                    format!("Right Alt sends {gui} and Right {gui} sends Alt"),
+                ),
+                4 => (
+                    4,
+                    format!("Disable {gui} keys"),
+                    format!("Ignore both {gui} keys while this option is enabled"),
+                ),
+                5 => (
+                    5,
+                    "Swap ` and Escape".to_owned(),
+                    "Grave sends Escape and Escape sends Grave".to_owned(),
+                ),
+                6 => (
+                    6,
+                    "Swap \\ and Backspace".to_owned(),
+                    "Backslash sends Backspace and Backspace sends Backslash".to_owned(),
+                ),
+                7 => (
+                    7,
+                    "Enable N-key rollover".to_owned(),
+                    "Allow more simultaneous key presses when the keyboard supports it".to_owned(),
+                ),
+                8 => (
+                    8,
+                    format!("Swap Left Control and {gui}"),
+                    format!("Left Control sends {gui} and Left {gui} sends Control"),
+                ),
+                9 => (
+                    9,
+                    format!("Swap Right Control and {gui}"),
+                    format!("Right Control sends {gui} and Right {gui} sends Control"),
+                ),
+                _ => continue,
+            };
+            let mut value = self.magic_settings.bit(bit);
+            crate::ui_style::settings_list_row_with_tooltip(
+                ui,
+                content_width,
+                row_height,
+                label.as_str(),
+                true,
+                if suppress_tooltips {
+                    None
+                } else {
+                    Some(tooltip.as_str())
+                },
+                46.0,
+                |ui| {
+                    let resp = crate::ui_style::settings_switch(ui, &mut value);
+                    if resp.changed() {
+                        self.magic_settings.set_bit(bit, value);
+                        self.write_magic_settings();
+                    }
+                },
+            );
+        }
+    }
+
+    fn write_magic_settings(&mut self) {
+        let Some(hid) = &self.hid_device else {
+            return;
+        };
+        if let Err(e) = hid.set_qmk_setting_u16(21, self.magic_settings.bits) {
+            self.status_msg = format!("Failed to save Magic settings: {}", e);
+            log::warn!("set_qmk_setting_u16(magic qsid 21) failed: {e}");
         }
     }
 
@@ -9348,12 +9661,14 @@ impl EntropyApp {
                 let show_rgb_item = rgb_available_for_menu;
                 let show_layer_leds_item = layer_leds_available_for_menu;
                 let show_encoders_item = layout.encoder_count() > 0;
+                let show_magic_item = self.magic_settings.supported;
                 let show_tap_hold_item = self.tap_hold_settings.supported;
                 let show_one_shot_item = self.one_shot_settings.supported;
                 let settings_item_count = 1
                     + show_rgb_item as usize
                     + show_layer_leds_item as usize
                     + show_encoders_item as usize
+                    + show_magic_item as usize
                     + show_tap_hold_item as usize
                     + show_one_shot_item as usize;
                 let dropdown_height = settings_item_count as f32 * 28.0 + 22.0;
@@ -9383,6 +9698,7 @@ impl EntropyApp {
                         rgb_hovered,
                         layer_leds_hovered,
                         encoders_hovered,
+                        magic_hovered,
                         tap_hold_hovered,
                         one_shot_hovered,
                         settings_clicked,
@@ -9431,6 +9747,16 @@ impl EntropyApp {
                                             true,
                                             self.main_menu_tab == MainMenuTab::Settings
                                                 && self.settings_tab == SettingsTab::Encoders,
+                                        )
+                                    });
+                                    let magic_resp = show_magic_item.then(|| {
+                                        top_dropdown_item(
+                                            ui,
+                                            item_width,
+                                            "Magic",
+                                            true,
+                                            self.main_menu_tab == MainMenuTab::Settings
+                                                && self.settings_tab == SettingsTab::Magic,
                                         )
                                     });
                                     let tap_hold_resp = show_tap_hold_item.then(|| {
@@ -9483,6 +9809,10 @@ impl EntropyApp {
                                         self.settings_tab = SettingsTab::Encoders;
                                         self.main_menu_tab = MainMenuTab::Settings;
                                     }
+                                    if magic_resp.as_ref().map(|r| r.clicked()).unwrap_or(false) {
+                                        self.close_top_dropdowns(ui.ctx());
+                                        self.open_magic_settings_page();
+                                    }
                                     if tap_hold_resp.as_ref().map(|r| r.clicked()).unwrap_or(false) {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.open_tap_hold_settings_page();
@@ -9496,6 +9826,7 @@ impl EntropyApp {
                                         rgb_resp.as_ref().map(|resp| resp.hovered()).unwrap_or(false),
                                         layer_leds_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         encoders_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
+                                        magic_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         tap_hold_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         one_shot_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         matrix_resp.clicked()
@@ -9505,6 +9836,7 @@ impl EntropyApp {
                                                 .unwrap_or(false)
                                             || layer_leds_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
                                             || encoders_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
+                                            || magic_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
                                             || tap_hold_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
                                             || one_shot_resp.as_ref().map(|r| r.clicked()).unwrap_or(false),
                                     )
@@ -9521,6 +9853,7 @@ impl EntropyApp {
                                     || rgb_hovered
                                     || layer_leds_hovered
                                     || encoders_hovered
+                                    || magic_hovered
                                     || tap_hold_hovered
                                     || one_shot_hovered
                                     || pointer_over_bridge),
