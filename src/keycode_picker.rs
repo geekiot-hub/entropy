@@ -1040,9 +1040,6 @@ impl KeycodePicker {
                                     let x_offset =
                                         ((ui.available_width() - centered_width).max(0.0) * 0.5)
                                             .floor();
-                                    if self.selected_tab == KeycodeTab::Symbols {
-                                        ui.add_space(88.0);
-                                    }
                                     ui.horizontal(|ui| {
                                         if x_offset > 0.0 {
                                             ui.add_space(x_offset);
@@ -1519,6 +1516,7 @@ impl KeycodePicker {
             matches!(
                 symbol,
                 '«' | '»'
+                    | '₽'
                     | '€'
                     | '—'
                     | '–'
