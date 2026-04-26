@@ -2154,23 +2154,17 @@ impl KeycodePicker {
                                 ui.make_persistent_id(("macro_delay", grid_id, n, i)),
                                 &mut ms_str,
                                 80.0,
-                                "ms",
+                                "",
                                 5,
                                 egui::Align::Center,
                             )
+                            .on_hover_text("Delay is in milliseconds")
                             .changed()
                             {
                                 if let Ok(v) = ms_str.parse::<u16>() {
                                     *ms = v;
                                 }
                             }
-                            ui.add_space(12.0);
-                            ui.label(
-                                RichText::new("ms")
-                                    .size(macro_font_size)
-                                    .color(Color32::from_gray(140)),
-                            )
-                            .on_hover_text("Milliseconds to wait");
                         }
                     }
 
@@ -2432,7 +2426,7 @@ impl KeycodePicker {
                     egui::Label::new(RichText::new("Tapping Term").size(td_font_size).strong())
                         .sense(egui::Sense::hover()),
                 )
-                .on_hover_text("Time in ms to distinguish tap from hold (default: 200)");
+                .on_hover_text("Time in milliseconds to distinguish tap from hold (default: 200)");
                 ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                     ui.spacing_mut().item_spacing.x = 6.0;
                     let prev_term = self.tap_dance_entries[n].tapping_term;
@@ -2442,10 +2436,11 @@ impl KeycodePicker {
                         ui.make_persistent_id(("tap_dance_term", n)),
                         &mut term_str,
                         76.0,
-                        "ms",
+                        "",
                         5,
                         egui::Align::Center,
                     )
+                    .on_hover_text("Tapping term is in milliseconds")
                     .changed()
                     {
                         if let Ok(v) = term_str.parse::<u16>() {
@@ -2457,12 +2452,6 @@ impl KeycodePicker {
                             }
                         }
                     }
-                    ui.add_space(12.0);
-                    ui.label(
-                        RichText::new("ms")
-                            .size(td_font_size)
-                            .color(Color32::from_gray(140)),
-                    );
                 });
                 ui.end_row();
             });
@@ -2653,23 +2642,25 @@ impl KeycodePicker {
                         egui::Label::new(RichText::new("Tapping Term").size(15.0).strong())
                             .sense(egui::Sense::hover()),
                     )
-                    .on_hover_text("Time in ms to distinguish tap from hold (default: 200)");
+                    .on_hover_text("Time in milliseconds to distinguish tap from hold (default: 200)");
                     let mut term_str = self.tap_dance_entries[n].tapping_term.to_string();
                     ui.horizontal(|ui| {
-                        if ui
-                            .add_sized(
-                                crate::ui_style::modal_small_button_size(80.0),
-                                egui::TextEdit::singleline(&mut term_str)
-                                    .font(egui::FontId::monospace(14.0)),
-                            )
-                            .changed()
+                        if crate::ui_style::modern_text_field(
+                            ui,
+                            ui.make_persistent_id(("tap_dance_legacy_term", n)),
+                            &mut term_str,
+                            80.0,
+                            "",
+                            5,
+                            egui::Align::Center,
+                        )
+                        .on_hover_text("Tapping term is in milliseconds")
+                        .changed()
                         {
                             if let Ok(v) = term_str.parse::<u16>() {
                                 self.tap_dance_entries[n].tapping_term = v;
                             }
                         }
-                        ui.add_space(12.0);
-                        ui.label(RichText::new("ms").size(14.0));
                     });
                     ui.end_row();
                 });

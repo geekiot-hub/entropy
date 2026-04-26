@@ -3715,11 +3715,12 @@ impl EntropyApp {
                         edit_id,
                         &mut self.auto_shift_timeout_text,
                         field_width,
-                        "ms",
+                        "",
                         5,
                         egui::Align::RIGHT,
                         enabled,
-                    );
+                    )
+                    .on_hover_text("Timeout is in milliseconds");
                     if resp.changed() {
                         let filtered: String = self
                             .auto_shift_timeout_text
@@ -8475,16 +8476,11 @@ impl EntropyApp {
                                     egui::Id::new("combo_term"),
                                     &mut combo_term_text,
                                     70.0,
-                                    "ms",
+                                    "",
                                     4,
                                     egui::Align::RIGHT,
-                                );
-                                ui.add_space(8.0);
-                                ui.label(
-                                    RichText::new("ms")
-                                        .size(12.0)
-                                        .color(app_muted_text(dark)),
-                                );
+                                )
+                                .on_hover_text("Timeout is in milliseconds");
                                 if resp.changed() {
                                     let filtered: String = combo_term_text
                                         .chars()
@@ -8507,43 +8503,52 @@ impl EntropyApp {
         ui.add_space(14.0);
         ui.horizontal_centered(|ui| {
             let action_size = crate::ui_style::modal_action_button_size();
-            let clear_enabled = combo_idx < self.combo_entries.len()
-                && (self.combo_entries[combo_idx].keys.iter().any(|&k| k != 0)
-                    || self.combo_entries[combo_idx].output != 0
-                    || self
-                        .combo_names
-                        .get(combo_idx)
-                        .map(|s| !s.trim().is_empty())
-                        .unwrap_or(false));
-            let clear_resp =
-                crate::ui_style::modern_button(ui, "Clear", action_size, clear_enabled);
-            if clear_resp.clicked() && clear_enabled {
-                self.push_combo_undo();
-                self.combo_entries[combo_idx] = ComboEntry::default();
-                if let Some(name) = self.combo_names.get_mut(combo_idx) {
-                    name.clear();
-                }
-                self.combo_dirty = true;
-                self.combo_names_dirty = true;
-            }
-            ui.add_space(8.0);
-            let undo_enabled = !self.combo_undo_stack.is_empty();
-            let undo_resp = crate::ui_style::modern_button(ui, "Undo", action_size, undo_enabled);
-            if undo_resp.clicked() && undo_enabled {
-                if let Some((entries, names, term, selected, visible_count)) =
-                    self.combo_undo_stack.pop()
-                {
-                    self.combo_entries = entries;
-                    self.combo_names = names;
-                    self.combo_term = term;
-                    self.combo_visible_count =
-                        visible_count.clamp(1, self.combo_entries.len().max(1));
-                    self.selected_combo = selected.min(self.combo_visible_count.saturating_sub(1));
-                    self.combo_dirty = true;
-                    self.combo_names_dirty = true;
-                    self.combo_term_dirty = true;
-                }
-            }
+            let action_width = action_size.x * 2.0 + 8.0;
+            ui.allocate_ui_with_layout(
+                Vec2::new(action_width, action_size.y),
+                egui::Layout::left_to_right(egui::Align::Center),
+                |ui| {
+                    ui.spacing_mut().item_spacing.x = 8.0;
+                    let clear_enabled = combo_idx < self.combo_entries.len()
+                        && (self.combo_entries[combo_idx].keys.iter().any(|&k| k != 0)
+                            || self.combo_entries[combo_idx].output != 0
+                            || self
+                                .combo_names
+                                .get(combo_idx)
+                                .map(|s| !s.trim().is_empty())
+                                .unwrap_or(false));
+                    let clear_resp =
+                        crate::ui_style::modern_button(ui, "Clear", action_size, clear_enabled);
+                    if clear_resp.clicked() && clear_enabled {
+                        self.push_combo_undo();
+                        self.combo_entries[combo_idx] = ComboEntry::default();
+                        if let Some(name) = self.combo_names.get_mut(combo_idx) {
+                            name.clear();
+                        }
+                        self.combo_dirty = true;
+                        self.combo_names_dirty = true;
+                    }
+                    let undo_enabled = !self.combo_undo_stack.is_empty();
+                    let undo_resp =
+                        crate::ui_style::modern_button(ui, "Undo", action_size, undo_enabled);
+                    if undo_resp.clicked() && undo_enabled {
+                        if let Some((entries, names, term, selected, visible_count)) =
+                            self.combo_undo_stack.pop()
+                        {
+                            self.combo_entries = entries;
+                            self.combo_names = names;
+                            self.combo_term = term;
+                            self.combo_visible_count =
+                                visible_count.clamp(1, self.combo_entries.len().max(1));
+                            self.selected_combo =
+                                selected.min(self.combo_visible_count.saturating_sub(1));
+                            self.combo_dirty = true;
+                            self.combo_names_dirty = true;
+                            self.combo_term_dirty = true;
+                        }
+                    }
+                },
+            );
         });
     }
 
