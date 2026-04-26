@@ -8136,43 +8136,13 @@ impl EntropyApp {
     }
 
     fn draw_combo_editor_content(&mut self, ui: &mut egui::Ui, show_intro: bool) {
-        ui.style_mut().visuals.button_frame = true;
-        if ui.visuals().dark_mode {
-            ui.style_mut().visuals.widgets.inactive.bg_fill = app_surface_fill(true);
-            ui.style_mut().visuals.widgets.inactive.weak_bg_fill = app_surface_fill(true);
-            ui.style_mut().visuals.widgets.inactive.bg_stroke =
-                crate::ui_style::modal_outline_stroke(true);
-            ui.style_mut().visuals.widgets.hovered.bg_fill = app_hover_fill(true);
-            ui.style_mut().visuals.widgets.hovered.weak_bg_fill = app_hover_fill(true);
-            ui.style_mut().visuals.widgets.hovered.bg_stroke =
-                crate::ui_style::modal_outline_stroke(true);
-            ui.style_mut().visuals.widgets.active.bg_fill = app_accent();
-            ui.style_mut().visuals.widgets.active.weak_bg_fill = app_accent();
-            ui.style_mut().visuals.widgets.active.bg_stroke =
-                Stroke::new(1.0, Color32::from_rgb(218, 164, 174));
-        } else {
-            ui.style_mut().visuals.widgets.inactive.bg_fill = app_surface_fill(false);
-            ui.style_mut().visuals.widgets.inactive.weak_bg_fill = app_surface_fill(false);
-            ui.style_mut().visuals.widgets.inactive.bg_stroke =
-                crate::ui_style::modal_outline_stroke(false);
-            ui.style_mut().visuals.widgets.hovered.bg_fill = app_hover_fill(false);
-            ui.style_mut().visuals.widgets.hovered.weak_bg_fill = app_hover_fill(false);
-            ui.style_mut().visuals.widgets.hovered.bg_stroke =
-                crate::ui_style::modal_outline_stroke(false);
-            ui.style_mut().visuals.widgets.active.bg_fill = app_accent();
-            ui.style_mut().visuals.widgets.active.weak_bg_fill = app_accent();
-            ui.style_mut().visuals.widgets.active.bg_stroke =
-                Stroke::new(1.0, Color32::from_rgb(204, 145, 158));
+        let dark = ui.visuals().dark_mode;
+        if show_intro {
+            crate::ui_style::modal_hint(
+                ui,
+                "Press multiple keys together to send a separate keycode",
+            );
         }
-
-        ui.vertical_centered(|ui| {
-            if show_intro {
-                crate::ui_style::modal_hint(
-                    ui,
-                    "Press multiple keys together to send a separate keycode",
-                );
-            }
-        });
 
         if self.firmware != FirmwareProtocol::Vial {
             crate::ui_style::modal_empty_state(
@@ -8197,7 +8167,9 @@ impl EntropyApp {
             .min(self.combo_entries.len().saturating_sub(1));
         self.combo_names
             .resize(self.combo_entries.len(), String::new());
+        self.combo_visible_count = self.combo_entries.len().max(1);
 
+        let combo_idx = self.selected_combo;
         let combo_undo_snapshot = (
             self.combo_entries.clone(),
             self.combo_names.clone(),
@@ -8205,365 +8177,373 @@ impl EntropyApp {
             self.selected_combo,
             self.combo_visible_count,
         );
-
-        self.combo_visible_count = self.combo_entries.len().max(1);
-        self.selected_combo = self
-            .selected_combo
-            .min(self.combo_entries.len().saturating_sub(1));
-
-        let combo_outline_stroke = crate::ui_style::modal_outline_stroke(ui.visuals().dark_mode);
-
-        let combo_idx = self.selected_combo;
-        let action_button_size = crate::ui_style::modal_action_button_size();
-        let content_width = action_button_size.x * 2.0 + 8.0;
-        let compact_field_width = content_width;
-        let name_field_width = content_width;
-
-        crate::ui_style::modal_content(
-            ui,
-            crate::ui_style::ModalLayout::new(content_width).with_top_padding(0.0),
-            |ui| {
-                let selected_combo_empty = self
-                    .combo_entries
-                    .get(self.selected_combo)
-                    .map(|entry| entry.keys.iter().all(|&k| k == 0) && entry.output == 0)
-                    .unwrap_or(true)
-                    && self
-                        .combo_names
-                        .get(self.selected_combo)
-                        .map(|name| name.trim().is_empty())
-                        .unwrap_or(true);
-                let selected_combo_label = match self.combo_names.get(self.selected_combo) {
-                    Some(name) if !name.trim().is_empty() => {
-                        RichText::new(format!("C{}: {}", self.selected_combo, name.trim())).color(
-                            if selected_combo_empty {
-                                app_inactive_entry_text(ui.visuals().dark_mode)
-                            } else {
-                                ui.visuals().text_color()
-                            },
-                        )
-                    }
-                    _ => RichText::new(format!("C{}", self.selected_combo)).color(
-                        if selected_combo_empty {
-                            app_inactive_entry_text(ui.visuals().dark_mode)
-                        } else {
-                            ui.visuals().text_color()
-                        },
-                    ),
-                };
-                ui.horizontal_centered(|ui| {
-                    ui.allocate_ui_with_layout(
-                        Vec2::new(compact_field_width, 0.0),
-                        egui::Layout::left_to_right(egui::Align::Center),
-                        |ui| {
-                            egui::ComboBox::from_id_salt("combo_entry_select")
-                                .selected_text(selected_combo_label)
-                                .width(compact_field_width)
-                                .show_ui(ui, |ui| {
-                                    for idx in 0..self.combo_entries.len() {
-                                        let combo_empty = self
-                                            .combo_entries
-                                            .get(idx)
-                                            .map(|entry| {
-                                                entry.keys.iter().all(|&k| k == 0)
-                                                    && entry.output == 0
-                                            })
-                                            .unwrap_or(true)
-                                            && self
-                                                .combo_names
-                                                .get(idx)
-                                                .map(|name| name.trim().is_empty())
-                                                .unwrap_or(true);
-                                        let label = match self.combo_names.get(idx) {
-                                            Some(name) if !name.trim().is_empty() => {
-                                                RichText::new(format!("C{}: {}", idx, name.trim()))
-                                                    .color(if combo_empty {
-                                                        app_inactive_entry_text(
-                                                            ui.visuals().dark_mode,
-                                                        )
-                                                    } else {
-                                                        ui.visuals().text_color()
-                                                    })
-                                            }
-                                            _ => RichText::new(format!("C{}", idx)).color(
-                                                if combo_empty {
-                                                    app_inactive_entry_text(ui.visuals().dark_mode)
-                                                } else {
-                                                    ui.visuals().text_color()
-                                                },
-                                            ),
-                                        };
-                                        let resp = ui.selectable_value(
-                                            &mut self.selected_combo,
-                                            idx,
-                                            label,
-                                        );
-                                        if resp.hovered() {
-                                            ui.ctx()
-                                                .set_cursor_icon(egui::CursorIcon::PointingHand);
-                                        }
-                                    }
-                                });
-                        },
-                    );
-                });
-
-                ui.add_space(crate::ui_style::modal_space_md());
-            },
-        );
-
-        ui.vertical_centered(|ui| {
-            ui.allocate_ui_with_layout(
-                Vec2::new(content_width, 0.0),
-                egui::Layout::top_down(egui::Align::Min),
-                |ui| {
-                    let mut combo_name_changed = false;
-                    if let Some(name) = self.combo_names.get_mut(combo_idx) {
-                        let resp = ui
-                            .horizontal_centered(|ui| {
-                                ui.add_sized(
-                                    crate::ui_style::modal_field_button_size(name_field_width),
-                                    egui::TextEdit::singleline(name)
-                                        .hint_text("Name")
-                                        .char_limit(12)
-                                        .horizontal_align(egui::Align::Center)
-                                        .vertical_align(egui::Align::Center),
-                                )
-                            })
-                            .inner;
-                        combo_name_changed = resp.changed();
-                        resp.clone().on_hover_text("Stored locally in Entropy");
-                        if resp.hovered() {
-                            ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
-                        }
-                    }
-                    if combo_name_changed {
-                        self.combo_undo_stack.push(combo_undo_snapshot.clone());
-                        self.combo_names_dirty = true;
-                    }
-
-                    let output_label = if self.combo_entries[combo_idx].output == 0 {
-                        "Pick output".to_string()
-                    } else {
+        const CONTENT_WIDTH: f32 = 470.0;
+        const ROW_CONTENT_WIDTH: f32 = 452.0;
+        const ROW_HEIGHT: f32 = 54.0;
+        const CONTROL_WIDTH: f32 = 168.0;
+        const TIMEOUT_CONTROL_WIDTH: f32 = 118.0;
+        let custom = self
+            .layout
+            .as_ref()
+            .map(|l| l.custom_keycodes.as_slice())
+            .unwrap_or(&[]);
+        let selected_combo_empty = self
+            .combo_entries
+            .get(combo_idx)
+            .map(|entry| entry.keys.iter().all(|&k| k == 0) && entry.output == 0)
+            .unwrap_or(true)
+            && self
+                .combo_names
+                .get(combo_idx)
+                .map(|name| name.trim().is_empty())
+                .unwrap_or(true);
+        let selected_text = match self.combo_names.get(combo_idx) {
+            Some(name) if !name.trim().is_empty() => format!("C{}: {}", combo_idx, name.trim()),
+            _ => format!("C{}", combo_idx),
+        };
+        let selected_text_color = if selected_combo_empty {
+            app_inactive_entry_text(dark)
+        } else {
+            ui.visuals().text_color()
+        };
+        let input_summary = {
+            let keys: Vec<String> = if self.combo_capture_open {
+                self.combo_capture_keys
+                    .iter()
+                    .copied()
+                    .map(|kc| {
                         keycode_label_with_macro_names(
-                            self.combo_entries[combo_idx].output,
-                            self.layout
-                                .as_ref()
-                                .map(|l| l.custom_keycodes.as_slice())
-                                .unwrap_or(&[]),
+                            kc,
+                            custom,
                             &self.layer_names,
                             &self.keycode_picker.macro_names,
                             &self.keycode_picker.tap_dance_names,
                         )
                         .replace('\n', " ")
-                    };
+                    })
+                    .collect()
+            } else {
+                self.combo_entries[combo_idx]
+                    .keys
+                    .iter()
+                    .copied()
+                    .filter(|&kc| kc != 0)
+                    .map(|kc| {
+                        keycode_label_with_macro_names(
+                            kc,
+                            custom,
+                            &self.layer_names,
+                            &self.keycode_picker.macro_names,
+                            &self.keycode_picker.tap_dance_names,
+                        )
+                        .replace('\n', " ")
+                    })
+                    .collect()
+            };
+            if keys.is_empty() {
+                if self.combo_capture_open {
+                    "Press 2-4 keys".to_string()
+                } else {
+                    "Record 2-4 keys".to_string()
+                }
+            } else {
+                keys.join(" + ")
+            }
+        };
+        let output_label = if self.combo_entries[combo_idx].output == 0 {
+            "Pick output".to_string()
+        } else {
+            keycode_label_with_macro_names(
+                self.combo_entries[combo_idx].output,
+                custom,
+                &self.layer_names,
+                &self.keycode_picker.macro_names,
+                &self.keycode_picker.tap_dance_names,
+            )
+            .replace('\n', " ")
+        };
 
-                    ui.add_space(12.0);
-                    ui.horizontal_centered(|ui| {
-                        crate::ui_style::modal_section_title(ui, "Input keys");
-                    });
-                    ui.add_space(6.0);
-                    let input_summary = {
-                        let keys: Vec<String> = if self.combo_capture_open {
-                            self.combo_capture_keys
-                                .iter()
-                                .copied()
-                                .map(|kc| {
-                                    keycode_label_with_macro_names(
-                                        kc,
-                                        self.layout
-                                            .as_ref()
-                                            .map(|l| l.custom_keycodes.as_slice())
-                                            .unwrap_or(&[]),
-                                        &self.layer_names,
-                                        &self.keycode_picker.macro_names,
-                                        &self.keycode_picker.tap_dance_names,
-                                    )
-                                    .replace('\n', " ")
-                                })
-                                .collect()
-                        } else {
-                            self.combo_entries[combo_idx]
-                                .keys
-                                .iter()
-                                .copied()
-                                .filter(|&kc| kc != 0)
-                                .map(|kc| {
-                                    keycode_label_with_macro_names(
-                                        kc,
-                                        self.layout
-                                            .as_ref()
-                                            .map(|l| l.custom_keycodes.as_slice())
-                                            .unwrap_or(&[]),
-                                        &self.layer_names,
-                                        &self.keycode_picker.macro_names,
-                                        &self.keycode_picker.tap_dance_names,
-                                    )
-                                    .replace('\n', " ")
-                                })
-                                .collect()
-                        };
-                        if keys.is_empty() {
-                            if self.combo_capture_open {
-                                "Press 2-4 keys".to_string()
-                            } else {
-                                "Record 2-4 keys".to_string()
-                            }
-                        } else {
-                            keys.join(" + ")
-                        }
-                    };
-                    let field_resp = ui
-                        .horizontal_centered(|ui| {
-                            let field_btn =
-                                egui::Button::new(RichText::new(input_summary).size(13.0))
-                                    .frame(true)
-                                    .stroke(combo_outline_stroke);
-                            ui.add_sized(
-                                crate::ui_style::modal_field_button_size(compact_field_width),
-                                field_btn,
-                            )
-                        })
-                        .inner;
-                    if field_resp.hovered() {
-                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                    }
-                    if field_resp.clicked() {
-                        self.combo_capture_keys.clear();
-                        self.combo_capture_open = true;
-                    }
-                    if self.combo_capture_open {
-                        let clicked_outside_input = ui.ctx().input(|i| {
-                            i.pointer.any_pressed()
-                                && i.pointer
-                                    .interact_pos()
-                                    .map(|pos| !field_resp.rect.contains(pos))
-                                    .unwrap_or(false)
-                        });
-                        if clicked_outside_input {
-                            self.apply_combo_capture();
-                        }
-                    }
+        crate::ui_style::modal_content(
+            ui,
+            crate::ui_style::ModalLayout::new(CONTENT_WIDTH).with_top_padding(4.0),
+            |ui| {
+                ui.spacing_mut().item_spacing.y = 0.0;
+                crate::ui_style::settings_list_row_with_tooltip(
+                    ui,
+                    ROW_CONTENT_WIDTH,
+                    ROW_HEIGHT,
+                    "Entry",
+                    true,
+                    Some("Select Combo slot"),
+                    CONTROL_WIDTH,
+                    |ui| {
+                        let dropdown_id = ui.make_persistent_id("combo_entry_dropdown");
+                        let dropdown_resp = crate::ui_style::modern_dropdown_button(
+                            ui,
+                            dropdown_id,
+                            selected_text.as_str(),
+                            selected_text_color,
+                            CONTROL_WIDTH,
+                        );
+                        ui.style_mut().visuals.window_stroke =
+                            crate::ui_style::modal_outline_stroke(dark);
+                        ui.style_mut().visuals.window_fill = app_surface_fill(dark);
+                        egui::popup_below_widget(
+                            ui,
+                            dropdown_id,
+                            &dropdown_resp,
+                            egui::PopupCloseBehavior::CloseOnClickOutside,
+                            |ui| {
+                                ui.set_min_width(CONTROL_WIDTH);
+                                ui.spacing_mut().item_spacing = Vec2::new(0.0, 2.0);
+                                egui::ScrollArea::vertical()
+                                    .id_salt("combo_entry_dropdown_scroll")
+                                    .max_height(142.0)
+                                    .auto_shrink([false, true])
+                                    .show(ui, |ui| {
+                                        for entry_idx in 0..self.combo_entries.len() {
+                                            let empty = self
+                                                .combo_entries
+                                                .get(entry_idx)
+                                                .map(|entry| {
+                                                    entry.keys.iter().all(|&k| k == 0)
+                                                        && entry.output == 0
+                                                })
+                                                .unwrap_or(true)
+                                                && self
+                                                    .combo_names
+                                                    .get(entry_idx)
+                                                    .map(|name| name.trim().is_empty())
+                                                    .unwrap_or(true);
+                                            let option_text = match self.combo_names.get(entry_idx) {
+                                                Some(name) if !name.trim().is_empty() => {
+                                                    format!("C{}: {}", entry_idx, name.trim())
+                                                }
+                                                _ => format!("C{}", entry_idx),
+                                            };
+                                            let selected = entry_idx == self.selected_combo;
+                                            let (option_rect, option_resp) = ui.allocate_exact_size(
+                                                Vec2::new(CONTROL_WIDTH, 28.0),
+                                                Sense::click(),
+                                            );
+                                            if option_resp.hovered() {
+                                                ui.ctx().set_cursor_icon(
+                                                    egui::CursorIcon::PointingHand,
+                                                );
+                                            }
+                                            let option_fill = if selected {
+                                                if dark {
+                                                    Color32::from_rgb(58, 58, 61)
+                                                } else {
+                                                    Color32::from_rgb(236, 236, 238)
+                                                }
+                                            } else if option_resp.hovered() {
+                                                crate::ui_style::hover_fill(dark)
+                                            } else {
+                                                Color32::TRANSPARENT
+                                            };
+                                            ui.painter().rect_filled(option_rect, 7.0, option_fill);
+                                            ui.painter().text(
+                                                egui::pos2(
+                                                    option_rect.left() + 10.0,
+                                                    option_rect.center().y,
+                                                ),
+                                                egui::Align2::LEFT_CENTER,
+                                                option_text,
+                                                FontId::proportional(12.0),
+                                                if selected {
+                                                    ui.visuals().text_color()
+                                                } else if empty {
+                                                    app_inactive_entry_text(dark)
+                                                } else {
+                                                    app_muted_text(dark)
+                                                },
+                                            );
+                                            if option_resp.clicked() {
+                                                self.selected_combo = entry_idx;
+                                                ui.memory_mut(|m| m.close_popup());
+                                            }
+                                        }
+                                    });
+                            },
+                        );
+                    },
+                );
 
-                    ui.add_space(10.0);
-                    ui.horizontal_centered(|ui| {
-                        crate::ui_style::modal_section_title(ui, "Output key");
-                    });
-                    ui.add_space(6.0);
-                    let resp = ui
-                        .horizontal_centered(|ui| {
-                            let btn = egui::Button::new(RichText::new(&output_label).size(13.0))
-                                .frame(true)
-                                .stroke(combo_outline_stroke);
-                            ui.add_sized(
-                                crate::ui_style::modal_field_button_size(compact_field_width),
-                                btn,
-                            )
-                        })
-                        .inner;
-                    if resp.hovered() {
-                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                    }
-                    if resp.clicked() {
-                        self.combo_pick_target = Some((combo_idx, ComboPickField::Output));
-                        self.keycode_picker.result = None;
-                        self.keycode_picker.selected_tab = KeycodeTab::Basic;
-                        self.keycode_picker.open = true;
-                    }
-
-                    if let Some(current_combo_term) = self.combo_term {
-                        ui.add_space(12.0);
-                        ui.horizontal_centered(|ui| {
-                            ui.label(
-                                RichText::new("Time out period for combos")
-                                    .size(13.0)
-                                    .strong(),
+                let mut combo_name_changed = false;
+                crate::ui_style::settings_list_row_with_tooltip(
+                    ui,
+                    ROW_CONTENT_WIDTH,
+                    ROW_HEIGHT,
+                    "Name",
+                    true,
+                    Some("Local name for this combo slot"),
+                    CONTROL_WIDTH,
+                    |ui| {
+                        if let Some(name) = self.combo_names.get_mut(combo_idx) {
+                            let resp = crate::ui_style::modern_text_field(
+                                ui,
+                                egui::Id::new(("combo_name", combo_idx)),
+                                name,
+                                CONTROL_WIDTH,
+                                "Name",
+                                12,
+                                egui::Align::Center,
                             );
-                        });
-                        ui.add_space(4.0);
-                        let mut combo_term_text = current_combo_term.to_string();
-                        ui.horizontal_centered(|ui| {
-                            let resp = ui.add_sized(
-                                crate::ui_style::modal_small_button_size(54.0),
-                                egui::TextEdit::singleline(&mut combo_term_text)
-                                    .hint_text("ms")
-                                    .desired_width(30.0)
-                                    .char_limit(4)
-                                    .vertical_align(egui::Align::Center),
-                            );
-                            if resp.hovered() {
-                                ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
+                            combo_name_changed = resp.changed();
+                            resp.clone().on_hover_text("Stored locally in Entropy");
+                        }
+                    },
+                );
+                if combo_name_changed {
+                    self.combo_undo_stack.push(combo_undo_snapshot.clone());
+                    self.combo_names_dirty = true;
+                }
+
+                crate::ui_style::settings_list_row_with_tooltip(
+                    ui,
+                    ROW_CONTENT_WIDTH,
+                    ROW_HEIGHT,
+                    "Input keys",
+                    true,
+                    Some("Keys that must be pressed together"),
+                    CONTROL_WIDTH,
+                    |ui| {
+                        let field_resp = crate::ui_style::modern_button(
+                            ui,
+                            input_summary.as_str(),
+                            Vec2::new(CONTROL_WIDTH, 32.0),
+                            true,
+                        );
+                        if field_resp.clicked() {
+                            self.combo_capture_keys.clear();
+                            self.combo_capture_open = true;
+                        }
+                        if self.combo_capture_open {
+                            let clicked_outside_input = ui.ctx().input(|i| {
+                                i.pointer.any_pressed()
+                                    && i.pointer
+                                        .interact_pos()
+                                        .map(|pos| !field_resp.rect.contains(pos))
+                                        .unwrap_or(false)
+                            });
+                            if clicked_outside_input {
+                                self.apply_combo_capture();
                             }
-                            ui.label("ms");
-                            if resp.changed() {
-                                let filtered: String = combo_term_text
-                                    .chars()
-                                    .filter(|c| c.is_ascii_digit())
-                                    .take(4)
-                                    .collect();
-                                if let Ok(parsed) = filtered.parse::<u16>() {
-                                    self.combo_undo_stack.push(combo_undo_snapshot.clone());
-                                    self.combo_term = Some(parsed.max(1));
-                                    self.combo_term_dirty = true;
+                        }
+                    },
+                );
+
+                crate::ui_style::settings_list_row_with_tooltip(
+                    ui,
+                    ROW_CONTENT_WIDTH,
+                    ROW_HEIGHT,
+                    "Output key",
+                    true,
+                    Some("Keycode sent when the combo activates"),
+                    CONTROL_WIDTH,
+                    |ui| {
+                        let resp = crate::ui_style::modern_button(
+                            ui,
+                            output_label.as_str(),
+                            Vec2::new(CONTROL_WIDTH, 32.0),
+                            true,
+                        );
+                        if resp.clicked() {
+                            self.combo_pick_target = Some((combo_idx, ComboPickField::Output));
+                            self.keycode_picker.result = None;
+                            self.keycode_picker.selected_tab = KeycodeTab::Basic;
+                            self.keycode_picker.open = true;
+                        }
+                    },
+                );
+
+                if let Some(current_combo_term) = self.combo_term {
+                    let mut combo_term_text = current_combo_term.to_string();
+                    crate::ui_style::settings_list_row_with_tooltip(
+                        ui,
+                        ROW_CONTENT_WIDTH,
+                        ROW_HEIGHT,
+                        "Timeout",
+                        true,
+                        Some("Maximum time between combo key presses"),
+                        TIMEOUT_CONTROL_WIDTH,
+                        |ui| {
+                            ui.horizontal(|ui| {
+                                let resp = crate::ui_style::modern_text_field(
+                                    ui,
+                                    egui::Id::new("combo_term"),
+                                    &mut combo_term_text,
+                                    70.0,
+                                    "ms",
+                                    4,
+                                    egui::Align::RIGHT,
+                                );
+                                ui.add_space(8.0);
+                                ui.label(
+                                    RichText::new("ms")
+                                        .size(12.0)
+                                        .color(app_muted_text(dark)),
+                                );
+                                if resp.changed() {
+                                    let filtered: String = combo_term_text
+                                        .chars()
+                                        .filter(|c| c.is_ascii_digit())
+                                        .take(4)
+                                        .collect();
+                                    if let Ok(parsed) = filtered.parse::<u16>() {
+                                        self.combo_undo_stack.push(combo_undo_snapshot.clone());
+                                        self.combo_term = Some(parsed.max(1));
+                                        self.combo_term_dirty = true;
+                                    }
                                 }
-                            }
-                        });
-                    }
-                    ui.add_space(12.0);
-                    ui.horizontal_centered(|ui| {
-                        let clear_btn = egui::Button::new(RichText::new("Clear").size(13.0))
-                            .min_size(action_button_size)
-                            .frame(true)
-                            .stroke(combo_outline_stroke);
-                        let clear_enabled = combo_idx < self.combo_entries.len()
-                            && (self.combo_entries[combo_idx].keys.iter().any(|&k| k != 0)
-                                || self.combo_entries[combo_idx].output != 0
-                                || self
-                                    .combo_names
-                                    .get(combo_idx)
-                                    .map(|s| !s.trim().is_empty())
-                                    .unwrap_or(false));
-                        let clear_resp = ui.add_enabled(clear_enabled, clear_btn);
-                        if clear_resp.hovered() && clear_enabled {
-                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                        }
-                        if clear_resp.clicked() {
-                            self.push_combo_undo();
-                            self.combo_entries[combo_idx] = ComboEntry::default();
-                            if let Some(name) = self.combo_names.get_mut(combo_idx) {
-                                name.clear();
-                            }
-                            self.combo_dirty = true;
-                            self.combo_names_dirty = true;
-                        }
+                            });
+                        },
+                    );
+                }
+            },
+        );
 
-                        let undo_btn = egui::Button::new(RichText::new("Undo").size(13.0))
-                            .min_size(action_button_size)
-                            .frame(true)
-                            .stroke(combo_outline_stroke);
-                        let undo_resp = ui.add_enabled(!self.combo_undo_stack.is_empty(), undo_btn);
-                        if undo_resp.hovered() && !self.combo_undo_stack.is_empty() {
-                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                        }
-                        if undo_resp.clicked() {
-                            if let Some((entries, names, term, selected, visible_count)) =
-                                self.combo_undo_stack.pop()
-                            {
-                                self.combo_entries = entries;
-                                self.combo_names = names;
-                                self.combo_term = term;
-                                self.combo_visible_count =
-                                    visible_count.clamp(1, self.combo_entries.len().max(1));
-                                self.selected_combo =
-                                    selected.min(self.combo_visible_count.saturating_sub(1));
-                                self.combo_dirty = true;
-                                self.combo_names_dirty = true;
-                                self.combo_term_dirty = true;
-                            }
-                        }
-                    });
-                },
-            );
+        ui.add_space(14.0);
+        ui.horizontal_centered(|ui| {
+            let action_size = crate::ui_style::modal_action_button_size();
+            let clear_enabled = combo_idx < self.combo_entries.len()
+                && (self.combo_entries[combo_idx].keys.iter().any(|&k| k != 0)
+                    || self.combo_entries[combo_idx].output != 0
+                    || self
+                        .combo_names
+                        .get(combo_idx)
+                        .map(|s| !s.trim().is_empty())
+                        .unwrap_or(false));
+            let clear_resp =
+                crate::ui_style::modern_button(ui, "Clear", action_size, clear_enabled);
+            if clear_resp.clicked() && clear_enabled {
+                self.push_combo_undo();
+                self.combo_entries[combo_idx] = ComboEntry::default();
+                if let Some(name) = self.combo_names.get_mut(combo_idx) {
+                    name.clear();
+                }
+                self.combo_dirty = true;
+                self.combo_names_dirty = true;
+            }
+            ui.add_space(8.0);
+            let undo_enabled = !self.combo_undo_stack.is_empty();
+            let undo_resp = crate::ui_style::modern_button(ui, "Undo", action_size, undo_enabled);
+            if undo_resp.clicked() && undo_enabled {
+                if let Some((entries, names, term, selected, visible_count)) =
+                    self.combo_undo_stack.pop()
+                {
+                    self.combo_entries = entries;
+                    self.combo_names = names;
+                    self.combo_term = term;
+                    self.combo_visible_count =
+                        visible_count.clamp(1, self.combo_entries.len().max(1));
+                    self.selected_combo = selected.min(self.combo_visible_count.saturating_sub(1));
+                    self.combo_dirty = true;
+                    self.combo_names_dirty = true;
+                    self.combo_term_dirty = true;
+                }
+            }
         });
     }
 
