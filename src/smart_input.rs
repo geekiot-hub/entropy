@@ -161,6 +161,11 @@ fn linux_input_method_hint() -> &'static str {
     }
 }
 
+#[cfg(target_os = "macos")]
+pub fn universal_output_setup_hint() -> Option<&'static str> {
+    Some("Allow Entropy in Accessibility/Input Monitoring, then restart Entropy")
+}
+
 #[cfg(target_os = "linux")]
 pub fn universal_output_setup_hint() -> Option<&'static str> {
     if std::env::var_os("WAYLAND_DISPLAY").is_some() {
@@ -172,7 +177,7 @@ pub fn universal_output_setup_hint() -> Option<&'static str> {
     }
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
 pub fn universal_output_setup_hint() -> Option<&'static str> {
     None
 }

@@ -1526,6 +1526,14 @@ impl KeycodePicker {
                 .size(11.0)
                 .color(Color32::from_gray(150)),
         );
+        if let Some(hint) = crate::smart_input::universal_output_setup_hint() {
+            ui.add_space(3.0);
+            ui.label(
+                RichText::new(hint)
+                    .size(10.0)
+                    .color(Color32::from_gray(120)),
+            );
+        }
         ui.add_space(6.0);
         ui.horizontal_wrapped(|ui| {
             for wanted in main_symbol_order {

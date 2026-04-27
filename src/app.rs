@@ -338,14 +338,15 @@ fn universal_symbols_setup_steps() -> &'static [&'static str] {
         &[
             "No extra setup is required on Windows",
             "Keep Entropy running while using Universal Symbols",
-            "Assign symbols from Symbols → Universal symbols in the key picker",
+            "Assign keys from Symbols → Universal symbols in the key picker",
         ]
     }
     #[cfg(target_os = "macos")]
     {
         &[
-            "Open Privacy & Security and allow Entropy in Accessibility",
-            "If prompted, also allow Entropy in Input Monitoring",
+            "Open Privacy & Security",
+            "Allow Entropy in Accessibility",
+            "If prompted, allow Entropy in Input Monitoring too",
             "Restart Entropy after changing permissions",
             "Keep Entropy running while using Universal Symbols",
         ]
@@ -353,10 +354,10 @@ fn universal_symbols_setup_steps() -> &'static [&'static str] {
     #[cfg(target_os = "linux")]
     {
         &[
-            "X11: install xdotool, then keep Entropy running",
-            "Wayland with IBus: install Entropy Universal Symbols and select it as an input source",
-            "Wayland with Fcitx5: install the addon, restart Fcitx5, and enable Entropy Universal Symbols",
-            "Assign symbols from Symbols → Universal symbols in the key picker",
+            "X11: install xdotool and keep Entropy running",
+            "Wayland + IBus: install Entropy Universal Symbols and select it as an input source",
+            "Wayland + Fcitx5: install the addon, restart Fcitx5, and enable Entropy Universal Symbols",
+            "Assign keys from Symbols → Universal symbols in the key picker",
         ]
     }
     #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
@@ -3060,17 +3061,29 @@ impl EntropyApp {
                         }
                         ui.add_space(16.0);
 
-                        for step in universal_symbols_setup_steps() {
-                            ui.add_sized(
-                                Vec2::new(content_width, 20.0),
-                                egui::Label::new(
-                                    RichText::new(format!("• {step}")).size(12.0),
-                                )
-                                .wrap()
-                                .halign(egui::Align::Center),
+                        let steps = universal_symbols_setup_steps();
+                        let max_step_width = steps
+                            .iter()
+                            .map(|step| step.chars().count() as f32 * 6.0 + 18.0)
+                            .fold(0.0, f32::max)
+                            .min(content_width);
+                        ui.horizontal_centered(|ui| {
+                            ui.allocate_ui_with_layout(
+                                Vec2::new(max_step_width, 0.0),
+                                egui::Layout::top_down(egui::Align::Min),
+                                |ui| {
+                                    for step in steps {
+                                        ui.horizontal(|ui| {
+                                            ui.label(
+                                                RichText::new("•").size(13.0).color(app_accent()),
+                                            );
+                                            ui.label(RichText::new(*step).size(12.0));
+                                        });
+                                        ui.add_space(5.0);
+                                    }
+                                },
                             );
-                            ui.add_space(5.0);
-                        }
+                        });
 
                         ui.add_space(14.0);
                         self.draw_universal_symbols_setup_actions(ui);
