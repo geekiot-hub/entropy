@@ -834,7 +834,7 @@ impl KeycodePicker {
             }
         }
 
-        if let Some(usage) = zmk_hid_usage_for_qmk_value(value) {
+        if let Some(usage) = self.zmk_key_press_usage_from_vial_value(value) {
             if let Some(id) = self.zmk_behavior_id("Key Press") {
                 self.zmk_assign(id, usage, 0);
                 return true;
@@ -856,8 +856,7 @@ impl KeycodePicker {
                 self.zmk_behavior_id("Sticky Key").is_some()
             }
             _ => {
-                (zmk_hid_usage_for_qmk_value(value).is_some()
-                    && self.zmk_behavior_id("Key Press").is_some())
+                self.zmk_key_press_usage_from_vial_value(value).is_some()
                     || (zmk_mouse_button_usage_for_qmk_value(value).is_some()
                         && self.zmk_behavior_id("Mouse Key Press").is_some())
             }
@@ -867,12 +866,32 @@ impl KeycodePicker {
     fn assign_keycode_value(&mut self, value: u16) {
         match self.firmware {
             FirmwareProtocol::Vial => {
-                self.assign_keycode_value(value);
+                self.result = Some(value);
+                self.open = false;
             }
             FirmwareProtocol::Zmk => {
                 self.zmk_assign_keycode_value(value);
             }
         }
+    }
+
+    fn zmk_key_press_usage_from_vial_value(&self, value: u16) -> Option<u32> {
+        let key_press_id = self.zmk_behavior_id("Key Press")?;
+        let _ = key_press_id;
+        if let Some(usage) = zmk_hid_usage_for_qmk_value(value) {
+            return Some(usage);
+        }
+        let base = value & 0x00FF;
+        let mod_base = value & 0x0F00;
+        if mod_base != 0 {
+            if let (Some(mod_mask), Some(usage)) = (
+                Self::zmk_modifier_mask_from_vial_base(mod_base),
+                zmk_hid_usage_for_qmk_value(base),
+            ) {
+                return Some(usage | (mod_mask << 24));
+            }
+        }
+        None
     }
 
     fn zmk_modifier_mask_from_vial_base(base: u16) -> Option<u32> {
@@ -890,6 +909,10 @@ impl KeycodePicker {
             0x2200 => Some(0x0007_00E1), // LShift
             0x2400 => Some(0x0007_00E2), // LAlt
             0x2800 => Some(0x0007_00E3), // LGUI
+            0x3100 => Some(0x0007_00E4), // RCtrl
+            0x3200 => Some(0x0007_00E5), // RShift
+            0x3400 => Some(0x0007_00E6), // RAlt
+            0x3800 => Some(0x0007_00E7), // RGUI
             _ => None,
         }
     }
@@ -900,6 +923,10 @@ impl KeycodePicker {
             0x52A1 => Some(0x0007_00E1), // LShift
             0x52A4 => Some(0x0007_00E2), // LAlt
             0x52A8 => Some(0x0007_00E3), // LGUI
+            0x53A2 => Some(0x0007_00E4), // RCtrl
+            0x53A1 => Some(0x0007_00E5), // RShift
+            0x53A4 => Some(0x0007_00E6), // RAlt
+            0x53A8 => Some(0x0007_00E7), // RGUI
             _ => None,
         }
     }
@@ -2013,6 +2040,37 @@ impl KeycodePicker {
             }
         });
 
+        if self.firmware == FirmwareProtocol::Zmk {
+            ui.add_space(10.0);
+            ui.label(
+                RichText::new("Right-side modifiers")
+                    .size(11.0)
+                    .color(Color32::from_gray(150)),
+            );
+            ui.add_space(4.0);
+            let rgui = gui_label(true);
+            let right_plain: Vec<(String, u16, String)> = vec![
+                ("Right Ctrl".into(), 0x00E4, "Right Control".into()),
+                ("Right Shift".into(), 0x00E5, "Right Shift".into()),
+                ("Right Alt".into(), 0x00E6, "Right Alt / AltGr".into()),
+                (rgui.into(), 0x00E7, format!("Right {}", rgui)),
+            ];
+            ui.horizontal_wrapped(|ui| {
+                for (label, value, tip) in &right_plain {
+                    let resp = ui
+                        .add(
+                            egui::Button::new(RichText::new(label.as_str()).size(10.5))
+                                .min_size(Vec2::new(88.0, 34.0)),
+                        )
+                        .on_hover_cursor(egui::CursorIcon::PointingHand);
+                    if resp.clicked() {
+                        self.assign_keycode_value(*value);
+                    }
+                    resp.on_hover_text(tip.as_str());
+                }
+            });
+        }
+
         ui.add_space(12.0);
         self.show_vial_layers(ui);
 
@@ -2098,6 +2156,12 @@ impl KeycodePicker {
             ),
         ];
         if self.firmware == FirmwareProtocol::Zmk {
+            mt.extend(vec![
+                ("MT RCtrl".into(), 0x3100, "Mod-Tap: hold=RCtrl".into()),
+                ("MT RShift".into(), 0x3200, "Mod-Tap: hold=RShift".into()),
+                ("MT RAlt".into(), 0x3400, "Mod-Tap: hold=RAlt / AltGr".into()),
+                (format!("MT {}", gui_label(true)), 0x3800, format!("Mod-Tap: hold=R{}", gui_label(true))),
+            ]);
             mt.retain(|(_, value, _)| Self::zmk_modifier_usage_from_vial_mt_base(*value).is_some());
         }
         ui.horizontal_wrapped(|ui| {
@@ -2147,6 +2211,12 @@ impl KeycodePicker {
             ),
         ];
         if self.firmware == FirmwareProtocol::Zmk {
+            osm.extend(vec![
+                ("OSM RCtrl".into(), 0x53A2, "One-Shot Right Ctrl".into()),
+                ("OSM RShift".into(), 0x53A1, "One-Shot Right Shift".into()),
+                ("OSM RAlt".into(), 0x53A4, "One-Shot Right Alt / AltGr".into()),
+                (format!("OSM {}", gui_label(true)), 0x53A8, format!("One-Shot Right {}", gui_label(true))),
+            ]);
             osm.retain(|(_, value, _)| Self::zmk_modifier_usage_from_vial_osm(*value).is_some());
         }
         ui.horizontal_wrapped(|ui| {
@@ -2163,6 +2233,265 @@ impl KeycodePicker {
                 resp.on_hover_text(tip.as_str());
             }
         });
+    }
+
+    fn zmk_vial_style_behavior_button(
+        &mut self,
+        ui: &mut egui::Ui,
+        label: &str,
+        tooltip: &str,
+        behavior_name: &str,
+        param1: u32,
+        param2: u32,
+        size: Vec2,
+    ) {
+        let Some(id) = self.zmk_behavior_id(behavior_name) else {
+            return;
+        };
+        let resp = ui
+            .add(egui::Button::new(RichText::new(label).size(10.5)).min_size(size))
+            .on_hover_cursor(egui::CursorIcon::PointingHand);
+        if resp.clicked() {
+            self.zmk_assign(id, param1, param2);
+        }
+        resp.on_hover_text(tooltip);
+    }
+
+    fn show_zmk_special_vial_extras(&mut self, ui: &mut egui::Ui) {
+        ui.add_space(10.0);
+        ui.label(
+            RichText::new("Firmware")
+                .size(11.0)
+                .color(Color32::from_gray(150)),
+        );
+        ui.add_space(4.0);
+        ui.horizontal_wrapped(|ui| {
+            self.zmk_vial_style_behavior_button(
+                ui,
+                "Reset",
+                "Reset — restart the keyboard",
+                "Reset",
+                0,
+                0,
+                Vec2::new(64.0, 38.0),
+            );
+            self.zmk_vial_style_behavior_button(
+                ui,
+                "Studio\nUnlock",
+                "Studio Unlock — allow ZMK Studio to edit the keymap",
+                "Studio Unlock",
+                0,
+                0,
+                Vec2::new(76.0, 42.0),
+            );
+            self.zmk_vial_style_behavior_button(
+                ui,
+                "ExtPwr\nOn",
+                "External Power ON",
+                "External Power",
+                1,
+                0,
+                Vec2::new(72.0, 42.0),
+            );
+            self.zmk_vial_style_behavior_button(
+                ui,
+                "ExtPwr\nOff",
+                "External Power OFF",
+                "External Power",
+                0,
+                0,
+                Vec2::new(72.0, 42.0),
+            );
+        });
+
+        ui.add_space(10.0);
+        ui.label(
+            RichText::new("Bluetooth")
+                .size(11.0)
+                .color(Color32::from_gray(150)),
+        );
+        ui.add_space(4.0);
+        ui.horizontal_wrapped(|ui| {
+            self.zmk_vial_style_behavior_button(ui, "BT\nCLR", "Forget current Bluetooth profile", "Bluetooth", 0, 0, Vec2::new(62.0, 42.0));
+            self.zmk_vial_style_behavior_button(ui, "BT\nCLR ALL", "Forget all Bluetooth profiles", "Bluetooth", 1, 0, Vec2::new(72.0, 42.0));
+            self.zmk_vial_style_behavior_button(ui, "BT\nNext", "Switch to next Bluetooth profile", "Bluetooth", 2, 0, Vec2::new(62.0, 42.0));
+            self.zmk_vial_style_behavior_button(ui, "BT\nPrev", "Switch to previous Bluetooth profile", "Bluetooth", 3, 0, Vec2::new(62.0, 42.0));
+            for n in 0..=4u32 {
+                self.zmk_vial_style_behavior_button(
+                    ui,
+                    &format!("BT\nSEL {n}"),
+                    &format!("Select Bluetooth profile {n}"),
+                    "Bluetooth",
+                    4,
+                    n,
+                    Vec2::new(62.0, 42.0),
+                );
+            }
+        });
+
+        ui.add_space(10.0);
+        ui.label(
+            RichText::new("Output")
+                .size(11.0)
+                .color(Color32::from_gray(150)),
+        );
+        ui.add_space(4.0);
+        ui.horizontal_wrapped(|ui| {
+            self.zmk_vial_style_behavior_button(ui, "Out\nUSB", "Output: USB", "Output Selection", 0, 0, Vec2::new(62.0, 42.0));
+            self.zmk_vial_style_behavior_button(ui, "Out\nBLE", "Output: Bluetooth", "Output Selection", 1, 0, Vec2::new(62.0, 42.0));
+        });
+
+        ui.add_space(10.0);
+        ui.label(
+            RichText::new("Mouse")
+                .size(11.0)
+                .color(Color32::from_gray(150)),
+        );
+        ui.add_space(4.0);
+        ui.horizontal_wrapped(|ui| {
+            for kc in KEYCODES.iter().filter(|kc| matches!(kc.category, KeycodeCategory::Mouse)) {
+                if !self.zmk_keycode_supported(kc.value) {
+                    continue;
+                }
+                let label = keycode_label_with_names(kc.value, &[], &self.layer_names);
+                let resp = ui
+                    .add(
+                        egui::Button::new(RichText::new(label).size(11.0))
+                            .min_size(Vec2::new(56.0, 42.0)),
+                    )
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
+                if resp.clicked() {
+                    self.zmk_assign_keycode_value(kc.value);
+                }
+                resp.on_hover_text(keycode_tooltip(kc.value, &[], &self.layer_names));
+            }
+        });
+
+        ui.add_space(10.0);
+        ui.label(
+            RichText::new("Media, Apps, System")
+                .size(11.0)
+                .color(Color32::from_gray(150)),
+        );
+        ui.add_space(4.0);
+        ui.horizontal_wrapped(|ui| {
+            for kc in KEYCODES.iter().filter(|kc| matches!(kc.category, KeycodeCategory::Media)) {
+                if !self.zmk_keycode_supported(kc.value) {
+                    continue;
+                }
+                let label = keycode_label_with_names(kc.value, &[], &self.layer_names);
+                let resp = ui
+                    .add(
+                        egui::Button::new(RichText::new(label).size(10.5))
+                            .min_size(Vec2::new(56.0, 42.0)),
+                    )
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
+                if resp.clicked() {
+                    self.zmk_assign_keycode_value(kc.value);
+                }
+                resp.on_hover_text(keycode_tooltip(kc.value, &[], &self.layer_names));
+            }
+        });
+
+        ui.add_space(10.0);
+        ui.label(
+            RichText::new("Basic app / edit keys")
+                .size(11.0)
+                .color(Color32::from_gray(150)),
+        );
+        ui.add_space(4.0);
+        let basic_app_keys: &[(&str, u16)] = &[
+            ("Exec", 0x0074),
+            ("Help", 0x0075),
+            ("Select", 0x0077),
+            ("Stop", 0x0078),
+            ("Again", 0x0079),
+            ("Undo", 0x007A),
+            ("Cut", 0x007B),
+            ("Copy", 0x007C),
+            ("Paste", 0x007D),
+            ("Find", 0x007E),
+        ];
+        ui.horizontal_wrapped(|ui| {
+            for (label, value) in basic_app_keys {
+                if !self.zmk_keycode_supported(*value) {
+                    continue;
+                }
+                let resp = ui
+                    .add(egui::Button::new(RichText::new(*label).size(11.0)).min_size(Vec2::new(56.0, 42.0)))
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
+                if resp.clicked() {
+                    self.zmk_assign_keycode_value(*value);
+                }
+                resp.on_hover_text(keycode_tooltip(*value, &[], &self.layer_names));
+            }
+        });
+
+        ui.add_space(10.0);
+        ui.label(
+            RichText::new("OS shortcuts")
+                .size(11.0)
+                .color(Color32::from_gray(150)),
+        );
+        ui.add_space(4.0);
+        let os_shortcuts: &[(&str, &str, u16, &str)] = &[
+            ("Win/Linux", "Prev Word", 0x0100 | 0x0050, "Ctrl + Left Arrow"),
+            ("Win/Linux", "Next Word", 0x0100 | 0x004F, "Ctrl + Right Arrow"),
+            ("Win/Linux", "Prev App", 0x0600 | 0x002B, "Shift + Alt + Tab"),
+            ("Win/Linux", "Next App", 0x0400 | 0x002B, "Alt + Tab"),
+            ("macOS", "Prev Word", 0x0400 | 0x0050, "Option + Left Arrow"),
+            ("macOS", "Next Word", 0x0400 | 0x004F, "Option + Right Arrow"),
+            ("macOS", "Prev App", 0x0A00 | 0x002B, "Shift + Command + Tab"),
+            ("macOS", "Next App", 0x0800 | 0x002B, "Command + Tab"),
+        ];
+        ui.horizontal_wrapped(|ui| {
+            for (os, text, value, tip) in os_shortcuts {
+                if !self.zmk_keycode_supported(*value) {
+                    continue;
+                }
+                let resp = ui
+                    .add(egui::Button::new(RichText::new(format!("{os}\n{text}")).size(10.0)).min_size(Vec2::new(78.0, 44.0)))
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
+                if resp.clicked() {
+                    self.zmk_assign_keycode_value(*value);
+                }
+                resp.on_hover_text(*tip);
+            }
+        });
+
+        ui.add_space(10.0);
+        ui.label(
+            RichText::new("Extra function keys")
+                .size(11.0)
+                .color(Color32::from_gray(150)),
+        );
+        ui.add_space(4.0);
+        ui.horizontal_wrapped(|ui| {
+            for value in 0x0068u16..=0x0073u16 {
+                let Some(kc) = KEYCODES.iter().find(|kc| kc.value == value) else {
+                    continue;
+                };
+                if !self.zmk_keycode_supported(kc.value) {
+                    continue;
+                }
+                let resp = ui
+                    .add(egui::Button::new(RichText::new(kc.label).size(11.0)).min_size(Vec2::new(56.0, 42.0)))
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
+                if resp.clicked() {
+                    self.zmk_assign_keycode_value(kc.value);
+                }
+                resp.on_hover_text(format!("Function key {}", kc.label));
+            }
+        });
+
+        ui.add_space(10.0);
+        ui.label(
+            RichText::new("Numpad")
+                .size(11.0)
+                .color(Color32::from_gray(150)),
+        );
+        ui.add_space(4.0);
+        self.show_zmk_numpad_buttons(ui);
     }
 
     fn show_vial_quantum(&mut self, ui: &mut egui::Ui) {
@@ -3676,6 +4005,11 @@ Repeat"
                 resp.on_hover_text(tip.as_str());
             }
         });
+
+        if self.firmware == FirmwareProtocol::Zmk {
+            self.show_zmk_special_vial_extras(ui);
+            return;
+        }
 
         if !self.supports_mouse_keys {
             return;
