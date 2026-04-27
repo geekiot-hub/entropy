@@ -75,18 +75,18 @@ impl AppAccentColor {
             Self::Blue => "Blue",
             Self::Amber => "Amber",
             Self::Copper => "Copper",
-            Self::Slate => "Slate",
+            Self::Slate => "Teal",
         }
     }
 
     fn color(self) -> Color32 {
         match self {
             Self::Rose => Color32::from_rgb(196, 132, 144),
-            Self::Violet => Color32::from_rgb(166, 135, 214),
+            Self::Violet => Color32::from_rgb(146, 128, 184),
             Self::Blue => Color32::from_rgb(116, 154, 212),
             Self::Amber => Color32::from_rgb(210, 156, 92),
             Self::Copper => Color32::from_rgb(192, 116, 88),
-            Self::Slate => Color32::from_rgb(142, 148, 160),
+            Self::Slate => Color32::from_rgb(88, 158, 148),
         }
     }
 }
