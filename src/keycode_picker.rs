@@ -265,6 +265,12 @@ fn zmk_hid_usage_for_qmk_value(value: u16) -> Option<u32> {
     let consumer = |usage: u32| Some(0x000C_0000u32 | usage);
     let system = |usage: u32| Some(0x0001_0000u32 | usage);
     match value {
+        // Prefer Consumer AC usages for edit actions; keyboard-page edit usages are poorly supported by hosts.
+        0x007A => consumer(0x021A), // Undo
+        0x007B => consumer(0x021C), // Cut
+        0x007C => consumer(0x021B), // Copy
+        0x007D => consumer(0x021D), // Paste
+        0x007E => consumer(0x021F), // Find
         0x0004..=0x00A4 | 0x00E0..=0x00E7 => Some(0x0007_0000u32 | value as u32),
         // System control page.
         0x00A5 => system(0x0081), // Power
@@ -300,7 +306,7 @@ fn zmk_hid_usage_for_qmk_value(value: u16) -> Option<u32> {
 
 fn zmk_mouse_button_usage_for_qmk_value(value: u16) -> Option<u32> {
     match value {
-        0x00D1..=0x00D8 => Some(0x0009_0000u32 | (value as u32 - 0x00D0)),
+        0x00D1..=0x00D5 => Some(1u32 << (value as u32 - 0x00D1)),
         _ => None,
     }
 }
@@ -346,6 +352,19 @@ fn zmk_mouse_scroll_label(value: u16) -> &'static str {
         0x00DB => "Mouse wheel scroll left",
         0x00DC => "Mouse wheel scroll right",
         _ => "Mouse scroll",
+    }
+}
+
+fn zmk_space_cadet_parts(value: u16) -> Option<(u32, u16)> {
+    match value {
+        0x7C18 => Some((0x0007_00E0, 0x0200 | 0x0026)),
+        0x7C19 => Some((0x0007_00E4, 0x0200 | 0x0027)),
+        0x7C1A => Some((0x0007_00E1, 0x0200 | 0x0026)),
+        0x7C1B => Some((0x0007_00E5, 0x0200 | 0x0027)),
+        0x7C1C => Some((0x0007_00E2, 0x0200 | 0x0026)),
+        0x7C1D => Some((0x0007_00E6, 0x0200 | 0x0027)),
+        0x7C1E => Some((0x0007_00E5, 0x0028)),
+        _ => None,
     }
 }
 
@@ -924,6 +943,16 @@ impl KeycodePicker {
             }
         }
 
+        if let Some((modifier, tap_value)) = zmk_space_cadet_parts(value) {
+            if let (Some(id), Some(tap_usage)) = (
+                self.zmk_behavior_id("Mod-Tap"),
+                self.zmk_key_press_usage_from_vial_value(tap_value),
+            ) {
+                self.zmk_assign(id, modifier, tap_usage);
+                return true;
+            }
+        }
+
         if let Some(modifier) = Self::zmk_modifier_usage_from_vial_osm(value) {
             if let Some(id) = self.zmk_behavior_id("Sticky Key") {
                 self.zmk_assign(id, modifier, 0);
@@ -970,6 +999,7 @@ impl KeycodePicker {
             0x7C16 => self.zmk_behavior_id("Grave/Escape").is_some(),
             0x7C73 => self.zmk_behavior_id("Caps Word").is_some(),
             0x7C79 => self.zmk_behavior_id("Key Repeat").is_some(),
+            value if zmk_space_cadet_parts(value).is_some() => self.zmk_behavior_id("Mod-Tap").is_some(),
             value if Self::zmk_modifier_usage_from_vial_osm(value).is_some() => {
                 self.zmk_behavior_id("Sticky Key").is_some()
             }
@@ -1009,6 +1039,9 @@ impl KeycodePicker {
             ),
             0x7C73 => "Caps Word — capitalizes until end of current word".into(),
             0x7C79 => "Repeat — repeats the last pressed key".into(),
+            value if zmk_space_cadet_parts(value).is_some() => {
+                keycode_tooltip(value, &[], &self.layer_names)
+            }
             value if Self::zmk_modifier_usage_from_vial_osm(value).is_some() => {
                 let label = keycode_label_with_names(value, &[], &self.layer_names).replace('\n', " ");
                 format!("One-Shot modifier — {label}")
@@ -4666,6 +4699,9 @@ Repeat"
                 Color32::from_gray(145)
             };
             for (top, bottom, value, tip) in space_cadet_keys {
+                if !self.picker_value_supported(*value) {
+                    continue;
+                }
                 let mut resp = ui.add_sized(Vec2::new(72.0, 44.0), egui::Button::new(""));
                 let rect = resp.rect;
                 let painter = ui.painter();

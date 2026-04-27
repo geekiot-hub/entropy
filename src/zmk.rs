@@ -651,6 +651,30 @@ fn zmk_modifier_usage_to_vial_mt_base(usage: u32) -> Option<u16> {
     }
 }
 
+fn zmk_mouse_button_param_to_vial_value(param: u32) -> Option<u16> {
+    match param {
+        0x0009_0001 | 0x01 => Some(0x00D1),
+        0x0009_0002 | 0x02 => Some(0x00D2),
+        0x0009_0003 | 0x04 => Some(0x00D3),
+        0x0009_0004 | 0x08 => Some(0x00D4),
+        0x0009_0005 | 0x10 => Some(0x00D5),
+        _ => None,
+    }
+}
+
+fn zmk_space_cadet_equivalent(modifier: u32, tap: u32) -> Option<u16> {
+    match (modifier, zmk_hid_usage_to_vial_value(tap)?) {
+        (0x0007_00E0, 0x2226) => Some(0x7C18),
+        (0x0007_00E4, 0x2227) => Some(0x7C19),
+        (0x0007_00E1, 0x2226) => Some(0x7C1A),
+        (0x0007_00E5, 0x2227) => Some(0x7C1B),
+        (0x0007_00E2, 0x2226) => Some(0x7C1C),
+        (0x0007_00E6, 0x2227) => Some(0x7C1D),
+        (0x0007_00E5, 0x0028) => Some(0x7C1E),
+        _ => None,
+    }
+}
+
 fn zmk_hid_usage_to_vial_value(usage: u32) -> Option<u16> {
     let mod_mask = (usage >> 24) & 0xFF;
     let raw = usage & 0x00FF_FFFF;
@@ -694,6 +718,11 @@ fn zmk_hid_usage_to_vial_value(usage: u32) -> Option<u16> {
             0x0224 => Some(0x00B6),
             0x0225 => Some(0x00B7),
             0x0226 => Some(0x00B8),
+            0x021A => Some(0x007A),
+            0x021B => Some(0x007C),
+            0x021C => Some(0x007B),
+            0x021D => Some(0x007D),
+            0x021F => Some(0x007E),
             0x0227 => Some(0x00B9),
             0x022A => Some(0x00BA),
             _ => None,
@@ -725,7 +754,7 @@ fn zmk_equivalent_vial_keycode(kind: &str, p1: u32, p2: u32) -> Option<u16> {
         "caps_word" => Some(0x7C73),
         "key_repeat" => Some(0x7C79),
         "key_press" => zmk_hid_usage_to_vial_value(p1),
-        "mouse_key_press" => zmk_hid_usage_to_vial_value(p1),
+        "mouse_key_press" => zmk_mouse_button_param_to_vial_value(p1),
         "momentary_layer" if p1 < 32 => Some(0x5220 | p1 as u16),
         "toggle_layer" if p1 < 32 => Some(0x5260 | p1 as u16),
         "to_layer" if p1 < 32 => Some(0x5200 | p1 as u16),
@@ -736,7 +765,9 @@ fn zmk_equivalent_vial_keycode(kind: &str, p1: u32, p2: u32) -> Option<u16> {
                 .map(|tap| 0x4000 | ((p1 as u16) << 8) | tap)
         }
         "mod_tap" => {
-            if let (Some(base), Some(tap)) = (
+            if let Some(value) = zmk_space_cadet_equivalent(p1, p2) {
+                Some(value)
+            } else if let (Some(base), Some(tap)) = (
                 zmk_modifier_usage_to_vial_mt_base(p1),
                 zmk_hid_usage_to_vial_value(p2).filter(|tap| *tap <= 0xFF),
             ) {
@@ -1022,7 +1053,9 @@ pub fn zmk_binding_tooltip(binding: &ZmkBinding, behaviors: &[BehaviorInfo], lay
             1 => "Output: Bluetooth".to_string(),
             _ => "Output selection".to_string(),
         },
-        "mouse_key_press"  => format!("Mouse button: {}", key_name(p1)),
+        "mouse_key_press"  => zmk_mouse_button_param_to_vial_value(p1)
+            .map(|value| crate::keycode::keycode_tooltip(value, &[], layer_names))
+            .unwrap_or_else(|| format!("Mouse button: {}", key_name(p1))),
         "mouse_move"       => zmk_axis_tooltip(p1, "move").unwrap_or("Mouse cursor movement").to_string(),
         "mouse_scroll"     => zmk_axis_tooltip(p1, "scroll").unwrap_or("Mouse scroll wheel").to_string(),
         _ => {
