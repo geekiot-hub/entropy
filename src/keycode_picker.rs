@@ -105,6 +105,7 @@ pub enum KeycodeTab {
     Mouse,
     Numpad,
     Special,
+    Bluetooth,
     Rgb,
     Macro,
     TapDance,
@@ -130,6 +131,7 @@ impl KeycodeTab {
         KeycodeTab::Symbols,
         KeycodeTab::Modifiers,
         KeycodeTab::Special,
+        KeycodeTab::Bluetooth,
         KeycodeTab::ZmkAdvanced,
     ];
 
@@ -145,6 +147,7 @@ impl KeycodeTab {
             KeycodeTab::Mouse => "Mouse",
             KeycodeTab::Numpad => "Numpad",
             KeycodeTab::Special => "Special",
+            KeycodeTab::Bluetooth => "Bluetooth",
             KeycodeTab::Rgb => "RGB",
             KeycodeTab::Macro => "Macros",
             KeycodeTab::TapDance => "Tap Dance",
@@ -1238,7 +1241,12 @@ impl KeycodePicker {
             // Tab bar
             ui.horizontal_wrapped(|ui| {
                 ui.spacing_mut().item_spacing = egui::vec2(6.0, 6.0);
-                for tab in KeycodeTab::VIAL_TABS {
+                let tabs = if self.firmware == FirmwareProtocol::Zmk {
+                    KeycodeTab::ZMK_TABS
+                } else {
+                    KeycodeTab::VIAL_TABS
+                };
+                for tab in tabs {
                     if !self.vial_tab_supported(*tab) {
                         continue;
                     }
@@ -1704,7 +1712,12 @@ impl KeycodePicker {
         if self.firmware == FirmwareProtocol::Zmk {
             return matches!(
                 tab,
-                KeycodeTab::Basic | KeycodeTab::Symbols | KeycodeTab::Modifiers | KeycodeTab::Special
+                KeycodeTab::Basic
+                    | KeycodeTab::Symbols
+                    | KeycodeTab::Modifiers
+                    | KeycodeTab::Special
+                    | KeycodeTab::Bluetooth
+                    | KeycodeTab::ZmkAdvanced
             );
         }
         match tab {
@@ -1743,6 +1756,7 @@ impl KeycodePicker {
             KeycodeTab::Macro => self.show_vial_macros(ui),
             KeycodeTab::TapDance => self.show_vial_tap_dance(ui),
             KeycodeTab::Special => self.show_vial_special(ui),
+            KeycodeTab::Bluetooth => self.show_zmk_bluetooth_tab(ui),
             KeycodeTab::Custom => self.show_vial_custom(ui),
             _ => self.show_vial_generic(ui),
         }
@@ -2257,6 +2271,139 @@ impl KeycodePicker {
         resp.on_hover_text(tooltip);
     }
 
+    fn show_zmk_bluetooth_tab(&mut self, ui: &mut egui::Ui) {
+        if self.firmware != FirmwareProtocol::Zmk {
+            self.show_vial_generic(ui);
+            return;
+        }
+
+        let has_bt = self.zmk_behavior_id("Bluetooth").is_some();
+        let has_output = self.zmk_behavior_id("Output Selection").is_some();
+        if !has_bt && !has_output {
+            ui.label(
+                RichText::new("Bluetooth/output behaviors are not exposed by this firmware")
+                    .size(11.0)
+                    .color(Color32::from_gray(150)),
+            );
+            return;
+        }
+
+        ui.label(
+            RichText::new("Bluetooth profiles")
+                .size(11.0)
+                .color(Color32::from_gray(150)),
+        );
+        ui.add_space(6.0);
+        ui.horizontal_wrapped(|ui| {
+            for n in 0..=4u32 {
+                let Some(id) = self.zmk_behavior_id("Bluetooth") else {
+                    continue;
+                };
+                let resp = ui
+                    .add_sized(Vec2::new(78.0, 48.0), egui::Button::new(""))
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
+                let visuals = ui.style().interact(&resp);
+                let top_color = if ui.visuals().dark_mode {
+                    Color32::from_gray(105)
+                } else {
+                    Color32::from_gray(145)
+                };
+                ui.painter().text(
+                    egui::pos2(resp.rect.center().x, resp.rect.center().y - 8.0),
+                    egui::Align2::CENTER_CENTER,
+                    "Profile",
+                    egui::FontId::proportional(9.5),
+                    top_color,
+                );
+                ui.painter().text(
+                    egui::pos2(resp.rect.center().x, resp.rect.center().y + 8.0),
+                    egui::Align2::CENTER_CENTER,
+                    n.to_string(),
+                    egui::FontId::proportional(15.0),
+                    visuals.fg_stroke.color,
+                );
+                if resp.clicked() {
+                    self.zmk_assign(id, 4, n);
+                }
+                resp.on_hover_text(format!("Select Bluetooth profile {n}"));
+            }
+        });
+
+        ui.add_space(12.0);
+        ui.label(
+            RichText::new("Bluetooth actions")
+                .size(11.0)
+                .color(Color32::from_gray(150)),
+        );
+        ui.add_space(6.0);
+        ui.horizontal_wrapped(|ui| {
+            self.zmk_vial_style_behavior_button(
+                ui,
+                "BT\nPrev",
+                "Switch to previous Bluetooth profile",
+                "Bluetooth",
+                3,
+                0,
+                Vec2::new(72.0, 44.0),
+            );
+            self.zmk_vial_style_behavior_button(
+                ui,
+                "BT\nNext",
+                "Switch to next Bluetooth profile",
+                "Bluetooth",
+                2,
+                0,
+                Vec2::new(72.0, 44.0),
+            );
+            self.zmk_vial_style_behavior_button(
+                ui,
+                "BT\nClear",
+                "Forget current Bluetooth profile",
+                "Bluetooth",
+                0,
+                0,
+                Vec2::new(76.0, 44.0),
+            );
+            self.zmk_vial_style_behavior_button(
+                ui,
+                "BT\nClear all",
+                "Forget all Bluetooth profiles",
+                "Bluetooth",
+                1,
+                0,
+                Vec2::new(84.0, 44.0),
+            );
+        });
+
+        ui.add_space(12.0);
+        ui.label(
+            RichText::new("Output")
+                .size(11.0)
+                .color(Color32::from_gray(150)),
+        );
+        ui.add_space(6.0);
+        ui.horizontal_wrapped(|ui| {
+            self.zmk_vial_style_behavior_button(
+                ui,
+                "Out\nUSB",
+                "Send keystrokes via USB",
+                "Output Selection",
+                0,
+                0,
+                Vec2::new(72.0, 44.0),
+            );
+            self.zmk_vial_style_behavior_button(
+                ui,
+                "Out\nBLE",
+                "Send keystrokes via Bluetooth",
+                "Output Selection",
+                1,
+                0,
+                Vec2::new(72.0, 44.0),
+            );
+        });
+    }
+
     fn show_zmk_special_vial_extras(&mut self, ui: &mut egui::Ui) {
         ui.add_space(10.0);
         ui.label(
@@ -2302,43 +2449,6 @@ impl KeycodePicker {
                 0,
                 Vec2::new(72.0, 42.0),
             );
-        });
-
-        ui.add_space(10.0);
-        ui.label(
-            RichText::new("Bluetooth")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
-        );
-        ui.add_space(4.0);
-        ui.horizontal_wrapped(|ui| {
-            self.zmk_vial_style_behavior_button(ui, "BT\nCLR", "Forget current Bluetooth profile", "Bluetooth", 0, 0, Vec2::new(62.0, 42.0));
-            self.zmk_vial_style_behavior_button(ui, "BT\nCLR ALL", "Forget all Bluetooth profiles", "Bluetooth", 1, 0, Vec2::new(72.0, 42.0));
-            self.zmk_vial_style_behavior_button(ui, "BT\nNext", "Switch to next Bluetooth profile", "Bluetooth", 2, 0, Vec2::new(62.0, 42.0));
-            self.zmk_vial_style_behavior_button(ui, "BT\nPrev", "Switch to previous Bluetooth profile", "Bluetooth", 3, 0, Vec2::new(62.0, 42.0));
-            for n in 0..=4u32 {
-                self.zmk_vial_style_behavior_button(
-                    ui,
-                    &format!("BT\nSEL {n}"),
-                    &format!("Select Bluetooth profile {n}"),
-                    "Bluetooth",
-                    4,
-                    n,
-                    Vec2::new(62.0, 42.0),
-                );
-            }
-        });
-
-        ui.add_space(10.0);
-        ui.label(
-            RichText::new("Output")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
-        );
-        ui.add_space(4.0);
-        ui.horizontal_wrapped(|ui| {
-            self.zmk_vial_style_behavior_button(ui, "Out\nUSB", "Output: USB", "Output Selection", 0, 0, Vec2::new(62.0, 42.0));
-            self.zmk_vial_style_behavior_button(ui, "Out\nBLE", "Output: Bluetooth", "Output Selection", 1, 0, Vec2::new(62.0, 42.0));
         });
 
         ui.add_space(10.0);
@@ -3961,8 +4071,13 @@ Repeat"
             ("F23", 0x0072),
             ("F24", 0x0073),
         ];
+        let special_title = if self.firmware == FirmwareProtocol::Zmk {
+            "Special keys"
+        } else {
+            "Special QMK keys"
+        };
         ui.label(
-            RichText::new("Special QMK keys")
+            RichText::new(special_title)
                 .size(11.0)
                 .color(Color32::from_gray(150)),
         );
