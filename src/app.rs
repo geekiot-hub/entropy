@@ -6141,24 +6141,10 @@ impl EntropyApp {
     }
 
     fn static_display_preset_fallback_idx(option: &LayoutOption) -> Option<usize> {
-        let is_static = |choice: &String| !Self::display_preset_needs_entropy(choice);
         option
             .choices
             .iter()
-            .position(|choice| choice.to_ascii_lowercase().contains("status") && is_static(choice))
-            .or_else(|| {
-                option.choices.iter().position(|choice| {
-                    let lower = choice.to_ascii_lowercase();
-                    (lower.contains("splash") || lower.contains("bongo")) && is_static(choice)
-                })
-            })
-            .or_else(|| {
-                option
-                    .choices
-                    .iter()
-                    .position(|choice| choice.eq_ignore_ascii_case("disabled") && is_static(choice))
-            })
-            .or_else(|| option.choices.iter().position(is_static))
+            .position(|choice| choice.eq_ignore_ascii_case("disabled"))
     }
 
     #[cfg(not(target_arch = "wasm32"))]
