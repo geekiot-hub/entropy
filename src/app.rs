@@ -6266,18 +6266,28 @@ impl EntropyApp {
         }
 
         let name = format!("{} {}", device.name, layout.name).to_ascii_lowercase();
-        let looks_like_k03_pro = name.contains("k:03")
+        let looks_like_k03 = name.contains("k:03")
             || name.contains("k03")
             || name.contains("k-03")
             || name.contains("k 03");
+        let looks_like_k03_pro = looks_like_k03 && name.contains("pro");
         let ergohaven_k03_pro = device.vendor_id == 0xE126 && device.product_id == 0x00A1;
-        let k03_pro_layout_shape = layout.rows == 10
+        let has_oled_layout_options = layout.layout_options.iter().any(|option| {
+            let label = option.label.to_ascii_lowercase();
+            label.contains("oled")
+                || option.choices.iter().any(|choice| {
+                    let choice = choice.to_ascii_lowercase();
+                    choice.contains("status") || choice.contains("bongo") || choice.contains("splash")
+                })
+        });
+        let k03_pro_touchpad_layout_profile = layout.rows == 10
             && layout.cols == 6
+            && !has_oled_layout_options
             && layout.custom_keycodes.iter().any(|kc| kc.name == "EH_SNP")
             && layout.custom_keycodes.iter().any(|kc| kc.name == "EH_SCR")
             && layout.custom_keycodes.iter().any(|kc| kc.name == "EH_TXT");
 
-        ergohaven_k03_pro || looks_like_k03_pro || k03_pro_layout_shape
+        looks_like_k03_pro || (ergohaven_k03_pro && k03_pro_touchpad_layout_profile)
     }
 
     #[cfg(not(target_arch = "wasm32"))]
