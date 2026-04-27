@@ -1046,11 +1046,7 @@ fn layer_led_hover_fill(index: u8, dark: bool) -> Color32 {
         .get(index as usize)
         .copied()
         .unwrap_or((0, 0, 0));
-    let base = if dark {
-        Color32::from_rgb(62, 56, 56)
-    } else {
-        Color32::from_rgb(239, 233, 232)
-    };
+    let base = crate::ui_style::hover_fill(dark);
     if v == 0 {
         base
     } else {
@@ -1594,6 +1590,8 @@ pub struct EntropyApp {
     app_settings: AppSettings,
     #[cfg(target_os = "windows")]
     tray_icon: Option<tray_icon::TrayIcon>,
+    #[cfg(target_os = "windows")]
+    windows_hwnd: Option<isize>,
     main_menu_tab: MainMenuTab,
     combo_entries: Vec<ComboEntry>,
     combo_names: Vec<String>,
@@ -1697,6 +1695,8 @@ impl EntropyApp {
             app_settings,
             #[cfg(target_os = "windows")]
             tray_icon: None,
+            #[cfg(target_os = "windows")]
+            windows_hwnd: None,
             main_menu_tab: MainMenuTab::Keyboard,
             combo_entries: vec![],
             combo_names: vec![],
@@ -3610,11 +3610,7 @@ impl EntropyApp {
         } else {
             Color32::from_rgb(252, 252, 254)
         };
-        let tested_fill = if dark {
-            Color32::from_rgb(74, 58, 62)
-        } else {
-            Color32::from_rgb(242, 230, 232)
-        };
+        let tested_fill = crate::ui_style::hover_fill(dark);
 
         let board_top = content_rect.top() + 104.0;
         let hint_y = ui.max_rect().bottom() - 36.0;
@@ -3721,13 +3717,9 @@ impl EntropyApp {
                 idle_fill
             };
             let stroke = if is_pressed {
-                Color32::from_rgb(218, 164, 174)
+                app_accent()
             } else if was_pressed {
-                if dark {
-                    Color32::from_rgb(118, 86, 94)
-                } else {
-                    Color32::from_rgb(210, 176, 184)
-                }
+                app_accent()
             } else {
                 app_border_color(dark)
             };
@@ -4849,7 +4841,9 @@ impl eframe::App for EntropyApp {
         std::process::exit(0);
     }
 
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        #[cfg(target_os = "windows")]
+        self.cache_windows_hwnd(frame);
         self.handle_close_to_tray(ctx);
         #[cfg(target_os = "windows")]
         self.poll_tray_events(ctx);
@@ -4905,13 +4899,13 @@ impl eframe::App for EntropyApp {
             v.widgets.inactive.bg_stroke = Stroke::new(1.0, app_border_color(true));
             v.widgets.hovered.bg_fill = app_hover_fill(true);
             v.widgets.hovered.weak_bg_fill = app_hover_fill(true);
-            v.widgets.hovered.bg_stroke = Stroke::new(1.0, Color32::from_rgb(108, 96, 96));
+            v.widgets.hovered.bg_stroke = Stroke::new(1.0, app_accent());
             v.widgets.active.bg_fill = app_accent();
             v.widgets.active.weak_bg_fill = app_accent();
-            v.widgets.active.bg_stroke = Stroke::new(1.0, Color32::from_rgb(218, 164, 174));
+            v.widgets.active.bg_stroke = Stroke::new(1.0, app_accent());
             v.selection.bg_fill = Color32::from_rgba_unmultiplied(82, 82, 86, 140);
             v.selection.stroke = Stroke::new(1.0, Color32::from_rgb(245, 245, 245));
-            v.hyperlink_color = Color32::from_rgb(216, 150, 162);
+            v.hyperlink_color = app_accent();
             v.interact_cursor = Some(egui::CursorIcon::PointingHand);
             ctx.set_visuals(v);
         } else {
@@ -4930,10 +4924,10 @@ impl eframe::App for EntropyApp {
             v.widgets.hovered.bg_stroke = Stroke::new(1.0, Color32::from_rgb(230, 230, 233));
             v.widgets.active.bg_fill = app_accent();
             v.widgets.active.weak_bg_fill = app_accent();
-            v.widgets.active.bg_stroke = Stroke::new(1.0, Color32::from_rgb(204, 145, 158));
+            v.widgets.active.bg_stroke = Stroke::new(1.0, app_accent());
             v.selection.bg_fill = Color32::from_rgba_unmultiplied(82, 82, 86, 72);
             v.selection.stroke = Stroke::new(1.0, Color32::from_rgb(38, 38, 40));
-            v.hyperlink_color = Color32::from_rgb(150, 86, 100);
+            v.hyperlink_color = app_accent();
             v.interact_cursor = Some(egui::CursorIcon::PointingHand);
             ctx.set_visuals(v);
         }
@@ -5264,7 +5258,7 @@ impl eframe::App for EntropyApp {
                     ui.painter().rect(
                         fill_rect,
                         4.0,
-                        Color32::from_rgb(196, 132, 144),
+                        app_accent(),
                         egui::Stroke::NONE,
                         egui::StrokeKind::Inside,
                     );
@@ -5324,12 +5318,12 @@ impl eframe::App for EntropyApp {
                                 ),
                             );
                             let bg = if is_unlock {
-                                Color32::from_rgb(196, 132, 144)
+                                app_accent()
                             } else {
                                 inactive_key_bg
                             };
                             let border = if is_unlock {
-                                Color32::from_rgb(218, 164, 174)
+                                app_accent()
                             } else {
                                 inactive_key_border
                             };
@@ -5850,9 +5844,34 @@ impl EntropyApp {
     }
 
     fn restore_from_tray(&mut self, ctx: &egui::Context) {
+        #[cfg(target_os = "windows")]
+        if let Some(hwnd) = self.windows_hwnd {
+            unsafe {
+                use windows_sys::Win32::UI::WindowsAndMessaging::{
+                    SetForegroundWindow, ShowWindow, SW_RESTORE, SW_SHOW,
+                };
+                let hwnd = hwnd as windows_sys::Win32::Foundation::HWND;
+                ShowWindow(hwnd, SW_SHOW);
+                ShowWindow(hwnd, SW_RESTORE);
+                SetForegroundWindow(hwnd);
+            }
+        }
         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
         ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
         ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+    }
+
+    #[cfg(target_os = "windows")]
+    fn cache_windows_hwnd(&mut self, frame: &eframe::Frame) {
+        use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+        if self.windows_hwnd.is_some() {
+            return;
+        }
+        if let Ok(handle) = frame.window_handle() {
+            if let RawWindowHandle::Win32(win32) = handle.as_raw() {
+                self.windows_hwnd = Some(win32.hwnd.get());
+            }
+        }
     }
 
     fn handle_close_to_tray(&mut self, ctx: &egui::Context) {
@@ -5864,7 +5883,17 @@ impl EntropyApp {
         }
         ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
         #[cfg(target_os = "windows")]
-        self.ensure_tray_icon(ctx);
+        {
+            self.ensure_tray_icon(ctx);
+            if let Some(hwnd) = self.windows_hwnd {
+                unsafe {
+                    use windows_sys::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_HIDE};
+                    ShowWindow(hwnd as windows_sys::Win32::Foundation::HWND, SW_HIDE);
+                }
+                self.status_msg = "Entropy is running in the tray".into();
+                return;
+            }
+        }
         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
         self.status_msg = "Entropy is running in the tray".into();
     }
@@ -5887,6 +5916,7 @@ impl EntropyApp {
             return;
         };
         let ctx_for_handler = ctx.clone();
+        let hwnd_for_handler = self.windows_hwnd;
         tray_icon::TrayIconEvent::set_event_handler(Some(move |event| {
             use tray_icon::{MouseButton, MouseButtonState, TrayIconEvent};
             match event {
@@ -5899,6 +5929,17 @@ impl EntropyApp {
                     button: MouseButton::Left,
                     ..
                 } => {
+                    if let Some(hwnd) = hwnd_for_handler {
+                        unsafe {
+                            use windows_sys::Win32::UI::WindowsAndMessaging::{
+                                SetForegroundWindow, ShowWindow, SW_RESTORE, SW_SHOW,
+                            };
+                            let hwnd = hwnd as windows_sys::Win32::Foundation::HWND;
+                            ShowWindow(hwnd, SW_SHOW);
+                            ShowWindow(hwnd, SW_RESTORE);
+                            SetForegroundWindow(hwnd);
+                        }
+                    }
                     ctx_for_handler.send_viewport_cmd(egui::ViewportCommand::Visible(true));
                     ctx_for_handler.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
                     ctx_for_handler.send_viewport_cmd(egui::ViewportCommand::Focus);
@@ -8747,11 +8788,7 @@ impl EntropyApp {
                     let stroke = if selected {
                         Stroke::new(
                             1.35,
-                            if dark {
-                                Color32::from_rgb(132, 98, 108)
-                            } else {
-                                Color32::from_rgb(202, 154, 166)
-                            },
+                            app_accent(),
                         )
                     } else {
                         crate::ui_style::modal_outline_stroke(dark)
@@ -8772,11 +8809,7 @@ impl EntropyApp {
                         ui.painter().circle_filled(
                             egui::pos2(rect.right() - 8.0, rect.top() + 8.0),
                             2.4,
-                            if dark {
-                                Color32::from_rgb(164, 120, 132)
-                            } else {
-                                Color32::from_rgb(178, 116, 132)
-                            },
+                            app_accent(),
                         );
                     }
                     if hovered {
@@ -10555,14 +10588,14 @@ impl EntropyApp {
                             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                         }
                         let add_col = if add_resp.hovered() && can_add {
-                            Color32::from_rgb(196, 132, 144)
+                            app_accent()
                         } else if can_add {
                             active_color
                         } else {
                             disabled_color
                         };
                         let rem_col = if remove_resp.hovered() && can_remove {
-                            Color32::from_rgb(196, 132, 144)
+                            app_accent()
                         } else if can_remove {
                             active_color
                         } else {
@@ -10778,14 +10811,14 @@ impl EntropyApp {
                         Color32::from_gray(200)
                     };
                     let ac_l = if left_r.hovered() {
-                        Color32::from_rgb(196, 132, 144)
+                        app_accent()
                     } else if self.dark_mode {
                         Color32::from_gray(140)
                     } else {
                         Color32::from_gray(120)
                     };
                     let ac_r = if right_r.hovered() {
-                        Color32::from_rgb(196, 132, 144)
+                        app_accent()
                     } else if self.dark_mode {
                         Color32::from_gray(140)
                     } else {
@@ -11473,15 +11506,9 @@ impl EntropyApp {
             let is_hovered = hovered_key == Some(*ki);
             // Accent: #5B68DF indigo
             let bg = if is_selected {
-                Color32::from_rgb(196, 132, 144)
+                app_accent()
             } else if is_hovered {
-                layer_led_hover_fill.unwrap_or_else(|| {
-                    if dark {
-                        Color32::from_rgb(62, 56, 56)
-                    } else {
-                        Color32::from_rgb(239, 233, 232)
-                    }
-                })
+                layer_led_hover_fill.unwrap_or_else(|| crate::ui_style::hover_fill(dark))
             } else {
                 if dark {
                     Color32::from_rgb(48, 48, 52)

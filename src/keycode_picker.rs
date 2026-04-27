@@ -405,11 +405,7 @@ fn apply_picker_button_visuals(ui: &mut egui::Ui) {
     let visuals = ui.visuals_mut();
     visuals.widgets.inactive.bg_fill = Color32::TRANSPARENT;
     visuals.widgets.inactive.weak_bg_fill = Color32::TRANSPARENT;
-    let picker_hover_fill = if dark_mode {
-        Color32::from_rgb(62, 56, 56)
-    } else {
-        Color32::from_rgb(239, 233, 232)
-    };
+    let picker_hover_fill = crate::ui_style::hover_fill(dark_mode);
     visuals.widgets.hovered.bg_fill = picker_hover_fill;
     visuals.widgets.hovered.weak_bg_fill = picker_hover_fill;
     visuals.widgets.active.bg_fill = Color32::TRANSPARENT;
@@ -419,15 +415,15 @@ fn apply_picker_button_visuals(ui: &mut egui::Ui) {
     if dark_mode {
         visuals.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(54, 54, 58));
         visuals.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(54, 54, 58));
-        visuals.widgets.active.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(196, 132, 144));
-        visuals.widgets.open.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(196, 132, 144));
+        visuals.widgets.active.bg_stroke = egui::Stroke::new(1.0, crate::ui_style::accent());
+        visuals.widgets.open.bg_stroke = egui::Stroke::new(1.0, crate::ui_style::accent());
     } else {
         visuals.widgets.inactive.bg_stroke =
             egui::Stroke::new(1.0, Color32::from_rgb(230, 230, 233));
         visuals.widgets.hovered.bg_stroke =
             egui::Stroke::new(1.0, Color32::from_rgb(230, 230, 233));
-        visuals.widgets.active.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(196, 132, 144));
-        visuals.widgets.open.bg_stroke = egui::Stroke::new(1.0, Color32::from_rgb(196, 132, 144));
+        visuals.widgets.active.bg_stroke = egui::Stroke::new(1.0, crate::ui_style::accent());
+        visuals.widgets.open.bg_stroke = egui::Stroke::new(1.0, crate::ui_style::accent());
     }
 }
 
@@ -1261,11 +1257,7 @@ impl KeycodePicker {
         } else {
             egui::Stroke::new(1.0, Color32::from_rgb(230, 230, 233))
         };
-        let hover_fill = if ui.visuals().dark_mode {
-            Color32::from_rgb(62, 56, 56)
-        } else {
-            Color32::from_rgb(239, 233, 232)
-        };
+        let hover_fill = crate::ui_style::hover_fill(ui.visuals().dark_mode);
         let resp = ui.put(
             rect,
             egui::Button::new("")
@@ -2184,12 +2176,12 @@ impl KeycodePicker {
                     let (type_label, type_color, tooltip) = match action {
                         MacroAction::Text(_) => (
                             "Text",
-                            Color32::from_rgb(196, 132, 144),
+                            crate::ui_style::accent(),
                             "Types text characters one by one",
                         ),
                         MacroAction::Tap(_) => (
                             "Tap",
-                            Color32::from_rgb(196, 132, 144),
+                            crate::ui_style::accent(),
                             "Press and release a key",
                         ),
                         MacroAction::Down(_) => (
@@ -2682,7 +2674,7 @@ impl KeycodePicker {
                             Color32::from_gray(100)
                         }))
                         .fill(if is_active {
-                            Color32::from_rgb(196, 132, 144)
+                            crate::ui_style::accent()
                         } else {
                             Color32::TRANSPARENT
                         })
@@ -4215,7 +4207,7 @@ Repeat"
                         Color32::TRANSPARENT
                     };
                     let label_color = if is_named {
-                        Color32::from_rgb(196, 132, 144)
+                        crate::ui_style::accent()
                     } else if dark {
                         Color32::from_gray(110)
                     } else {
