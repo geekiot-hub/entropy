@@ -2570,6 +2570,12 @@ impl EntropyApp {
                         let mut conn = ZmkConnection::open(&dev.path)
                             .map_err(|e| format!("ZMK open failed: {e}"))?;
 
+                        let zmk_device_name = if conn.device_name.trim().is_empty() {
+                            dev.name.clone()
+                        } else {
+                            conn.device_name.clone()
+                        };
+
                         // Check lock state (don't wait — just get it)
                         let lock_state = conn
                             .get_lock_state()
@@ -2580,7 +2586,7 @@ impl EntropyApp {
                             log::warn!("ZMK keyboard is locked — returning for unlock UI");
                             // Return minimal result with lock state set
                             let layout = KeyboardLayout {
-                                name: dev.name.clone(),
+                                name: zmk_device_name.clone(),
                                 rows: 0,
                                 cols: 0,
                                 keys: vec![],
@@ -2599,7 +2605,7 @@ impl EntropyApp {
                                 zmk_layer_names: vec![],
                             };
                             return Ok(ConnectResult {
-                                device_name: dev.name.clone(),
+                                device_name: zmk_device_name.clone(),
                                 macro_texts: vec![],
                                 tap_dance_entries: vec![],
                                 combo_entries: vec![],
@@ -2644,6 +2650,7 @@ impl EntropyApp {
 
                         // Build layout from device physical layout
                         let mut layout = crate::layouts::build_layout_from_zmk(&phys, &keymap);
+                        layout.name = zmk_device_name.clone();
                         layout.firmware = FirmwareProtocol::Zmk;
                         layout.zmk_behaviors = conn.behaviors.clone();
 
@@ -2669,7 +2676,7 @@ impl EntropyApp {
 
 
                         Ok(ConnectResult {
-                            device_name: dev.name.clone(),
+                            device_name: zmk_device_name.clone(),
                             macro_texts: vec![],
                             tap_dance_entries: vec![],
                             combo_entries: vec![],
@@ -11634,10 +11641,18 @@ impl EntropyApp {
                                     for (i, dev) in self.device_manager.devices().iter().enumerate()
                                     {
                                         let is_selected = self.selected_device == Some(i);
+                                        let display_name = if is_selected
+                                            && dev.firmware == FirmwareProtocol::Zmk
+                                            && !self.current_device_name.trim().is_empty()
+                                        {
+                                            self.current_device_name.as_str()
+                                        } else {
+                                            dev.name.as_str()
+                                        };
                                         let resp = top_dropdown_item(
                                             ui,
                                             dropdown_size.x - 16.0,
-                                            &dev.name,
+                                            display_name,
                                             true,
                                             is_selected,
                                         );
@@ -12329,12 +12344,16 @@ impl EntropyApp {
                         resp.lost_focus() || ui.input(|inp| inp.key_pressed(egui::Key::Enter));
                     let cancel = ui.input(|inp| inp.key_pressed(egui::Key::Escape));
                     if commit || cancel {
-                        if commit && !self.editing_layer_text.trim().is_empty() {
-                            let new_name = self.editing_layer_text.trim().to_string();
-                            while self.layer_names.len() <= selected {
-                                self.layer_names.push(self.layer_names.len().to_string());
-                            }
-                            self.layer_names[selected] = new_name.clone();
+                        if commit {
+                            let proposed_name = self.editing_layer_text.trim().to_string();
+                            if proposed_name.is_empty() {
+                                self.editing_layer_text = raw_name.clone();
+                            } else {
+                                let new_name = proposed_name;
+                                while self.layer_names.len() <= selected {
+                                    self.layer_names.push(self.layer_names.len().to_string());
+                                }
+                                self.layer_names[selected] = new_name.clone();
                             #[cfg(not(target_arch = "wasm32"))]
                             save_layer_names(&self.layer_names, &self.current_device_name);
                             #[cfg(target_arch = "wasm32")]
@@ -12373,6 +12392,7 @@ impl EntropyApp {
                                         );
                                     }
                                 }
+                            }
                             }
                         }
                         self.editing_layer = None;
