@@ -9567,31 +9567,32 @@ impl EntropyApp {
                     );
                 }
                 1..=3 => {
-                    let (qsid, label, tooltip, min, max) = match row_idx {
+                    const SENS_MIN: u16 = 1;
+                    const SENS_MAX: u16 = 32;
+                    const SLIDER_WIDTH: f32 = 124.0;
+                    const VALUE_WIDTH: f32 = 34.0;
+                    const SLIDER_CONTROL_WIDTH: f32 = SLIDER_WIDTH + VALUE_WIDTH + 8.0;
+                    const SLIDER_SIZE: [f32; 2] = [SLIDER_WIDTH, 20.0];
+                    let (qsid, label, tooltip) = match row_idx {
                         1 => (
                             121,
                             "Sniper sens",
-                            "Pointer sensitivity while sniper mode is active",
-                            1,
-                            255,
+                            "Sniper divisor: lower is faster, higher is more precise",
                         ),
                         2 => (
                             122,
                             "Scroll sens",
-                            "Scroll gesture sensitivity",
-                            1,
-                            255,
+                            "Scroll divisor: lower is faster, higher is smoother",
                         ),
                         3 => (
                             123,
                             "Text sens",
-                            "Pointer sensitivity while text mode is active",
-                            1,
-                            255,
+                            "Text mode divisor: lower is faster, higher is slower",
                         ),
                         _ => unreachable!(),
                     };
-                    let current = self.touchpad_numeric_value(qsid);
+                    let current = self.touchpad_numeric_value(qsid).clamp(SENS_MIN, SENS_MAX);
+                    let mut value = current as f32;
                     crate::ui_style::settings_list_row_with_tooltip(
                         ui,
                         CONTENT_WIDTH,
@@ -9599,45 +9600,56 @@ impl EntropyApp {
                         label,
                         true,
                         if suppress_tooltips { None } else { Some(tooltip) },
-                        FIELD_WIDTH,
+                        SLIDER_CONTROL_WIDTH,
                         |ui| {
-                            let edit_id = egui::Id::new(("touchpad_edit", qsid));
-                            let mut text = ui.ctx().data_mut(|d| {
-                                d.get_temp::<String>(edit_id)
-                                    .unwrap_or_else(|| current.to_string())
-                            });
-                            if text.parse::<u16>().ok() != Some(current)
-                                && !ui.memory(|m| m.has_focus(edit_id))
-                            {
-                                text = current.to_string();
-                            }
-
-                            let resp = crate::ui_style::modern_text_field(
-                                ui,
-                                edit_id,
-                                &mut text,
-                                FIELD_WIDTH,
-                                "",
-                                5,
-                                egui::Align::Center,
-                            );
-                            let commit = resp.lost_focus()
-                                || (resp.has_focus()
-                                    && ui.input(|i| i.key_pressed(egui::Key::Enter)));
-                            if commit {
-                                match text.trim().parse::<u16>() {
-                                    Ok(value) => {
-                                        let value = value.clamp(min, max);
-                                        if value != current {
-                                            self.set_touchpad_numeric_value(qsid, value);
-                                            self.write_touchpad_numeric_setting(qsid, value);
+                            ui.spacing_mut().item_spacing.x = 0.0;
+                            let slider_fill = if dark {
+                                Color32::from_rgb(92, 92, 96)
+                            } else {
+                                Color32::from_rgb(190, 184, 182)
+                            };
+                            ui.visuals_mut().selection.bg_fill = slider_fill;
+                            ui.visuals_mut().widgets.active.bg_fill = slider_fill;
+                            ui.visuals_mut().widgets.active.weak_bg_fill = slider_fill;
+                            ui.visuals_mut().widgets.hovered.bg_stroke =
+                                Stroke::new(1.0, slider_fill);
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    ui.add_sized(
+                                        [VALUE_WIDTH, ROW_HEIGHT],
+                                        egui::Label::new(
+                                            RichText::new(format!("{}", value.round() as u8))
+                                                .size(12.0)
+                                                .color(if dark {
+                                                    Color32::from_gray(230)
+                                                } else {
+                                                    Color32::from_gray(55)
+                                                }),
+                                        )
+                                        .halign(egui::Align::RIGHT),
+                                    );
+                                    ui.spacing_mut().slider_width = SLIDER_WIDTH;
+                                    let slider = egui::Slider::new(
+                                        &mut value,
+                                        SENS_MIN as f32..=SENS_MAX as f32,
+                                    )
+                                    .step_by(1.0)
+                                    .show_value(false)
+                                    .trailing_fill(true);
+                                    let resp = ui.add_sized(SLIDER_SIZE, slider);
+                                    if resp.changed() {
+                                        let new_value = value.round().clamp(
+                                            SENS_MIN as f32,
+                                            SENS_MAX as f32,
+                                        ) as u16;
+                                        if new_value != current {
+                                            self.set_touchpad_numeric_value(qsid, new_value);
+                                            self.write_touchpad_numeric_setting(qsid, new_value);
                                         }
-                                        text = value.to_string();
                                     }
-                                    Err(_) => text = current.to_string(),
-                                }
-                            }
-                            ui.ctx().data_mut(|d| d.insert_temp(edit_id, text));
+                                },
+                            );
                         },
                     );
                 }
