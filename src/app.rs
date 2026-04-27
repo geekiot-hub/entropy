@@ -1558,7 +1558,7 @@ pub struct EntropyApp {
     /// Persistent ZMK connection passed from the connect thread
     #[cfg(not(target_arch = "wasm32"))]
     zmk_conn: Option<crate::zmk::ZmkConnection>,
-    /// Built-in qmk-hid-host bridge for display presets that need host data
+    /// Built-in qmk-hid-host bridge for displays/presets that need host data
     #[cfg(not(target_arch = "wasm32"))]
     qmk_hid_host: Option<crate::qmk_hid_host::QmkHidHostBridge>,
     /// Current firmware type (mirrors layout.firmware)
@@ -6148,6 +6148,19 @@ impl EntropyApp {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
+    fn device_uses_automatic_display_host_data(device: &crate::device::Device) -> bool {
+        if device.firmware != FirmwareProtocol::Vial {
+            return false;
+        }
+
+        let name = device.name.to_ascii_lowercase();
+        let ergohaven_macropad_display =
+            device.vendor_id == 0xE126 && matches!(device.product_id, 0x0041 | 0x0042);
+
+        ergohaven_macropad_display || name.contains("m4cr0pad v2") || name.contains("m4cr0pad v3")
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
     fn qmk_hid_host_mode_for(layout: &KeyboardLayout, packed: Option<u32>) -> crate::qmk_hid_host::HostDataMode {
         let values = Self::unpack_layout_option_values(&layout.layout_options, packed.unwrap_or(0));
         let mut mode = crate::qmk_hid_host::HostDataMode::default();
@@ -6234,7 +6247,20 @@ impl EntropyApp {
             self.qmk_hid_host = None;
             return;
         };
-        let mode = Self::qmk_hid_host_mode_for(layout, self.layout_options_value);
+        let Some(device) = self
+            .selected_device
+            .and_then(|idx| self.device_manager.devices().get(idx))
+            .cloned()
+        else {
+            self.qmk_hid_host = None;
+            return;
+        };
+
+        let mut mode = Self::qmk_hid_host_mode_for(layout, self.layout_options_value);
+        if Self::device_uses_automatic_display_host_data(&device) {
+            mode.clock_volume = true;
+            mode.media = true;
+        }
         if mode.is_empty() {
             self.qmk_hid_host = None;
             return;
@@ -6242,15 +6268,7 @@ impl EntropyApp {
         if self.qmk_hid_host.as_ref().map(|bridge| bridge.mode()) == Some(mode) {
             return;
         }
-        let Some(path) = self
-            .selected_device
-            .and_then(|idx| self.device_manager.devices().get(idx))
-            .map(|dev| dev.path.clone())
-        else {
-            self.qmk_hid_host = None;
-            return;
-        };
-        self.qmk_hid_host = Some(crate::qmk_hid_host::QmkHidHostBridge::start(path, mode));
+        self.qmk_hid_host = Some(crate::qmk_hid_host::QmkHidHostBridge::start(device.path, mode));
     }
 
     fn open_layout_options_settings_page(&mut self) {
