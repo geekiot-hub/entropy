@@ -2793,9 +2793,7 @@ impl EntropyApp {
                             }
                             Err(e) => log::warn!("Could not open persistent HID: {e}"),
                         }
-                        self.qmk_hid_host = Some(crate::qmk_hid_host::QmkHidHostBridge::start(
-                            dev.path.clone(),
-                        ));
+                        self.sync_qmk_hid_host_bridge();
                     }
                 }
 
@@ -4180,11 +4178,12 @@ impl EntropyApp {
                                 .unwrap_or(0)
                                 .min(option.choices.len().saturating_sub(1) as u32)
                                 as usize;
-                            let selected_text = option
+                            let selected_raw_text = option
                                 .choices
                                 .get(selected_idx)
                                 .map(|s| s.as_str())
                                 .unwrap_or("Unknown");
+                            let selected_text = Self::display_preset_choice_label(selected_raw_text);
                             let tooltip = format!("Choose firmware preset for {}", option.label);
                             crate::ui_style::settings_list_row_with_tooltip(
                                 ui,
@@ -4202,7 +4201,7 @@ impl EntropyApp {
                                     let dropdown_resp = crate::ui_style::modern_dropdown_button(
                                         ui,
                                         dropdown_id,
-                                        selected_text,
+                                        &selected_text,
                                         ui.visuals().text_color(),
                                         DROPDOWN_WIDTH,
                                     );
@@ -4247,13 +4246,14 @@ impl EntropyApp {
                                                         };
                                                         ui.painter()
                                                             .rect_filled(option_rect, 7.0, option_fill);
+                                                        let display_label = Self::display_preset_choice_label(label);
                                                         ui.painter().text(
                                                             egui::pos2(
                                                                 option_rect.left() + 10.0,
                                                                 option_rect.center().y,
                                                             ),
                                                             egui::Align2::LEFT_CENTER,
-                                                            label,
+                                                            display_label,
                                                             FontId::proportional(12.0),
                                                             if selected {
                                                                 ui.visuals().text_color()
@@ -6119,6 +6119,69 @@ impl EntropyApp {
             .starts_with("hide encoder")
     }
 
+    fn display_preset_choice_label(label: &str) -> String {
+        label
+            .replace(" (qmk-hid-host)", " (needs Entropy in background)")
+            .replace("qmk-hid-host", "Entropy in background")
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn qmk_hid_host_mode_for(layout: &KeyboardLayout, packed: Option<u32>) -> crate::qmk_hid_host::HostDataMode {
+        let values = Self::unpack_layout_option_values(&layout.layout_options, packed.unwrap_or(0));
+        let mut mode = crate::qmk_hid_host::HostDataMode::default();
+        for (idx, option) in layout.layout_options.iter().enumerate() {
+            if Self::is_encoder_layout_option(option) || option.choices.is_empty() {
+                continue;
+            }
+            let selected_idx = values
+                .get(idx)
+                .copied()
+                .unwrap_or(0)
+                .min(option.choices.len().saturating_sub(1) as u32) as usize;
+            let selected = option
+                .choices
+                .get(selected_idx)
+                .map(|s| s.to_ascii_lowercase())
+                .unwrap_or_default();
+            if selected.contains("clock") || selected.contains("volume") {
+                mode.clock_volume = true;
+            }
+            if selected.contains("media") {
+                mode.media = true;
+            }
+        }
+        mode
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn sync_qmk_hid_host_bridge(&mut self) {
+        if self.firmware != FirmwareProtocol::Vial {
+            self.qmk_hid_host = None;
+            return;
+        }
+        let Some(layout) = self.layout.as_ref() else {
+            self.qmk_hid_host = None;
+            return;
+        };
+        let mode = Self::qmk_hid_host_mode_for(layout, self.layout_options_value);
+        if mode.is_empty() {
+            self.qmk_hid_host = None;
+            return;
+        }
+        if self.qmk_hid_host.as_ref().map(|bridge| bridge.mode()) == Some(mode) {
+            return;
+        }
+        let Some(path) = self
+            .selected_device
+            .and_then(|idx| self.device_manager.devices().get(idx))
+            .map(|dev| dev.path.clone())
+        else {
+            self.qmk_hid_host = None;
+            return;
+        };
+        self.qmk_hid_host = Some(crate::qmk_hid_host::QmkHidHostBridge::start(path, mode));
+    }
+
     fn open_layout_options_settings_page(&mut self) {
         self.settings_tab = SettingsTab::LayoutOptions;
         self.main_menu_tab = MainMenuTab::Settings;
@@ -6183,6 +6246,8 @@ impl EntropyApp {
                 log::warn!("set_layout_options failed: {e}");
             }
         }
+        #[cfg(not(target_arch = "wasm32"))]
+        self.sync_qmk_hid_host_bridge();
     }
 
     fn close_top_dropdowns(&self, ctx: &egui::Context) {

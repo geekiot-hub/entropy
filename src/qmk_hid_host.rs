@@ -15,20 +15,38 @@ const DATA_VOLUME: u8 = 0xAB;
 const DATA_MEDIA_ARTIST: u8 = 0xAD;
 const DATA_MEDIA_TITLE: u8 = 0xAE;
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct HostDataMode {
+    pub clock_volume: bool,
+    pub media: bool,
+}
+
+impl HostDataMode {
+    pub fn is_empty(self) -> bool {
+        !self.clock_volume && !self.media
+    }
+}
+
 pub struct QmkHidHostBridge {
+    mode: HostDataMode,
     stop: Arc<AtomicBool>,
     thread: Option<JoinHandle<()>>,
 }
 
 impl QmkHidHostBridge {
-    pub fn start(path: String) -> Self {
+    pub fn start(path: String, mode: HostDataMode) -> Self {
         let stop = Arc::new(AtomicBool::new(false));
         let worker_stop = stop.clone();
-        let thread = thread::spawn(move || run_bridge(path, worker_stop));
+        let thread = thread::spawn(move || run_bridge(path, mode, worker_stop));
         Self {
+            mode,
             stop,
             thread: Some(thread),
         }
+    }
+
+    pub fn mode(&self) -> HostDataMode {
+        self.mode
     }
 
     pub fn stop(&mut self) {
@@ -45,7 +63,7 @@ impl Drop for QmkHidHostBridge {
     }
 }
 
-fn run_bridge(path: String, stop: Arc<AtomicBool>) {
+fn run_bridge(path: String, mode: HostDataMode, stop: Arc<AtomicBool>) {
     let mut device: Option<hidapi::HidDevice> = None;
     let mut last_open_attempt = Instant::now() - Duration::from_secs(5);
     let mut last_time = None;
@@ -55,6 +73,7 @@ fn run_bridge(path: String, stop: Arc<AtomicBool>) {
     let mut last_time_poll = Instant::now() - Duration::from_secs(60);
     let mut last_volume_poll = Instant::now() - Duration::from_secs(60);
     let mut last_media_poll = Instant::now() - Duration::from_secs(60);
+    let mut last_media_full_send = Instant::now() - Duration::from_secs(60);
 
     while !stop.load(Ordering::Relaxed) {
         if device.is_none() && last_open_attempt.elapsed() >= Duration::from_secs(2) {
@@ -74,35 +93,43 @@ fn run_bridge(path: String, stop: Arc<AtomicBool>) {
 
         let mut write_failed = false;
 
-        if last_time_poll.elapsed() >= Duration::from_secs(1) {
+        if mode.clock_volume && last_time_poll.elapsed() >= Duration::from_secs(1) {
             last_time_poll = Instant::now();
             let now = current_time_payload();
             if last_time != Some(now) {
                 last_time = Some(now);
                 write_failed |= write_payload(dev, &[DATA_TIME, now.0, now.1]).is_err();
+                pause_between_packets();
             }
         }
 
-        if last_volume_poll.elapsed() >= Duration::from_secs(2) {
+        if mode.clock_volume && last_volume_poll.elapsed() >= Duration::from_secs(2) {
             last_volume_poll = Instant::now();
             if let Some(volume) = current_volume_percent() {
                 if last_volume != Some(volume) {
                     last_volume = Some(volume);
                     write_failed |= write_payload(dev, &[DATA_VOLUME, volume]).is_err();
+                    pause_between_packets();
                 }
             }
         }
 
-        if last_media_poll.elapsed() >= Duration::from_secs(3) {
+        if mode.media && last_media_poll.elapsed() >= Duration::from_secs(3) {
             last_media_poll = Instant::now();
             if let Some((artist, title)) = current_media_info() {
-                if artist != last_artist {
+                let full_resend = last_media_full_send.elapsed() >= Duration::from_secs(10);
+                if full_resend || artist != last_artist {
                     last_artist = artist.clone();
                     write_failed |= write_text_payload(dev, DATA_MEDIA_ARTIST, &artist).is_err();
+                    pause_between_packets();
                 }
-                if title != last_title {
+                if full_resend || title != last_title {
                     last_title = title.clone();
                     write_failed |= write_text_payload(dev, DATA_MEDIA_TITLE, &title).is_err();
+                    pause_between_packets();
+                }
+                if full_resend {
+                    last_media_full_send = Instant::now();
                 }
             }
         }
@@ -121,6 +148,10 @@ fn run_bridge(path: String, stop: Arc<AtomicBool>) {
 fn open_raw_hid(path: &str) -> anyhow::Result<hidapi::HidDevice> {
     let api = hidapi::HidApi::new()?;
     Ok(api.open_path(&std::ffi::CString::new(path)?)?)
+}
+
+fn pause_between_packets() {
+    thread::sleep(Duration::from_millis(35));
 }
 
 fn write_payload(device: &hidapi::HidDevice, payload: &[u8]) -> hidapi::HidResult<usize> {
