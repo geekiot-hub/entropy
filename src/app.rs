@@ -1555,6 +1555,9 @@ pub struct EntropyApp {
     /// Persistent ZMK connection passed from the connect thread
     #[cfg(not(target_arch = "wasm32"))]
     zmk_conn: Option<crate::zmk::ZmkConnection>,
+    /// Built-in qmk-hid-host bridge for display presets that need host data
+    #[cfg(not(target_arch = "wasm32"))]
+    qmk_hid_host: Option<crate::qmk_hid_host::QmkHidHostBridge>,
     /// Current firmware type (mirrors layout.firmware)
     firmware: FirmwareProtocol,
     zmk_base_layer_count: usize,
@@ -1663,6 +1666,8 @@ impl EntropyApp {
             hid_device: None,
             #[cfg(not(target_arch = "wasm32"))]
             zmk_conn: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            qmk_hid_host: None,
             firmware: FirmwareProtocol::Vial,
             zmk_base_layer_count: 0,
             zmk_no_extra_layers: false,
@@ -1771,6 +1776,7 @@ impl EntropyApp {
         self.selected_encoder = None;
         self.selected_layer = 0;
         self.layer_count = 0;
+        self.qmk_hid_host = None;
         self.hid_device = None;
         self.zmk_conn = None;
         self.zmk_op_rx = None;
@@ -1845,6 +1851,7 @@ impl EntropyApp {
         self.selected_key = None;
         self.selected_encoder = None;
         self.selected_layer = 0;
+        self.qmk_hid_host = None;
         self.hid_device = None;
         self.zmk_conn = None;
         self.zmk_has_unsaved = false;
@@ -2786,6 +2793,9 @@ impl EntropyApp {
                             }
                             Err(e) => log::warn!("Could not open persistent HID: {e}"),
                         }
+                        self.qmk_hid_host = Some(crate::qmk_hid_host::QmkHidHostBridge::start(
+                            dev.path.clone(),
+                        ));
                     }
                 }
 
