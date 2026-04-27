@@ -5194,6 +5194,7 @@ impl EntropyApp {
         self.keycode_picker.zmk_layer_retarget_pending = None;
         self.keycode_picker.zmk_layer_tap_pending = None;
         self.keycode_picker.zmk_mod_tap_pending = None;
+        self.keycode_picker.zmk_selected_behavior = None;
         self.keycode_picker.tap_dance_editor_open = None;
         self.keycode_picker.selected_tab = crate::keycode_picker::KeycodeTab::Basic;
         if is_zmk {
@@ -13351,6 +13352,7 @@ impl EntropyApp {
                 self.keycode_picker.zmk_layer_retarget_pending = None;
                 self.keycode_picker.zmk_layer_tap_pending = None;
                 self.keycode_picker.zmk_mod_tap_pending = None;
+                self.keycode_picker.zmk_selected_behavior = None;
                 // Reset all editor states so picker opens normally
                 self.keycode_picker.tap_dance_editor_open = None;
                 self.keycode_picker.selected_tab = crate::keycode_picker::KeycodeTab::Basic;

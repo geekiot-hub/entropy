@@ -593,6 +593,9 @@ pub(crate) fn zmk_behavior_kind(name: &str) -> &'static str {
         "bluetooth" => "bluetooth",
         "output selection" | "output" => "output_selection",
         "external power" => "external_power",
+        "soft off" | "soft_off" => "soft_off",
+        "rgb underglow" | "rgb_ug" | "rgb" => "rgb_underglow",
+        "backlight" | "bl" => "backlight",
         "mouse key press" | "mouse button" => "mouse_key_press",
         "mouse_move" | "mouse move" => "mouse_move",
         "mouse_scroll" | "mouse scroll" => "mouse_scroll",
@@ -747,6 +750,84 @@ fn zmk_equivalent_vial_keycode(kind: &str, p1: u32, p2: u32) -> Option<u16> {
     }
 }
 
+fn zmk_axis_label(value: u32, kind: &str) -> Option<&'static str> {
+    match (kind, value) {
+        ("move", 0x0000_FDA8) => Some("Move\nUp"),
+        ("move", 0x0000_0258) => Some("Move\nDown"),
+        ("move", 0xFDA8_0000) => Some("Move\nLeft"),
+        ("move", 0x0258_0000) => Some("Move\nRight"),
+        ("scroll", 0x0000_000A) => Some("Scroll\nUp"),
+        ("scroll", 0x0000_FFF6) => Some("Scroll\nDown"),
+        ("scroll", 0xFFF6_0000) => Some("Scroll\nLeft"),
+        ("scroll", 0x000A_0000) => Some("Scroll\nRight"),
+        _ => None,
+    }
+}
+
+fn zmk_axis_tooltip(value: u32, kind: &str) -> Option<&'static str> {
+    match (kind, value) {
+        ("move", 0x0000_FDA8) => Some("Mouse move up"),
+        ("move", 0x0000_0258) => Some("Mouse move down"),
+        ("move", 0xFDA8_0000) => Some("Mouse move left"),
+        ("move", 0x0258_0000) => Some("Mouse move right"),
+        ("scroll", 0x0000_000A) => Some("Mouse wheel scroll up"),
+        ("scroll", 0x0000_FFF6) => Some("Mouse wheel scroll down"),
+        ("scroll", 0xFFF6_0000) => Some("Mouse wheel scroll left"),
+        ("scroll", 0x000A_0000) => Some("Mouse wheel scroll right"),
+        _ => None,
+    }
+}
+
+fn zmk_lighting_label(kind: &str, p1: u32) -> Option<&'static str> {
+    match (kind, p1) {
+        ("rgb_underglow", 0) => Some("RGB\nToggle"),
+        ("rgb_underglow", 1) => Some("RGB\nOn"),
+        ("rgb_underglow", 2) => Some("RGB\nOff"),
+        ("rgb_underglow", 3) => Some("Hue+"),
+        ("rgb_underglow", 4) => Some("Hue-"),
+        ("rgb_underglow", 5) => Some("Sat+"),
+        ("rgb_underglow", 6) => Some("Sat-"),
+        ("rgb_underglow", 7) => Some("RGB\nBright+"),
+        ("rgb_underglow", 8) => Some("RGB\nBright-"),
+        ("rgb_underglow", 9) => Some("RGB\nSpeed+"),
+        ("rgb_underglow", 10) => Some("RGB\nSpeed-"),
+        ("rgb_underglow", 11) => Some("RGB\nEffect+"),
+        ("rgb_underglow", 12) => Some("RGB\nEffect-"),
+        ("backlight", 0) => Some("BL\nOn"),
+        ("backlight", 1) => Some("BL\nOff"),
+        ("backlight", 2) => Some("BL\nToggle"),
+        ("backlight", 3) => Some("BL+"),
+        ("backlight", 4) => Some("BL-"),
+        ("backlight", 5) => Some("BL\nCycle"),
+        _ => None,
+    }
+}
+
+fn zmk_lighting_tooltip(kind: &str, p1: u32) -> Option<&'static str> {
+    match (kind, p1) {
+        ("rgb_underglow", 0) => Some("Toggle RGB underglow"),
+        ("rgb_underglow", 1) => Some("Turn RGB underglow on"),
+        ("rgb_underglow", 2) => Some("Turn RGB underglow off"),
+        ("rgb_underglow", 3) => Some("Increase RGB hue"),
+        ("rgb_underglow", 4) => Some("Decrease RGB hue"),
+        ("rgb_underglow", 5) => Some("Increase RGB saturation"),
+        ("rgb_underglow", 6) => Some("Decrease RGB saturation"),
+        ("rgb_underglow", 7) => Some("Increase RGB brightness"),
+        ("rgb_underglow", 8) => Some("Decrease RGB brightness"),
+        ("rgb_underglow", 9) => Some("Increase RGB animation speed"),
+        ("rgb_underglow", 10) => Some("Decrease RGB animation speed"),
+        ("rgb_underglow", 11) => Some("Next RGB effect"),
+        ("rgb_underglow", 12) => Some("Previous RGB effect"),
+        ("backlight", 0) => Some("Turn backlight on"),
+        ("backlight", 1) => Some("Turn backlight off"),
+        ("backlight", 2) => Some("Toggle backlight"),
+        ("backlight", 3) => Some("Increase backlight brightness"),
+        ("backlight", 4) => Some("Decrease backlight brightness"),
+        ("backlight", 5) => Some("Cycle backlight brightness"),
+        _ => None,
+    }
+}
+
 /// Get a display label for a ZMK binding given behavior info.
 pub fn zmk_binding_label(binding: &ZmkBinding, behaviors: &[BehaviorInfo], layer_names: &[String]) -> String {
     if binding.is_none() {
@@ -849,15 +930,20 @@ pub fn zmk_binding_label(binding: &ZmkBinding, behaviors: &[BehaviorInfo], layer
             1 => "BLE".to_string(),
             _ => "Output".to_string(),
         },
-        // External Power
+        // External Power / Power
         "external_power" => match p1 {
             0 => "Power\nOff".to_string(),
             _ => "Power\nOn".to_string(),
         },
+        "soft_off" => "Soft\nOff".to_string(),
+        // Lighting
+        "rgb_underglow" | "backlight" => zmk_lighting_label(kind, p1)
+            .unwrap_or(name)
+            .to_string(),
         // Mouse
         "mouse_key_press"  => format!("Ms\n{}", key(p1)),
-        "mouse_move"       => "MsMove".to_string(),
-        "mouse_scroll"     => "MsScrl".to_string(),
+        "mouse_move"       => zmk_axis_label(p1, "move").unwrap_or("MsMove").to_string(),
+        "mouse_scroll"     => zmk_axis_label(p1, "scroll").unwrap_or("MsScrl").to_string(),
         // Encoder
         name if name.contains("ENC") || name.contains("enc") || name.contains("Vol") => {
             name.chars().take(6).collect()
@@ -919,6 +1005,10 @@ pub fn zmk_binding_tooltip(binding: &ZmkBinding, behaviors: &[BehaviorInfo], lay
         "reset"            => "Restart the keyboard".to_string(),
         "studio_unlock"    => "Unlock editing — allow live keymap changes".to_string(),
         "external_power"   => match p1 { 0 => "External power off".to_string(), _ => "External power on".to_string() },
+        "soft_off"         => "Turn the keyboard off until hardware wake/reset".to_string(),
+        "rgb_underglow" | "backlight" => zmk_lighting_tooltip(kind, p1)
+            .unwrap_or(name)
+            .to_string(),
         "bluetooth" => match p1 {
             0 => "Bluetooth: forget current profile".to_string(),
             1 => "Bluetooth: forget all profiles".to_string(),
@@ -933,8 +1023,8 @@ pub fn zmk_binding_tooltip(binding: &ZmkBinding, behaviors: &[BehaviorInfo], lay
             _ => "Output selection".to_string(),
         },
         "mouse_key_press"  => format!("Mouse button: {}", key_name(p1)),
-        "mouse_move"       => "Mouse cursor movement".to_string(),
-        "mouse_scroll"     => "Mouse scroll wheel".to_string(),
+        "mouse_move"       => zmk_axis_tooltip(p1, "move").unwrap_or("Mouse cursor movement").to_string(),
+        "mouse_scroll"     => zmk_axis_tooltip(p1, "scroll").unwrap_or("Mouse scroll wheel").to_string(),
         _ => {
             if p1 == 0 && p2 == 0 {
                 name.to_string()

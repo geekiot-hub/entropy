@@ -305,6 +305,50 @@ fn zmk_mouse_button_usage_for_qmk_value(value: u16) -> Option<u32> {
     }
 }
 
+fn zmk_mouse_move_param_for_qmk_value(value: u16) -> Option<u32> {
+    const MOVE_DEFAULT: u32 = 600;
+    let neg = (!MOVE_DEFAULT + 1) & 0xFFFF;
+    match value {
+        0x00CD => Some(neg),
+        0x00CE => Some(MOVE_DEFAULT),
+        0x00CF => Some(neg << 16),
+        0x00D0 => Some(MOVE_DEFAULT << 16),
+        _ => None,
+    }
+}
+
+fn zmk_mouse_scroll_param_for_qmk_value(value: u16) -> Option<u32> {
+    const SCROLL_DEFAULT: u32 = 10;
+    let neg = (!SCROLL_DEFAULT + 1) & 0xFFFF;
+    match value {
+        0x00D9 => Some(SCROLL_DEFAULT),
+        0x00DA => Some(neg),
+        0x00DB => Some(neg << 16),
+        0x00DC => Some(SCROLL_DEFAULT << 16),
+        _ => None,
+    }
+}
+
+fn zmk_mouse_move_label(value: u16) -> &'static str {
+    match value {
+        0x00CD => "Mouse move up",
+        0x00CE => "Mouse move down",
+        0x00CF => "Mouse move left",
+        0x00D0 => "Mouse move right",
+        _ => "Mouse move",
+    }
+}
+
+fn zmk_mouse_scroll_label(value: u16) -> &'static str {
+    match value {
+        0x00D9 => "Mouse wheel scroll up",
+        0x00DA => "Mouse wheel scroll down",
+        0x00DB => "Mouse wheel scroll left",
+        0x00DC => "Mouse wheel scroll right",
+        _ => "Mouse scroll",
+    }
+}
+
 impl Default for KeycodePicker {
     fn default() -> Self {
         Self {
@@ -887,6 +931,20 @@ impl KeycodePicker {
             }
         }
 
+        if let Some(param) = zmk_mouse_move_param_for_qmk_value(value) {
+            if let Some(id) = self.zmk_behavior_id("Mouse Move") {
+                self.zmk_assign(id, param, 0);
+                return true;
+            }
+        }
+
+        if let Some(param) = zmk_mouse_scroll_param_for_qmk_value(value) {
+            if let Some(id) = self.zmk_behavior_id("Mouse Scroll") {
+                self.zmk_assign(id, param, 0);
+                return true;
+            }
+        }
+
         if let Some(mouse_usage) = zmk_mouse_button_usage_for_qmk_value(value) {
             if let Some(id) = self.zmk_behavior_id("Mouse Key Press") {
                 self.zmk_assign(id, mouse_usage, 0);
@@ -919,6 +977,10 @@ impl KeycodePicker {
                 self.zmk_key_press_usage_from_vial_value(value).is_some()
                     || (zmk_mouse_button_usage_for_qmk_value(value).is_some()
                         && self.zmk_behavior_id("Mouse Key Press").is_some())
+                    || (zmk_mouse_move_param_for_qmk_value(value).is_some()
+                        && self.zmk_behavior_id("Mouse Move").is_some())
+                    || (zmk_mouse_scroll_param_for_qmk_value(value).is_some()
+                        && self.zmk_behavior_id("Mouse Scroll").is_some())
             }
         }
     }
@@ -955,6 +1017,10 @@ impl KeycodePicker {
                 let label = keycode_label_with_names(value, &[], &self.layer_names).replace('\n', " / ");
                 if self.zmk_key_press_usage_from_vial_value(value).is_some() {
                     format!("Key press: {label}")
+                } else if zmk_mouse_move_param_for_qmk_value(value).is_some() {
+                    zmk_mouse_move_label(value).to_string()
+                } else if zmk_mouse_scroll_param_for_qmk_value(value).is_some() {
+                    zmk_mouse_scroll_label(value).to_string()
                 } else if zmk_mouse_button_usage_for_qmk_value(value).is_some() {
                     format!("Mouse button: {label}")
                 } else {
@@ -4011,6 +4077,27 @@ Repeat"
                     0,
                     62.0,
                 );
+                if let Some(id) = self.zmk_behavior_id("Key Toggle") {
+                    let resp = ui
+                        .add_sized(
+                            Vec2::new(62.0, 42.0),
+                            egui::Button::new(RichText::new("Key\nToggle").size(10.5)),
+                        )
+                        .on_hover_cursor(egui::CursorIcon::PointingHand);
+                    if resp.clicked() {
+                        self.zmk_selected_behavior = Some(id as usize);
+                    }
+                    resp.on_hover_text("Toggle a key on/off — choose the key next");
+                }
+                self.zmk_special_behavior_button(
+                    ui,
+                    "Soft\nOff",
+                    "Turn the keyboard off until hardware wake/reset",
+                    "Soft Off",
+                    0,
+                    0,
+                    62.0,
+                );
                 self.zmk_special_behavior_button(
                     ui,
                     "Power\nOn",
@@ -4031,6 +4118,66 @@ Repeat"
                 );
             }
         });
+
+        if self.firmware == FirmwareProtocol::Zmk
+            && (self.zmk_behavior_id("RGB Underglow").is_some()
+                || self.zmk_behavior_id("Backlight").is_some())
+        {
+            ui.add_space(10.0);
+            ui.label(
+                RichText::new("Lighting")
+                    .size(11.0)
+                    .color(Color32::from_gray(150)),
+            );
+            ui.add_space(4.0);
+            ui.horizontal_wrapped(|ui| {
+                let rgb_actions: &[(&str, &str, u32, u32, f32)] = &[
+                    ("RGB\nToggle", "Toggle RGB underglow", 0, 0, 66.0),
+                    ("RGB\nOn", "Turn RGB underglow on", 1, 0, 56.0),
+                    ("RGB\nOff", "Turn RGB underglow off", 2, 0, 56.0),
+                    ("Hue+", "Increase RGB hue", 3, 0, 54.0),
+                    ("Hue-", "Decrease RGB hue", 4, 0, 54.0),
+                    ("Sat+", "Increase RGB saturation", 5, 0, 54.0),
+                    ("Sat-", "Decrease RGB saturation", 6, 0, 54.0),
+                    ("Bright+", "Increase RGB brightness", 7, 0, 64.0),
+                    ("Bright-", "Decrease RGB brightness", 8, 0, 64.0),
+                    ("Speed+", "Increase RGB animation speed", 9, 0, 62.0),
+                    ("Speed-", "Decrease RGB animation speed", 10, 0, 62.0),
+                    ("Effect+", "Next RGB effect", 11, 0, 62.0),
+                    ("Effect-", "Previous RGB effect", 12, 0, 62.0),
+                ];
+                for (label, tip, p1, p2, width) in rgb_actions {
+                    self.zmk_special_behavior_button(
+                        ui,
+                        label,
+                        tip,
+                        "RGB Underglow",
+                        *p1,
+                        *p2,
+                        *width,
+                    );
+                }
+                let bl_actions: &[(&str, &str, u32, u32, f32)] = &[
+                    ("BL\nOn", "Turn backlight on", 0, 0, 54.0),
+                    ("BL\nOff", "Turn backlight off", 1, 0, 54.0),
+                    ("BL\nToggle", "Toggle backlight", 2, 0, 66.0),
+                    ("BL+", "Increase backlight brightness", 3, 0, 50.0),
+                    ("BL-", "Decrease backlight brightness", 4, 0, 50.0),
+                    ("BL\nCycle", "Cycle backlight brightness", 5, 0, 62.0),
+                ];
+                for (label, tip, p1, p2, width) in bl_actions {
+                    self.zmk_special_behavior_button(
+                        ui,
+                        label,
+                        tip,
+                        "Backlight",
+                        *p1,
+                        *p2,
+                        *width,
+                    );
+                }
+            });
+        }
 
         if self.firmware != FirmwareProtocol::Zmk && !self.supports_mouse_keys {
             return;
@@ -4631,6 +4778,10 @@ Repeat"
             self.show_zmk_layer_picker(ctx);
             return;
         }
+        if let Some(behavior_id) = self.zmk_selected_behavior {
+            self.show_zmk_behavior_key_picker(ctx, behavior_id as u32);
+            return;
+        }
         if self.zmk_layer_tap_pending.is_some() || self.zmk_mod_tap_pending.is_some() {
             self.show_zmk_tap_key_picker(ctx);
             return;
@@ -5064,6 +5215,85 @@ Repeat"
         }
     }
 
+
+    fn show_zmk_behavior_key_picker(&mut self, ctx: &egui::Context, behavior_id: u32) {
+        let behavior_name = self
+            .zmk_behaviors
+            .iter()
+            .find(|b| b.id == behavior_id)
+            .map(|b| b.display_name.clone())
+            .unwrap_or_else(|| "Behavior".to_string());
+
+        let captured = ctx.input(|i| {
+            for event in &i.events {
+                if let egui::Event::Key {
+                    key,
+                    pressed: true,
+                    modifiers,
+                    ..
+                } = event
+                {
+                    if *key == Key::Escape {
+                        return Some(None);
+                    }
+                    if modifiers.is_none() {
+                        if let Some(usage) = egui_key_to_zmk_usage(*key) {
+                            return Some(Some(usage));
+                        }
+                    }
+                }
+            }
+            None
+        });
+
+        if let Some(choice) = captured {
+            match choice {
+                Some(usage) => self.zmk_assign(behavior_id, usage, 0),
+                None => {
+                    self.zmk_selected_behavior = None;
+                    self.open = false;
+                }
+            }
+            return;
+        }
+
+        let mut pick_open = true;
+        crate::ui_style::centered_modal_window(
+            ctx,
+            &format!("{behavior_name} key"),
+            self.popup_state.id(PopupKey::PendingKeyPickWindow),
+            &mut pick_open,
+            Vec2::new(KEY_PICKER_POPUP_WIDTH, KEY_PICKER_POPUP_HEIGHT),
+        )
+        .show(ctx, |ui| {
+            apply_picker_button_visuals(ui);
+            crate::ui_style::modal_intro(ui, &format!("Choose key for {behavior_name}"));
+            crate::ui_style::modal_hint(ui, "Escape cancels");
+            ui.add_space(crate::ui_style::modal_space_xs());
+
+            let key_choices: Vec<&'static crate::keycode::Keycode> = KEYCODES
+                .iter()
+                .filter(|kc| zmk_hid_usage_for_qmk_value(kc.value).is_some())
+                .collect();
+            egui::ScrollArea::vertical()
+                .max_height(KEY_PICKER_SCROLL_HEIGHT)
+                .auto_shrink([false, false])
+                .show(ui, |ui| {
+                    if let Some(value) =
+                        show_grouped_popup_key_buttons(ui, key_choices, &self.layer_names, true)
+                    {
+                        if let Some(usage) = zmk_hid_usage_for_qmk_value(value) {
+                            self.zmk_assign(behavior_id, usage, 0);
+                        }
+                    }
+                });
+        });
+
+        if !pick_open {
+            self.zmk_selected_behavior = None;
+            self.open = false;
+        }
+    }
 
     fn show_zmk_tap_key_picker(&mut self, ctx: &egui::Context) {
         let layer_pending = self.zmk_layer_tap_pending;
@@ -5559,6 +5789,13 @@ Repeat"
             "Bluetooth",
             "Output Selection",
             "Mouse Key Press",
+            "Mouse Move",
+            "Mouse Scroll",
+            "Key Toggle",
+            "Soft Off",
+            "External Power",
+            "RGB Underglow",
+            "Backlight",
         ];
 
         let behaviors: Vec<(u32, String)> = self
