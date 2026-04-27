@@ -544,6 +544,49 @@ impl ZmkConnection {
         }
     }
 
+    pub fn check_unsaved_changes(&mut self) -> Result<bool> {
+        let rr = self.rpc(zmk_proto::request::Subsystem::Keymap(
+            zmk_proto::keymap::Request {
+                request_type: Some(
+                    zmk_proto::keymap::request::RequestType::CheckUnsavedChanges(true),
+                ),
+            },
+        ))?;
+
+        match rr.subsystem {
+            Some(zmk_proto::request_response::Subsystem::Keymap(resp)) => {
+                match resp.response_type {
+                    Some(zmk_proto::keymap::response::ResponseType::CheckUnsavedChanges(v)) => {
+                        Ok(v)
+                    }
+                    other => bail!("Unexpected CheckUnsavedChanges response: {other:?}"),
+                }
+            }
+            other => bail!("Unexpected subsystem response: {other:?}"),
+        }
+    }
+
+    pub fn discard_changes(&mut self) -> Result<()> {
+        let rr = self.rpc(zmk_proto::request::Subsystem::Keymap(
+            zmk_proto::keymap::Request {
+                request_type: Some(zmk_proto::keymap::request::RequestType::DiscardChanges(true)),
+            },
+        ))?;
+
+        match rr.subsystem {
+            Some(zmk_proto::request_response::Subsystem::Keymap(resp)) => {
+                match resp.response_type {
+                    Some(zmk_proto::keymap::response::ResponseType::DiscardChanges(true)) => Ok(()),
+                    Some(zmk_proto::keymap::response::ResponseType::DiscardChanges(false)) => {
+                        bail!("DiscardChanges returned false")
+                    }
+                    other => bail!("Unexpected DiscardChanges response: {other:?}"),
+                }
+            }
+            other => bail!("Unexpected subsystem response: {other:?}"),
+        }
+    }
+
     pub fn save_changes(&mut self) -> Result<()> {
         let rr = self.rpc(zmk_proto::request::Subsystem::Keymap(
             zmk_proto::keymap::Request {

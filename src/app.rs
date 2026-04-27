@@ -589,6 +589,8 @@ struct ConnectResult {
     zmk_conn: Option<crate::zmk::ZmkConnection>,
     /// ZMK lock state at connect time
     zmk_lock_state: i32,
+    /// Whether ZMK Studio reports staged unsaved changes
+    zmk_has_unsaved: bool,
     /// Macro texts read from device
     macro_texts: Vec<String>,
     /// Tap dance entries
@@ -2551,6 +2553,7 @@ impl EntropyApp {
                             layer_count,
                             zmk_conn: None,
                             zmk_lock_state: 1,
+                            zmk_has_unsaved: false,
                         })
                     }
 
@@ -2613,6 +2616,7 @@ impl EntropyApp {
                                 layer_count: 0,
                                 zmk_conn: Some(conn),
                                 zmk_lock_state: lock_state,
+                                zmk_has_unsaved: false,
                             });
                         }
 
@@ -2658,6 +2662,11 @@ impl EntropyApp {
                             })
                             .collect();
 
+                        let zmk_has_unsaved = conn.check_unsaved_changes().unwrap_or_else(|e| {
+                            log::warn!("ZMK check_unsaved_changes failed: {e}");
+                            false
+                        });
+
                         Ok(ConnectResult {
                             device_name: dev.name.clone(),
                             macro_texts: vec![],
@@ -2682,6 +2691,7 @@ impl EntropyApp {
                             layer_count,
                             zmk_conn: Some(conn),
                             zmk_lock_state: lock_state,
+                            zmk_has_unsaved,
                         })
                     }
                 }
@@ -2721,7 +2731,7 @@ impl EntropyApp {
                 }
                 self.current_device_name = r.device_name.clone();
                 self.zmk_lock_state = r.zmk_lock_state;
-                self.zmk_has_unsaved = false;
+                self.zmk_has_unsaved = r.zmk_has_unsaved;
                 self.keycode_picker.tap_dance_entries = r.tap_dance_entries.clone();
                 self.combo_entries = r.combo_entries.clone();
                 self.key_override_entries = r.key_override_entries.clone();
@@ -3070,6 +3080,9 @@ impl EntropyApp {
                 self.status_msg = "✓ Saved".into();
                 self.zmk_has_unsaved = false;
                 self.zmk_op_rx = None;
+                if let Some(idx) = self.selected_device {
+                    self.start_connect(idx);
+                }
             }
             ZmkOpResult::SaveFail(e) => {
                 log::error!("Save error: {e}");
@@ -5230,18 +5243,36 @@ impl EntropyApp {
         self.status_msg = "Saving…".into();
     }
 
-    /// ZMK: discard unsaved changes in background.
+    /// ZMK: discard staged changes in firmware, then reload.
     #[cfg(not(target_arch = "wasm32"))]
     fn zmk_discard(&mut self) {
         if self.zmk_op_rx.is_some() {
             return;
         }
-        // Discard = just reload from device
-        self.zmk_has_unsaved = false;
-        self.status_msg = "Discarded".into();
-        if let Some(idx) = self.selected_device {
-            self.start_connect(idx);
-        }
+        let conn = match self.zmk_conn.take() {
+            Some(c) => c,
+            None => {
+                self.status_msg = "No ZMK connection".into();
+                return;
+            }
+        };
+
+        let (tx, rx) = mpsc::channel();
+        self.zmk_op_rx = Some(rx);
+
+        std::thread::spawn(move || {
+            let mut conn = conn;
+            match conn.discard_changes() {
+                Ok(()) => {
+                    let _ = tx.send(ZmkOpResult::DiscardOk);
+                }
+                Err(e) => {
+                    let _ = tx.send(ZmkOpResult::DiscardFail(e.to_string()));
+                }
+            }
+            drop(conn);
+        });
+        self.status_msg = "Discarding…".into();
     }
 
     /// ZMK: add layer in background.
@@ -12255,6 +12286,45 @@ impl EntropyApp {
                         if rem_clicked && can_remove {
                             self.zmk_remove_layer();
                         }
+                    }
+                }
+
+                // ZMK staged changes actions
+                if !any_top_dropdown_open && self.firmware == FirmwareProtocol::Zmk && self.zmk_has_unsaved {
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        let op_busy = self.zmk_op_rx.is_some();
+                        let actions_rect = egui::Rect::from_min_size(
+                            egui::pos2(center_x + 150.0, bar_y + 9.0),
+                            Vec2::new(148.0, 34.0),
+                        );
+                        ui.allocate_ui_at_rect(actions_rect, |ui| {
+                            ui.horizontal(|ui| {
+                                ui.spacing_mut().item_spacing.x = 6.0;
+                                if crate::ui_style::modern_button(
+                                    ui,
+                                    "Save",
+                                    Vec2::new(64.0, 30.0),
+                                    !op_busy,
+                                )
+                                .on_hover_text("Save staged ZMK changes to the keyboard")
+                                .clicked()
+                                {
+                                    self.zmk_save();
+                                }
+                                if crate::ui_style::modern_button(
+                                    ui,
+                                    "Discard",
+                                    Vec2::new(78.0, 30.0),
+                                    !op_busy,
+                                )
+                                .on_hover_text("Discard staged ZMK changes and reload from the keyboard")
+                                .clicked()
+                                {
+                                    self.zmk_discard();
+                                }
+                            });
+                        });
                     }
                 }
 
