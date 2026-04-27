@@ -163,18 +163,12 @@ fn linux_input_method_hint() -> &'static str {
 
 #[cfg(target_os = "macos")]
 pub fn universal_output_setup_hint() -> Option<&'static str> {
-    Some("Allow Entropy in Accessibility/Input Monitoring, then restart Entropy")
+    Some("Open Settings → Universal Symbols to finish permissions setup")
 }
 
 #[cfg(target_os = "linux")]
 pub fn universal_output_setup_hint() -> Option<&'static str> {
-    if std::env::var_os("WAYLAND_DISPLAY").is_some() {
-        Some("Install and select Entropy Universal Symbols: linux/ibus/install-user.sh or linux/fcitx5/install-user.sh")
-    } else if std::env::var_os("DISPLAY").is_some() {
-        Some("For X11 install xdotool; for Wayland install the IBus or Fcitx5 backend")
-    } else {
-        Some("Install the IBus or Fcitx5 backend for Linux universal output")
-    }
+    Some("Open Settings → Universal Symbols to finish Linux setup")
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "linux")))]
