@@ -42,11 +42,23 @@ pub fn surface_fill(dark: bool) -> Color32 {
     }
 }
 
+fn mix(a: Color32, b: Color32, t: f32) -> Color32 {
+    let t = t.clamp(0.0, 1.0);
+    let mix_channel = |x: u8, y: u8| -> u8 {
+        (x as f32 + (y as f32 - x as f32) * t).round() as u8
+    };
+    Color32::from_rgb(
+        mix_channel(a.r(), b.r()),
+        mix_channel(a.g(), b.g()),
+        mix_channel(a.b(), b.b()),
+    )
+}
+
 pub fn hover_fill(dark: bool) -> Color32 {
     if dark {
-        Color32::from_rgb(62, 56, 56)
+        mix(Color32::from_rgb(45, 45, 48), accent(), 0.22)
     } else {
-        Color32::from_rgb(239, 233, 232)
+        mix(Color32::from_rgb(255, 255, 255), accent(), 0.16)
     }
 }
 

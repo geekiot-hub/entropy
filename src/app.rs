@@ -5864,13 +5864,13 @@ impl EntropyApp {
         }
         ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
         #[cfg(target_os = "windows")]
-        self.ensure_tray_icon();
+        self.ensure_tray_icon(ctx);
         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
         self.status_msg = "Entropy is running in the tray".into();
     }
 
     #[cfg(target_os = "windows")]
-    fn ensure_tray_icon(&mut self) {
+    fn ensure_tray_icon(&mut self, ctx: &egui::Context) {
         if self.tray_icon.is_some() {
             return;
         }
@@ -5886,6 +5886,27 @@ impl EntropyApp {
         let Ok(icon) = tray_icon::Icon::from_rgba(rgba, 16, 16) else {
             return;
         };
+        let ctx_for_handler = ctx.clone();
+        tray_icon::TrayIconEvent::set_event_handler(Some(move |event| {
+            use tray_icon::{MouseButton, MouseButtonState, TrayIconEvent};
+            match event {
+                TrayIconEvent::Click {
+                    button: MouseButton::Left,
+                    button_state: MouseButtonState::Up,
+                    ..
+                }
+                | TrayIconEvent::DoubleClick {
+                    button: MouseButton::Left,
+                    ..
+                } => {
+                    ctx_for_handler.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+                    ctx_for_handler.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+                    ctx_for_handler.send_viewport_cmd(egui::ViewportCommand::Focus);
+                    ctx_for_handler.request_repaint();
+                }
+                _ => {}
+            }
+        }));
         match tray_icon::TrayIconBuilder::new()
             .with_tooltip("Entropy")
             .with_icon(icon)
