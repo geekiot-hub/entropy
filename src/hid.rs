@@ -22,6 +22,7 @@ const CMD_VIA_MACRO_GET_BUFFER: u8 = 0x0E;
 const CMD_VIA_MACRO_SET_BUFFER: u8 = 0x0F;
 const CMD_VIA_VIAL_PREFIX: u8 = 0xFE;
 
+const VIA_LAYOUT_OPTIONS: u8 = 0x02;
 const VIA_SWITCH_MATRIX_STATE: u8 = 0x03;
 const QMK_BACKLIGHT_BRIGHTNESS: u8 = 0x09;
 const QMK_BACKLIGHT_EFFECT: u8 = 0x0A;
@@ -116,6 +117,27 @@ impl HidDevice {
     pub fn get_layer_count(&self) -> Result<u8> {
         let resp = self.usb_send(&[CMD_VIA_GET_LAYER_COUNT])?;
         Ok(resp[1])
+    }
+
+    pub fn get_layout_options(&self) -> Result<u32> {
+        let resp = self.usb_send(&[CMD_VIA_GET_KEYBOARD_VALUE, VIA_LAYOUT_OPTIONS])?;
+        if resp.len() < 6 {
+            anyhow::bail!("layout options response too short");
+        }
+        Ok(u32::from_be_bytes([resp[2], resp[3], resp[4], resp[5]]))
+    }
+
+    pub fn set_layout_options(&self, options: u32) -> Result<()> {
+        let bytes = options.to_be_bytes();
+        let _ = self.usb_send(&[
+            CMD_VIA_SET_KEYBOARD_VALUE,
+            VIA_LAYOUT_OPTIONS,
+            bytes[0],
+            bytes[1],
+            bytes[2],
+            bytes[3],
+        ])?;
+        Ok(())
     }
 
     /// Returns (vial_protocol: u32, keyboard_id: u64)

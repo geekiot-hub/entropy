@@ -47,6 +47,14 @@ pub struct CustomKeycode {
     pub title: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LayoutOption {
+    pub label: String,
+    /// Empty for boolean options; otherwise contains selectable values.
+    #[serde(default)]
+    pub choices: Vec<String>,
+}
+
 /// Full keyboard layout with multiple layers.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeyboardLayout {
@@ -62,6 +70,9 @@ pub struct KeyboardLayout {
     pub layer_names: Vec<String>,
     /// Custom keycodes from vial JSON: symbolic name, short button label, readable tooltip title.
     pub custom_keycodes: Vec<CustomKeycode>,
+    /// Vial `layouts.labels` options. Boolean entries have no choices; select entries store choices.
+    #[serde(default)]
+    pub layout_options: Vec<LayoutOption>,
     /// Whether the keyboard definition exposes runtime RGB controls.
     #[serde(default)]
     pub supports_rgb: bool,
@@ -118,7 +129,6 @@ fn parse_layer_names_from_json(json: &serde_json::Value) -> Vec<String> {
         json.get("layer_names"),
         json.get("layerNames"),
         json.get("layers"),
-        json.get("layouts").and_then(|v| v.get("labels")),
         json.get("layouts").and_then(|v| v.get("layer_names")),
         json.get("layouts").and_then(|v| v.get("layerNames")),
         json.get("vial").and_then(|v| v.get("layer_names")),
@@ -150,6 +160,47 @@ fn parse_layer_names_from_json(json: &serde_json::Value) -> Vec<String> {
     }
 
     vec![]
+}
+
+fn parse_layout_options_from_json(json: &serde_json::Value) -> Vec<LayoutOption> {
+    let Some(labels) = json
+        .get("layouts")
+        .and_then(|v| v.get("labels"))
+        .and_then(|v| v.as_array())
+    else {
+        return vec![];
+    };
+
+    labels
+        .iter()
+        .filter_map(|item| {
+            if let Some(label) = item.as_str() {
+                let label = label.trim();
+                if label.is_empty() {
+                    None
+                } else {
+                    Some(LayoutOption {
+                        label: label.to_string(),
+                        choices: vec![],
+                    })
+                }
+            } else if let Some(values) = item.as_array() {
+                let mut strings = values
+                    .iter()
+                    .filter_map(|v| v.as_str().map(|s| s.trim().to_string()))
+                    .filter(|s| !s.is_empty());
+                let label = strings.next()?;
+                let choices: Vec<String> = strings.collect();
+                if choices.is_empty() {
+                    None
+                } else {
+                    Some(LayoutOption { label, choices })
+                }
+            } else {
+                None
+            }
+        })
+        .collect()
 }
 
 impl KeyboardLayout {
@@ -333,6 +384,7 @@ impl KeyboardLayout {
         }
 
         let layer_names = parse_layer_names_from_json(json);
+        let layout_options = parse_layout_options_from_json(json);
 
         // Parse custom keycodes
         let custom_keycodes =
@@ -416,6 +468,7 @@ impl KeyboardLayout {
             encoder_layers: vec![],
             layer_names,
             custom_keycodes,
+            layout_options,
             supports_rgb,
             lighting_mode,
             firmware: FirmwareProtocol::Vial,

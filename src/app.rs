@@ -560,7 +560,7 @@ fn keycode_tooltip_with_macro_names(
     }
     keycode_tooltip(value, custom, layer_names)
 }
-use crate::keyboard::KeyboardLayout;
+use crate::keyboard::{KeyboardLayout, LayoutOption};
 use crate::keycode::{key_label_font_sizes, keycode_label_with_names, keycode_tooltip};
 use crate::keycode_picker::{egui_key_to_qmk, KeycodePicker, KeycodeTab};
 use egui::{Color32, FontId, RichText, Sense, Stroke, Vec2};
@@ -612,6 +612,8 @@ struct ConnectResult {
     layer_led_settings: LayerLedSettingsState,
     /// Runtime RGB settings, if supported by the current Vial/QMK lighting backend
     rgb_settings: RgbSettingsState,
+    /// Vial layout/display option bitfield, if exposed by `layouts.labels`
+    layout_options_value: Option<u32>,
     /// Key Override entries
     key_override_entries: Vec<KeyOverrideEntry>,
     /// Alt Repeat entries
@@ -1528,6 +1530,7 @@ enum SettingsTab {
     TapHold,
     OneShotKeys,
     GraveEscape,
+    LayoutOptions,
     Combo,
     KeyOverrides,
     AltRepeat,
@@ -1608,6 +1611,7 @@ pub struct EntropyApp {
     alt_repeat_pick_target: Option<AltRepeatPickField>,
     last_single_instance_signal: String,
     rgb_settings: RgbSettingsState,
+    layout_options_value: Option<u32>,
     encoder_visibility: Vec<bool>,
     combo_term_dirty: bool,
     combo_visible_count: usize,
@@ -1713,6 +1717,7 @@ impl EntropyApp {
             alt_repeat_pick_target: None,
             last_single_instance_signal: read_single_instance_signal(),
             rgb_settings: RgbSettingsState::default(),
+            layout_options_value: None,
             encoder_visibility: vec![],
             combo_term_dirty: false,
             combo_visible_count: 1,
@@ -1784,6 +1789,7 @@ impl EntropyApp {
         self.grave_escape_settings = GraveEscapeSettingsState::default();
         self.layer_led_settings = LayerLedSettingsState::default();
         self.rgb_settings = RgbSettingsState::default();
+        self.layout_options_value = None;
         self.status_msg = status_msg.into();
     }
 
@@ -1867,6 +1873,7 @@ impl EntropyApp {
         self.alt_repeat_visible_count = 1;
         self.alt_repeat_pick_target = None;
         self.rgb_settings = RgbSettingsState::default();
+        self.layout_options_value = None;
         self.encoder_visibility.clear();
         self.key_override_entries.clear();
         self.key_override_names.clear();
@@ -2255,6 +2262,18 @@ impl EntropyApp {
                             leds
                         };
 
+                        let layout_options_value = if layout.layout_options.is_empty() {
+                            None
+                        } else {
+                            match dev_conn.get_layout_options() {
+                                Ok(value) => Some(value),
+                                Err(e) => {
+                                    log::warn!("get_layout_options: {e}");
+                                    None
+                                }
+                            }
+                        };
+
                         let rgb_settings = if layer_led_settings.supported && layout.lighting_mode.is_none() {
                             // hpd3-style Ergohaven boards use QMK RGBLight internally only as a
                             // transport for per-layer LEDs. If the Vial definition does not
@@ -2365,6 +2384,7 @@ impl EntropyApp {
                             grave_escape_settings,
                             layer_led_settings,
                             rgb_settings,
+                            layout_options_value,
                             key_override_entries,
                             alt_repeat_entries,
                             vial_features,
@@ -2401,6 +2421,7 @@ impl EntropyApp {
                                 encoder_layers: vec![],
                                 layer_names: vec![],
                                 custom_keycodes: vec![],
+                                layout_options: vec![],
                                 supports_rgb: false,
                                 lighting_mode: None,
                                 firmware: FirmwareProtocol::Zmk,
@@ -2424,6 +2445,7 @@ impl EntropyApp {
                                 grave_escape_settings: GraveEscapeSettingsState::default(),
                                 layer_led_settings: LayerLedSettingsState::default(),
                                 rgb_settings: RgbSettingsState::default(),
+                                layout_options_value: None,
                                 key_override_entries: vec![],
                                 alt_repeat_entries: vec![],
                                 vial_features: VialFeatureSupport::default(),
@@ -2491,6 +2513,7 @@ impl EntropyApp {
                             grave_escape_settings: GraveEscapeSettingsState::default(),
                             layer_led_settings: LayerLedSettingsState::default(),
                             rgb_settings: RgbSettingsState::default(),
+                            layout_options_value: None,
                             key_override_entries: vec![],
                             alt_repeat_entries: vec![],
                             vial_features: VialFeatureSupport::default(),
@@ -2575,6 +2598,7 @@ impl EntropyApp {
                 self.grave_escape_settings = r.grave_escape_settings;
                 self.layer_led_settings = r.layer_led_settings;
                 self.rgb_settings = r.rgb_settings;
+                self.layout_options_value = r.layout_options_value;
                 let highest_used_combo = self
                     .combo_entries
                     .iter()
@@ -3081,6 +3105,9 @@ impl EntropyApp {
             }
             SettingsTab::GraveEscape => {
                 self.draw_grave_escape_settings_page(ui, content_rect);
+            }
+            SettingsTab::LayoutOptions => {
+                self.draw_layout_options_settings_page(ui, content_rect);
             }
             SettingsTab::Combo => {
                 self.draw_combo_settings_page(ui, ctx, content_rect);
@@ -3954,6 +3981,298 @@ impl EntropyApp {
                         }
                     },
                 );
+            });
+        });
+    }
+
+    fn draw_layout_options_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
+        const VISIBLE_ROWS: usize = 6;
+        const CONTENT_WIDTH: f32 = 470.0;
+        const ROW_CONTENT_WIDTH: f32 = 452.0;
+        const ROW_HEIGHT: f32 = 54.0;
+        const DROPDOWN_WIDTH: f32 = 220.0;
+
+        let dark = ui.visuals().dark_mode;
+        let hid_ready = {
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                self.hid_device.is_some()
+            }
+            #[cfg(target_arch = "wasm32")]
+            {
+                false
+            }
+        };
+        let options = self
+            .layout
+            .as_ref()
+            .map(|layout| layout.layout_options.clone())
+            .unwrap_or_default();
+
+        ui.allocate_ui_at_rect(content_rect, |ui| {
+            ui.vertical_centered(|ui| {
+                ui.add_space(18.0);
+                ui.label(RichText::new("Layout Options").size(18.0).strong());
+                ui.add_space(6.0);
+                ui.label(
+                    RichText::new("Configure firmware layout and display presets")
+                        .size(13.0)
+                        .color(app_muted_text(dark)),
+                );
+                ui.add_space(24.0);
+
+                if options.is_empty() {
+                    crate::ui_style::modal_empty_state(
+                        ui,
+                        "No layout options are exposed by this keyboard",
+                        None,
+                    );
+                    return;
+                }
+
+                if !hid_ready || self.layout_options_value.is_none() {
+                    crate::ui_style::modal_empty_state(
+                        ui,
+                        "Connect a Vial keyboard to edit layout options",
+                        None,
+                    );
+                    return;
+                }
+
+                let total_rows = options.len();
+                let visible_rows = total_rows.min(VISIBLE_ROWS).max(1);
+                let list_height = ROW_HEIGHT * visible_rows as f32;
+                let content_height = ROW_HEIGHT * total_rows as f32;
+                let max_offset = (content_height - list_height).max(0.0);
+                let offset_id = ui.id().with("layout_options_smooth_offset");
+                let target_id = ui.id().with("layout_options_smooth_target");
+                let mut scroll_offset = ui
+                    .ctx()
+                    .data_mut(|d| d.get_persisted::<f32>(offset_id).unwrap_or(0.0))
+                    .clamp(0.0, max_offset);
+                let mut target_offset = ui
+                    .ctx()
+                    .data_mut(|d| d.get_persisted::<f32>(target_id).unwrap_or(scroll_offset))
+                    .clamp(0.0, max_offset);
+                let (viewport, viewport_resp) = ui.allocate_exact_size(
+                    egui::vec2(CONTENT_WIDTH, list_height),
+                    Sense::hover(),
+                );
+                let track_width = 6.0;
+                let track_rect = egui::Rect::from_min_max(
+                    egui::pos2(viewport.right() - track_width, viewport.top()),
+                    egui::pos2(viewport.right(), viewport.bottom()),
+                );
+                let scrollbar_resp = if max_offset > 0.0 {
+                    Some(ui.interact(
+                        track_rect.expand2(egui::vec2(5.0, 0.0)),
+                        ui.id().with("layout_options_scrollbar"),
+                        Sense::click_and_drag(),
+                    ))
+                } else {
+                    None
+                };
+
+                let scroll_delta = if viewport_resp.hovered() {
+                    ui.input(|i| {
+                        if i.smooth_scroll_delta.y.abs() > 0.0 {
+                            i.smooth_scroll_delta.y
+                        } else {
+                            i.raw_scroll_delta.y
+                        }
+                    })
+                } else {
+                    0.0
+                };
+                if scroll_delta.abs() > 0.0 && max_offset > 0.0 {
+                    target_offset = (target_offset - scroll_delta * 0.72).clamp(0.0, max_offset);
+                }
+
+                let handle_height = if max_offset > 0.0 {
+                    (list_height / content_height * viewport.height()).clamp(42.0, viewport.height())
+                } else {
+                    viewport.height()
+                };
+                if let Some(resp) = &scrollbar_resp {
+                    if (resp.dragged() || resp.clicked()) && max_offset > 0.0 {
+                        if let Some(pointer_pos) = ui.input(|i| i.pointer.interact_pos()) {
+                            let travel = (track_rect.height() - handle_height).max(1.0);
+                            let t = ((pointer_pos.y - track_rect.top() - handle_height / 2.0)
+                                / travel)
+                                .clamp(0.0, 1.0);
+                            target_offset = t * max_offset;
+                            scroll_offset = target_offset;
+                        }
+                    }
+                }
+
+                if (scroll_offset - target_offset).abs() > 0.35 {
+                    scroll_offset += (target_offset - scroll_offset) * 0.42;
+                    ui.ctx().request_repaint();
+                } else {
+                    scroll_offset = target_offset;
+                }
+                scroll_offset = scroll_offset.clamp(0.0, max_offset);
+                target_offset = target_offset.clamp(0.0, max_offset);
+                ui.ctx().data_mut(|d| {
+                    d.insert_persisted(offset_id, scroll_offset);
+                    d.insert_persisted(target_id, target_offset);
+                });
+
+                let values = Self::unpack_layout_option_values(
+                    &options,
+                    self.layout_options_value.unwrap_or(0),
+                );
+                let first_visible_row = (scroll_offset / ROW_HEIGHT).floor() as usize;
+                let row_y_offset = scroll_offset - first_visible_row as f32 * ROW_HEIGHT;
+                let last_visible_row = (first_visible_row + visible_rows + 1).min(total_rows);
+                let visible_row_count = last_visible_row.saturating_sub(first_visible_row);
+                let content_rect = egui::Rect::from_min_size(
+                    egui::pos2(viewport.left(), viewport.top() - row_y_offset),
+                    egui::vec2(CONTENT_WIDTH, ROW_HEIGHT * visible_row_count as f32),
+                );
+
+                ui.allocate_ui_at_rect(content_rect, |ui| {
+                    ui.set_clip_rect(viewport);
+                    ui.set_min_size(content_rect.size());
+                    ui.spacing_mut().item_spacing.y = 0.0;
+                    for row_idx in first_visible_row..last_visible_row {
+                        let option = &options[row_idx];
+                        if option.choices.is_empty() {
+                            let mut enabled = values.get(row_idx).copied().unwrap_or(0) != 0;
+                            crate::ui_style::settings_list_row_with_tooltip(
+                                ui,
+                                ROW_CONTENT_WIDTH,
+                                ROW_HEIGHT,
+                                &option.label,
+                                true,
+                                Some("Toggle firmware layout/display option"),
+                                46.0,
+                                |ui| {
+                                    let resp = crate::ui_style::settings_switch(ui, &mut enabled);
+                                    if resp.changed() {
+                                        self.set_layout_option_value(row_idx, u32::from(enabled));
+                                    }
+                                },
+                            );
+                        } else {
+                            let selected_idx = values
+                                .get(row_idx)
+                                .copied()
+                                .unwrap_or(0)
+                                .min(option.choices.len().saturating_sub(1) as u32)
+                                as usize;
+                            let selected_text = option
+                                .choices
+                                .get(selected_idx)
+                                .map(|s| s.as_str())
+                                .unwrap_or("Unknown");
+                            let tooltip = format!("Choose firmware preset for {}", option.label);
+                            crate::ui_style::settings_list_row_with_tooltip(
+                                ui,
+                                ROW_CONTENT_WIDTH,
+                                ROW_HEIGHT,
+                                &option.label,
+                                true,
+                                Some(&tooltip),
+                                DROPDOWN_WIDTH,
+                                |ui| {
+                                    let dropdown_id = ui.make_persistent_id((
+                                        "layout_option_dropdown",
+                                        row_idx,
+                                    ));
+                                    let dropdown_resp = crate::ui_style::modern_dropdown_button(
+                                        ui,
+                                        dropdown_id,
+                                        selected_text,
+                                        ui.visuals().text_color(),
+                                        DROPDOWN_WIDTH,
+                                    );
+
+                                    egui::popup_below_widget(
+                                        ui,
+                                        dropdown_id,
+                                        &dropdown_resp,
+                                        egui::PopupCloseBehavior::CloseOnClickOutside,
+                                        |ui| {
+                                            ui.set_min_width(DROPDOWN_WIDTH);
+                                            ui.spacing_mut().item_spacing = Vec2::new(0.0, 2.0);
+                                            egui::ScrollArea::vertical()
+                                                .id_salt(("layout_option_dropdown_scroll", row_idx))
+                                                .max_height(142.0)
+                                                .auto_shrink([false, true])
+                                                .show(ui, |ui| {
+                                                    for (choice_idx, label) in
+                                                        option.choices.iter().enumerate()
+                                                    {
+                                                        let selected = choice_idx == selected_idx;
+                                                        let (option_rect, option_resp) =
+                                                            ui.allocate_exact_size(
+                                                                Vec2::new(DROPDOWN_WIDTH, 28.0),
+                                                                Sense::click(),
+                                                            );
+                                                        if option_resp.hovered() {
+                                                            ui.ctx().set_cursor_icon(
+                                                                egui::CursorIcon::PointingHand,
+                                                            );
+                                                        }
+                                                        let option_fill = if selected {
+                                                            if dark {
+                                                                Color32::from_rgb(58, 58, 61)
+                                                            } else {
+                                                                Color32::from_rgb(236, 236, 238)
+                                                            }
+                                                        } else if option_resp.hovered() {
+                                                            crate::ui_style::hover_fill(dark)
+                                                        } else {
+                                                            Color32::TRANSPARENT
+                                                        };
+                                                        ui.painter()
+                                                            .rect_filled(option_rect, 7.0, option_fill);
+                                                        ui.painter().text(
+                                                            egui::pos2(
+                                                                option_rect.left() + 10.0,
+                                                                option_rect.center().y,
+                                                            ),
+                                                            egui::Align2::LEFT_CENTER,
+                                                            label,
+                                                            FontId::proportional(12.0),
+                                                            if selected {
+                                                                ui.visuals().text_color()
+                                                            } else {
+                                                                app_muted_text(dark)
+                                                            },
+                                                        );
+                                                        if option_resp.clicked() {
+                                                            self.set_layout_option_value(
+                                                                row_idx,
+                                                                choice_idx as u32,
+                                                            );
+                                                            ui.memory_mut(|m| m.close_popup());
+                                                        }
+                                                    }
+                                                });
+                                        },
+                                    );
+                                },
+                            );
+                        }
+                    }
+                });
+
+                if max_offset > 0.0 {
+                    let track_hovered = scrollbar_resp
+                        .as_ref()
+                        .map(|resp| resp.hovered() || resp.dragged())
+                        .unwrap_or(false);
+                    crate::ui_style::paint_floating_scrollbar_handle(
+                        ui,
+                        track_rect,
+                        handle_height,
+                        scroll_offset / max_offset,
+                        track_hovered,
+                    );
+                }
             });
         });
     }
@@ -5772,6 +6091,72 @@ impl EntropyApp {
     fn open_grave_escape_settings_page(&mut self) {
         self.settings_tab = SettingsTab::GraveEscape;
         self.main_menu_tab = MainMenuTab::Settings;
+    }
+
+    fn open_layout_options_settings_page(&mut self) {
+        self.settings_tab = SettingsTab::LayoutOptions;
+        self.main_menu_tab = MainMenuTab::Settings;
+    }
+
+    fn layout_option_width(option: &LayoutOption) -> usize {
+        if option.choices.is_empty() {
+            1
+        } else {
+            let max_value = option.choices.len().saturating_sub(1).max(1);
+            (usize::BITS - max_value.leading_zeros()) as usize
+        }
+    }
+
+    fn unpack_layout_option_values(options: &[LayoutOption], packed: u32) -> Vec<u32> {
+        let mut values = vec![0; options.len()];
+        let mut remaining = packed;
+        for (idx, option) in options.iter().enumerate().rev() {
+            let width = Self::layout_option_width(option);
+            let mask = if width >= 32 {
+                u32::MAX
+            } else {
+                (1u32 << width) - 1
+            };
+            values[idx] = remaining & mask;
+            remaining >>= width.min(31);
+        }
+        values
+    }
+
+    fn pack_layout_option_values(options: &[LayoutOption], values: &[u32]) -> u32 {
+        let mut packed = 0u32;
+        for (idx, option) in options.iter().enumerate() {
+            let width = Self::layout_option_width(option);
+            let mask = if width >= 32 {
+                u32::MAX
+            } else {
+                (1u32 << width) - 1
+            };
+            packed = (packed << width.min(31)) | (values.get(idx).copied().unwrap_or(0) & mask);
+        }
+        packed
+    }
+
+    fn set_layout_option_value(&mut self, option_idx: usize, value: u32) {
+        let Some(options) = self.layout.as_ref().map(|layout| layout.layout_options.clone()) else {
+            return;
+        };
+        if option_idx >= options.len() {
+            return;
+        }
+        let mut values = Self::unpack_layout_option_values(&options, self.layout_options_value.unwrap_or(0));
+        if let Some(slot) = values.get_mut(option_idx) {
+            *slot = value;
+        }
+        let packed = Self::pack_layout_option_values(&options, &values);
+        self.layout_options_value = Some(packed);
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(hid) = &self.hid_device {
+            if let Err(e) = hid.set_layout_options(packed) {
+                self.status_msg = format!("Failed to save layout option: {e}");
+                log::warn!("set_layout_options failed: {e}");
+            }
+        }
     }
 
     fn close_top_dropdowns(&self, ctx: &egui::Context) {
@@ -10268,6 +10653,7 @@ impl EntropyApp {
                 let show_rgb_item = rgb_available_for_menu;
                 let show_layer_leds_item = layer_leds_available_for_menu;
                 let show_encoders_item = layout.encoder_count() > 0;
+                let show_layout_options_item = !layout.layout_options.is_empty();
                 let show_magic_item = self.magic_settings.supported;
                 let show_tap_hold_item = self.tap_hold_settings.supported;
                 let show_one_shot_item = self.one_shot_settings.supported;
@@ -10275,6 +10661,7 @@ impl EntropyApp {
                     + show_rgb_item as usize
                     + show_layer_leds_item as usize
                     + show_encoders_item as usize
+                    + show_layout_options_item as usize
                     + show_magic_item as usize
                     + show_tap_hold_item as usize
                     + show_one_shot_item as usize;
@@ -10307,6 +10694,7 @@ impl EntropyApp {
                         rgb_hovered,
                         layer_leds_hovered,
                         encoders_hovered,
+                        layout_options_hovered,
                         magic_hovered,
                         tap_hold_hovered,
                         one_shot_hovered,
@@ -10372,6 +10760,16 @@ impl EntropyApp {
                                             true,
                                             self.main_menu_tab == MainMenuTab::Settings
                                                 && self.settings_tab == SettingsTab::Encoders,
+                                        )
+                                    });
+                                    let layout_options_resp = show_layout_options_item.then(|| {
+                                        top_dropdown_item(
+                                            ui,
+                                            item_width,
+                                            "Layout Options",
+                                            true,
+                                            self.main_menu_tab == MainMenuTab::Settings
+                                                && self.settings_tab == SettingsTab::LayoutOptions,
                                         )
                                     });
                                     let magic_resp = show_magic_item.then(|| {
@@ -10442,6 +10840,10 @@ impl EntropyApp {
                                         self.settings_tab = SettingsTab::Encoders;
                                         self.main_menu_tab = MainMenuTab::Settings;
                                     }
+                                    if layout_options_resp.as_ref().map(|r| r.clicked()).unwrap_or(false) {
+                                        self.close_top_dropdowns(ui.ctx());
+                                        self.open_layout_options_settings_page();
+                                    }
                                     if magic_resp.as_ref().map(|r| r.clicked()).unwrap_or(false) {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.open_magic_settings_page();
@@ -10461,6 +10863,7 @@ impl EntropyApp {
                                         rgb_resp.as_ref().map(|resp| resp.hovered()).unwrap_or(false),
                                         layer_leds_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         encoders_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
+                                        layout_options_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         magic_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         tap_hold_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         one_shot_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
@@ -10473,6 +10876,7 @@ impl EntropyApp {
                                                 .unwrap_or(false)
                                             || layer_leds_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
                                             || encoders_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
+                                            || layout_options_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
                                             || magic_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
                                             || tap_hold_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
                                             || one_shot_resp.as_ref().map(|r| r.clicked()).unwrap_or(false),
@@ -10492,6 +10896,7 @@ impl EntropyApp {
                                     || rgb_hovered
                                     || layer_leds_hovered
                                     || encoders_hovered
+                                    || layout_options_hovered
                                     || magic_hovered
                                     || tap_hold_hovered
                                     || one_shot_hovered
