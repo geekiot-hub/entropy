@@ -590,6 +590,34 @@ fn zmk_mod_mask_to_vial_base(mask: u32) -> Option<u16> {
     }
 }
 
+fn zmk_modifier_usage_to_vial_osm(usage: u32) -> Option<u16> {
+    match usage {
+        0x0007_00E0 => Some(0x52A2),
+        0x0007_00E1 => Some(0x52A1),
+        0x0007_00E2 => Some(0x52A4),
+        0x0007_00E3 => Some(0x52A8),
+        0x0007_00E4 => Some(0x52B2),
+        0x0007_00E5 => Some(0x52B1),
+        0x0007_00E6 => Some(0x52B4),
+        0x0007_00E7 => Some(0x52B8),
+        _ => None,
+    }
+}
+
+fn zmk_modifier_usage_to_vial_mt_base(usage: u32) -> Option<u16> {
+    match usage {
+        0x0007_00E0 => Some(0x2100),
+        0x0007_00E1 => Some(0x2200),
+        0x0007_00E2 => Some(0x2400),
+        0x0007_00E3 => Some(0x2800),
+        0x0007_00E4 => Some(0x3100),
+        0x0007_00E5 => Some(0x3200),
+        0x0007_00E6 => Some(0x3400),
+        0x0007_00E7 => Some(0x3800),
+        _ => None,
+    }
+}
+
 fn zmk_hid_usage_to_vial_value(usage: u32) -> Option<u16> {
     let mod_mask = (usage >> 24) & 0xFF;
     let raw = usage & 0x00FF_FFFF;
@@ -685,37 +713,62 @@ pub fn zmk_binding_label(binding: &ZmkBinding, behaviors: &[BehaviorInfo], layer
         // Simple key — just show the key label
         "Key Press" => key(p1),
         // Transparent — like Vial TRNS
-        "Transparent" => "TRNS".to_string(),
+        "Transparent" => crate::keycode::keycode_label_with_names(0x0001, &[], layer_names),
         // None / no key
-        "None" => "\u{2715}".to_string(),
+        "None" => crate::keycode::keycode_label_with_names(0x0000, &[], layer_names),
         // Grave/Escape
-        "Grave/Escape" => "GEsc".to_string(),
+        "Grave/Escape" => crate::keycode::keycode_label_with_names(0x7C16, &[], layer_names),
         // Key Repeat
-        "Key Repeat" => "Repeat".to_string(),
+        "Key Repeat" => crate::keycode::keycode_label_with_names(0x7C79, &[], layer_names),
         // Key Toggle
         "Key Toggle" => format!("KT\n{}", key(p1)),
         // Layer operations
         "Momentary Layer"  => layer_label("MO", p1),
         "Toggle Layer"     => layer_label("TG", p1),
         "To Layer"         => layer_label("TO", p1),
-        "Sticky Layer"     => layer_label("SL", p1),
+        "Sticky Layer"     => layer_label("OSL", p1),
         // Layer-Tap: tap=key, hold=layer
-        "Layer-Tap"        => format!("{}\n{}", layer_label("LT", p1), key(p2)),
+        "Layer-Tap"        => {
+            if p1 <= 0x0F {
+                if let Some(tap) = zmk_hid_usage_to_vial_value(p2).filter(|tap| *tap <= 0xFF) {
+                    crate::keycode::keycode_label_with_names(0x4000 | ((p1 as u16) << 8) | tap, &[], layer_names)
+                } else {
+                    format!("{}\n{}", layer_label("LT", p1), key(p2))
+                }
+            } else {
+                format!("{}\n{}", layer_label("LT", p1), key(p2))
+            }
+        }
         // Mod-Tap: tap=key, hold=mod
-        "Mod-Tap"          => format!("MT\n{}", key(p2)),
+        "Mod-Tap"          => {
+            if let (Some(base), Some(tap)) = (
+                zmk_modifier_usage_to_vial_mt_base(p1),
+                zmk_hid_usage_to_vial_value(p2).filter(|tap| *tap <= 0xFF),
+            ) {
+                crate::keycode::keycode_label_with_names(base | tap, &[], layer_names)
+            } else {
+                format!("MT\n{}", key(p2))
+            }
+        }
         // Sticky Key (one-shot)
-        "Sticky Key"       => format!("SK\n{}", key(p1)),
+        "Sticky Key"       => {
+            if let Some(value) = zmk_modifier_usage_to_vial_osm(p1) {
+                crate::keycode::keycode_label_with_names(value, &[], layer_names)
+            } else {
+                format!("SK\n{}", key(p1))
+            }
+        }
         // Caps Word
-        "Caps Word"        => "CW".to_string(),
+        "Caps Word"        => crate::keycode::keycode_label_with_names(0x7C73, &[], layer_names),
         // Reset / Bootloader
         "Reset"            => "Restart".to_string(),
-        "Bootloader"       => "Boot".to_string(),
+        "Bootloader"       => crate::keycode::keycode_label_with_names(0x7C00, &[], layer_names),
         // Studio Unlock
         "Studio Unlock"    => "Unlock".to_string(),
         // Bluetooth — p1=action, p2=profile index for SEL
         "Bluetooth" => match p1 {
             0 => "BT\nClear".to_string(),
-            1 => "BT\nAll".to_string(),
+            1 => "BT\nClear All".to_string(),
             2 => "BT\nNext".to_string(),
             3 => "BT\nPrev".to_string(),
             4 => format!("BT\n{}", p2),
@@ -729,8 +782,8 @@ pub fn zmk_binding_label(binding: &ZmkBinding, behaviors: &[BehaviorInfo], layer
         },
         // External Power
         "External Power" => match p1 {
-            0 => "Pwr\nOff".to_string(),
-            _ => "Pwr\nOn".to_string(),
+            0 => "Power\nOff".to_string(),
+            _ => "Power\nOn".to_string(),
         },
         // Mouse
         "Mouse Key Press"  => format!("Ms\n{}", key(p1)),
