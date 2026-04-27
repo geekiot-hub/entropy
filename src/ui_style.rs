@@ -1,7 +1,21 @@
 use egui::{Color32, FontId, RichText, Sense, Stroke, Ui, Vec2};
+use std::sync::atomic::{AtomicU32, Ordering};
+
+const DEFAULT_ACCENT_RGB: u32 = (196 << 16) | (132 << 8) | 144;
+static ACCENT_RGB: AtomicU32 = AtomicU32::new(DEFAULT_ACCENT_RGB);
+
+pub fn set_accent(color: Color32) {
+    let rgb = ((color.r() as u32) << 16) | ((color.g() as u32) << 8) | color.b() as u32;
+    ACCENT_RGB.store(rgb, Ordering::Relaxed);
+}
 
 pub fn accent() -> Color32 {
-    Color32::from_rgb(196, 132, 144)
+    let rgb = ACCENT_RGB.load(Ordering::Relaxed);
+    Color32::from_rgb(
+        ((rgb >> 16) & 0xff) as u8,
+        ((rgb >> 8) & 0xff) as u8,
+        (rgb & 0xff) as u8,
+    )
 }
 
 pub fn panel_fill(dark: bool) -> Color32 {

@@ -40,6 +40,97 @@ fn read_single_instance_signal() -> String {
         .to_string()
 }
 
+fn app_settings_path() -> std::path::PathBuf {
+    let dir = dirs::config_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join("entropy");
+    std::fs::create_dir_all(&dir).ok();
+    dir.join("app_settings.json")
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+enum AppAccentColor {
+    Rose,
+    Violet,
+    Blue,
+    Amber,
+    Copper,
+    Slate,
+}
+
+impl AppAccentColor {
+    const ALL: [Self; 6] = [
+        Self::Rose,
+        Self::Violet,
+        Self::Blue,
+        Self::Amber,
+        Self::Copper,
+        Self::Slate,
+    ];
+
+    fn name(self) -> &'static str {
+        match self {
+            Self::Rose => "Rose",
+            Self::Violet => "Violet",
+            Self::Blue => "Blue",
+            Self::Amber => "Amber",
+            Self::Copper => "Copper",
+            Self::Slate => "Slate",
+        }
+    }
+
+    fn color(self) -> Color32 {
+        match self {
+            Self::Rose => Color32::from_rgb(196, 132, 144),
+            Self::Violet => Color32::from_rgb(166, 135, 214),
+            Self::Blue => Color32::from_rgb(116, 154, 212),
+            Self::Amber => Color32::from_rgb(210, 156, 92),
+            Self::Copper => Color32::from_rgb(192, 116, 88),
+            Self::Slate => Color32::from_rgb(142, 148, 160),
+        }
+    }
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+struct AppSettings {
+    #[serde(default)]
+    minimize_to_tray_on_close: bool,
+    #[serde(default = "default_app_accent_color")]
+    accent_color: AppAccentColor,
+}
+
+fn default_app_accent_color() -> AppAccentColor {
+    AppAccentColor::Rose
+}
+
+impl Default for AppSettings {
+    fn default() -> Self {
+        Self {
+            minimize_to_tray_on_close: false,
+            accent_color: default_app_accent_color(),
+        }
+    }
+}
+
+fn load_app_settings() -> AppSettings {
+    let path = app_settings_path();
+    std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|data| serde_json::from_str::<AppSettings>(&data).ok())
+        .unwrap_or_default()
+}
+
+fn save_app_settings(settings: &AppSettings) {
+    match serde_json::to_string_pretty(settings) {
+        Ok(json) => {
+            if let Err(e) = std::fs::write(app_settings_path(), json) {
+                log::warn!("save_app_settings failed: {e}");
+            }
+        }
+        Err(e) => log::warn!("save_app_settings serialize failed: {e}"),
+    }
+}
+
 fn load_saved_layer_names(device_name: &str) -> Option<Vec<String>> {
     let path = layer_names_path(device_name);
     let data = std::fs::read_to_string(&path).ok()?;
@@ -1438,6 +1529,7 @@ enum ComboPickField {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum SettingsTab {
+    AppSettings,
     MatrixTester,
     UniversalSymbolsSetup,
     AutoShift,
@@ -1499,6 +1591,9 @@ pub struct EntropyApp {
     /// Stack of layers to return to on right-click (last = most recent)
     jump_back_stack: Vec<usize>,
     dark_mode: bool,
+    app_settings: AppSettings,
+    #[cfg(target_os = "windows")]
+    tray_icon: Option<tray_icon::TrayIcon>,
     main_menu_tab: MainMenuTab,
     combo_entries: Vec<ComboEntry>,
     combo_names: Vec<String>,
@@ -1566,6 +1661,9 @@ pub struct EntropyApp {
 
 impl EntropyApp {
     pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+        let app_settings = load_app_settings();
+        crate::ui_style::set_accent(app_settings.accent_color.color());
+
         let mut app = Self {
             #[cfg(not(target_arch = "wasm32"))]
             hid_device: None,
@@ -1596,6 +1694,9 @@ impl EntropyApp {
             keycode_picker: KeycodePicker::default(),
             status_msg: String::new(),
             dark_mode: false,
+            app_settings,
+            #[cfg(target_os = "windows")]
+            tray_icon: None,
             main_menu_tab: MainMenuTab::Keyboard,
             combo_entries: vec![],
             combo_names: vec![],
@@ -2956,6 +3057,9 @@ impl EntropyApp {
         );
 
         match self.settings_tab {
+            SettingsTab::AppSettings => {
+                self.draw_app_settings_page(ui, content_rect);
+            }
             SettingsTab::MatrixTester => {
                 self.draw_matrix_tester_settings(ui, layout, content_rect, dark);
             }
@@ -3018,6 +3122,95 @@ impl EntropyApp {
             FontId::proportional(11.0),
             hint_color,
         );
+    }
+
+    fn draw_app_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
+        let dark = ui.visuals().dark_mode;
+        let content_width = 470.0_f32;
+        ui.allocate_ui_at_rect(content_rect, |ui| {
+            ui.vertical_centered(|ui| {
+                ui.add_space(18.0);
+                ui.label(RichText::new("App Settings").size(18.0).strong());
+                ui.add_space(6.0);
+                ui.label(
+                    RichText::new("Configure Entropy behavior and visual accent")
+                        .size(13.0)
+                        .color(app_muted_text(dark)),
+                );
+                ui.add_space(24.0);
+
+                let mut minimize_to_tray = self.app_settings.minimize_to_tray_on_close;
+                crate::ui_style::settings_list_row_with_tooltip(
+                    ui,
+                    content_width,
+                    54.0,
+                    "Close to tray",
+                    true,
+                    Some("Hide Entropy in the system tray instead of quitting when the window is closed"),
+                    70.0,
+                    |ui| {
+                        let _ = crate::ui_style::settings_switch(ui, &mut minimize_to_tray);
+                    },
+                );
+                if minimize_to_tray != self.app_settings.minimize_to_tray_on_close {
+                    self.app_settings.minimize_to_tray_on_close = minimize_to_tray;
+                    if !minimize_to_tray {
+                        #[cfg(target_os = "windows")]
+                        {
+                            self.tray_icon = None;
+                        }
+                    }
+                    save_app_settings(&self.app_settings);
+                }
+
+                let mut selected_accent = self.app_settings.accent_color;
+                crate::ui_style::settings_list_row_with_tooltip(
+                    ui,
+                    content_width,
+                    54.0,
+                    "Accent color",
+                    true,
+                    Some("Choose the color used for active states and highlights"),
+                    218.0,
+                    |ui| {
+                        ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing.x = 7.0;
+                            for accent in AppAccentColor::ALL {
+                                let color = accent.color();
+                                let selected = accent == selected_accent;
+                                let (rect, resp) = ui.allocate_exact_size(
+                                    Vec2::new(26.0, 26.0),
+                                    egui::Sense::click(),
+                                );
+                                if resp.hovered() {
+                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                }
+                                if resp.clicked() {
+                                    selected_accent = accent;
+                                }
+                                let stroke = if selected {
+                                    Stroke::new(2.0, color)
+                                } else {
+                                    crate::ui_style::modal_outline_stroke(dark)
+                                };
+                                ui.painter().circle_filled(rect.center(), 8.5, color);
+                                ui.painter().circle_stroke(rect.center(), 11.0, stroke);
+                                resp.on_hover_text(accent.name());
+                            }
+                        });
+                    },
+                );
+                if selected_accent != self.app_settings.accent_color {
+                    self.app_settings.accent_color = selected_accent;
+                    crate::ui_style::set_accent(selected_accent.color());
+                    #[cfg(target_os = "windows")]
+                    {
+                        self.tray_icon = None;
+                    }
+                    save_app_settings(&self.app_settings);
+                }
+            });
+        });
     }
 
     fn draw_universal_symbols_setup_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
@@ -4657,6 +4850,10 @@ impl eframe::App for EntropyApp {
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.handle_close_to_tray(ctx);
+        #[cfg(target_os = "windows")]
+        self.poll_tray_events(ctx);
+
         let combo_capture_open_at_frame_start = self.combo_capture_open;
         let keyboard_input_wanted_at_frame_start = ctx.wants_keyboard_input();
         let modal_or_popup_open_at_frame_start = self.keycode_picker.open
@@ -5556,6 +5753,11 @@ impl EntropyApp {
         self.main_menu_tab = MainMenuTab::Settings;
     }
 
+    fn open_app_settings_page(&mut self) {
+        self.settings_tab = SettingsTab::AppSettings;
+        self.main_menu_tab = MainMenuTab::Settings;
+    }
+
     fn open_universal_symbols_setup_page(&mut self) {
         self.settings_tab = SettingsTab::UniversalSymbolsSetup;
         self.main_menu_tab = MainMenuTab::Settings;
@@ -5637,6 +5839,7 @@ impl EntropyApp {
         }
         self.last_single_instance_signal = signal;
         self.status_msg = "Entropy refreshed from a repeated launch".into();
+        self.restore_from_tray(ctx);
         self.rescan_and_autoselect_device();
         if let Some(device_idx) = self.selected_device {
             if !matches!(self.connect_state, ConnectState::Loading(_)) {
@@ -5644,6 +5847,72 @@ impl EntropyApp {
             }
         }
         ctx.request_repaint();
+    }
+
+    fn restore_from_tray(&mut self, ctx: &egui::Context) {
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+    }
+
+    fn handle_close_to_tray(&mut self, ctx: &egui::Context) {
+        if !self.app_settings.minimize_to_tray_on_close {
+            return;
+        }
+        if !ctx.input(|i| i.viewport().close_requested()) {
+            return;
+        }
+        ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+        #[cfg(target_os = "windows")]
+        self.ensure_tray_icon();
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+        self.status_msg = "Entropy is running in the tray".into();
+    }
+
+    #[cfg(target_os = "windows")]
+    fn ensure_tray_icon(&mut self) {
+        if self.tray_icon.is_some() {
+            return;
+        }
+        let mut rgba = Vec::with_capacity(16 * 16 * 4);
+        let accent = app_accent();
+        for y in 0..16 {
+            for x in 0..16 {
+                let inside = (3..=12).contains(&x) && (3..=12).contains(&y);
+                let alpha = if inside { 255 } else { 0 };
+                rgba.extend_from_slice(&[accent.r(), accent.g(), accent.b(), alpha]);
+            }
+        }
+        let Ok(icon) = tray_icon::Icon::from_rgba(rgba, 16, 16) else {
+            return;
+        };
+        match tray_icon::TrayIconBuilder::new()
+            .with_tooltip("Entropy")
+            .with_icon(icon)
+            .build()
+        {
+            Ok(icon) => self.tray_icon = Some(icon),
+            Err(e) => log::warn!("failed to create tray icon: {e}"),
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    fn poll_tray_events(&mut self, ctx: &egui::Context) {
+        use tray_icon::{MouseButton, MouseButtonState, TrayIconEvent};
+        while let Ok(event) = TrayIconEvent::receiver().try_recv() {
+            match event {
+                TrayIconEvent::Click {
+                    button: MouseButton::Left,
+                    button_state: MouseButtonState::Up,
+                    ..
+                }
+                | TrayIconEvent::DoubleClick {
+                    button: MouseButton::Left,
+                    ..
+                } => self.restore_from_tray(ctx),
+                _ => {}
+            }
+        }
     }
 
     fn write_auto_shift_flags(&mut self) {
@@ -9523,7 +9792,7 @@ impl EntropyApp {
             let tabs = [
                 (MainMenuTab::Keyboard, "Layout"),
                 (MainMenuTab::Advanced, "Advanced"),
-                (MainMenuTab::Settings, "Settings"),
+                (MainMenuTab::Settings, "Config"),
             ];
             let mut device_tab_rect = None;
             let mut device_tab_hovered = false;
@@ -9938,7 +10207,7 @@ impl EntropyApp {
                 let show_magic_item = self.magic_settings.supported;
                 let show_tap_hold_item = self.tap_hold_settings.supported;
                 let show_one_shot_item = self.one_shot_settings.supported;
-                let settings_item_count = 2
+                let settings_item_count = 3
                     + show_rgb_item as usize
                     + show_layer_leds_item as usize
                     + show_encoders_item as usize
@@ -9968,6 +10237,7 @@ impl EntropyApp {
                     let rgb_available = rgb_available_for_menu;
                     let item_width = dropdown_rect.width() - 16.0;
                     let (
+                        app_hovered,
                         matrix_hovered,
                         universal_symbols_hovered,
                         rgb_hovered,
@@ -9984,6 +10254,14 @@ impl EntropyApp {
                             top_dropdown_frame(dark)
                                 .show(ui, |ui| {
                                     ui.set_min_width(item_width);
+                                    let app_resp = top_dropdown_item(
+                                        ui,
+                                        item_width,
+                                        "App Settings",
+                                        true,
+                                        self.main_menu_tab == MainMenuTab::Settings
+                                            && self.settings_tab == SettingsTab::AppSettings,
+                                    );
                                     let matrix_resp = top_dropdown_item(
                                         ui,
                                         item_width,
@@ -10062,6 +10340,10 @@ impl EntropyApp {
                                                 && self.settings_tab == SettingsTab::OneShotKeys,
                                         )
                                     });
+                                    if app_resp.clicked() {
+                                        self.close_top_dropdowns(ui.ctx());
+                                        self.open_app_settings_page();
+                                    }
                                     if matrix_resp.clicked() {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.settings_tab = SettingsTab::MatrixTester;
@@ -10109,6 +10391,7 @@ impl EntropyApp {
                                         self.open_one_shot_settings_page();
                                     }
                                     (
+                                        app_resp.hovered(),
                                         matrix_resp.hovered(),
                                         universal_symbols_resp.hovered(),
                                         rgb_resp.as_ref().map(|resp| resp.hovered()).unwrap_or(false),
@@ -10117,7 +10400,8 @@ impl EntropyApp {
                                         magic_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         tap_hold_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         one_shot_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
-                                        matrix_resp.clicked()
+                                        app_resp.clicked()
+                                            || matrix_resp.clicked()
                                             || universal_symbols_resp.clicked()
                                             || rgb_resp
                                                 .as_ref()
@@ -10138,6 +10422,7 @@ impl EntropyApp {
                             dropdown_id,
                             !settings_clicked
                                 && (settings_tab_hovered
+                                    || app_hovered
                                     || matrix_hovered
                                     || universal_symbols_hovered
                                     || rgb_hovered

@@ -163,12 +163,12 @@ fn linux_input_method_hint() -> &'static str {
 
 #[cfg(target_os = "macos")]
 pub fn universal_output_setup_hint() -> Option<&'static str> {
-    Some("Open Settings → Universal Symbols to finish permissions setup")
+    Some("Open Config → Universal Symbols to finish permissions setup")
 }
 
 #[cfg(target_os = "linux")]
 pub fn universal_output_setup_hint() -> Option<&'static str> {
-    Some("Open Settings → Universal Symbols to finish Linux setup")
+    Some("Open Config → Universal Symbols to finish Linux setup")
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "linux")))]
