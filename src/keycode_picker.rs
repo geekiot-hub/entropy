@@ -820,6 +820,13 @@ impl KeycodePicker {
             }
         }
 
+        if let Some(modifier) = Self::zmk_modifier_usage_from_vial_osm(value) {
+            if let Some(id) = self.zmk_behavior_id("Sticky Key") {
+                self.zmk_assign(id, modifier, 0);
+                return true;
+            }
+        }
+
         if let Some(mouse_usage) = zmk_mouse_button_usage_for_qmk_value(value) {
             if let Some(id) = self.zmk_behavior_id("Mouse Key Press") {
                 self.zmk_assign(id, mouse_usage, 0);
@@ -845,11 +852,84 @@ impl KeycodePicker {
             0x7C16 => self.zmk_behavior_id("Grave/Escape").is_some(),
             0x7C73 => self.zmk_behavior_id("Caps Word").is_some(),
             0x7C79 => self.zmk_behavior_id("Key Repeat").is_some(),
+            value if Self::zmk_modifier_usage_from_vial_osm(value).is_some() => {
+                self.zmk_behavior_id("Sticky Key").is_some()
+            }
             _ => {
                 (zmk_hid_usage_for_qmk_value(value).is_some()
                     && self.zmk_behavior_id("Key Press").is_some())
                     || (zmk_mouse_button_usage_for_qmk_value(value).is_some()
                         && self.zmk_behavior_id("Mouse Key Press").is_some())
+            }
+        }
+    }
+
+    fn assign_keycode_value(&mut self, value: u16) {
+        match self.firmware {
+            FirmwareProtocol::Vial => {
+                self.assign_keycode_value(value);
+            }
+            FirmwareProtocol::Zmk => {
+                self.zmk_assign_keycode_value(value);
+            }
+        }
+    }
+
+    fn zmk_modifier_mask_from_vial_base(base: u16) -> Option<u32> {
+        let mut mask = 0u32;
+        if base & 0x0100 != 0 { mask |= 0x01; }
+        if base & 0x0200 != 0 { mask |= 0x02; }
+        if base & 0x0400 != 0 { mask |= 0x04; }
+        if base & 0x0800 != 0 { mask |= 0x08; }
+        if mask == 0 { None } else { Some(mask) }
+    }
+
+    fn zmk_modifier_usage_from_vial_mt_base(base: u16) -> Option<u32> {
+        match base {
+            0x2100 => Some(0x0007_00E0), // LCtrl
+            0x2200 => Some(0x0007_00E1), // LShift
+            0x2400 => Some(0x0007_00E2), // LAlt
+            0x2800 => Some(0x0007_00E3), // LGUI
+            _ => None,
+        }
+    }
+
+    fn zmk_modifier_usage_from_vial_osm(value: u16) -> Option<u32> {
+        match value {
+            0x52A2 => Some(0x0007_00E0), // LCtrl
+            0x52A1 => Some(0x0007_00E1), // LShift
+            0x52A4 => Some(0x0007_00E2), // LAlt
+            0x52A8 => Some(0x0007_00E3), // LGUI
+            _ => None,
+        }
+    }
+
+    fn finish_quantum_pending_key(&mut self, base: u16, key_value: u16, is_mt: bool) {
+        match self.firmware {
+            FirmwareProtocol::Vial => {
+                self.result = Some(base | key_value);
+                self.vial_quantum_pending_mod = None;
+                self.vial_quantum_pending_mt = None;
+                self.open = false;
+            }
+            FirmwareProtocol::Zmk => {
+                if is_mt {
+                    if let (Some(id), Some(modifier), Some(tap_usage)) = (
+                        self.zmk_behavior_id("Mod-Tap"),
+                        Self::zmk_modifier_usage_from_vial_mt_base(base),
+                        zmk_hid_usage_for_qmk_value(key_value),
+                    ) {
+                        self.zmk_assign(id, modifier, tap_usage);
+                    }
+                } else if let (Some(id), Some(mod_mask), Some(usage)) = (
+                    self.zmk_behavior_id("Key Press"),
+                    Self::zmk_modifier_mask_from_vial_base(base),
+                    zmk_hid_usage_for_qmk_value(key_value),
+                ) {
+                    self.zmk_assign(id, usage | (mod_mask << 24), 0);
+                }
+                self.vial_quantum_pending_mod = None;
+                self.vial_quantum_pending_mt = None;
             }
         }
     }
@@ -1086,8 +1166,7 @@ impl KeycodePicker {
                         {
                             if self.search_query.is_empty() || modifiers.any() {
                                 if let Some(qmk) = egui_key_to_qmk(*key, *modifiers) {
-                                    self.result = Some(qmk);
-                                    self.open = false;
+                                    self.assign_keycode_value(qmk);
                                 }
                             }
                         } else {
@@ -1099,10 +1178,9 @@ impl KeycodePicker {
                                             .vial_quantum_pending_mod
                                             .or(self.vial_quantum_pending_mt)
                                             .unwrap_or(0);
-                                        self.result = Some(base | qmk);
-                                        self.vial_quantum_pending_mod = None;
-                                        self.vial_quantum_pending_mt = None;
-                                        self.open = false;
+                                        let is_mt = self.vial_quantum_pending_mod.is_none()
+                                            && self.vial_quantum_pending_mt.is_some();
+                                        self.finish_quantum_pending_key(base, qmk, is_mt);
                                     }
                                 }
                             }
@@ -1287,10 +1365,7 @@ impl KeycodePicker {
                         if let Some(qmk) = egui_key_to_qmk(*key, *modifiers) {
                             if qmk > 0 && qmk < 0x0100 {
                                 if let Some(base) = pending {
-                                    self.result = Some(base | qmk);
-                                    self.vial_quantum_pending_mod = None;
-                                    self.vial_quantum_pending_mt = None;
-                                    self.open = false;
+                                    self.finish_quantum_pending_key(base, qmk, is_mt);
                                 }
                             }
                         }
@@ -1342,10 +1417,7 @@ impl KeycodePicker {
                             &self.layer_names,
                             false,
                         ) {
-                            self.result = Some(base | value);
-                            self.vial_quantum_pending_mod = None;
-                            self.vial_quantum_pending_mt = None;
-                            self.open = false;
+                            self.finish_quantum_pending_key(base, value, is_mt);
                         }
                     });
             });
@@ -1458,15 +1530,7 @@ impl KeycodePicker {
             );
         }
         if resp.clicked() {
-            match self.firmware {
-                FirmwareProtocol::Vial => {
-                    self.result = Some(value);
-                    self.open = false;
-                }
-                FirmwareProtocol::Zmk => {
-                    self.zmk_assign_keycode_value(value);
-                }
-            }
+            self.assign_keycode_value(value);
         }
         resp.on_hover_text(tip);
     }
@@ -1610,6 +1674,12 @@ impl KeycodePicker {
     }
 
     fn vial_tab_supported(&self, tab: KeycodeTab) -> bool {
+        if self.firmware == FirmwareProtocol::Zmk {
+            return matches!(
+                tab,
+                KeycodeTab::Basic | KeycodeTab::Symbols | KeycodeTab::Modifiers | KeycodeTab::Special
+            );
+        }
         match tab {
             KeycodeTab::Rgb => self.supports_rgb,
             KeycodeTab::Macro => self.supports_macro,
@@ -1620,6 +1690,9 @@ impl KeycodePicker {
     }
 
     fn vial_keycode_supported(&self, kc: &crate::keycode::Keycode) -> bool {
+        if self.firmware == FirmwareProtocol::Zmk {
+            return self.zmk_keycode_supported(kc.value);
+        }
         match kc.name {
             "QK_CAPS_WORD_TOGGLE" => self.supports_caps_word,
             "QK_REPEAT_KEY" | "QK_ALT_REPEAT_KEY" => self.supports_repeat_key,
@@ -1703,8 +1776,7 @@ impl KeycodePicker {
                     )
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
                 if resp.clicked() {
-                    self.result = Some(smart.trigger_keycode);
-                    self.open = false;
+                    self.assign_keycode_value(smart.trigger_keycode);
                 }
                 resp.on_hover_text(tip);
             }
@@ -1733,8 +1805,7 @@ impl KeycodePicker {
                     )
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
                 if resp.clicked() {
-                    self.result = Some(kc.value);
-                    self.open = false;
+                    self.assign_keycode_value(kc.value);
                 }
                 resp.on_hover_text(tip);
             }
@@ -1770,8 +1841,7 @@ impl KeycodePicker {
                     )
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
                 if resp.clicked() {
-                    self.result = Some(smart.trigger_keycode);
-                    self.open = false;
+                    self.assign_keycode_value(smart.trigger_keycode);
                 }
                 resp.on_hover_text(tip);
             }
@@ -1802,8 +1872,7 @@ impl KeycodePicker {
                     )
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
                 if resp.clicked() {
-                    self.result = Some(kc.value);
-                    self.open = false;
+                    self.assign_keycode_value(kc.value);
                 }
                 resp.on_hover_text(tip);
             }
@@ -1811,8 +1880,9 @@ impl KeycodePicker {
     }
 
     fn show_vial_custom(&mut self, ui: &mut egui::Ui) {
+        let custom_keycodes = self.custom_keycodes.clone();
         ui.horizontal_wrapped(|ui| {
-            for (name, label, title, value) in &self.custom_keycodes {
+            for (name, label, title, value) in custom_keycodes {
                 if label.is_empty() {
                     continue;
                 }
@@ -1828,8 +1898,7 @@ impl KeycodePicker {
                     )
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
                 if resp.clicked() {
-                    self.result = Some(*value);
-                    self.open = false;
+                    self.assign_keycode_value(value);
                 }
                 resp.on_hover_text(tip);
             }
@@ -1857,6 +1926,33 @@ impl KeycodePicker {
                 .color(Color32::from_gray(150)),
         );
         ui.add_space(6.0);
+        if self.firmware == FirmwareProtocol::Zmk {
+            let zmk_ops: &[(&str, &str, &str, bool)] = &[
+                ("Momentary Layer", "MO — Momentary", "Hold to activate, release to return", false),
+                ("Toggle Layer", "TG — Toggle", "Tap to toggle on/off", false),
+                ("Sticky Layer", "OSL — One-Shot", "Active for next keypress only", false),
+                ("To Layer", "TO — Switch", "Switch and stay on this layer", false),
+                ("Layer-Tap", "LT — Layer-Tap", "Hold = activate layer, tap = key", true),
+            ];
+            ui.horizontal_wrapped(|ui| {
+                for (behavior_name, label, hint, needs_tap_key) in zmk_ops {
+                    let Some(id) = self.zmk_behavior_id(behavior_name) else {
+                        continue;
+                    };
+                    let resp = ui
+                        .add(
+                            egui::Button::new(RichText::new(*label).size(10.5))
+                                .min_size(Vec2::new(102.0, 34.0)),
+                        )
+                        .on_hover_cursor(egui::CursorIcon::PointingHand);
+                    if resp.clicked() {
+                        self.zmk_layer_action_pending = Some((id, *needs_tap_key));
+                    }
+                    resp.on_hover_text(*hint);
+                }
+            });
+            return;
+        }
         ui.horizontal_wrapped(|ui| {
             for (base, label, hint) in ops {
                 let resp = ui
@@ -1911,8 +2007,7 @@ impl KeycodePicker {
                     )
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
                 if resp.clicked() {
-                    self.result = Some(*value);
-                    self.open = false;
+                    self.assign_keycode_value(*value);
                 }
                 resp.on_hover_text(tip.as_str());
             }
@@ -1975,7 +2070,7 @@ impl KeycodePicker {
         );
         ui.add_space(2.0);
         ui.add_space(4.0);
-        let mt: Vec<(String, u16, String)> = vec![
+        let mut mt: Vec<(String, u16, String)> = vec![
             ("MT Ctrl".into(), 0x2100, "Mod-Tap: hold=LCtrl".into()),
             ("MT Shift".into(), 0x2200, "Mod-Tap: hold=LShift".into()),
             ("MT Alt".into(), 0x2400, "Mod-Tap: hold=LAlt".into()),
@@ -2002,6 +2097,9 @@ impl KeycodePicker {
                 format!("Mod-Tap: hold=Hyper (Ctrl+Shift+Alt+{})", gui_mod_name()),
             ),
         ];
+        if self.firmware == FirmwareProtocol::Zmk {
+            mt.retain(|(_, value, _)| Self::zmk_modifier_usage_from_vial_mt_base(*value).is_some());
+        }
         ui.horizontal_wrapped(|ui| {
             for (label, value, tip) in &mt {
                 let resp = ui
@@ -2024,7 +2122,7 @@ impl KeycodePicker {
                 .color(Color32::from_gray(150)),
         );
         ui.add_space(4.0);
-        let osm: Vec<(String, u16, String)> = vec![
+        let mut osm: Vec<(String, u16, String)> = vec![
             ("OSM Ctrl".into(), 0x52A2, "One-Shot Left Ctrl".into()),
             (
                 "OSM Shift".into(),
@@ -2048,6 +2146,9 @@ impl KeycodePicker {
                 format!("One-Shot Hyper (Ctrl+Shift+Alt+{})", gui_mod_name()),
             ),
         ];
+        if self.firmware == FirmwareProtocol::Zmk {
+            osm.retain(|(_, value, _)| Self::zmk_modifier_usage_from_vial_osm(*value).is_some());
+        }
         ui.horizontal_wrapped(|ui| {
             for (label, value, tip) in &osm {
                 let resp = ui
@@ -2057,8 +2158,7 @@ impl KeycodePicker {
                     )
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
                 if resp.clicked() {
-                    self.result = Some(*value);
-                    self.open = false;
+                    self.assign_keycode_value(*value);
                 }
                 resp.on_hover_text(tip.as_str());
             }
@@ -2103,9 +2203,7 @@ impl KeycodePicker {
                         )
                         .on_hover_cursor(egui::CursorIcon::PointingHand);
                     if resp.clicked() {
-                        self.result = Some(base | kc.value);
-                        self.vial_quantum_pending_mod = None;
-                        self.open = false;
+                        self.finish_quantum_pending_key(base, kc.value, false);
                     }
                     resp.on_hover_text(kc.name);
                 }
@@ -2144,9 +2242,7 @@ impl KeycodePicker {
                         )
                         .on_hover_cursor(egui::CursorIcon::PointingHand);
                     if resp.clicked() {
-                        self.result = Some(base | kc.value);
-                        self.vial_quantum_pending_mt = None;
-                        self.open = false;
+                        self.finish_quantum_pending_key(base, kc.value, true);
                     }
                     resp.on_hover_text(kc.name);
                 }
@@ -3304,8 +3400,7 @@ impl KeycodePicker {
                     )
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
                 if resp.clicked() {
-                    self.result = Some(*value);
-                    self.open = false;
+                    self.assign_keycode_value(*value);
                 }
                 resp.on_hover_text(*tip);
             }
@@ -3343,8 +3438,7 @@ impl KeycodePicker {
                     )
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
                 if resp.clicked() {
-                    self.result = Some(*value);
-                    self.open = false;
+                    self.assign_keycode_value(*value);
                 }
                 resp.on_hover_text(*tip);
             }
@@ -3398,8 +3492,7 @@ impl KeycodePicker {
                     )
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
                 if resp.clicked() {
-                    self.result = Some(*value);
-                    self.open = false;
+                    self.assign_keycode_value(*value);
                 }
                 resp.on_hover_text(*tip);
             }
@@ -3437,8 +3530,7 @@ impl KeycodePicker {
                     )
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
                 if resp.clicked() {
-                    self.result = Some(*value);
-                    self.open = false;
+                    self.assign_keycode_value(*value);
                 }
                 resp.on_hover_text(*tip);
             }
@@ -3579,8 +3671,7 @@ Repeat"
                     y += height + line_spacing;
                 }
                 if resp.clicked() {
-                    self.result = Some(*value);
-                    self.open = false;
+                    self.assign_keycode_value(*value);
                 }
                 resp.on_hover_text(tip.as_str());
             }
@@ -3672,8 +3763,7 @@ Repeat"
                     ui.painter().galley(pos, galley, visuals.fg_stroke.color);
                 }
                 if resp.clicked() {
-                    self.result = Some(kc.value);
-                    self.open = false;
+                    self.assign_keycode_value(kc.value);
                 }
                 resp.on_hover_text(crate::keycode::keycode_tooltip(
                     kc.value,
@@ -3767,8 +3857,7 @@ Repeat"
                 ui.painter()
                     .galley(text_pos, text_galley, visuals.fg_stroke.color);
                 if resp.clicked() {
-                    self.result = Some(*value);
-                    self.open = false;
+                    self.assign_keycode_value(*value);
                 }
                 resp.on_hover_text(crate::keycode::keycode_tooltip(
                     *value,
@@ -3792,8 +3881,7 @@ Repeat"
                         .min_size(Vec2::new(56.0, 42.0)),
                 );
                 if resp.clicked() {
-                    self.result = Some(*value);
-                    self.open = false;
+                    self.assign_keycode_value(*value);
                 }
                 resp.on_hover_text(crate::keycode::keycode_tooltip(
                     *value,
@@ -3817,8 +3905,7 @@ Repeat"
                         .min_size(Vec2::new(56.0, 42.0)),
                 );
                 if resp.clicked() {
-                    self.result = Some(*value);
-                    self.open = false;
+                    self.assign_keycode_value(*value);
                 }
                 resp.on_hover_text(format!("Function key {}", label));
             }
@@ -3901,8 +3988,7 @@ Repeat"
                 );
                 painter.galley(text_pos, text_galley, visuals.fg_stroke.color);
                 if resp.clicked() {
-                    self.result = Some(*value);
-                    self.open = false;
+                    self.assign_keycode_value(*value);
                 }
                 resp.on_hover_text(*tip);
             }
@@ -3976,8 +4062,7 @@ Repeat"
                     main_color,
                 );
                 if resp.clicked() {
-                    self.result = Some(kc.value);
-                    self.open = false;
+                    self.assign_keycode_value(kc.value);
                 }
                 resp = resp.on_hover_text(crate::keycode::keycode_tooltip(
                     kc.value,
@@ -4043,8 +4128,7 @@ Repeat"
                     main_color,
                 );
                 if resp.clicked() {
-                    self.result = Some(*value);
-                    self.open = false;
+                    self.assign_keycode_value(*value);
                 }
                 resp = resp.on_hover_text(crate::keycode::keycode_tooltip(
                     *value,
@@ -4127,8 +4211,7 @@ Repeat"
                     main_color,
                 );
                 if resp.clicked() {
-                    self.result = Some(*value);
-                    self.open = false;
+                    self.assign_keycode_value(*value);
                 }
                 resp = resp.on_hover_text(*tip);
                 let _ = resp;
@@ -4198,8 +4281,7 @@ Repeat"
                     main_color,
                 );
                 if resp.clicked() {
-                    self.result = Some(*value);
-                    self.open = false;
+                    self.assign_keycode_value(*value);
                 }
                 resp = resp.on_hover_text(*tip);
                 let _ = resp;
@@ -4216,113 +4298,13 @@ Repeat"
             self.show_zmk_tap_key_picker(ctx);
             return;
         }
-
-        // Physical key capture for ZMK
-        let captured = ctx.input(|i| {
-            for event in &i.events {
-                if let egui::Event::Key {
-                    key,
-                    pressed: true,
-                    modifiers,
-                    ..
-                } = event
-                {
-                    if *key == Key::Escape {
-                        return Some(None); // close without assigning
-                    }
-                    if modifiers.is_none() {
-                        if let Some(usage) = egui_key_to_zmk_usage(*key) {
-                            return Some(Some(usage));
-                        }
-                    }
-                }
-            }
-            None
-        });
-        if let Some(opt) = captured {
-            if let Some(usage) = opt {
-                if let Some(beh) = self.zmk_find_behavior("Key Press") {
-                    let id = beh.id;
-                    self.zmk_assign(id, usage, 0);
-                }
-            } else {
-                self.open = false;
-            }
+        if self.vial_quantum_pending_mod.is_some() || self.vial_quantum_pending_mt.is_some() {
+            self.show_pending_picker(ctx);
             return;
         }
-
-        if !KeycodeTab::ZMK_TABS.contains(&self.selected_tab) {
-            self.selected_tab = KeycodeTab::Basic;
-        }
-
-        let mut still_open = true;
-        let picker_size = Vec2::new(920.0, 560.0);
-        crate::ui_style::centered_modal_window(
-            ctx,
-            "Key Editor",
-            self.popup_state.id(PopupKey::PickerWindow),
-            &mut still_open,
-            picker_size,
-        )
-        .show(ctx, |ui| {
-            apply_picker_button_visuals(ui);
-            crate::ui_style::modal_intro(ui, "Press a key on your keyboard, or pick below");
-            ui.add_space(4.0);
-
-            ui.horizontal_wrapped(|ui| {
-                ui.spacing_mut().item_spacing = egui::vec2(6.0, 6.0);
-                for tab in KeycodeTab::ZMK_TABS {
-                    let active = self.selected_tab == *tab;
-                    if picker_tab_button(ui, tab.label(), active).clicked() {
-                        self.selected_tab = *tab;
-                        self.zmk_layer_action_pending = None;
-                        self.zmk_layer_tap_pending = None;
-                        self.zmk_mod_tap_pending = None;
-                    }
-                }
-            });
-            ui.add_space(crate::ui_style::modal_space_sm());
-
-            let content_height = 455.0;
-            ui.allocate_ui_with_layout(
-                Vec2::new(ui.available_width(), content_height),
-                egui::Layout::top_down(egui::Align::Min),
-                |ui| {
-                    ui.set_min_height(content_height);
-                    egui::ScrollArea::vertical()
-                        .max_height(content_height)
-                        .auto_shrink([false, false])
-                        .show(ui, |ui| {
-                            ui.scope(|ui| {
-                                apply_picker_button_visuals(ui);
-                                if self.selected_tab == KeycodeTab::Basic {
-                                    ui.add_space(88.0);
-                                    self.show_vial_basic(ui);
-                                } else {
-                                    let centered_width = 840.0_f32.min(ui.available_width());
-                                    let x_offset =
-                                        ((ui.available_width() - centered_width).max(0.0) * 0.5)
-                                            .floor();
-                                    ui.horizontal(|ui| {
-                                        if x_offset > 0.0 {
-                                            ui.add_space(x_offset);
-                                        }
-                                        ui.allocate_ui_with_layout(
-                                            Vec2::new(centered_width, 0.0),
-                                            egui::Layout::top_down(egui::Align::Min),
-                                            |ui| self.show_zmk_tab_content(ui),
-                                        );
-                                    });
-                                }
-                            });
-                        });
-                },
-            );
-        });
-        if !still_open {
-            self.open = false;
-        }
+        self.show_vial(ctx);
     }
+
 
     fn show_zmk_tab_content(&mut self, ui: &mut egui::Ui) {
         match self.selected_tab {
