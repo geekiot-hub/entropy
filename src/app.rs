@@ -11832,7 +11832,9 @@ impl EntropyApp {
                     + show_magic_item as usize
                     + show_tap_hold_item as usize
                     + show_one_shot_item as usize;
-                let dropdown_height = settings_item_count as f32 * 28.0 + 22.0;
+                // Keep hover bridge in sync with actual item height (30px) and frame padding.
+                // Underestimating this makes lower items close the dropdown on hover.
+                let dropdown_height = settings_item_count as f32 * 30.0 + 12.0;
                 let dropdown_rect = egui::Rect::from_min_size(
                     egui::pos2(
                         settings_rect.center().x - 76.0,
@@ -11875,6 +11877,7 @@ impl EntropyApp {
                             top_dropdown_frame(dark)
                                 .show(ui, |ui| {
                                     ui.set_min_width(item_width);
+                                    ui.spacing_mut().item_spacing.y = 0.0;
                                     let app_resp = top_dropdown_item(
                                         ui,
                                         item_width,
