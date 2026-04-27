@@ -4008,23 +4008,28 @@ impl EntropyApp {
             .as_ref()
             .map(|layout| layout.layout_options.clone())
             .unwrap_or_default();
+        let display_option_indices: Vec<usize> = options
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, option)| (!Self::is_encoder_layout_option(option)).then_some(idx))
+            .collect();
 
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(18.0);
-                ui.label(RichText::new("Layout Options").size(18.0).strong());
+                ui.label(RichText::new("Display Presets").size(18.0).strong());
                 ui.add_space(6.0);
                 ui.label(
-                    RichText::new("Configure firmware layout and display presets")
+                    RichText::new("Configure OLED and display presets")
                         .size(13.0)
                         .color(app_muted_text(dark)),
                 );
                 ui.add_space(24.0);
 
-                if options.is_empty() {
+                if display_option_indices.is_empty() {
                     crate::ui_style::modal_empty_state(
                         ui,
-                        "No layout options are exposed by this keyboard",
+                        "No display presets are exposed by this keyboard",
                         None,
                     );
                     return;
@@ -4033,13 +4038,13 @@ impl EntropyApp {
                 if !hid_ready || self.layout_options_value.is_none() {
                     crate::ui_style::modal_empty_state(
                         ui,
-                        "Connect a Vial keyboard to edit layout options",
+                        "Connect a Vial keyboard to edit display presets",
                         None,
                     );
                     return;
                 }
 
-                let total_rows = options.len();
+                let total_rows = display_option_indices.len();
                 let visible_rows = total_rows.min(VISIBLE_ROWS).max(1);
                 let list_height = ROW_HEIGHT * visible_rows as f32;
                 let content_height = ROW_HEIGHT * total_rows as f32;
@@ -4136,7 +4141,10 @@ impl EntropyApp {
                     ui.set_clip_rect(viewport);
                     ui.set_min_size(content_rect.size());
                     ui.spacing_mut().item_spacing.y = 0.0;
-                    for row_idx in first_visible_row..last_visible_row {
+                    for display_row_idx in first_visible_row..last_visible_row {
+                        let Some(&row_idx) = display_option_indices.get(display_row_idx) else {
+                            continue;
+                        };
                         let option = &options[row_idx];
                         if option.choices.is_empty() {
                             let mut enabled = values.get(row_idx).copied().unwrap_or(0) != 0;
@@ -6091,6 +6099,14 @@ impl EntropyApp {
     fn open_grave_escape_settings_page(&mut self) {
         self.settings_tab = SettingsTab::GraveEscape;
         self.main_menu_tab = MainMenuTab::Settings;
+    }
+
+    fn is_encoder_layout_option(option: &LayoutOption) -> bool {
+        option
+            .label
+            .trim_start()
+            .to_ascii_lowercase()
+            .starts_with("hide encoder")
     }
 
     fn open_layout_options_settings_page(&mut self) {
@@ -10653,7 +10669,10 @@ impl EntropyApp {
                 let show_rgb_item = rgb_available_for_menu;
                 let show_layer_leds_item = layer_leds_available_for_menu;
                 let show_encoders_item = layout.encoder_count() > 0;
-                let show_layout_options_item = !layout.layout_options.is_empty();
+                let show_layout_options_item = layout
+                    .layout_options
+                    .iter()
+                    .any(|option| !Self::is_encoder_layout_option(option));
                 let show_magic_item = self.magic_settings.supported;
                 let show_tap_hold_item = self.tap_hold_settings.supported;
                 let show_one_shot_item = self.one_shot_settings.supported;
@@ -10766,7 +10785,7 @@ impl EntropyApp {
                                         top_dropdown_item(
                                             ui,
                                             item_width,
-                                            "Layout Options",
+                                            "Display Presets",
                                             true,
                                             self.main_menu_tab == MainMenuTab::Settings
                                                 && self.settings_tab == SettingsTab::LayoutOptions,
