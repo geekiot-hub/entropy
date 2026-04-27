@@ -829,11 +829,13 @@ struct MouseKeysSettingsState {
     supported: bool,
 }
 
-/// Ergohaven K:03 Pro touchpad settings (qsid 120..=124).
-#[derive(Clone, Copy, Debug, Default)]
+/// Ergohaven K:03 Pro touchpad settings exposed by firmware QMK Settings.
+#[derive(Clone, Debug, Default)]
 struct TouchpadSettingsState {
-    /// qsid 120: touchpad DPI/CPI
+    /// qsid 120: touchpad DPI/CPI, either direct value or select index depending on definition
     dpi: u16,
+    /// qsid 120 variants when the firmware exposes DPI as a select setting
+    dpi_variants: Vec<String>,
     /// qsid 121: sensitivity in sniper mode
     sniper_sens: u8,
     /// qsid 122: sensitivity in scroll mode
@@ -842,12 +844,20 @@ struct TouchpadSettingsState {
     text_sens: u8,
     /// qsid 124 bits 0..=2: invert scroll, acceleration, sticky mode
     bits: u8,
-    /// Whether qsid 120 was readable on a known K:03 Pro touchpad firmware
+    /// qsid 142: auto layer enable, if exposed by this firmware
+    auto_layer_enable: bool,
+    /// Whether qsid 142 is exposed by this firmware
+    auto_layer_enable_supported: bool,
+    /// qsid 143: auto layer select, if exposed by this firmware
+    auto_layer: u8,
+    /// qsid 143 variants when exposed by this firmware
+    auto_layer_variants: Vec<String>,
+    /// Whether qsid 120..124 were readable and advertised by firmware definition/query
     supported: bool,
 }
 
 impl TouchpadSettingsState {
-    fn bit(self, bit: u8) -> bool {
+    fn bit(&self, bit: u8) -> bool {
         self.bits & (1 << bit) != 0
     }
 
@@ -857,6 +867,14 @@ impl TouchpadSettingsState {
         } else {
             self.bits &= !(1 << bit);
         }
+    }
+
+    fn auto_layer_supported(&self) -> bool {
+        self.auto_layer_enable_supported && !self.auto_layer_variants.is_empty()
+    }
+
+    fn row_count(&self) -> usize {
+        7 + self.auto_layer_enable_supported as usize + self.auto_layer_supported() as usize
     }
 }
 
@@ -2198,7 +2216,13 @@ impl EntropyApp {
                                     .iter()
                                     .all(|qsid| supported_qmk_settings.contains(qsid))
                             {
-                                match dev_conn.get_qmk_setting_u16(120) {
+                                tp.dpi_variants = Self::touchpad_setting_variants(&json, 120);
+                                let dpi_read = if tp.dpi_variants.is_empty() {
+                                    dev_conn.get_qmk_setting_u16(120)
+                                } else {
+                                    dev_conn.get_qmk_setting_u8(120).map(|value| value as u16)
+                                };
+                                match dpi_read {
                                     Ok(v) => {
                                         tp.dpi = v;
                                         tp.supported = true;
@@ -2230,9 +2254,32 @@ impl EntropyApp {
                                             log::warn!("get_qmk_setting_u8(touchpad bits): {e}");
                                             0
                                         });
+                                        if supported_qmk_settings.contains(&142)
+                                            && Self::touchpad_setting_exists(&json, 142)
+                                        {
+                                            tp.auto_layer_enable_supported = true;
+                                            tp.auto_layer_enable = dev_conn
+                                                .get_qmk_setting_u8(142)
+                                                .map(|value| value != 0)
+                                                .unwrap_or_else(|e| {
+                                                    log::warn!(
+                                                        "get_qmk_setting_u8(touchpad auto layer enable): {e}"
+                                                    );
+                                                    false
+                                                });
+                                        }
+                                        if supported_qmk_settings.contains(&143)
+                                            && Self::touchpad_setting_exists(&json, 143)
+                                        {
+                                            tp.auto_layer_variants = Self::touchpad_setting_variants(&json, 143);
+                                            tp.auto_layer = dev_conn.get_qmk_setting_u8(143).unwrap_or_else(|e| {
+                                                log::warn!("get_qmk_setting_u8(touchpad auto layer): {e}");
+                                                0
+                                            });
+                                        }
                                     }
                                     Err(e) => {
-                                        log::warn!("get_qmk_setting_u16(touchpad dpi): {e}");
+                                        log::warn!("get_qmk_setting(touchpad dpi): {e}");
                                     }
                                 }
                             }
@@ -6267,6 +6314,40 @@ impl EntropyApp {
         ergohaven_macropad_display || name.contains("m4cr0pad v2") || name.contains("m4cr0pad v3")
     }
 
+    fn touchpad_setting_field(json: &serde_json::Value, qsid: u16) -> Option<&serde_json::Value> {
+        json.get("settings")
+            .and_then(|value| value.as_array())?
+            .iter()
+            .find(|tab| {
+                tab.get("name")
+                    .and_then(|value| value.as_str())
+                    .map(|name| name.to_ascii_lowercase().contains("touchpad"))
+                    .unwrap_or(false)
+            })?
+            .get("fields")
+            .and_then(|value| value.as_array())?
+            .iter()
+            .find(|field| field.get("qsid").and_then(|value| value.as_u64()) == Some(qsid as u64))
+    }
+
+    fn touchpad_setting_exists(json: &serde_json::Value, qsid: u16) -> bool {
+        Self::touchpad_setting_field(json, qsid).is_some()
+    }
+
+    fn touchpad_setting_variants(json: &serde_json::Value, qsid: u16) -> Vec<String> {
+        Self::touchpad_setting_field(json, qsid)
+            .and_then(|field| field.get("variants"))
+            .and_then(|value| value.as_array())
+            .map(|variants| {
+                variants
+                    .iter()
+                    .filter_map(|value| value.as_str().map(|s| s.trim().to_string()))
+                    .filter(|s| !s.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     fn layout_json_has_touchpad_settings(json: &serde_json::Value) -> bool {
         let Some(tabs) = json.get("settings").and_then(|value| value.as_array()) else {
             return false;
@@ -9256,7 +9337,6 @@ impl EntropyApp {
 
     fn touchpad_numeric_value(&self, qsid: u16) -> u16 {
         match qsid {
-            120 => self.touchpad_settings.dpi,
             121 => self.touchpad_settings.sniper_sens as u16,
             122 => self.touchpad_settings.scroll_sens as u16,
             123 => self.touchpad_settings.text_sens as u16,
@@ -9266,7 +9346,6 @@ impl EntropyApp {
 
     fn set_touchpad_numeric_value(&mut self, qsid: u16, value: u16) {
         match qsid {
-            120 => self.touchpad_settings.dpi = value,
             121 => self.touchpad_settings.sniper_sens = value.min(u8::MAX as u16) as u8,
             122 => self.touchpad_settings.scroll_sens = value.min(u8::MAX as u16) as u8,
             123 => self.touchpad_settings.text_sens = value.min(u8::MAX as u16) as u8,
@@ -9278,14 +9357,30 @@ impl EntropyApp {
         let Some(hid) = &self.hid_device else {
             return;
         };
-        let result = if qsid == 120 {
-            hid.set_qmk_setting_u16(qsid, value.clamp(100, 1000))
-        } else {
-            hid.set_qmk_setting_u8(qsid, value.clamp(1, 255) as u8)
-        };
-        if let Err(e) = result {
+        let value = value.clamp(1, 255) as u8;
+        if let Err(e) = hid.set_qmk_setting_u8(qsid, value) {
             self.status_msg = format!("Failed to save Touchpad setting (qsid {qsid}): {}", e);
-            log::warn!("set_qmk_setting(touchpad qsid {qsid}) failed: {e}");
+            log::warn!("set_qmk_setting_u8(touchpad qsid {qsid}) failed: {e}");
+        }
+    }
+
+    fn write_touchpad_select_setting(&mut self, qsid: u16, value: u8) {
+        let Some(hid) = &self.hid_device else {
+            return;
+        };
+        if let Err(e) = hid.set_qmk_setting_u8(qsid, value) {
+            self.status_msg = format!("Failed to save Touchpad setting (qsid {qsid}): {}", e);
+            log::warn!("set_qmk_setting_u8(touchpad qsid {qsid}) failed: {e}");
+        }
+    }
+
+    fn write_touchpad_bool_setting(&mut self, qsid: u16, value: bool) {
+        let Some(hid) = &self.hid_device else {
+            return;
+        };
+        if let Err(e) = hid.set_qmk_setting_u8(qsid, u8::from(value)) {
+            self.status_msg = format!("Failed to save Touchpad setting (qsid {qsid}): {}", e);
+            log::warn!("set_qmk_setting_u8(touchpad qsid {qsid}) failed: {e}");
         }
     }
 
@@ -9299,6 +9394,80 @@ impl EntropyApp {
         }
     }
 
+    fn draw_touchpad_select_control(
+        ui: &mut egui::Ui,
+        dark: bool,
+        dropdown_id: egui::Id,
+        selected_idx: usize,
+        variants: &[String],
+        width: f32,
+    ) -> (egui::Response, Option<usize>) {
+        let selected_text = variants
+            .get(selected_idx)
+            .map(|s| s.as_str())
+            .unwrap_or("Unknown");
+        let dropdown_resp = crate::ui_style::modern_dropdown_button(
+            ui,
+            dropdown_id,
+            selected_text,
+            ui.visuals().text_color(),
+            width,
+        );
+        let mut picked = None;
+        egui::popup_below_widget(
+            ui,
+            dropdown_id,
+            &dropdown_resp,
+            egui::PopupCloseBehavior::CloseOnClickOutside,
+            |ui| {
+                ui.set_min_width(width);
+                ui.spacing_mut().item_spacing = Vec2::new(0.0, 2.0);
+                egui::ScrollArea::vertical()
+                    .id_salt(("touchpad_select_scroll", dropdown_id))
+                    .max_height(142.0)
+                    .auto_shrink([false, true])
+                    .show(ui, |ui| {
+                        for (idx, label) in variants.iter().enumerate() {
+                            let selected = idx == selected_idx;
+                            let (option_rect, option_resp) =
+                                ui.allocate_exact_size(Vec2::new(width, 28.0), Sense::click());
+                            if option_resp.hovered() {
+                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                            }
+                            let option_fill = if selected {
+                                if dark {
+                                    Color32::from_rgb(58, 58, 61)
+                                } else {
+                                    Color32::from_rgb(236, 236, 238)
+                                }
+                            } else if option_resp.hovered() {
+                                crate::ui_style::hover_fill(dark)
+                            } else {
+                                Color32::TRANSPARENT
+                            };
+                            ui.painter().rect_filled(option_rect, 7.0, option_fill);
+                            ui.painter().text(
+                                egui::pos2(option_rect.left() + 10.0, option_rect.center().y),
+                                egui::Align2::LEFT_CENTER,
+                                label,
+                                FontId::proportional(12.0),
+                                if selected {
+                                    ui.visuals().text_color()
+                                } else {
+                                    app_muted_text(dark)
+                                },
+                            );
+                            if option_resp.clicked() {
+                                picked = Some(idx);
+                                ui.memory_mut(|m| m.close_popup());
+                            }
+                        }
+                    });
+            },
+        );
+        (dropdown_resp, picked)
+    }
+
     fn draw_touchpad_editor_content(
         &mut self,
         ui: &mut egui::Ui,
@@ -9309,18 +9478,96 @@ impl EntropyApp {
         const ROW_HEIGHT: f32 = 54.0;
         const FIELD_WIDTH: f32 = 86.0;
         const SWITCH_WIDTH: f32 = 46.0;
+        const DROPDOWN_WIDTH: f32 = 120.0;
+        let dark = ui.visuals().dark_mode;
 
         for row_idx in row_range {
             match row_idx {
-                0..=3 => {
+                0 => {
+                    let variants = self.touchpad_settings.dpi_variants.clone();
+                    let selected_idx = (self.touchpad_settings.dpi as usize)
+                        .min(variants.len().saturating_sub(1));
+                    crate::ui_style::settings_list_row_with_tooltip(
+                        ui,
+                        CONTENT_WIDTH,
+                        ROW_HEIGHT,
+                        "DPI",
+                        true,
+                        if suppress_tooltips {
+                            None
+                        } else {
+                            Some("Touchpad pointer resolution in dots per inch")
+                        },
+                        DROPDOWN_WIDTH,
+                        |ui| {
+                            if variants.is_empty() {
+                                let current = self.touchpad_settings.dpi;
+                                let edit_id = egui::Id::new(("touchpad_edit", 120u16));
+                                let mut text = ui.ctx().data_mut(|d| {
+                                    d.get_temp::<String>(edit_id)
+                                        .unwrap_or_else(|| current.to_string())
+                                });
+                                if text.parse::<u16>().ok() != Some(current)
+                                    && !ui.memory(|m| m.has_focus(edit_id))
+                                {
+                                    text = current.to_string();
+                                }
+                                let resp = crate::ui_style::modern_text_field(
+                                    ui,
+                                    edit_id,
+                                    &mut text,
+                                    FIELD_WIDTH,
+                                    "",
+                                    5,
+                                    egui::Align::Center,
+                                );
+                                let commit = resp.lost_focus()
+                                    || (resp.has_focus()
+                                        && ui.input(|i| i.key_pressed(egui::Key::Enter)));
+                                if commit {
+                                    match text.trim().parse::<u16>() {
+                                        Ok(value) => {
+                                            let value = value.clamp(100, 1000);
+                                            if value != current {
+                                                self.touchpad_settings.dpi = value;
+                                                if let Some(hid) = &self.hid_device {
+                                                    if let Err(e) = hid.set_qmk_setting_u16(120, value) {
+                                                        self.status_msg = format!(
+                                                            "Failed to save Touchpad setting (qsid 120): {}",
+                                                            e
+                                                        );
+                                                        log::warn!(
+                                                            "set_qmk_setting_u16(touchpad qsid 120) failed: {e}"
+                                                        );
+                                                    }
+                                                }
+                                            }
+                                            text = value.to_string();
+                                        }
+                                        Err(_) => text = current.to_string(),
+                                    }
+                                }
+                                ui.ctx().data_mut(|d| d.insert_temp(edit_id, text));
+                            } else {
+                                let dropdown_id = ui.make_persistent_id("touchpad_dpi_dropdown");
+                                let (_, picked) = Self::draw_touchpad_select_control(
+                                    ui,
+                                    dark,
+                                    dropdown_id,
+                                    selected_idx,
+                                    &variants,
+                                    DROPDOWN_WIDTH,
+                                );
+                                if let Some(picked) = picked {
+                                    self.touchpad_settings.dpi = picked as u16;
+                                    self.write_touchpad_select_setting(120, picked as u8);
+                                }
+                            }
+                        },
+                    );
+                }
+                1..=3 => {
                     let (qsid, label, tooltip, min, max) = match row_idx {
-                        0 => (
-                            120,
-                            "DPI",
-                            "Touchpad pointer resolution in dots per inch",
-                            100,
-                            1000,
-                        ),
                         1 => (
                             121,
                             "Sniper sens",
@@ -9431,6 +9678,62 @@ impl EntropyApp {
                         },
                     );
                 }
+                7 if self.touchpad_settings.auto_layer_enable_supported => {
+                    crate::ui_style::settings_list_row_with_tooltip(
+                        ui,
+                        CONTENT_WIDTH,
+                        ROW_HEIGHT,
+                        "Auto layer enable",
+                        true,
+                        if suppress_tooltips {
+                            None
+                        } else {
+                            Some("Automatically switch to the selected layer while the touchpad is active")
+                        },
+                        SWITCH_WIDTH,
+                        |ui| {
+                            let mut value = self.touchpad_settings.auto_layer_enable;
+                            let resp = crate::ui_style::settings_switch(ui, &mut value);
+                            if resp.changed() {
+                                self.touchpad_settings.auto_layer_enable = value;
+                                self.write_touchpad_bool_setting(142, value);
+                            }
+                        },
+                    );
+                }
+                8 if self.touchpad_settings.auto_layer_supported() => {
+                    let variants = self.touchpad_settings.auto_layer_variants.clone();
+                    let selected_idx = (self.touchpad_settings.auto_layer as usize)
+                        .min(variants.len().saturating_sub(1));
+                    crate::ui_style::settings_list_row_with_tooltip(
+                        ui,
+                        CONTENT_WIDTH,
+                        ROW_HEIGHT,
+                        "Auto layer",
+                        true,
+                        if suppress_tooltips {
+                            None
+                        } else {
+                            Some("Layer selected automatically while the touchpad is active")
+                        },
+                        DROPDOWN_WIDTH,
+                        |ui| {
+                            let dropdown_id = ui.make_persistent_id("touchpad_auto_layer_dropdown");
+                            let (_, picked) = Self::draw_touchpad_select_control(
+                                ui,
+                                dark,
+                                dropdown_id,
+                                selected_idx,
+                                &variants,
+                                DROPDOWN_WIDTH,
+                            );
+                            if let Some(picked) = picked {
+                                self.touchpad_settings.auto_layer = picked as u8;
+                                self.write_touchpad_select_setting(143, picked as u8);
+                            }
+                        },
+                    );
+                }
                 _ => {}
             }
         }
@@ -9481,10 +9784,11 @@ impl EntropyApp {
                 }
 
                 const VISIBLE_ROWS: usize = 6;
-                const TOTAL_ROWS: usize = 7;
                 const ROW_HEIGHT: f32 = 54.0;
-                let list_height = ROW_HEIGHT * VISIBLE_ROWS as f32;
-                let content_height = ROW_HEIGHT * TOTAL_ROWS as f32;
+                let total_rows = self.touchpad_settings.row_count();
+                let visible_rows = total_rows.min(VISIBLE_ROWS).max(1);
+                let list_height = ROW_HEIGHT * visible_rows as f32;
+                let content_height = ROW_HEIGHT * total_rows as f32;
                 let max_offset = (content_height - list_height).max(0.0);
                 let offset_id = ui.id().with("touchpad_settings_smooth_offset");
                 let target_id = ui.id().with("touchpad_settings_smooth_target");
@@ -9568,7 +9872,7 @@ impl EntropyApp {
 
                 let first_visible_row = (scroll_offset / ROW_HEIGHT).floor() as usize;
                 let row_y_offset = scroll_offset - first_visible_row as f32 * ROW_HEIGHT;
-                let last_visible_row = (first_visible_row + VISIBLE_ROWS + 1).min(TOTAL_ROWS);
+                let last_visible_row = (first_visible_row + visible_rows + 1).min(total_rows);
                 let visible_row_count = last_visible_row.saturating_sub(first_visible_row);
                 let content_rect = egui::Rect::from_min_size(
                     egui::pos2(viewport.left(), viewport.top() - row_y_offset),
