@@ -866,6 +866,47 @@ impl KeycodePicker {
         }
     }
 
+    fn picker_keycode_tooltip(&self, value: u16, custom_pairs: &[crate::keyboard::CustomKeycode]) -> String {
+        if self.firmware == FirmwareProtocol::Zmk {
+            return self.zmk_keycode_tooltip(value);
+        }
+        keycode_tooltip(value, custom_pairs, &self.layer_names)
+    }
+
+    fn zmk_keycode_tooltip(&self, value: u16) -> String {
+        if let Some(smart) = crate::smart_input::smart_symbol_for_keycode(value) {
+            return format!(
+                "Universal symbol: {} — types {} consistently regardless of the active keyboard language",
+                smart.name, smart.symbol
+            );
+        }
+        match value {
+            0x0000 => "No key — disables this key completely".into(),
+            0x0001 => "Transparent — inherits the key from the layer below".into(),
+            0x7C00 => "Bootloader — put keyboard into flash mode".into(),
+            0x7C16 => format!(
+                "Grave/Escape — sends Esc normally, ` when Shift or {} is held",
+                gui_mod_name()
+            ),
+            0x7C73 => "Caps Word — capitalizes until end of current word".into(),
+            0x7C79 => "Repeat — repeats the last pressed key".into(),
+            value if Self::zmk_modifier_usage_from_vial_osm(value).is_some() => {
+                let label = keycode_label_with_names(value, &[], &self.layer_names).replace('\n', " ");
+                format!("One-Shot modifier — {label}")
+            }
+            _ => {
+                let label = keycode_label_with_names(value, &[], &self.layer_names).replace('\n', " / ");
+                if self.zmk_key_press_usage_from_vial_value(value).is_some() {
+                    format!("Key press: {label}")
+                } else if zmk_mouse_button_usage_for_qmk_value(value).is_some() {
+                    format!("Mouse button: {label}")
+                } else {
+                    label
+                }
+            }
+        }
+    }
+
     fn assign_keycode_value(&mut self, value: u16) {
         match self.firmware {
             FirmwareProtocol::Vial => {
@@ -912,10 +953,6 @@ impl KeycodePicker {
             0x2200 => Some(0x0007_00E1), // LShift
             0x2400 => Some(0x0007_00E2), // LAlt
             0x2800 => Some(0x0007_00E3), // LGUI
-            0x3100 => Some(0x0007_00E4), // RCtrl
-            0x3200 => Some(0x0007_00E5), // RShift
-            0x3400 => Some(0x0007_00E6), // RAlt
-            0x3800 => Some(0x0007_00E7), // RGUI
             _ => None,
         }
     }
@@ -926,10 +963,6 @@ impl KeycodePicker {
             0x52A1 => Some(0x0007_00E1), // LShift
             0x52A4 => Some(0x0007_00E2), // LAlt
             0x52A8 => Some(0x0007_00E3), // LGUI
-            0x53A2 => Some(0x0007_00E4), // RCtrl
-            0x53A1 => Some(0x0007_00E5), // RShift
-            0x53A4 => Some(0x0007_00E6), // RAlt
-            0x53A8 => Some(0x0007_00E7), // RGUI
             _ => None,
         }
     }
@@ -1837,7 +1870,7 @@ impl KeycodePicker {
                 if !self.selected_tab.vial_matches(kc) || !self.vial_keycode_supported(kc) {
                     continue;
                 }
-                let tip = keycode_tooltip(kc.value, &custom_pairs, &self.layer_names);
+                let tip = self.picker_keycode_tooltip(kc.value, &custom_pairs);
                 let label = keycode_label_with_names(kc.value, &custom_pairs, &self.layer_names);
                 let resp = ui
                     .add(
@@ -1904,7 +1937,7 @@ impl KeycodePicker {
                 if !self.selected_tab.vial_matches(kc) || !self.vial_keycode_supported(kc) {
                     continue;
                 }
-                let tip = keycode_tooltip(kc.value, &custom_pairs, &self.layer_names);
+                let tip = self.picker_keycode_tooltip(kc.value, &custom_pairs);
                 let label = keycode_label_with_names(kc.value, &custom_pairs, &self.layer_names);
                 let resp = ui
                     .add(
@@ -2054,36 +2087,6 @@ impl KeycodePicker {
             }
         });
 
-        if self.firmware == FirmwareProtocol::Zmk {
-            ui.add_space(10.0);
-            ui.label(
-                RichText::new("Right-side modifiers")
-                    .size(11.0)
-                    .color(Color32::from_gray(150)),
-            );
-            ui.add_space(4.0);
-            let rgui = gui_label(true);
-            let right_plain: Vec<(String, u16, String)> = vec![
-                ("Right Ctrl".into(), 0x00E4, "Right Control".into()),
-                ("Right Shift".into(), 0x00E5, "Right Shift".into()),
-                ("Right Alt".into(), 0x00E6, "Right Alt / AltGr".into()),
-                (rgui.into(), 0x00E7, format!("Right {}", rgui)),
-            ];
-            ui.horizontal_wrapped(|ui| {
-                for (label, value, tip) in &right_plain {
-                    let resp = ui
-                        .add(
-                            egui::Button::new(RichText::new(label.as_str()).size(10.5))
-                                .min_size(Vec2::new(88.0, 34.0)),
-                        )
-                        .on_hover_cursor(egui::CursorIcon::PointingHand);
-                    if resp.clicked() {
-                        self.assign_keycode_value(*value);
-                    }
-                    resp.on_hover_text(tip.as_str());
-                }
-            });
-        }
 
         ui.add_space(12.0);
         self.show_vial_layers(ui);
@@ -2170,12 +2173,6 @@ impl KeycodePicker {
             ),
         ];
         if self.firmware == FirmwareProtocol::Zmk {
-            mt.extend(vec![
-                ("MT RCtrl".into(), 0x3100, "Mod-Tap: hold=RCtrl".into()),
-                ("MT RShift".into(), 0x3200, "Mod-Tap: hold=RShift".into()),
-                ("MT RAlt".into(), 0x3400, "Mod-Tap: hold=RAlt / AltGr".into()),
-                (format!("MT {}", gui_label(true)), 0x3800, format!("Mod-Tap: hold=R{}", gui_label(true))),
-            ]);
             mt.retain(|(_, value, _)| Self::zmk_modifier_usage_from_vial_mt_base(*value).is_some());
         }
         ui.horizontal_wrapped(|ui| {
@@ -2225,12 +2222,6 @@ impl KeycodePicker {
             ),
         ];
         if self.firmware == FirmwareProtocol::Zmk {
-            osm.extend(vec![
-                ("OSM RCtrl".into(), 0x53A2, "One-Shot Right Ctrl".into()),
-                ("OSM RShift".into(), 0x53A1, "One-Shot Right Shift".into()),
-                ("OSM RAlt".into(), 0x53A4, "One-Shot Right Alt / AltGr".into()),
-                (format!("OSM {}", gui_label(true)), 0x53A8, format!("One-Shot Right {}", gui_label(true))),
-            ]);
             osm.retain(|(_, value, _)| Self::zmk_modifier_usage_from_vial_osm(*value).is_some());
         }
         ui.horizontal_wrapped(|ui| {
@@ -2425,7 +2416,7 @@ impl KeycodePicker {
             self.zmk_vial_style_behavior_button(
                 ui,
                 "Studio\nUnlock",
-                "Studio Unlock — allow ZMK Studio to edit the keymap",
+                "Unlock editing — allow live keymap changes",
                 "Studio Unlock",
                 0,
                 0,
@@ -2473,7 +2464,7 @@ impl KeycodePicker {
                 if resp.clicked() {
                     self.zmk_assign_keycode_value(kc.value);
                 }
-                resp.on_hover_text(keycode_tooltip(kc.value, &[], &self.layer_names));
+                resp.on_hover_text(self.picker_keycode_tooltip(kc.value, &[]));
             }
         });
 
@@ -2499,7 +2490,7 @@ impl KeycodePicker {
                 if resp.clicked() {
                     self.zmk_assign_keycode_value(kc.value);
                 }
-                resp.on_hover_text(keycode_tooltip(kc.value, &[], &self.layer_names));
+                resp.on_hover_text(self.picker_keycode_tooltip(kc.value, &[]));
             }
         });
 
@@ -2533,7 +2524,7 @@ impl KeycodePicker {
                 if resp.clicked() {
                     self.zmk_assign_keycode_value(*value);
                 }
-                resp.on_hover_text(keycode_tooltip(*value, &[], &self.layer_names));
+                resp.on_hover_text(self.picker_keycode_tooltip(*value, &[]));
             }
         });
 
@@ -3983,14 +3974,22 @@ impl KeycodePicker {
 None"
                     .into(),
                 0x0000,
-                "KC_NO — disables this key completely, it sends nothing when pressed".into(),
+                if self.firmware == FirmwareProtocol::Zmk {
+                    "No key — disables this key completely, it sends nothing when pressed".into()
+                } else {
+                    "KC_NO — disables this key completely, it sends nothing when pressed".into()
+                },
             ),
             (
                 "▽
 Inherit"
                     .into(),
                 0x0001,
-                "KC_TRNS — inherits the key from the layer below".into(),
+                if self.firmware == FirmwareProtocol::Zmk {
+                    "Transparent — inherits the key from the layer below".into()
+                } else {
+                    "KC_TRNS — inherits the key from the layer below".into()
+                },
             ),
             (
                 "Esc
@@ -4007,21 +4006,33 @@ Inherit"
 Boot"
                     .into(),
                 0x7C00,
-                "QK_BOOT — put keyboard into flash mode".into(),
+                if self.firmware == FirmwareProtocol::Zmk {
+                    "Bootloader — put keyboard into flash mode".into()
+                } else {
+                    "QK_BOOT — put keyboard into flash mode".into()
+                },
             ),
             (
                 "🐛
 Debug"
                     .into(),
                 0x7C02,
-                "DB_TOGG — toggle debug mode".into(),
+                if self.firmware == FirmwareProtocol::Zmk {
+                    "Debug toggle — toggle debug mode".into()
+                } else {
+                    "DB_TOGG — toggle debug mode".into()
+                },
             ),
             (
                 "🔒
 Lock"
                     .into(),
                 0x7800,
-                "QK_LOCK — hold to lock remaining keys until pressed again".into(),
+                if self.firmware == FirmwareProtocol::Zmk {
+                    "Lock — hold to lock remaining keys until pressed again".into()
+                } else {
+                    "QK_LOCK — hold to lock remaining keys until pressed again".into()
+                },
             ),
             (
                 "Auto
@@ -4214,11 +4225,7 @@ Repeat"
                 if resp.clicked() {
                     self.assign_keycode_value(kc.value);
                 }
-                resp.on_hover_text(crate::keycode::keycode_tooltip(
-                    kc.value,
-                    &[],
-                    &self.layer_names,
-                ));
+                resp.on_hover_text(self.picker_keycode_tooltip(kc.value, &[]));
             }
         });
 
@@ -4308,11 +4315,7 @@ Repeat"
                 if resp.clicked() {
                     self.assign_keycode_value(*value);
                 }
-                resp.on_hover_text(crate::keycode::keycode_tooltip(
-                    *value,
-                    &[],
-                    &self.layer_names,
-                ));
+                resp.on_hover_text(self.picker_keycode_tooltip(*value, &[]));
             }
         });
 
@@ -4332,11 +4335,7 @@ Repeat"
                 if resp.clicked() {
                     self.assign_keycode_value(*value);
                 }
-                resp.on_hover_text(crate::keycode::keycode_tooltip(
-                    *value,
-                    &[],
-                    &self.layer_names,
-                ));
+                resp.on_hover_text(self.picker_keycode_tooltip(*value, &[]));
             }
         });
 
@@ -4513,11 +4512,7 @@ Repeat"
                 if resp.clicked() {
                     self.assign_keycode_value(kc.value);
                 }
-                resp = resp.on_hover_text(crate::keycode::keycode_tooltip(
-                    kc.value,
-                    &[],
-                    &self.layer_names,
-                ));
+                resp = resp.on_hover_text(self.picker_keycode_tooltip(kc.value, &[]));
                 let _ = resp;
             }
         });
@@ -4579,11 +4574,7 @@ Repeat"
                 if resp.clicked() {
                     self.assign_keycode_value(*value);
                 }
-                resp = resp.on_hover_text(crate::keycode::keycode_tooltip(
-                    *value,
-                    &[],
-                    &self.layer_names,
-                ));
+                resp = resp.on_hover_text(self.picker_keycode_tooltip(*value, &[]));
                 let _ = resp;
             }
         });
@@ -4772,7 +4763,7 @@ Repeat"
                 if !zmk_tab_matches(self.selected_tab, kc) || !self.zmk_keycode_supported(kc.value) {
                     continue;
                 }
-                let tip = keycode_tooltip(kc.value, &[], &self.layer_names);
+                let tip = self.picker_keycode_tooltip(kc.value, &[]);
                 let label = keycode_label_with_names(kc.value, &[], &self.layer_names);
                 let resp = ui
                     .add(
@@ -4818,7 +4809,7 @@ Repeat"
                 if !KeycodeTab::Symbols.vial_matches(kc) || !self.zmk_keycode_supported(kc.value) {
                     continue;
                 }
-                let tip = keycode_tooltip(kc.value, &[], &self.layer_names);
+                let tip = self.picker_keycode_tooltip(kc.value, &[]);
                 let label = keycode_label_with_names(kc.value, &[], &self.layer_names);
                 let resp = ui
                     .add(
@@ -5339,7 +5330,7 @@ Repeat"
                 if resp.clicked() {
                     self.zmk_assign_keycode_value(kc.value);
                 }
-                resp.on_hover_text(keycode_tooltip(kc.value, &[], &self.layer_names));
+                resp.on_hover_text(self.picker_keycode_tooltip(kc.value, &[]));
             }
         });
     }
@@ -5411,7 +5402,7 @@ Repeat"
                 if resp.clicked() {
                     self.zmk_assign_keycode_value(kc.value);
                 }
-                resp.on_hover_text(keycode_tooltip(kc.value, &[], &self.layer_names));
+                resp.on_hover_text(self.picker_keycode_tooltip(kc.value, &[]));
             }
         });
     }
@@ -5483,7 +5474,7 @@ Repeat"
                 if resp.clicked() {
                     self.zmk_assign(id, 0, 0);
                 }
-                resp.on_hover_text("Studio Unlock — tap to allow ZMK Studio to edit the keymap");
+                resp.on_hover_text("Unlock editing — allow live keymap changes");
             }
         });
 
