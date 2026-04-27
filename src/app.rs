@@ -6052,25 +6052,30 @@ impl EntropyApp {
                         );
                         ui.add_space(20.0);
                         let (snake_rect, _) = ui.allocate_exact_size(
-                            Vec2::new(92.0, 18.0),
+                            Vec2::new(104.0, 18.0),
                             egui::Sense::hover(),
                         );
                         let painter = ui.painter();
                         let t = ui.input(|i| i.time) as f32;
-                        let segments = 7;
-                        let step = 11.0;
-                        let head = (t * 3.2).rem_euclid(segments as f32);
-                        let start_x = snake_rect.center().x - step * (segments as f32 - 1.0) / 2.0;
+                        let tail_segments = 11;
+                        let speed = 42.0;
+                        let spacing = 7.0;
+                        let path_w = snake_rect.width() - 16.0;
+                        let start_x = snake_rect.center().x - path_w / 2.0;
                         let center_y = snake_rect.center().y;
-                        for i in 0..segments {
-                            let i_f = i as f32;
-                            let wrapped = (i_f - head + segments as f32).rem_euclid(segments as f32);
-                            let dist = wrapped.min(segments as f32 - wrapped);
-                            let strength = (1.0 - dist / 3.5).clamp(0.0, 1.0);
-                            let radius = 2.4 + strength * 3.2;
-                            let x = start_x + i_f * step;
-                            let y = center_y + (t * 5.0 + i_f * 0.72).sin() * 2.0 * strength;
-                            let fill = with_alpha(app_accent(), 0.22 + strength * 0.78);
+                        let path_len = path_w + spacing * tail_segments as f32;
+                        let head_x = (t * speed).rem_euclid(path_len);
+                        for i in (0..tail_segments).rev() {
+                            let age = i as f32;
+                            let x_on_path = head_x - age * spacing;
+                            if !(0.0..=path_w).contains(&x_on_path) {
+                                continue;
+                            }
+                            let tail = 1.0 - age / tail_segments as f32;
+                            let x = start_x + x_on_path;
+                            let y = center_y + (x_on_path * 0.115 + t * 6.0).sin() * 2.2 * tail;
+                            let radius = 2.0 + tail * 2.9;
+                            let fill = with_alpha(app_accent(), 0.14 + tail * 0.76);
                             painter.circle_filled(egui::pos2(x, y), radius, fill);
                         }
                         ui.add_space(10.0);
@@ -6083,7 +6088,7 @@ impl EntropyApp {
                 });
             });
 
-        ctx.request_repaint_after(std::time::Duration::from_millis(33));
+        ctx.request_repaint();
     }
 }
 
