@@ -5211,10 +5211,6 @@ impl EntropyApp {
                         self.keycode_picker.zmk_layer_retarget_pending = Some(binding);
                         self.secondary_click_handled = true;
                     }
-                } else if zmk_is_plain_modifier_binding(&binding, behaviors) {
-                    self.open_picker_for_target(key_target, encoder_target, is_zmk);
-                    self.keycode_picker.selected_tab = crate::keycode_picker::KeycodeTab::Modifiers;
-                    self.secondary_click_handled = true;
                 } else if let Some(base) = zmk_modded_key_retarget_base(&binding, behaviors) {
                     self.open_picker_for_target(key_target, encoder_target, is_zmk);
                     self.keycode_picker.vial_quantum_pending_mod = Some(base);
@@ -5270,12 +5266,6 @@ impl EntropyApp {
             if self.secondary_click_handled {
                 return;
             }
-        }
-        if (0x00E0..=0x00E7).contains(&kc) {
-            self.open_picker_for_target(key_target, encoder_target, is_zmk);
-            self.keycode_picker.selected_tab = crate::keycode_picker::KeycodeTab::Modifiers;
-            self.secondary_click_handled = true;
-            return;
         }
         if kc >= 0x7700 && kc <= 0x77FF {
             let macro_n = (kc - 0x7700) as u8;
@@ -12884,6 +12874,7 @@ impl EntropyApp {
                         let (
                             hovered_is_mod,
                             hovered_can_swap_side,
+                            hovered_can_retarget_mod_key,
                             hovered_is_macro,
                             hovered_is_tap_dance,
                             hovered_is_mouse,
@@ -12937,9 +12928,13 @@ impl EntropyApp {
                                     let is_grave_escape = kc == 0x7C16;
                                     let is_layer =
                                         (kc >= 0x5200 && kc < 0x5300) || (kc & 0xF000 == 0x4000);
+                                    let can_retarget_mod_key = !is_layer
+                                        && ((kc >= 0x2000 && kc < 0x4000)
+                                            || (kc >= 0x0100 && kc < 0x2000 && (kc & 0xFF) != 0));
                                     (
                                         is_mod,
                                         can_swap_side,
+                                        can_retarget_mod_key,
                                         is_macro,
                                         is_tap_dance,
                                         is_mouse,
@@ -12948,7 +12943,7 @@ impl EntropyApp {
                                         is_layer,
                                     )
                                 })
-                                .unwrap_or((false, false, false, false, false, false, false, false))
+                                .unwrap_or((false, false, false, false, false, false, false, false, false))
                         } else {
                             let binding = self
                                 .prev_hovered_key
@@ -13011,49 +13006,55 @@ impl EntropyApp {
                                     })
                                 })
                                 .is_some();
-                            (is_mod, can_swap_side, false, false, false, false, false, is_layer)
+                            (is_mod, can_swap_side, can_retarget_mod_key, false, false, false, false, false, is_layer)
                         };
                         if hovered_is_mod {
                             if hovered_can_swap_side {
                                 if self.firmware == FirmwareProtocol::Zmk {
+                                    let show_retarget = hovered_can_retarget_mod_key;
                                     ui.painter().text(
-                                        egui::pos2(center_x, hint_y - 22.0),
+                                        egui::pos2(center_x, if show_retarget { hint_y - 22.0 } else { hint_y - 10.0 }),
                                         egui::Align2::CENTER_CENTER,
                                         "Left click to change this key",
                                         hint_font.clone(),
                                         hint_color,
                                     );
+                                    if show_retarget {
+                                        ui.painter().text(
+                                            egui::pos2(center_x, hint_y - 4.0),
+                                            egui::Align2::CENTER_CENTER,
+                                            "Right click to change the tap/key part",
+                                            secondary_hint_font.clone(),
+                                            hint_color,
+                                        );
+                                    }
                                     ui.painter().text(
-                                        egui::pos2(center_x, hint_y - 4.0),
-                                        egui::Align2::CENTER_CENTER,
-                                        "Right click to change this modifier/key part",
-                                        secondary_hint_font.clone(),
-                                        hint_color,
-                                    );
-                                    ui.painter().text(
-                                        egui::pos2(center_x, hint_y + 12.0),
+                                        egui::pos2(center_x, if show_retarget { hint_y + 12.0 } else { hint_y + 8.0 }),
                                         egui::Align2::CENTER_CENTER,
                                         "Ctrl+right-click to switch left/right side",
                                         secondary_hint_font,
                                         hint_color,
                                     );
                                 } else {
+                                    let show_retarget = hovered_can_retarget_mod_key;
                                     ui.painter().text(
-                                        egui::pos2(center_x, hint_y - 22.0),
+                                        egui::pos2(center_x, if show_retarget { hint_y - 22.0 } else { hint_y - 10.0 }),
                                         egui::Align2::CENTER_CENTER,
                                         "Left click to change this key",
                                         hint_font.clone(),
                                         hint_color,
                                     );
+                                    if show_retarget {
+                                        ui.painter().text(
+                                            egui::pos2(center_x, hint_y - 4.0),
+                                            egui::Align2::CENTER_CENTER,
+                                            "Right click to change the modifier key",
+                                            secondary_hint_font.clone(),
+                                            hint_color,
+                                        );
+                                    }
                                     ui.painter().text(
-                                        egui::pos2(center_x, hint_y - 4.0),
-                                        egui::Align2::CENTER_CENTER,
-                                        "Right click to change the modifier key",
-                                        secondary_hint_font.clone(),
-                                        hint_color,
-                                    );
-                                    ui.painter().text(
-                                        egui::pos2(center_x, hint_y + 12.0),
+                                        egui::pos2(center_x, if show_retarget { hint_y + 12.0 } else { hint_y + 8.0 }),
                                         egui::Align2::CENTER_CENTER,
                                         "Ctrl+right-click to switch left/right side",
                                         secondary_hint_font,

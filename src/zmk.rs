@@ -622,14 +622,14 @@ fn zmk_mod_mask_to_vial_base(mask: u32) -> Option<u16> {
 
 fn zmk_modifier_usage_to_vial_osm(usage: u32) -> Option<u16> {
     match usage {
-        0x0007_00E0 => Some(0x52A2),
-        0x0007_00E1 => Some(0x52A1),
-        0x0007_00E2 => Some(0x52A4),
-        0x0007_00E3 => Some(0x52A8),
-        0x0007_00E4 => Some(0x52B2),
-        0x0007_00E5 => Some(0x52B1),
-        0x0007_00E6 => Some(0x52B4),
-        0x0007_00E7 => Some(0x52B8),
+        0x0007_00E0 | 0x01 => Some(0x52A2),
+        0x0007_00E1 | 0x02 => Some(0x52A1),
+        0x0007_00E2 | 0x04 => Some(0x52A4),
+        0x0007_00E3 | 0x08 => Some(0x52A8),
+        0x0007_00E4 | 0x10 => Some(0x52B2),
+        0x0007_00E5 | 0x20 => Some(0x52B1),
+        0x0007_00E6 | 0x40 => Some(0x52B4),
+        0x0007_00E7 | 0x80 => Some(0x52B8),
         _ => None,
     }
 }

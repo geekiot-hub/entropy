@@ -265,7 +265,7 @@ fn zmk_hid_usage_for_qmk_value(value: u16) -> Option<u32> {
     let consumer = |usage: u32| Some(0x000C_0000u32 | usage);
     let system = |usage: u32| Some(0x0001_0000u32 | usage);
     match value {
-        0x0004..=0x00A4 => Some(0x0007_0000u32 | value as u32),
+        0x0004..=0x00A4 | 0x00E0..=0x00E7 => Some(0x0007_0000u32 | value as u32),
         // System control page.
         0x00A5 => system(0x0081), // Power
         0x00A6 => system(0x0082), // Sleep
