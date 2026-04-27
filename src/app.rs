@@ -5309,8 +5309,16 @@ impl eframe::App for EntropyApp {
             }
         }
         let now = ctx.input(|i| i.time);
+        #[cfg(not(target_arch = "wasm32"))]
+        let zmk_unlock_flow_active = self.firmware == FirmwareProtocol::Zmk
+            && (self.zmk_lock_state == crate::zmk_proto::core::LockState::Locked as i32
+                || self.zmk_unlock_reconnect_pending
+                || self.zmk_op_rx.is_some());
+        #[cfg(target_arch = "wasm32")]
+        let zmk_unlock_flow_active = false;
         if (self.last_device_scan_at == 0.0 || now - self.last_device_scan_at >= 0.25)
             && !self.vial_unlock_polling
+            && !zmk_unlock_flow_active
         {
             self.scan_frame = self.scan_frame.wrapping_add(1);
             self.last_device_scan_at = now;
