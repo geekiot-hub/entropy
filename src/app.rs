@@ -13401,55 +13401,83 @@ impl EntropyApp {
             }
 
             if is_zmk {
-                // ZMK binding display
+                // ZMK binding display. Keep None/TRNS visual behavior identical to Vial:
+                // None is a blank key; TRNS is blank on hover and otherwise shows the fallback layer.
                 let binding = layout.get_zmk_binding(layer, *ki);
-                let is_trans = layout
+                let binding_kind = layout
                     .zmk_behaviors
                     .iter()
                     .find(|b| b.id == binding.behavior_id as u32)
-                    .map(|b| zmk_behavior_kind(&b.display_name) == "transparent")
-                    .unwrap_or(false);
-                let border = layer_led_outline.unwrap_or_else(|| {
-                    if dark {
-                        Color32::from_rgb(54, 54, 58)
+                    .map(|b| zmk_behavior_kind(&b.display_name))
+                    .unwrap_or(if binding.is_none() { "none" } else { "unknown" });
+                let is_trans = binding_kind == "transparent";
+                let is_none_key = binding_kind == "none";
+
+                if is_none_key {
+                    let no_bg = if dark {
+                        Color32::from_rgb(20, 20, 22)
                     } else {
-                        Color32::from_rgb(230, 230, 233)
-                    }
-                });
-                painter.rect(
-                    draw_rect,
-                    6.0,
-                    bg,
-                    Stroke::new(1.0, border),
-                    egui::StrokeKind::Inside,
-                );
-                if is_trans && layer > 0 {
-                    if is_hovering {
-                        // During hover preview — TRNS keys are empty (no text)
-                    } else {
-                        // Normal display — show TRNS with fallback
-                        let fallback = (0..layer)
-                            .rev()
-                            .map(|l| layout.get_zmk_binding(l, *ki))
-                            .find(|b| {
-                                !layout
+                        Color32::from_rgb(255, 255, 255)
+                    };
+                    let no_border = layer_led_outline.unwrap_or_else(|| {
+                        if dark {
+                            Color32::from_rgb(40, 40, 44)
+                        } else {
+                            Color32::from_rgb(230, 230, 233)
+                        }
+                    });
+                    let fill = if is_selected || is_hovered { bg } else { no_bg };
+                    painter.rect(
+                        draw_rect,
+                        6.0,
+                        fill,
+                        Stroke::new(1.0, no_border),
+                        egui::StrokeKind::Inside,
+                    );
+                } else {
+                    let border = layer_led_outline.unwrap_or_else(|| {
+                        if dark {
+                            Color32::from_rgb(54, 54, 58)
+                        } else {
+                            Color32::from_rgb(230, 230, 233)
+                        }
+                    });
+                    painter.rect(
+                        draw_rect,
+                        6.0,
+                        bg,
+                        Stroke::new(1.0, border),
+                        egui::StrokeKind::Inside,
+                    );
+                    if is_trans {
+                        if !is_hovering {
+                            let fallback = (0..layer).rev().map(|l| layout.get_zmk_binding(l, *ki)).find(|b| {
+                                let kind = layout
                                     .zmk_behaviors
                                     .iter()
                                     .find(|beh| beh.id == b.behavior_id as u32)
-                                    .map(|beh| zmk_behavior_kind(&beh.display_name) == "transparent")
-                                    .unwrap_or(false)
+                                    .map(|beh| zmk_behavior_kind(&beh.display_name))
+                                    .unwrap_or(if b.is_none() { "none" } else { "unknown" });
+                                kind != "transparent"
                             });
-                        let label = if let Some(fb) = fallback {
-                            zmk_binding_label(&fb, &layout.zmk_behaviors, &self.layer_names)
-                        } else {
-                            "▽".to_string()
-                        };
-                        draw_key_label_dimmed(&painter, draw_rect, &label, dark);
+                            let label = fallback
+                                .filter(|fb| {
+                                    layout
+                                        .zmk_behaviors
+                                        .iter()
+                                        .find(|beh| beh.id == fb.behavior_id as u32)
+                                        .map(|beh| zmk_behavior_kind(&beh.display_name) != "none")
+                                        .unwrap_or(!fb.is_none())
+                                })
+                                .map(|fb| zmk_binding_label(&fb, &layout.zmk_behaviors, &self.layer_names))
+                                .unwrap_or_default();
+                            draw_key_label_dimmed(&painter, draw_rect, &label, dark);
+                        }
+                    } else {
+                        let label =
+                            zmk_binding_label(&binding, &layout.zmk_behaviors, &self.layer_names);
+                        draw_key_label(&painter, draw_rect, &label, dark);
                     }
-                } else {
-                    let label =
-                        zmk_binding_label(&binding, &layout.zmk_behaviors, &self.layer_names);
-                    draw_key_label(&painter, draw_rect, &label, dark);
                 }
             } else {
                 let kc = layout.get_keycode(layer, *ki);
