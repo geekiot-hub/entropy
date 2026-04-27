@@ -1558,9 +1558,9 @@ pub struct EntropyApp {
     /// Persistent ZMK connection passed from the connect thread
     #[cfg(not(target_arch = "wasm32"))]
     zmk_conn: Option<crate::zmk::ZmkConnection>,
-    /// Built-in qmk-hid-host bridge for displays/presets that need host data
+    /// Built-in qmk-hid-host bridges for displays/presets that need host data
     #[cfg(not(target_arch = "wasm32"))]
-    qmk_hid_host: Option<crate::qmk_hid_host::QmkHidHostBridge>,
+    qmk_hid_hosts: std::collections::HashMap<String, crate::qmk_hid_host::QmkHidHostBridge>,
     /// Current firmware type (mirrors layout.firmware)
     firmware: FirmwareProtocol,
     zmk_base_layer_count: usize,
@@ -1670,7 +1670,7 @@ impl EntropyApp {
             #[cfg(not(target_arch = "wasm32"))]
             zmk_conn: None,
             #[cfg(not(target_arch = "wasm32"))]
-            qmk_hid_host: None,
+            qmk_hid_hosts: std::collections::HashMap::new(),
             firmware: FirmwareProtocol::Vial,
             zmk_base_layer_count: 0,
             zmk_no_extra_layers: false,
@@ -1779,7 +1779,7 @@ impl EntropyApp {
         self.selected_encoder = None;
         self.selected_layer = 0;
         self.layer_count = 0;
-        self.qmk_hid_host = None;
+        self.qmk_hid_hosts.clear();
         self.hid_device = None;
         self.zmk_conn = None;
         self.zmk_op_rx = None;
@@ -1816,6 +1816,8 @@ impl EntropyApp {
             if self.selected_device.is_some() || self.layout.is_some() || was_loading {
                 self.selected_device = None;
                 self.clear_connected_keyboard_state("No keyboard detected");
+            } else {
+                self.qmk_hid_hosts.clear();
             }
             return;
         }
@@ -1830,6 +1832,8 @@ impl EntropyApp {
                 self.selected_device = Some(idx);
                 if self.layout.is_none() && !was_loading {
                     self.start_connect(idx);
+                } else {
+                    self.sync_qmk_hid_host_bridges();
                 }
                 return;
             }
@@ -1854,7 +1858,7 @@ impl EntropyApp {
         self.selected_key = None;
         self.selected_encoder = None;
         self.selected_layer = 0;
-        self.qmk_hid_host = None;
+        self.sync_qmk_hid_host_bridges();
         self.hid_device = None;
         self.zmk_conn = None;
         self.zmk_has_unsaved = false;
@@ -2796,7 +2800,7 @@ impl EntropyApp {
                             }
                             Err(e) => log::warn!("Could not open persistent HID: {e}"),
                         }
-                        self.sync_qmk_hid_host_bridge();
+                        self.sync_qmk_hid_host_bridges();
                     }
                 }
 
@@ -6229,7 +6233,7 @@ impl EntropyApp {
 
         let packed = Self::pack_layout_option_values(&layout.layout_options, &values);
         self.layout_options_value = Some(packed);
-        self.qmk_hid_host = None;
+        self.qmk_hid_hosts.clear();
         if let Some(hid) = &self.hid_device {
             if let Err(e) = hid.set_layout_options(packed) {
                 log::warn!("fallback display preset before exit failed: {e}");
@@ -6238,37 +6242,44 @@ impl EntropyApp {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn sync_qmk_hid_host_bridge(&mut self) {
-        if self.firmware != FirmwareProtocol::Vial {
-            self.qmk_hid_host = None;
-            return;
-        }
-        let Some(layout) = self.layout.as_ref() else {
-            self.qmk_hid_host = None;
-            return;
-        };
-        let Some(device) = self
+    fn sync_qmk_hid_host_bridges(&mut self) {
+        let selected_path = self
             .selected_device
             .and_then(|idx| self.device_manager.devices().get(idx))
-            .cloned()
-        else {
-            self.qmk_hid_host = None;
-            return;
-        };
+            .map(|device| device.path.as_str());
 
-        let mut mode = Self::qmk_hid_host_mode_for(layout, self.layout_options_value);
-        if Self::device_uses_automatic_display_host_data(&device) {
-            mode.clock_volume = true;
-            mode.media = true;
+        let mut desired = std::collections::HashMap::<String, crate::qmk_hid_host::HostDataMode>::new();
+
+        for device in self.device_manager.devices() {
+            if device.firmware != FirmwareProtocol::Vial {
+                continue;
+            }
+
+            let mut mode = crate::qmk_hid_host::HostDataMode::default();
+            if Some(device.path.as_str()) == selected_path {
+                if let Some(layout) = self.layout.as_ref() {
+                    mode = Self::qmk_hid_host_mode_for(layout, self.layout_options_value);
+                }
+            }
+
+            if Self::device_uses_automatic_display_host_data(device) {
+                mode.clock_volume = true;
+                mode.media = true;
+            }
+
+            if !mode.is_empty() {
+                desired.insert(device.path.clone(), mode);
+            }
         }
-        if mode.is_empty() {
-            self.qmk_hid_host = None;
-            return;
+
+        self.qmk_hid_hosts
+            .retain(|path, bridge| desired.get(path).copied() == Some(bridge.mode()));
+
+        for (path, mode) in desired {
+            self.qmk_hid_hosts
+                .entry(path.clone())
+                .or_insert_with(|| crate::qmk_hid_host::QmkHidHostBridge::start(path, mode));
         }
-        if self.qmk_hid_host.as_ref().map(|bridge| bridge.mode()) == Some(mode) {
-            return;
-        }
-        self.qmk_hid_host = Some(crate::qmk_hid_host::QmkHidHostBridge::start(device.path, mode));
     }
 
     fn open_layout_options_settings_page(&mut self) {
@@ -6336,7 +6347,7 @@ impl EntropyApp {
             }
         }
         #[cfg(not(target_arch = "wasm32"))]
-        self.sync_qmk_hid_host_bridge();
+        self.sync_qmk_hid_host_bridges();
     }
 
     fn close_top_dropdowns(&self, ctx: &egui::Context) {
