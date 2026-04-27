@@ -570,6 +570,91 @@ impl ZmkConnection {
     }
 }
 
+fn zmk_mod_mask_to_vial_base(mask: u32) -> Option<u16> {
+    match mask {
+        0x01 => Some(0x0100),
+        0x02 => Some(0x0200),
+        0x04 => Some(0x0400),
+        0x08 => Some(0x0800),
+        0x10 => Some(0x1100),
+        0x20 => Some(0x1200),
+        0x40 => Some(0x1400),
+        0x80 => Some(0x1800),
+        0x03 => Some(0x0300),
+        0x05 => Some(0x0500),
+        0x06 => Some(0x0600),
+        0x07 => Some(0x0700),
+        0x0A => Some(0x0A00),
+        0x0F => Some(0x0F00),
+        _ => None,
+    }
+}
+
+fn zmk_hid_usage_to_vial_value(usage: u32) -> Option<u16> {
+    let mod_mask = (usage >> 24) & 0xFF;
+    let raw = usage & 0x00FF_FFFF;
+    let page = raw >> 16;
+    let usage_id = raw & 0xFFFF;
+
+    let base = match page {
+        0x07 => match usage_id {
+            0x0004..=0x00A4 => Some(usage_id as u16),
+            _ => None,
+        },
+        0x09 => match usage_id {
+            0x01..=0x08 => Some(0x00D0 + usage_id as u16),
+            _ => None,
+        },
+        0x01 => match usage_id {
+            0x81 => Some(0x00A5),
+            0x82 => Some(0x00A6),
+            0x83 => Some(0x00A7),
+            _ => None,
+        },
+        0x0C => match usage_id {
+            0x006F => Some(0x00BD),
+            0x0070 => Some(0x00BE),
+            0x00B3 => Some(0x00BB),
+            0x00B4 => Some(0x00BC),
+            0x00B5 => Some(0x00AB),
+            0x00B6 => Some(0x00AC),
+            0x00B7 => Some(0x00AD),
+            0x00B8 => Some(0x00B0),
+            0x00CD => Some(0x00AE),
+            0x00E2 => Some(0x00A8),
+            0x00E9 => Some(0x00A9),
+            0x00EA => Some(0x00AA),
+            0x0183 => Some(0x00AF),
+            0x018A => Some(0x00B1),
+            0x0192 => Some(0x00B2),
+            0x0194 => Some(0x00B3),
+            0x0221 => Some(0x00B4),
+            0x0223 => Some(0x00B5),
+            0x0224 => Some(0x00B6),
+            0x0225 => Some(0x00B7),
+            0x0226 => Some(0x00B8),
+            0x0227 => Some(0x00B9),
+            0x022A => Some(0x00BA),
+            _ => None,
+        },
+        _ => None,
+    }?;
+
+    if mod_mask == 0 {
+        Some(base)
+    } else {
+        zmk_mod_mask_to_vial_base(mod_mask).map(|mod_base| mod_base | base)
+    }
+}
+
+fn zmk_hid_usage_label_with_vial_style(usage: u32, layer_names: &[String]) -> String {
+    if let Some(value) = zmk_hid_usage_to_vial_value(usage) {
+        crate::keycode::keycode_label_with_names(value, &[], layer_names)
+    } else {
+        hid_usage_label(usage)
+    }
+}
+
 /// Get a display label for a ZMK binding given behavior info.
 pub fn zmk_binding_label(binding: &ZmkBinding, behaviors: &[BehaviorInfo], layer_names: &[String]) -> String {
     if binding.is_none() {
@@ -581,7 +666,7 @@ pub fn zmk_binding_label(binding: &ZmkBinding, behaviors: &[BehaviorInfo], layer
     let p1 = binding.param1;
     let p2 = binding.param2;
 
-    let key = |u: u32| hid_usage_label(u);
+    let key = |u: u32| zmk_hid_usage_label_with_vial_style(u, layer_names);
     let layer = |n: u32| -> String {
         match layer_names.get(n as usize) {
             Some(s) if !s.is_empty() && s != &n.to_string() => format!("{}({})\n{}", "", n, s),
@@ -606,7 +691,7 @@ pub fn zmk_binding_label(binding: &ZmkBinding, behaviors: &[BehaviorInfo], layer
         // Grave/Escape
         "Grave/Escape" => "GEsc".to_string(),
         // Key Repeat
-        "Key Repeat" => "Rep".to_string(),
+        "Key Repeat" => "Repeat".to_string(),
         // Key Toggle
         "Key Toggle" => format!("KT\n{}", key(p1)),
         // Layer operations
@@ -623,7 +708,7 @@ pub fn zmk_binding_label(binding: &ZmkBinding, behaviors: &[BehaviorInfo], layer
         // Caps Word
         "Caps Word"        => "CW".to_string(),
         // Reset / Bootloader
-        "Reset"            => "Reset".to_string(),
+        "Reset"            => "Restart".to_string(),
         "Bootloader"       => "Boot".to_string(),
         // Studio Unlock
         "Studio Unlock"    => "Unlock".to_string(),
@@ -704,7 +789,7 @@ pub fn zmk_binding_tooltip(binding: &ZmkBinding, behaviors: &[BehaviorInfo], lay
         "Layer-Tap"        => format!("Layer Tap — tap for {}, hold to activate {}", key_name(p2), layer_display(p1)),
         "Mod-Tap"          => format!("Mod Tap — tap for {}, hold for {}", key_name(p2), key_name(p1)),
         "Bootloader"       => "Bootloader — put keyboard into flash mode".to_string(),
-        "Reset"            => "Reset — restart the keyboard".to_string(),
+        "Reset"            => "Restart the keyboard".to_string(),
         "Studio Unlock"    => "Unlock editing — allow live keymap changes".to_string(),
         "External Power"   => match p1 { 0 => "External power off".to_string(), _ => "External power on".to_string() },
         "Bluetooth" => match p1 {
