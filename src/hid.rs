@@ -560,6 +560,40 @@ impl HidDevice {
         Ok(())
     }
 
+    pub fn query_qmk_settings(&self) -> Result<Vec<u16>> {
+        let mut supported = Vec::new();
+        let mut cur = 0u16;
+
+        loop {
+            let mut cmd = [0u8; 32];
+            cmd[0] = CMD_VIA_VIAL_PREFIX;
+            cmd[1] = CMD_VIAL_QMK_SETTINGS_QUERY;
+            cmd[2..4].copy_from_slice(&cur.to_le_bytes());
+            let resp = self.usb_send(&cmd)?;
+
+            let mut next = cur;
+            for chunk in resp.chunks_exact(2) {
+                let qsid = u16::from_le_bytes([chunk[0], chunk[1]]);
+                next = next.max(qsid);
+                if qsid != 0xFFFF {
+                    supported.push(qsid);
+                }
+            }
+
+            if next == 0xFFFF {
+                break;
+            }
+            if next == cur {
+                anyhow::bail!("qmk settings query did not advance from qsid: {cur}");
+            }
+            cur = next;
+        }
+
+        supported.sort_unstable();
+        supported.dedup();
+        Ok(supported)
+    }
+
     pub fn get_qmk_setting_u8(&self, qsid: u16) -> Result<u8> {
         let mut cmd = [0u8; 32];
         cmd[0] = CMD_VIA_VIAL_PREFIX;

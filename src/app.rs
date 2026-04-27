@@ -1969,6 +1969,13 @@ impl EntropyApp {
                             .get_layout_json()
                             .map_err(|e| format!("Layout read failed: {e}"))?;
 
+                        let touchpad_settings_in_definition =
+                            Self::layout_json_has_touchpad_settings(&json);
+                        let supported_qmk_settings = dev_conn.query_qmk_settings().unwrap_or_else(|e| {
+                            log::warn!("qmk settings query failed: {e}");
+                            Vec::new()
+                        });
+
                         let mut layout = KeyboardLayout::from_vial_json(&json)
                             .map_err(|e| format!("Layout parse failed: {e}"))?;
 
@@ -2186,7 +2193,11 @@ impl EntropyApp {
                         // for known K:03 Pro identities.
                         let touchpad_settings = {
                             let mut tp = TouchpadSettingsState::default();
-                            if Self::device_uses_touchpad_settings(&dev, &layout) {
+                            if touchpad_settings_in_definition
+                                && [120u16, 121, 122, 123, 124]
+                                    .iter()
+                                    .all(|qsid| supported_qmk_settings.contains(qsid))
+                            {
                                 match dev_conn.get_qmk_setting_u16(120) {
                                     Ok(v) => {
                                         tp.dpi = v;
@@ -6256,38 +6267,32 @@ impl EntropyApp {
         ergohaven_macropad_display || name.contains("m4cr0pad v2") || name.contains("m4cr0pad v3")
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
-    fn device_uses_touchpad_settings(
-        device: &crate::device::Device,
-        layout: &KeyboardLayout,
-    ) -> bool {
-        if device.firmware != FirmwareProtocol::Vial {
+    fn layout_json_has_touchpad_settings(json: &serde_json::Value) -> bool {
+        let Some(tabs) = json.get("settings").and_then(|value| value.as_array()) else {
             return false;
-        }
+        };
 
-        let name = format!("{} {}", device.name, layout.name).to_ascii_lowercase();
-        let looks_like_k03 = name.contains("k:03")
-            || name.contains("k03")
-            || name.contains("k-03")
-            || name.contains("k 03");
-        let looks_like_k03_pro = looks_like_k03 && name.contains("pro");
-        let ergohaven_k03_pro = device.vendor_id == 0xE126 && device.product_id == 0x00A1;
-        let has_oled_layout_options = layout.layout_options.iter().any(|option| {
-            let label = option.label.to_ascii_lowercase();
-            label.contains("oled")
-                || option.choices.iter().any(|choice| {
-                    let choice = choice.to_ascii_lowercase();
-                    choice.contains("status") || choice.contains("bongo") || choice.contains("splash")
+        tabs.iter().any(|tab| {
+            let tab_name = tab
+                .get("name")
+                .and_then(|value| value.as_str())
+                .unwrap_or("")
+                .to_ascii_lowercase();
+            let has_touchpad_name = tab_name.contains("touchpad");
+            let has_touchpad_qsids = tab
+                .get("fields")
+                .and_then(|value| value.as_array())
+                .map(|fields| {
+                    [120u64, 121, 122, 123, 124].iter().all(|qsid| {
+                        fields.iter().any(|field| {
+                            field.get("qsid").and_then(|value| value.as_u64()) == Some(*qsid)
+                        })
+                    })
                 })
-        });
-        let k03_pro_touchpad_layout_profile = layout.rows == 10
-            && layout.cols == 6
-            && !has_oled_layout_options
-            && layout.custom_keycodes.iter().any(|kc| kc.name == "EH_SNP")
-            && layout.custom_keycodes.iter().any(|kc| kc.name == "EH_SCR")
-            && layout.custom_keycodes.iter().any(|kc| kc.name == "EH_TXT");
+                .unwrap_or(false);
 
-        looks_like_k03_pro || (ergohaven_k03_pro && k03_pro_touchpad_layout_profile)
+            has_touchpad_name && has_touchpad_qsids
+        })
     }
 
     #[cfg(not(target_arch = "wasm32"))]
