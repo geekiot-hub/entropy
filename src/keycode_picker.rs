@@ -939,12 +939,23 @@ impl KeycodePicker {
     }
 
     fn zmk_modifier_mask_from_vial_base(base: u16) -> Option<u32> {
-        let mut mask = 0u32;
-        if base & 0x0100 != 0 { mask |= 0x01; }
-        if base & 0x0200 != 0 { mask |= 0x02; }
-        if base & 0x0400 != 0 { mask |= 0x04; }
-        if base & 0x0800 != 0 { mask |= 0x08; }
-        if mask == 0 { None } else { Some(mask) }
+        match base >> 8 {
+            0x01 => Some(0x01), // LCtrl
+            0x02 => Some(0x02), // LShift
+            0x04 => Some(0x04), // LAlt
+            0x08 => Some(0x08), // LGUI
+            0x11 => Some(0x10), // RCtrl
+            0x12 => Some(0x20), // RShift
+            0x14 => Some(0x40), // RAlt
+            0x18 => Some(0x80), // RGUI
+            0x03 => Some(0x03), // LCtrl+LShift
+            0x05 => Some(0x05), // LCtrl+LAlt
+            0x06 => Some(0x06), // LShift+LAlt
+            0x07 => Some(0x07), // Meh
+            0x0A => Some(0x0A), // LGUI+LShift
+            0x0F => Some(0x0F), // Hyper
+            _ => None,
+        }
     }
 
     fn zmk_modifier_usage_from_vial_mt_base(base: u16) -> Option<u32> {
@@ -953,6 +964,10 @@ impl KeycodePicker {
             0x2200 => Some(0x0007_00E1), // LShift
             0x2400 => Some(0x0007_00E2), // LAlt
             0x2800 => Some(0x0007_00E3), // LGUI
+            0x3100 => Some(0x0007_00E4), // RCtrl
+            0x3200 => Some(0x0007_00E5), // RShift
+            0x3400 => Some(0x0007_00E6), // RAlt
+            0x3800 => Some(0x0007_00E7), // RGUI
             _ => None,
         }
     }
@@ -963,6 +978,10 @@ impl KeycodePicker {
             0x52A1 => Some(0x0007_00E1), // LShift
             0x52A4 => Some(0x0007_00E2), // LAlt
             0x52A8 => Some(0x0007_00E3), // LGUI
+            0x52B2 => Some(0x0007_00E4), // RCtrl
+            0x52B1 => Some(0x0007_00E5), // RShift
+            0x52B4 => Some(0x0007_00E6), // RAlt
+            0x52B8 => Some(0x0007_00E7), // RGUI
             _ => None,
         }
     }
@@ -2066,24 +2085,30 @@ impl KeycodePicker {
                 .color(Color32::from_gray(150)),
         );
         ui.add_space(4.0);
-        let plain: Vec<(String, u16, String)> = vec![
-            ("Ctrl".into(), 0x00E0, "Left Control".into()),
-            ("Shift".into(), 0x00E1, "Left Shift".into()),
-            ("Alt".into(), 0x00E2, "Left Alt".into()),
-            (gui.into(), 0x00E3, format!("Left {}", lgui)),
+        let plain: Vec<(String, u16, u16, String)> = vec![
+            ("Ctrl".into(), 0x00E0, 0x00E4, "Ctrl".into()),
+            ("Shift".into(), 0x00E1, 0x00E5, "Shift".into()),
+            ("Alt".into(), 0x00E2, 0x00E6, "Alt".into()),
+            (gui.into(), 0x00E3, 0x00E7, lgui.to_string()),
         ];
         ui.horizontal_wrapped(|ui| {
-            for (label, value, tip) in &plain {
+            for (label, left_value, right_value, mod_name) in &plain {
                 let resp = ui
                     .add(
                         egui::Button::new(RichText::new(label.as_str()).size(10.5))
                             .min_size(Vec2::new(68.0, 34.0)),
                     )
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
-                if resp.clicked() {
-                    self.assign_keycode_value(*value);
+                if resp.clicked_by(egui::PointerButton::Primary) {
+                    self.assign_keycode_value(*left_value);
                 }
-                resp.on_hover_text(tip.as_str());
+                if resp.clicked_by(egui::PointerButton::Secondary) {
+                    self.assign_keycode_value(*right_value);
+                }
+                resp.on_hover_text(format!(
+                    "Left click: Left {mod_name}
+Right click: Right {mod_name}"
+                ));
             }
         });
 
@@ -2098,42 +2123,40 @@ impl KeycodePicker {
                 .color(Color32::from_gray(150)),
         );
         ui.add_space(4.0);
-        let mk: Vec<(String, u16, String)> = vec![
-            ("Ctrl+key".into(), 0x0100, "Always sends Ctrl+key".into()),
-            ("Shift+key".into(), 0x0200, "Always sends Shift+key".into()),
-            ("Alt+key".into(), 0x0400, "Always sends Alt+key".into()),
-            (
-                format!("{}+key", gui),
-                0x0800,
-                format!("Always sends {}+key", lgui),
-            ),
-            ("Ctrl+Shift+key".into(), 0x0300, "Ctrl+Shift+key".into()),
-            ("Ctrl+Alt+key".into(), 0x0500, "Ctrl+Alt+key".into()),
-            ("Shift+Alt+key".into(), 0x0600, "Shift+Alt+key (LSA)".into()),
-            ("Meh+key".into(), 0x0700, "Ctrl+Shift+Alt+key".into()),
-            (
-                format!("{}+Sh+key", gui),
-                0x0A00,
-                format!("{}+Shift+key", lgui),
-            ),
-            (
-                "Hyper+key".into(),
-                0x0F00,
-                format!("Ctrl+Shift+Alt+{}+key", gui_mod_name()),
-            ),
+        let mk: Vec<(String, u16, Option<u16>, String)> = vec![
+            ("Ctrl+key".into(), 0x0100, Some(0x1100), "Ctrl".into()),
+            ("Shift+key".into(), 0x0200, Some(0x1200), "Shift".into()),
+            ("Alt+key".into(), 0x0400, Some(0x1400), "Alt".into()),
+            (format!("{}+key", gui), 0x0800, Some(0x1800), lgui.to_string()),
+            ("Ctrl+Shift+key".into(), 0x0300, None, "Ctrl+Shift".into()),
+            ("Ctrl+Alt+key".into(), 0x0500, None, "Ctrl+Alt".into()),
+            ("Shift+Alt+key".into(), 0x0600, None, "Shift+Alt (LSA)".into()),
+            ("Meh+key".into(), 0x0700, None, "Ctrl+Shift+Alt".into()),
+            (format!("{}+Sh+key", gui), 0x0A00, None, format!("{}+Shift", lgui)),
+            ("Hyper+key".into(), 0x0F00, None, format!("Ctrl+Shift+Alt+{}", gui_mod_name())),
         ];
         ui.horizontal_wrapped(|ui| {
-            for (label, value, tip) in &mk {
+            for (label, left_value, right_value, mod_name) in &mk {
                 let resp = ui
                     .add(
                         egui::Button::new(RichText::new(label.as_str()).size(10.5))
                             .min_size(Vec2::new(74.0, 34.0)),
                     )
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
-                if resp.clicked() {
-                    self.vial_quantum_pending_mod = Some(*value);
+                if resp.clicked_by(egui::PointerButton::Primary) {
+                    self.vial_quantum_pending_mod = Some(*left_value);
                 }
-                resp.on_hover_text(tip.as_str());
+                if let Some(right_value) = right_value {
+                    if resp.clicked_by(egui::PointerButton::Secondary) {
+                        self.vial_quantum_pending_mod = Some(*right_value);
+                    }
+                    resp.on_hover_text(format!(
+                        "Left click: Left {mod_name}+key
+Right click: Right {mod_name}+key"
+                    ));
+                } else {
+                    resp.on_hover_text(format!("Always sends {mod_name}+key"));
+                }
             }
         });
 
@@ -2145,48 +2168,45 @@ impl KeycodePicker {
         );
         ui.add_space(2.0);
         ui.add_space(4.0);
-        let mut mt: Vec<(String, u16, String)> = vec![
-            ("MT Ctrl".into(), 0x2100, "Mod-Tap: hold=LCtrl".into()),
-            ("MT Shift".into(), 0x2200, "Mod-Tap: hold=LShift".into()),
-            ("MT Alt".into(), 0x2400, "Mod-Tap: hold=LAlt".into()),
-            (
-                format!("MT {}", lgui),
-                0x2800,
-                format!("Mod-Tap: hold=L{}", lgui),
-            ),
-            ("MT C+S".into(), 0x2300, "Mod-Tap: hold=Ctrl+Shift".into()),
-            ("MT C+A".into(), 0x2500, "Mod-Tap: hold=Ctrl+Alt".into()),
-            (
-                "MT S+A".into(),
-                0x2600,
-                "Mod-Tap: hold=Shift+Alt (LSA)".into(),
-            ),
-            (
-                "MT Meh".into(),
-                0x2700,
-                "Mod-Tap: hold=Meh (Ctrl+Shift+Alt)".into(),
-            ),
-            (
-                "MT Hyper".into(),
-                0x2F00,
-                format!("Mod-Tap: hold=Hyper (Ctrl+Shift+Alt+{})", gui_mod_name()),
-            ),
+        let mut mt: Vec<(String, u16, Option<u16>, String)> = vec![
+            ("MT Ctrl".into(), 0x2100, Some(0x3100), "Ctrl".into()),
+            ("MT Shift".into(), 0x2200, Some(0x3200), "Shift".into()),
+            ("MT Alt".into(), 0x2400, Some(0x3400), "Alt".into()),
+            (format!("MT {}", lgui), 0x2800, Some(0x3800), lgui.to_string()),
+            ("MT C+S".into(), 0x2300, None, "Ctrl+Shift".into()),
+            ("MT C+A".into(), 0x2500, None, "Ctrl+Alt".into()),
+            ("MT S+A".into(), 0x2600, None, "Shift+Alt (LSA)".into()),
+            ("MT Meh".into(), 0x2700, None, "Meh (Ctrl+Shift+Alt)".into()),
+            ("MT Hyper".into(), 0x2F00, None, format!("Hyper (Ctrl+Shift+Alt+{})", gui_mod_name())),
         ];
         if self.firmware == FirmwareProtocol::Zmk {
-            mt.retain(|(_, value, _)| Self::zmk_modifier_usage_from_vial_mt_base(*value).is_some());
+            mt.retain(|(_, left, right, _)| {
+                Self::zmk_modifier_usage_from_vial_mt_base(*left).is_some()
+                    || right.and_then(Self::zmk_modifier_usage_from_vial_mt_base).is_some()
+            });
         }
         ui.horizontal_wrapped(|ui| {
-            for (label, value, tip) in &mt {
+            for (label, left_value, right_value, mod_name) in &mt {
                 let resp = ui
                     .add(
                         egui::Button::new(RichText::new(label.as_str()).size(10.5))
                             .min_size(Vec2::new(68.0, 34.0)),
                     )
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
-                if resp.clicked() {
-                    self.vial_quantum_pending_mt = Some(*value);
+                if resp.clicked_by(egui::PointerButton::Primary) {
+                    self.vial_quantum_pending_mt = Some(*left_value);
                 }
-                resp.on_hover_text(tip.as_str());
+                if let Some(right_value) = right_value {
+                    if resp.clicked_by(egui::PointerButton::Secondary) {
+                        self.vial_quantum_pending_mt = Some(*right_value);
+                    }
+                    resp.on_hover_text(format!(
+                        "Left click: hold Left {mod_name}
+Right click: hold Right {mod_name}"
+                    ));
+                } else {
+                    resp.on_hover_text(format!("Hold {mod_name}, tap regular key"));
+                }
             }
         });
 
@@ -2197,45 +2217,42 @@ impl KeycodePicker {
                 .color(Color32::from_gray(150)),
         );
         ui.add_space(4.0);
-        let mut osm: Vec<(String, u16, String)> = vec![
-            ("OSM Ctrl".into(), 0x52A2, "One-Shot Left Ctrl".into()),
-            (
-                "OSM Shift".into(),
-                0x52A1,
-                "One-Shot Left Shift — tap to capitalise next letter".into(),
-            ),
-            ("OSM Alt".into(), 0x52A4, "One-Shot Left Alt".into()),
-            (
-                format!("OSM {}", lgui),
-                0x52A8,
-                format!("One-Shot Left {}", lgui),
-            ),
-            (
-                "OSM Meh".into(),
-                0x52A7,
-                "One-Shot Meh (Ctrl+Shift+Alt)".into(),
-            ),
-            (
-                "OSM Hyper".into(),
-                0x52AF,
-                format!("One-Shot Hyper (Ctrl+Shift+Alt+{})", gui_mod_name()),
-            ),
+        let mut osm: Vec<(String, u16, Option<u16>, String)> = vec![
+            ("OSM Ctrl".into(), 0x52A2, Some(0x52B2), "Ctrl".into()),
+            ("OSM Shift".into(), 0x52A1, Some(0x52B1), "Shift".into()),
+            ("OSM Alt".into(), 0x52A4, Some(0x52B4), "Alt".into()),
+            (format!("OSM {}", lgui), 0x52A8, Some(0x52B8), lgui.to_string()),
+            ("OSM Meh".into(), 0x52A7, None, "Meh (Ctrl+Shift+Alt)".into()),
+            ("OSM Hyper".into(), 0x52AF, None, format!("Hyper (Ctrl+Shift+Alt+{})", gui_mod_name())),
         ];
         if self.firmware == FirmwareProtocol::Zmk {
-            osm.retain(|(_, value, _)| Self::zmk_modifier_usage_from_vial_osm(*value).is_some());
+            osm.retain(|(_, left, right, _)| {
+                Self::zmk_modifier_usage_from_vial_osm(*left).is_some()
+                    || right.and_then(Self::zmk_modifier_usage_from_vial_osm).is_some()
+            });
         }
         ui.horizontal_wrapped(|ui| {
-            for (label, value, tip) in &osm {
+            for (label, left_value, right_value, mod_name) in &osm {
                 let resp = ui
                     .add(
                         egui::Button::new(RichText::new(label.as_str()).size(10.5))
                             .min_size(Vec2::new(68.0, 34.0)),
                     )
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
-                if resp.clicked() {
-                    self.assign_keycode_value(*value);
+                if resp.clicked_by(egui::PointerButton::Primary) {
+                    self.assign_keycode_value(*left_value);
                 }
-                resp.on_hover_text(tip.as_str());
+                if let Some(right_value) = right_value {
+                    if resp.clicked_by(egui::PointerButton::Secondary) {
+                        self.assign_keycode_value(*right_value);
+                    }
+                    resp.on_hover_text(format!(
+                        "Left click: One-Shot Left {mod_name}
+Right click: One-Shot Right {mod_name}"
+                    ));
+                } else {
+                    resp.on_hover_text(format!("One-Shot {mod_name}"));
+                }
             }
         });
     }
