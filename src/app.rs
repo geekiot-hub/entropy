@@ -1695,6 +1695,8 @@ pub struct EntropyApp {
     current_device_name: String,
     /// ZMK lock state: 0=Locked, 1=Unlocked
     zmk_lock_state: i32,
+    /// Keep the unlock overlay visible while reconnecting/loading after unlock was detected.
+    zmk_unlock_reconnect_pending: bool,
     /// Vial unlock dialog open
     unlock_open: bool,
     vial_unlock_keys: Vec<(u8, u8)>,
@@ -1800,6 +1802,7 @@ impl EntropyApp {
             editing_layer_focus_requested: false,
             current_device_name: String::new(),
             zmk_lock_state: 1, // Unlocked by default
+            zmk_unlock_reconnect_pending: false,
             unlock_open: false,
             vial_unlock_keys: vec![],
             vial_unlock_polling: false,
@@ -1833,6 +1836,7 @@ impl EntropyApp {
         self.zmk_op_rx = None;
         self.connect_state = ConnectState::Idle;
         self.zmk_lock_state = 1;
+        self.zmk_unlock_reconnect_pending = false;
         self.zmk_no_extra_layers = false;
         self.unlock_open = false;
         self.vial_unlock_polling = false;
@@ -1909,7 +1913,14 @@ impl EntropyApp {
         self.sync_qmk_hid_host_bridges();
         self.hid_device = None;
         self.zmk_conn = None;
-        self.zmk_lock_state = 1; // assume unlocked until we know
+        if dev.firmware == FirmwareProtocol::Zmk {
+            if !self.zmk_unlock_reconnect_pending {
+                self.zmk_lock_state = 1; // assume unlocked until we know
+            }
+        } else {
+            self.zmk_lock_state = 1;
+            self.zmk_unlock_reconnect_pending = false;
+        }
         self.zmk_no_extra_layers = false;
         self.combo_visible_count = 1;
         self.combo_capture_open = false;
@@ -2841,8 +2852,9 @@ impl EntropyApp {
                         .collect();
                 }
 
-                // If ZMK keyboard is locked, show the unlock modal
+                // If ZMK keyboard is locked, keep the unlock overlay up and wait there.
                 if r.zmk_lock_state == crate::zmk_proto::core::LockState::Locked as i32 {
+                    self.zmk_unlock_reconnect_pending = false;
                     self.status_msg = "Keyboard locked".into();
                     if let Some(conn) = r.zmk_conn {
                         self.zmk_conn = Some(conn);
@@ -2852,6 +2864,7 @@ impl EntropyApp {
                     return;
                 }
 
+                self.zmk_unlock_reconnect_pending = false;
                 self.status_msg = format!("Connected: {}", r.device_name);
 
                 // ZMK: store connection
@@ -2951,6 +2964,7 @@ impl EntropyApp {
                 );
             }
             Err(e) => {
+                self.zmk_unlock_reconnect_pending = false;
                 self.status_msg = e;
             }
         }
@@ -3006,14 +3020,17 @@ impl EntropyApp {
 
         match msg {
             ZmkOpResult::LockStateChanged(state) => {
-                self.zmk_lock_state = state;
                 if state == crate::zmk_proto::core::LockState::Unlocked as i32 {
                     self.zmk_op_rx = None;
-                    // Reconnect to load the keymap now that it's unlocked
+                    self.zmk_unlock_reconnect_pending = true;
+                    self.status_msg = "Unlock detected, loading keyboard…".into();
+                    // Keep zmk_lock_state locked until reconnect succeeds so the UI does not flicker
+                    // between the unlock screen and a partial keyboard view.
                     if let Some(idx) = self.selected_device {
                         self.start_connect(idx);
                     }
                 } else {
+                    self.zmk_lock_state = state;
                     ctx.request_repaint();
                 }
             }
@@ -5403,12 +5420,12 @@ impl eframe::App for EntropyApp {
         // ZMK unlock modal — show before everything else if locked
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let is_zmk_locked = self.firmware == FirmwareProtocol::Zmk
-                && self.zmk_lock_state == crate::zmk_proto::core::LockState::Locked as i32
-                && !is_loading;
+            let show_zmk_unlock = self.firmware == FirmwareProtocol::Zmk
+                && (self.zmk_lock_state == crate::zmk_proto::core::LockState::Locked as i32
+                    || self.zmk_unlock_reconnect_pending);
 
-            if is_zmk_locked {
-                if self.zmk_op_rx.is_none() {
+            if show_zmk_unlock {
+                if !self.zmk_unlock_reconnect_pending && !is_loading && self.zmk_op_rx.is_none() {
                     self.start_zmk_lock_poll(ctx);
                 }
                 self.show_zmk_unlock_modal(ctx);
@@ -5963,6 +5980,23 @@ impl EntropyApp {
 
                 ui.painter().rect_filled(screen, 0.0, screen_bg);
 
+                let pending_reconnect = self.zmk_unlock_reconnect_pending;
+                let heading = if pending_reconnect {
+                    "Loading ZMK keymap"
+                } else {
+                    "ZMK editing is locked"
+                };
+                let body = if pending_reconnect {
+                    "Unlock detected — keep the keyboard connected while Entropy loads it"
+                } else {
+                    "Entropy will continue automatically after the keyboard unlocks"
+                };
+                let status = if pending_reconnect {
+                    "Loading keyboard…"
+                } else {
+                    "Waiting for unlock…"
+                };
+
                 let center = screen.center();
                 ui.painter().text(
                     egui::pos2(center.x, screen.min.y + 40.0),
@@ -5991,14 +6025,14 @@ impl EntropyApp {
                     ui.vertical_centered(|ui| {
                         ui.add_space(4.0);
                         ui.label(
-                            RichText::new("ZMK editing is locked")
+                            RichText::new(heading)
                                 .size(18.0)
                                 .strong()
                                 .color(title_color),
                         );
                         ui.add_space(10.0);
                         ui.label(
-                            RichText::new("Entropy will continue automatically after the keyboard unlocks")
+                            RichText::new(body)
                                 .size(13.0)
                                 .color(subtitle_color),
                         );
@@ -6006,7 +6040,7 @@ impl EntropyApp {
                         ui.spinner();
                         ui.add_space(10.0);
                         ui.label(
-                            RichText::new("Waiting for unlock…")
+                            RichText::new(status)
                                 .size(12.0)
                                 .color(subtitle_color),
                         );

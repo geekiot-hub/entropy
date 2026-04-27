@@ -134,9 +134,6 @@ impl ZmkConnection {
             log::warn!("ZMK device is locked — some operations may fail");
         }
 
-        // Fetch all behaviors
-        conn.fetch_all_behaviors()?;
-
         Ok(conn)
     }
 
