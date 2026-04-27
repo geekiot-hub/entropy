@@ -3316,7 +3316,7 @@ impl EntropyApp {
         content_rect: egui::Rect,
         dark: bool,
     ) {
-        let title_y = content_rect.top() + 27.0;
+        let title_y = content_rect.top() + 30.0;
         let desc_y = title_y + 28.0;
         let status_y = desc_y + 30.0;
         let supported = self.firmware == FirmwareProtocol::Vial;
@@ -3361,11 +3361,7 @@ impl EntropyApp {
             egui::Align2::CENTER_CENTER,
             "Matrix Tester",
             FontId::proportional(18.0),
-            if dark {
-                Color32::from_rgb(235, 235, 238)
-            } else {
-                Color32::from_rgb(34, 34, 38)
-            },
+            ui.visuals().text_color(),
         );
         painter.text(
             egui::pos2(content_rect.center().x, desc_y),
@@ -3423,7 +3419,7 @@ impl EntropyApp {
             Color32::from_rgb(242, 230, 232)
         };
 
-        let board_top = content_rect.top() + 101.0;
+        let board_top = content_rect.top() + 104.0;
         let hint_y = ui.max_rect().bottom() - 36.0;
         let board_rect = egui::Rect::from_min_max(
             egui::pos2(content_rect.left(), board_top),
