@@ -30,10 +30,8 @@ fn osm_mod_bits(value: u16) -> Option<u16> {
 }
 
 fn osm_mod_short_name(bits: u16) -> String {
-    let right = bits & 0x10 != 0;
-    let core = bits & 0x0F;
     let gui = gui_sym();
-    let name = match core {
+    match bits & 0x0F {
         0x01 => "Ctrl".to_string(),
         0x02 => "Shift".to_string(),
         0x04 => "Alt".to_string(),
@@ -50,12 +48,6 @@ fn osm_mod_short_name(bits: u16) -> String {
         0x07 => "Meh".to_string(),
         0x0F => "Hyper".to_string(),
         _ => "Mod".to_string(),
-    };
-
-    match core {
-        0x01 | 0x02 | 0x04 | 0x08 => format!("{}{}", if right { "R" } else { "L" }, name),
-        _ if right => format!("R{name}"),
-        _ => name,
     }
 }
 
