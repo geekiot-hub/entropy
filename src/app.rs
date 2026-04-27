@@ -5408,6 +5408,9 @@ impl eframe::App for EntropyApp {
                 && !is_loading;
 
             if is_zmk_locked {
+                if self.zmk_op_rx.is_none() {
+                    self.start_zmk_lock_poll(ctx);
+                }
                 self.show_zmk_unlock_modal(ctx);
                 return;
             }
@@ -5931,70 +5934,87 @@ impl eframe::App for EntropyApp {
 }
 
 impl EntropyApp {
-    /// Show ZMK unlock modal overlay.
+    /// Show ZMK unlock overlay in the same visual language as the Vial unlock flow.
     #[cfg(not(target_arch = "wasm32"))]
     fn show_zmk_unlock_modal(&self, ctx: &egui::Context) {
-        // Draw dimmed background panels
-        egui::TopBottomPanel::top("topbar_locked").show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("⌨ Entropy").size(18.0).strong());
-            });
-        });
+        egui::Area::new(egui::Id::new("zmk_unlock_overlay"))
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .order(egui::Order::Foreground)
+            .show(ctx, |ui| {
+                let screen = ui.ctx().screen_rect();
+                let dark = ui.visuals().dark_mode;
+                let screen_bg = if dark {
+                    Color32::from_gray(12)
+                } else {
+                    Color32::from_gray(246)
+                };
+                let title_color = if dark {
+                    Color32::WHITE
+                } else {
+                    Color32::from_gray(28)
+                };
+                let subtitle_color = app_muted_text(dark);
+                let card_fill = if dark {
+                    Color32::from_rgb(24, 24, 27)
+                } else {
+                    Color32::from_rgb(255, 255, 255)
+                };
+                let card_stroke = crate::ui_style::modal_outline_stroke(dark);
 
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.centered_and_justified(|ui| {
-                ui.vertical_centered(|ui| {
-                    ui.add_space(40.0);
-                    ui.label(
-                        RichText::new("🔒 Keyboard locked")
-                            .size(24.0)
-                            .strong()
-                            .color(Color32::from_rgb(220, 160, 60)),
-                    );
-                    ui.add_space(16.0);
+                ui.painter().rect_filled(screen, 0.0, screen_bg);
 
-                    // Check if there's a studio unlock behavior
-                    let has_unlock_key = self.zmk_conn.is_none(); // after poll the conn is taken
-                    if has_unlock_key {
+                let center = screen.center();
+                ui.painter().text(
+                    egui::pos2(center.x, screen.min.y + 40.0),
+                    egui::Align2::CENTER_CENTER,
+                    "🔓 Unlock Keyboard",
+                    FontId::proportional(24.0),
+                    title_color,
+                );
+                ui.painter().text(
+                    egui::pos2(center.x, screen.min.y + 70.0),
+                    egui::Align2::CENTER_CENTER,
+                    "Press and hold the Studio Unlock key on your keyboard",
+                    FontId::proportional(14.0),
+                    subtitle_color,
+                );
+
+                let card_rect = egui::Rect::from_center_size(center, Vec2::new(430.0, 188.0));
+                ui.painter().rect(
+                    card_rect,
+                    16.0,
+                    card_fill,
+                    card_stroke,
+                    egui::StrokeKind::Inside,
+                );
+                ui.allocate_ui_at_rect(card_rect.shrink2(Vec2::new(26.0, 22.0)), |ui| {
+                    ui.vertical_centered(|ui| {
+                        ui.add_space(4.0);
                         ui.label(
-                            RichText::new("Press the unlock key on your keyboard to allow editing")
-                                .size(14.0),
+                            RichText::new("ZMK editing is locked")
+                                .size(18.0)
+                                .strong()
+                                .color(title_color),
                         );
-                    } else {
+                        ui.add_space(10.0);
                         ui.label(
-                            RichText::new(
-                                "Hold the unlock combo on your keyboard to allow editing",
-                            )
-                            .size(14.0),
+                            RichText::new("Entropy will continue automatically after the keyboard unlocks")
+                                .size(13.0)
+                                .color(subtitle_color),
                         );
-                        ui.add_space(8.0);
+                        ui.add_space(20.0);
+                        ui.spinner();
+                        ui.add_space(10.0);
                         ui.label(
-                            RichText::new("Hold simultaneously: Studio Unlock key")
+                            RichText::new("Waiting for unlock…")
                                 .size(12.0)
-                                .color(Color32::GRAY),
+                                .color(subtitle_color),
                         );
-                    }
-
-                    ui.add_space(24.0);
-                    ui.label(
-                        RichText::new("Keep holding… Unlock ZMK Studio")
-                            .size(12.0)
-                            .color(Color32::GRAY),
-                    );
-                    ui.add_space(16.0);
-                    ui.spinner();
-                    ui.add_space(8.0);
-                    ui.label(
-                        RichText::new("Waiting for unlock…")
-                            .size(11.0)
-                            .color(Color32::GRAY),
-                    );
+                    });
                 });
             });
-        });
 
-        // Keep repainting while waiting
-        ctx.request_repaint_after(std::time::Duration::from_millis(500));
+        ctx.request_repaint_after(std::time::Duration::from_millis(250));
     }
 }
 
