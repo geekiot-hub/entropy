@@ -2419,62 +2419,6 @@ Right click: One-Shot Right {mod_name}"
         });
     }
 
-    fn show_zmk_special_vial_extras(&mut self, ui: &mut egui::Ui) {
-        let has_reset = self.zmk_behavior_id("Reset").is_some();
-        let has_unlock = self.zmk_behavior_id("Studio Unlock").is_some();
-        let has_external_power = self.zmk_behavior_id("External Power").is_some();
-        if !has_reset && !has_unlock && !has_external_power {
-            return;
-        }
-
-        ui.add_space(10.0);
-        ui.label(
-            RichText::new("Firmware")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
-        );
-        ui.add_space(4.0);
-        ui.horizontal_wrapped(|ui| {
-            self.zmk_vial_style_behavior_button(
-                ui,
-                "Reset",
-                "Reset — restart the keyboard",
-                "Reset",
-                0,
-                0,
-                Vec2::new(64.0, 38.0),
-            );
-            self.zmk_vial_style_behavior_button(
-                ui,
-                "Studio\nUnlock",
-                "Unlock editing — allow live keymap changes",
-                "Studio Unlock",
-                0,
-                0,
-                Vec2::new(76.0, 42.0),
-            );
-            self.zmk_vial_style_behavior_button(
-                ui,
-                "ExtPwr\nOn",
-                "External Power ON",
-                "External Power",
-                1,
-                0,
-                Vec2::new(72.0, 42.0),
-            );
-            self.zmk_vial_style_behavior_button(
-                ui,
-                "ExtPwr\nOff",
-                "External Power OFF",
-                "External Power",
-                0,
-                0,
-                Vec2::new(72.0, 42.0),
-            );
-        });
-    }
-
-
     fn show_vial_quantum(&mut self, ui: &mut egui::Ui) {
         // Pending mod+key selection
         if let Some(base) = self.vial_quantum_pending_mod {
@@ -3851,6 +3795,50 @@ Right click: One-Shot Right {mod_name}"
         self.firmware != FirmwareProtocol::Zmk || self.zmk_keycode_supported(value)
     }
 
+    fn zmk_special_behavior_button(
+        &mut self,
+        ui: &mut egui::Ui,
+        label: &str,
+        tooltip: &str,
+        behavior_name: &str,
+        param1: u32,
+        param2: u32,
+        width: f32,
+    ) {
+        let Some(id) = self.zmk_behavior_id(behavior_name) else {
+            return;
+        };
+        let resp = ui
+            .add_sized(Vec2::new(width, 42.0), egui::Button::new(""))
+            .on_hover_cursor(egui::CursorIcon::PointingHand);
+        let visuals = ui.style().interact(&resp);
+        let galleys: Vec<_> = label
+            .split('\n')
+            .map(|line| {
+                ui.painter().layout_no_wrap(
+                    line.to_owned(),
+                    egui::FontId::proportional(10.5),
+                    visuals.fg_stroke.color,
+                )
+            })
+            .collect();
+        let line_spacing = 1.0;
+        let total_height: f32 = galleys.iter().map(|galley| galley.size().y).sum::<f32>()
+            + line_spacing * (galleys.len().saturating_sub(1) as f32);
+        let mut y = resp.rect.center().y - total_height / 2.0;
+        for galley in galleys {
+            let x = resp.rect.center().x - galley.size().x / 2.0;
+            let pos = egui::pos2(x, y);
+            let height = galley.size().y;
+            ui.painter().galley(pos, galley, visuals.fg_stroke.color);
+            y += height + line_spacing;
+        }
+        if resp.clicked() {
+            self.zmk_assign(id, param1, param2);
+        }
+        resp.on_hover_text(tooltip);
+    }
+
     fn show_vial_special(&mut self, ui: &mut egui::Ui) {
         let special_keys: Vec<(String, u16, String)> = vec![
             (
@@ -3952,20 +3940,6 @@ Repeat"
                 "Alt repeats the last pressed key".into(),
             ),
         ];
-        let extra_fn_keys: &[(&str, u16)] = &[
-            ("F13", 0x0068),
-            ("F14", 0x0069),
-            ("F15", 0x006A),
-            ("F16", 0x006B),
-            ("F17", 0x006C),
-            ("F18", 0x006D),
-            ("F19", 0x006E),
-            ("F20", 0x006F),
-            ("F21", 0x0070),
-            ("F22", 0x0071),
-            ("F23", 0x0072),
-            ("F24", 0x0073),
-        ];
         let special_title = if self.firmware == FirmwareProtocol::Zmk {
             "Special keys"
         } else {
@@ -4017,11 +3991,46 @@ Repeat"
                 }
                 resp.on_hover_text(tip.as_str());
             }
-        });
 
-        if self.firmware == FirmwareProtocol::Zmk {
-            self.show_zmk_special_vial_extras(ui);
-        }
+            if self.firmware == FirmwareProtocol::Zmk {
+                self.zmk_special_behavior_button(
+                    ui,
+                    "Restart\nKeyboard",
+                    "Restart the keyboard",
+                    "Reset",
+                    0,
+                    0,
+                    82.0,
+                );
+                self.zmk_special_behavior_button(
+                    ui,
+                    "Unlock\nEditing",
+                    "Allow live keymap editing",
+                    "Studio Unlock",
+                    0,
+                    0,
+                    82.0,
+                );
+                self.zmk_special_behavior_button(
+                    ui,
+                    "External\nPower On",
+                    "Turn external power on",
+                    "External Power",
+                    1,
+                    0,
+                    86.0,
+                );
+                self.zmk_special_behavior_button(
+                    ui,
+                    "External\nPower Off",
+                    "Turn external power off",
+                    "External Power",
+                    0,
+                    0,
+                    88.0,
+                );
+            }
+        });
 
         if self.firmware != FirmwareProtocol::Zmk && !self.supports_mouse_keys {
             return;
@@ -4236,29 +4245,6 @@ Repeat"
 
         ui.add_space(10.0);
         ui.label(
-            RichText::new("Extra function keys")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
-        );
-        ui.add_space(4.0);
-        ui.horizontal_wrapped(|ui| {
-            for (label, value) in extra_fn_keys {
-                if !self.picker_value_supported(*value) {
-                    continue;
-                }
-                let resp = ui.add(
-                    egui::Button::new(RichText::new(*label).size(11.0))
-                        .min_size(Vec2::new(56.0, 42.0)),
-                );
-                if resp.clicked() {
-                    self.assign_keycode_value(*value);
-                }
-                resp.on_hover_text(format!("Function key {}", label));
-            }
-        });
-
-        ui.add_space(10.0);
-        ui.label(
             RichText::new("OS shortcuts")
                 .size(11.0)
                 .color(Color32::from_gray(150)),
@@ -4421,29 +4407,32 @@ Repeat"
             }
         });
 
-        ui.add_space(10.0);
-        ui.label(
-            RichText::new("Magic")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
-        );
-        ui.add_space(4.0);
         let magic_keys: &[u16] = &[
             0x7000, 0x7001, 0x7002, 0x7004, 0x7003, 0x7020, 0x7021, 0x7022, 0x7017, 0x7018, 0x7019,
             0x701A, 0x701B, 0x701C, 0x701D, 0x7005, 0x7006, 0x7007, 0x7008, 0x7014, 0x7015, 0x7016,
             0x700A, 0x7009, 0x700B, 0x700C, 0x700D, 0x700E, 0x700F, 0x7010, 0x7011, 0x7012, 0x7013,
             0x701E, 0x701F,
         ];
-        ui.horizontal_wrapped(|ui| {
-            let magic_top_color = if ui.visuals().dark_mode {
-                Color32::from_gray(105)
-            } else {
-                Color32::from_gray(145)
-            };
-            for value in magic_keys {
-                if !self.picker_value_supported(*value) {
-                    continue;
-                }
+        let visible_magic_keys: Vec<u16> = magic_keys
+            .iter()
+            .copied()
+            .filter(|value| self.picker_value_supported(*value))
+            .collect();
+        if !visible_magic_keys.is_empty() {
+            ui.add_space(10.0);
+            ui.label(
+                RichText::new("Magic")
+                    .size(11.0)
+                    .color(Color32::from_gray(150)),
+            );
+            ui.add_space(4.0);
+            ui.horizontal_wrapped(|ui| {
+                let magic_top_color = if ui.visuals().dark_mode {
+                    Color32::from_gray(105)
+                } else {
+                    Color32::from_gray(145)
+                };
+                for value in &visible_magic_keys {
                 let label = crate::keycode::keycode_label(*value);
                 let mut parts = label.splitn(2, '\n');
                 let top = parts.next().unwrap_or("");
@@ -4483,8 +4472,9 @@ Repeat"
                 }
                 resp = resp.on_hover_text(self.picker_keycode_tooltip(*value, &[]));
                 let _ = resp;
-            }
-        });
+                }
+            });
+        }
 
         ui.add_space(10.0);
         ui.label(
