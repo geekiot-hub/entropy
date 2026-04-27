@@ -717,6 +717,15 @@ fn zmk_binding_behavior_name<'a>(
         .map(|behavior| behavior.display_name.as_str())
 }
 
+fn zmk_layer_target(binding: &ZmkBinding, behaviors: &[crate::zmk::BehaviorInfo]) -> Option<usize> {
+    match zmk_binding_behavior_name(binding, behaviors)? {
+        "Momentary Layer" | "Toggle Layer" | "To Layer" | "Sticky Layer" | "Layer-Tap" => {
+            Some(binding.param1 as usize)
+        }
+        _ => None,
+    }
+}
+
 fn toggle_handed_zmk_binding(
     binding: &ZmkBinding,
     behaviors: &[crate::zmk::BehaviorInfo],
@@ -5079,12 +5088,17 @@ impl EntropyApp {
         self.selected_encoder = encoder_target.map(|ei| (self.selected_layer, ei));
         self.keycode_picker.open = true;
         self.keycode_picker.result = None;
+        self.keycode_picker.zmk_result = None;
         self.keycode_picker.search_query.clear();
         self.keycode_picker.layer_names = self.layer_names.clone();
         self.keycode_picker.firmware = self.firmware;
         self.keycode_picker.vial_quantum_pending_mod = None;
         self.keycode_picker.vial_quantum_pending_mt = None;
         self.keycode_picker.vial_layer_pending = None;
+        self.keycode_picker.zmk_layer_action_pending = None;
+        self.keycode_picker.zmk_layer_retarget_pending = None;
+        self.keycode_picker.zmk_layer_tap_pending = None;
+        self.keycode_picker.zmk_mod_tap_pending = None;
         self.keycode_picker.tap_dance_editor_open = None;
         self.keycode_picker.selected_tab = crate::keycode_picker::KeycodeTab::Basic;
         if is_zmk {
@@ -5108,11 +5122,16 @@ impl EntropyApp {
         if is_zmk {
             if ctrl_held {
                 if let Some(ki) = key_target {
-                    let binding = self
+                    let (binding, can_retarget_layer) = self
                         .layout
                         .as_ref()
-                        .map(|layout| layout.get_zmk_binding(self.selected_layer, ki))
-                        .unwrap_or_else(ZmkBinding::none);
+                        .map(|layout| {
+                            let binding = layout.get_zmk_binding(self.selected_layer, ki);
+                            let can_retarget_layer =
+                                zmk_layer_target(&binding, &layout.zmk_behaviors).is_some();
+                            (binding, can_retarget_layer)
+                        })
+                        .unwrap_or_else(|| (ZmkBinding::none(), false));
                     let behaviors = self
                         .layout
                         .as_ref()
@@ -5120,6 +5139,10 @@ impl EntropyApp {
                         .unwrap_or(&[]);
                     if let Some(swapped) = toggle_handed_zmk_binding(&binding, behaviors) {
                         self.assign_zmk_binding(self.selected_layer, ki, swapped);
+                        self.secondary_click_handled = true;
+                    } else if can_retarget_layer {
+                        self.open_picker_for_target(key_target, encoder_target, is_zmk);
+                        self.keycode_picker.zmk_layer_retarget_pending = Some(binding);
                         self.secondary_click_handled = true;
                     }
                 }
@@ -6146,11 +6169,16 @@ impl EntropyApp {
     /// Show ZMK unlock overlay in the same visual language as the Vial unlock flow.
     #[cfg(not(target_arch = "wasm32"))]
     fn show_zmk_unlock_modal(&self, ctx: &egui::Context) {
+        let screen = ctx.screen_rect();
         egui::Area::new(egui::Id::new("zmk_unlock_overlay"))
-            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .fixed_pos(screen.min)
             .order(egui::Order::Foreground)
             .show(ctx, |ui| {
-                let screen = ui.ctx().screen_rect();
+                ui.set_min_size(screen.size());
+                let overlay_response = ui.allocate_rect(screen, egui::Sense::click());
+                if overlay_response.clicked() {
+                    overlay_response.request_focus();
+                }
                 let dark = ui.visuals().dark_mode;
                 let screen_bg = if dark {
                     Color32::from_gray(12)
@@ -12879,31 +12907,56 @@ impl EntropyApp {
                                 .map(|name| matches!(name, "Key Press" | "Sticky Key" | "Mod-Tap"))
                                 .unwrap_or(false)
                                 && can_swap_side;
-                            (is_mod, can_swap_side, false, false, false, false, false, false)
+                            let is_layer = binding
+                                .as_ref()
+                                .and_then(|binding| {
+                                    self.layout.as_ref().and_then(|layout| {
+                                        zmk_layer_target(binding, &layout.zmk_behaviors)
+                                    })
+                                })
+                                .is_some();
+                            (is_mod, can_swap_side, false, false, false, false, false, is_layer)
                         };
                         if hovered_is_mod {
                             if hovered_can_swap_side {
-                                ui.painter().text(
-                                    egui::pos2(center_x, hint_y - 22.0),
-                                    egui::Align2::CENTER_CENTER,
-                                    "Left click to change this key",
-                                    hint_font.clone(),
-                                    hint_color,
-                                );
-                                ui.painter().text(
-                                    egui::pos2(center_x, hint_y - 4.0),
-                                    egui::Align2::CENTER_CENTER,
-                                    "Right click to change the modifier key",
-                                    secondary_hint_font.clone(),
-                                    hint_color,
-                                );
-                                ui.painter().text(
-                                    egui::pos2(center_x, hint_y + 12.0),
-                                    egui::Align2::CENTER_CENTER,
-                                    "Ctrl+right-click to switch left/right side",
-                                    secondary_hint_font,
-                                    hint_color,
-                                );
+                                if self.firmware == FirmwareProtocol::Zmk {
+                                    ui.painter().text(
+                                        egui::pos2(center_x, hint_y - 10.0),
+                                        egui::Align2::CENTER_CENTER,
+                                        "Left click to change this key",
+                                        hint_font.clone(),
+                                        hint_color,
+                                    );
+                                    ui.painter().text(
+                                        egui::pos2(center_x, hint_y + 8.0),
+                                        egui::Align2::CENTER_CENTER,
+                                        "Ctrl+right-click to switch left/right side",
+                                        secondary_hint_font,
+                                        hint_color,
+                                    );
+                                } else {
+                                    ui.painter().text(
+                                        egui::pos2(center_x, hint_y - 22.0),
+                                        egui::Align2::CENTER_CENTER,
+                                        "Left click to change this key",
+                                        hint_font.clone(),
+                                        hint_color,
+                                    );
+                                    ui.painter().text(
+                                        egui::pos2(center_x, hint_y - 4.0),
+                                        egui::Align2::CENTER_CENTER,
+                                        "Right click to change the modifier key",
+                                        secondary_hint_font.clone(),
+                                        hint_color,
+                                    );
+                                    ui.painter().text(
+                                        egui::pos2(center_x, hint_y + 12.0),
+                                        egui::Align2::CENTER_CENTER,
+                                        "Ctrl+right-click to switch left/right side",
+                                        secondary_hint_font,
+                                        hint_color,
+                                    );
+                                }
                             } else {
                                 ui.painter().text(
                                     egui::pos2(center_x, hint_y - 14.0),
@@ -13173,11 +13226,18 @@ impl EntropyApp {
             if response.clicked() {
                 self.selected_key = Some((self.selected_layer, *ki));
                 self.keycode_picker.open = true;
+                self.keycode_picker.result = None;
+                self.keycode_picker.zmk_result = None;
                 self.keycode_picker.search_query.clear();
                 self.keycode_picker.layer_names = self.layer_names.clone();
                 self.keycode_picker.firmware = self.firmware;
                 self.keycode_picker.vial_quantum_pending_mod = None;
                 self.keycode_picker.vial_quantum_pending_mt = None;
+                self.keycode_picker.vial_layer_pending = None;
+                self.keycode_picker.zmk_layer_action_pending = None;
+                self.keycode_picker.zmk_layer_retarget_pending = None;
+                self.keycode_picker.zmk_layer_tap_pending = None;
+                self.keycode_picker.zmk_mod_tap_pending = None;
                 // Reset all editor states so picker opens normally
                 self.keycode_picker.tap_dance_editor_open = None;
                 self.keycode_picker.selected_tab = crate::keycode_picker::KeycodeTab::Basic;
@@ -13191,130 +13251,24 @@ impl EntropyApp {
                 }
             }
 
-            // Right-click on mod key — open second picker to change tap/key
+            // Right-click actions: layer jump/retarget, modifier side swap, editors/settings.
             if response.secondary_clicked() {
                 let ctrl_held = ui.input(|i| i.modifiers.ctrl);
-                if is_zmk {
-                    if ctrl_held {
-                        let binding = layout.get_zmk_binding(self.selected_layer, *ki);
-                        if let Some(swapped) = toggle_handed_zmk_binding(&binding, &layout.zmk_behaviors) {
-                            self.assign_zmk_binding(self.selected_layer, *ki, swapped);
-                            self.secondary_click_handled = true;
-                        }
-                    }
-                    if self.secondary_click_handled {
-                        continue;
-                    }
-                }
-                if is_zmk {
-                    // Non-Ctrl right click on ZMK layer keys is handled by layer preview jump below.
+                let kc = if is_zmk {
+                    0
                 } else {
-                    let kc = layout.get_keycode(self.selected_layer, *ki);
-
-                // Ctrl+RClick on layer keys: change layer number
-                if ctrl_held {
-                    if let Some(swapped) = toggle_handed_modifier(kc) {
-                        self.pending_handed_swap = Some((self.selected_layer, *ki, swapped));
-                        self.secondary_click_handled = true;
-                    } else {
-                        let layer_base: Option<u16> = if kc >= 0x5200 && kc < 0x5300 {
-                            Some(kc & 0xFFE0)
-                        } else if kc & 0xF000 == 0x4000 {
-                            Some(0x4000)
-                        } else {
-                            None
-                        };
-                        if let Some(base) = layer_base {
-                            self.selected_key = Some((self.selected_layer, *ki));
-                            self.keycode_picker.open = true;
-                            self.keycode_picker.layer_names = self.layer_names.clone();
-                            self.keycode_picker.firmware = self.firmware;
-                            self.keycode_picker.vial_layer_pending = Some(base);
-                            self.secondary_click_handled = true;
-                        }
-                    }
-                    if self.secondary_click_handled {
-                        continue;
-                    }
-                }
-                // Macro keys: 0x7700..0x77FF — RClick opens editor
-                if kc >= 0x7700 && kc <= 0x77FF {
-                    let macro_n = (kc - 0x7700) as u8;
-                    self.selected_key = Some((self.selected_layer, *ki));
-                    self.keycode_picker.open = true;
-                    self.keycode_picker.layer_names = self.layer_names.clone();
-                    self.keycode_picker.firmware = self.firmware;
-                    self.keycode_picker.selected_tab = crate::keycode_picker::KeycodeTab::Macro;
-                    self.keycode_picker.macro_inline_selected = Some(macro_n);
-                    self.secondary_click_handled = true;
-                }
-                // Tap Dance keys: 0x5700..0x57FF — RClick opens editor
-                if kc >= 0x5700 && kc <= 0x57FF {
-                    let td_n = (kc - 0x5700) as u8;
-                    self.selected_key = Some((self.selected_layer, *ki));
-                    self.keycode_picker.open = true;
-                    self.keycode_picker.layer_names = self.layer_names.clone();
-                    self.keycode_picker.firmware = self.firmware;
-                    self.keycode_picker.selected_tab = crate::keycode_picker::KeycodeTab::TapDance;
-                    self.keycode_picker.tap_dance_editor_open = Some(td_n);
-                    self.secondary_click_handled = true;
-                }
-                // Grave Escape — RClick opens Grave Escape settings page
-                if kc == 0x7C16 {
-                    self.open_grave_escape_settings_page();
-                    self.secondary_click_handled = true;
-                }
-                // Mouse keys — RClick opens Mouse keys settings page
-                if is_mouse_keycode(kc) {
-                    self.open_mouse_keys_settings_page();
-                    self.secondary_click_handled = true;
-                }
-                if is_alt_repeat_keycode(kc) {
-                    self.open_alt_repeat_window_compact();
-                    self.secondary_click_handled = true;
-                }
-                // MT: 0x2000..0x3FFF, Mod+Key: 0x0100..0x1FFF with kc != 0
-                let is_layer_key = (kc >= 0x5200 && kc < 0x5300) || (kc & 0xF000 == 0x4000);
-                let pending_base: Option<u16> = if is_layer_key {
-                    None // layer keys handled above (Ctrl+RClick)
-                } else if kc >= 0x2000 && kc < 0x4000 {
-                    Some(kc & 0xFF00) // MT base
-                } else if kc >= 0x0100 && kc < 0x2000 && (kc & 0xFF) != 0 {
-                    Some(kc & 0xFF00) // Mod+Key base
-                } else {
-                    None
+                    layout.get_keycode(self.selected_layer, *ki)
                 };
-                if let Some(base) = pending_base {
-                    self.selected_key = Some((self.selected_layer, *ki));
-                    self.keycode_picker.open = true;
-                    self.keycode_picker.layer_names = self.layer_names.clone();
-                    self.keycode_picker.firmware = self.firmware;
-                    if kc >= 0x2000 {
-                        self.keycode_picker.vial_quantum_pending_mt = Some(base);
-                        self.keycode_picker.vial_quantum_pending_mod = None;
-                    } else {
-                        self.keycode_picker.vial_quantum_pending_mod = Some(base);
-                        self.keycode_picker.vial_quantum_pending_mt = None;
-                    }
-                    self.secondary_click_handled = true;
-                }
+                self.handle_secondary_target(ctrl_held, is_zmk, kc, Some(*ki), None);
+                if self.secondary_click_handled {
+                    continue;
                 }
             }
 
             // Tooltip — for layer keys show mini layout preview
             let preview_layer: Option<usize> = if is_zmk {
                 let binding = layout.get_zmk_binding(self.selected_layer, *ki);
-                let beh_name = layout
-                    .zmk_behaviors
-                    .iter()
-                    .find(|b| b.id == binding.behavior_id as u32)
-                    .map(|b| b.display_name.as_str())
-                    .unwrap_or("");
-                match beh_name {
-                    "Momentary Layer" | "Toggle Layer" | "To Layer" | "Sticky Layer"
-                    | "Layer-Tap" => Some(binding.param1 as usize),
-                    _ => None,
-                }
+                zmk_layer_target(&binding, &layout.zmk_behaviors)
             } else {
                 let kc = layout.get_keycode(self.selected_layer, *ki);
                 // MO/TG/TO/OSL/TT/DF range: 0x5200..0x52FF, LT: 0x4000..0x4FFF

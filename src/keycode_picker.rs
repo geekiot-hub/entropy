@@ -62,6 +62,7 @@ pub struct KeycodePicker {
     pub zmk_selected_behavior: Option<usize>,
     pub zmk_layer_count: usize,
     pub zmk_layer_action_pending: Option<(u32, bool)>,
+    pub zmk_layer_retarget_pending: Option<ZmkBinding>,
     pub zmk_layer_tap_pending: Option<u32>,
     pub zmk_mod_tap_pending: Option<u32>,
     // Vial Quantum tab pending state
@@ -280,6 +281,7 @@ impl Default for KeycodePicker {
             zmk_selected_behavior: None,
             zmk_layer_count: 4,
             zmk_layer_action_pending: None,
+            zmk_layer_retarget_pending: None,
             zmk_layer_tap_pending: None,
             zmk_mod_tap_pending: None,
             vial_quantum_pending_mod: None,
@@ -1037,10 +1039,13 @@ impl KeycodePicker {
 
     pub fn show(&mut self, ctx: &egui::Context) {
         let macro_key_pick_open = self.macro_key_pick.is_some();
-        let layer_pick_open = self.vial_layer_pending.is_some();
+        let layer_pick_open = self.vial_layer_pending.is_some()
+            || self.zmk_layer_action_pending.is_some()
+            || self.zmk_layer_retarget_pending.is_some();
         let pending_key_pick_open = self.vial_quantum_pending_mod.is_some()
             || self.vial_quantum_pending_mt.is_some()
             || self.zmk_layer_action_pending.is_some()
+            || self.zmk_layer_retarget_pending.is_some()
             || self.zmk_layer_tap_pending.is_some()
             || self.zmk_mod_tap_pending.is_some();
         let tap_dance_editor_open = self.tap_dance_editor_open.is_some();
@@ -1308,6 +1313,8 @@ impl KeycodePicker {
                         self.vial_quantum_pending_mod = None;
                         self.vial_quantum_pending_mt = None;
                         self.vial_layer_pending = None;
+                        self.zmk_layer_action_pending = None;
+                        self.zmk_layer_retarget_pending = None;
                     }
                 }
             });
@@ -2413,6 +2420,13 @@ Right click: One-Shot Right {mod_name}"
     }
 
     fn show_zmk_special_vial_extras(&mut self, ui: &mut egui::Ui) {
+        let has_reset = self.zmk_behavior_id("Reset").is_some();
+        let has_unlock = self.zmk_behavior_id("Studio Unlock").is_some();
+        let has_external_power = self.zmk_behavior_id("External Power").is_some();
+        if !has_reset && !has_unlock && !has_external_power {
+            return;
+        }
+
         ui.add_space(10.0);
         ui.label(
             RichText::new("Firmware")
@@ -2458,159 +2472,8 @@ Right click: One-Shot Right {mod_name}"
                 Vec2::new(72.0, 42.0),
             );
         });
-
-        ui.add_space(10.0);
-        ui.label(
-            RichText::new("Mouse")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
-        );
-        ui.add_space(4.0);
-        ui.horizontal_wrapped(|ui| {
-            for kc in KEYCODES.iter().filter(|kc| matches!(kc.category, KeycodeCategory::Mouse)) {
-                if !self.zmk_keycode_supported(kc.value) {
-                    continue;
-                }
-                let label = keycode_label_with_names(kc.value, &[], &self.layer_names);
-                let resp = ui
-                    .add(
-                        egui::Button::new(RichText::new(label).size(11.0))
-                            .min_size(Vec2::new(56.0, 42.0)),
-                    )
-                    .on_hover_cursor(egui::CursorIcon::PointingHand);
-                if resp.clicked() {
-                    self.zmk_assign_keycode_value(kc.value);
-                }
-                resp.on_hover_text(self.picker_keycode_tooltip(kc.value, &[]));
-            }
-        });
-
-        ui.add_space(10.0);
-        ui.label(
-            RichText::new("Media, Apps, System")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
-        );
-        ui.add_space(4.0);
-        ui.horizontal_wrapped(|ui| {
-            for kc in KEYCODES.iter().filter(|kc| matches!(kc.category, KeycodeCategory::Media)) {
-                if !self.zmk_keycode_supported(kc.value) {
-                    continue;
-                }
-                let label = keycode_label_with_names(kc.value, &[], &self.layer_names);
-                let resp = ui
-                    .add(
-                        egui::Button::new(RichText::new(label).size(10.5))
-                            .min_size(Vec2::new(56.0, 42.0)),
-                    )
-                    .on_hover_cursor(egui::CursorIcon::PointingHand);
-                if resp.clicked() {
-                    self.zmk_assign_keycode_value(kc.value);
-                }
-                resp.on_hover_text(self.picker_keycode_tooltip(kc.value, &[]));
-            }
-        });
-
-        ui.add_space(10.0);
-        ui.label(
-            RichText::new("Basic app / edit keys")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
-        );
-        ui.add_space(4.0);
-        let basic_app_keys: &[(&str, u16)] = &[
-            ("Exec", 0x0074),
-            ("Help", 0x0075),
-            ("Select", 0x0077),
-            ("Stop", 0x0078),
-            ("Again", 0x0079),
-            ("Undo", 0x007A),
-            ("Cut", 0x007B),
-            ("Copy", 0x007C),
-            ("Paste", 0x007D),
-            ("Find", 0x007E),
-        ];
-        ui.horizontal_wrapped(|ui| {
-            for (label, value) in basic_app_keys {
-                if !self.zmk_keycode_supported(*value) {
-                    continue;
-                }
-                let resp = ui
-                    .add(egui::Button::new(RichText::new(*label).size(11.0)).min_size(Vec2::new(56.0, 42.0)))
-                    .on_hover_cursor(egui::CursorIcon::PointingHand);
-                if resp.clicked() {
-                    self.zmk_assign_keycode_value(*value);
-                }
-                resp.on_hover_text(self.picker_keycode_tooltip(*value, &[]));
-            }
-        });
-
-        ui.add_space(10.0);
-        ui.label(
-            RichText::new("OS shortcuts")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
-        );
-        ui.add_space(4.0);
-        let os_shortcuts: &[(&str, &str, u16, &str)] = &[
-            ("Win/Linux", "Prev Word", 0x0100 | 0x0050, "Ctrl + Left Arrow"),
-            ("Win/Linux", "Next Word", 0x0100 | 0x004F, "Ctrl + Right Arrow"),
-            ("Win/Linux", "Prev App", 0x0600 | 0x002B, "Shift + Alt + Tab"),
-            ("Win/Linux", "Next App", 0x0400 | 0x002B, "Alt + Tab"),
-            ("macOS", "Prev Word", 0x0400 | 0x0050, "Option + Left Arrow"),
-            ("macOS", "Next Word", 0x0400 | 0x004F, "Option + Right Arrow"),
-            ("macOS", "Prev App", 0x0A00 | 0x002B, "Shift + Command + Tab"),
-            ("macOS", "Next App", 0x0800 | 0x002B, "Command + Tab"),
-        ];
-        ui.horizontal_wrapped(|ui| {
-            for (os, text, value, tip) in os_shortcuts {
-                if !self.zmk_keycode_supported(*value) {
-                    continue;
-                }
-                let resp = ui
-                    .add(egui::Button::new(RichText::new(format!("{os}\n{text}")).size(10.0)).min_size(Vec2::new(78.0, 44.0)))
-                    .on_hover_cursor(egui::CursorIcon::PointingHand);
-                if resp.clicked() {
-                    self.zmk_assign_keycode_value(*value);
-                }
-                resp.on_hover_text(*tip);
-            }
-        });
-
-        ui.add_space(10.0);
-        ui.label(
-            RichText::new("Extra function keys")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
-        );
-        ui.add_space(4.0);
-        ui.horizontal_wrapped(|ui| {
-            for value in 0x0068u16..=0x0073u16 {
-                let Some(kc) = KEYCODES.iter().find(|kc| kc.value == value) else {
-                    continue;
-                };
-                if !self.zmk_keycode_supported(kc.value) {
-                    continue;
-                }
-                let resp = ui
-                    .add(egui::Button::new(RichText::new(kc.label).size(11.0)).min_size(Vec2::new(56.0, 42.0)))
-                    .on_hover_cursor(egui::CursorIcon::PointingHand);
-                if resp.clicked() {
-                    self.zmk_assign_keycode_value(kc.value);
-                }
-                resp.on_hover_text(format!("Function key {}", kc.label));
-            }
-        });
-
-        ui.add_space(10.0);
-        ui.label(
-            RichText::new("Numpad")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
-        );
-        ui.add_space(4.0);
-        self.show_zmk_numpad_buttons(ui);
     }
+
 
     fn show_vial_quantum(&mut self, ui: &mut egui::Ui) {
         // Pending mod+key selection
@@ -3984,6 +3847,10 @@ Right click: One-Shot Right {mod_name}"
         });
     }
 
+    fn picker_value_supported(&self, value: u16) -> bool {
+        self.firmware != FirmwareProtocol::Zmk || self.zmk_keycode_supported(value)
+    }
+
     fn show_vial_special(&mut self, ui: &mut egui::Ui) {
         let special_keys: Vec<(String, u16, String)> = vec![
             (
@@ -4112,6 +3979,9 @@ Repeat"
         ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| {
             for (label, value, tip) in &special_keys {
+                if !self.picker_value_supported(*value) {
+                    continue;
+                }
                 if let Some(kc) = crate::keycode::KEYCODES.iter().find(|kc| kc.value == *value) {
                     if !self.vial_keycode_supported(kc) {
                         continue;
@@ -4151,10 +4021,9 @@ Repeat"
 
         if self.firmware == FirmwareProtocol::Zmk {
             self.show_zmk_special_vial_extras(ui);
-            return;
         }
 
-        if !self.supports_mouse_keys {
+        if self.firmware != FirmwareProtocol::Zmk && !self.supports_mouse_keys {
             return;
         }
         ui.add_space(10.0);
@@ -4169,6 +4038,9 @@ Repeat"
                 .iter()
                 .filter(|kc| matches!(kc.category, crate::keycode::KeycodeCategory::Mouse))
             {
+                if !self.picker_value_supported(kc.value) {
+                    continue;
+                }
                 let resp = ui
                     .add_sized(Vec2::new(56.0, 42.0), egui::Button::new(""))
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
@@ -4298,6 +4170,9 @@ Repeat"
         ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| {
             for (icon, text, value) in media_keys {
+                if !self.picker_value_supported(*value) {
+                    continue;
+                }
                 let resp = ui
                     .add_sized(Vec2::new(56.0, 42.0), egui::Button::new(""))
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
@@ -4345,6 +4220,9 @@ Repeat"
         ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| {
             for (label, value) in basic_app_keys {
+                if !self.picker_value_supported(*value) {
+                    continue;
+                }
                 let resp = ui.add(
                     egui::Button::new(RichText::new(*label).size(11.0))
                         .min_size(Vec2::new(56.0, 42.0)),
@@ -4365,6 +4243,9 @@ Repeat"
         ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| {
             for (label, value) in extra_fn_keys {
+                if !self.picker_value_supported(*value) {
+                    continue;
+                }
                 let resp = ui.add(
                     egui::Button::new(RichText::new(*label).size(11.0))
                         .min_size(Vec2::new(56.0, 42.0)),
@@ -4425,6 +4306,9 @@ Repeat"
                 Color32::from_gray(145)
             };
             for (os, text, value, tip) in os_shortcuts {
+                if !self.picker_value_supported(*value) {
+                    continue;
+                }
                 let resp = ui.add_sized(Vec2::new(78.0, 44.0), egui::Button::new(""));
                 let visuals = ui.style().interact(&resp);
                 let painter = ui.painter();
@@ -4476,6 +4360,9 @@ Repeat"
                 .iter()
                 .filter(|kc| matches!(kc.category, crate::keycode::KeycodeCategory::Numpad))
             {
+                if !self.picker_value_supported(kc.value) {
+                    continue;
+                }
                 let display = match kc.name {
                     "KC_NUMLOCK" => "Lock",
                     "KC_KP_SLASH" => "÷",
@@ -4554,6 +4441,9 @@ Repeat"
                 Color32::from_gray(145)
             };
             for value in magic_keys {
+                if !self.picker_value_supported(*value) {
+                    continue;
+                }
                 let label = crate::keycode::keycode_label(*value);
                 let mut parts = label.splitn(2, '\n');
                 let top = parts.next().unwrap_or("");
@@ -4747,7 +4637,7 @@ Repeat"
     }
 
     fn show_zmk(&mut self, ctx: &egui::Context) {
-        if self.zmk_layer_action_pending.is_some() {
+        if self.zmk_layer_action_pending.is_some() || self.zmk_layer_retarget_pending.is_some() {
             self.show_zmk_layer_picker(ctx);
             return;
         }
@@ -4949,6 +4839,7 @@ Repeat"
                 if let egui::Event::Key { key, pressed: true, .. } = event {
                     if *key == egui::Key::Escape {
                         self.zmk_layer_action_pending = None;
+                        self.zmk_layer_retarget_pending = None;
                         self.open = false;
                         return;
                     }
@@ -4956,9 +4847,11 @@ Repeat"
             }
         });
 
-        let Some((behavior_id, needs_tap_key)) = self.zmk_layer_action_pending else {
+        let action_pending = self.zmk_layer_action_pending;
+        let retarget_pending = self.zmk_layer_retarget_pending.clone();
+        if action_pending.is_none() && retarget_pending.is_none() {
             return;
-        };
+        }
 
         let mut still_open = true;
         crate::ui_style::centered_modal_window(
@@ -4993,11 +4886,17 @@ Repeat"
                     )
                     .on_hover_text(label.clone());
                     if resp.clicked() {
-                        self.zmk_layer_action_pending = None;
-                        if needs_tap_key {
-                            self.zmk_layer_tap_pending = Some(n);
-                        } else {
-                            self.zmk_assign(behavior_id, n, 0);
+                        if let Some(mut binding) = self.zmk_layer_retarget_pending.take() {
+                            binding.param1 = n;
+                            self.zmk_result = Some(binding);
+                            self.zmk_layer_action_pending = None;
+                            self.open = false;
+                        } else if let Some((behavior_id, needs_tap_key)) = self.zmk_layer_action_pending.take() {
+                            if needs_tap_key {
+                                self.zmk_layer_tap_pending = Some(n);
+                            } else {
+                                self.zmk_assign(behavior_id, n, 0);
+                            }
                         }
                     }
                 }
@@ -5005,6 +4904,7 @@ Repeat"
         });
         if !still_open {
             self.zmk_layer_action_pending = None;
+            self.zmk_layer_retarget_pending = None;
             self.open = false;
         }
     }
