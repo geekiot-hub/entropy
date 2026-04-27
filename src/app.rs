@@ -679,6 +679,68 @@ fn toggle_handed_modifier(value: u16) -> Option<u16> {
     }
 }
 
+fn toggle_zmk_modifier_usage(usage: u32) -> Option<u32> {
+    match usage {
+        0x0007_00E0 => Some(0x0007_00E4),
+        0x0007_00E4 => Some(0x0007_00E0),
+        0x0007_00E1 => Some(0x0007_00E5),
+        0x0007_00E5 => Some(0x0007_00E1),
+        0x0007_00E2 => Some(0x0007_00E6),
+        0x0007_00E6 => Some(0x0007_00E2),
+        0x0007_00E3 => Some(0x0007_00E7),
+        0x0007_00E7 => Some(0x0007_00E3),
+        _ => None,
+    }
+}
+
+fn toggle_zmk_modifier_mask(mask: u32) -> Option<u32> {
+    match mask {
+        0x01 => Some(0x10),
+        0x10 => Some(0x01),
+        0x02 => Some(0x20),
+        0x20 => Some(0x02),
+        0x04 => Some(0x40),
+        0x40 => Some(0x04),
+        0x08 => Some(0x80),
+        0x80 => Some(0x08),
+        _ => None,
+    }
+}
+
+fn zmk_binding_behavior_name<'a>(
+    binding: &ZmkBinding,
+    behaviors: &'a [crate::zmk::BehaviorInfo],
+) -> Option<&'a str> {
+    behaviors
+        .iter()
+        .find(|behavior| behavior.id == binding.behavior_id as u32)
+        .map(|behavior| behavior.display_name.as_str())
+}
+
+fn toggle_handed_zmk_binding(
+    binding: &ZmkBinding,
+    behaviors: &[crate::zmk::BehaviorInfo],
+) -> Option<ZmkBinding> {
+    let name = zmk_binding_behavior_name(binding, behaviors)?;
+    match name {
+        "Key Press" => {
+            if let Some(param1) = toggle_zmk_modifier_usage(binding.param1) {
+                return Some(ZmkBinding { param1, ..binding.clone() });
+            }
+            let usage = binding.param1 & 0x00FF_FFFF;
+            let mod_mask = binding.param1 >> 24;
+            toggle_zmk_modifier_mask(mod_mask).map(|new_mask| ZmkBinding {
+                param1: usage | (new_mask << 24),
+                ..binding.clone()
+            })
+        }
+        "Sticky Key" | "Mod-Tap" => toggle_zmk_modifier_usage(binding.param1).map(|param1| {
+            ZmkBinding { param1, ..binding.clone() }
+        }),
+        _ => None,
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 struct ComboEntry {
     keys: [u16; 4],
@@ -5044,6 +5106,24 @@ impl EntropyApp {
         encoder_target: Option<usize>,
     ) {
         if is_zmk {
+            if ctrl_held {
+                if let Some(ki) = key_target {
+                    let binding = self
+                        .layout
+                        .as_ref()
+                        .map(|layout| layout.get_zmk_binding(self.selected_layer, ki))
+                        .unwrap_or_else(ZmkBinding::none);
+                    let behaviors = self
+                        .layout
+                        .as_ref()
+                        .map(|layout| layout.zmk_behaviors.as_slice())
+                        .unwrap_or(&[]);
+                    if let Some(swapped) = toggle_handed_zmk_binding(&binding, behaviors) {
+                        self.assign_zmk_binding(self.selected_layer, ki, swapped);
+                        self.secondary_click_handled = true;
+                    }
+                }
+            }
             return;
         }
         if !ctrl_held {
@@ -12763,7 +12843,43 @@ impl EntropyApp {
                                 })
                                 .unwrap_or((false, false, false, false, false, false, false, false))
                         } else {
-                            (false, false, false, false, false, false, false, false)
+                            let binding = self
+                                .prev_hovered_key
+                                .and_then(|ki| {
+                                    self.layout
+                                        .as_ref()
+                                        .map(|l| l.get_zmk_binding(self.selected_layer, ki))
+                                })
+                                .or_else(|| {
+                                    self.selected_key.and_then(|(selected_layer, selected_ki)| {
+                                        (selected_layer == self.selected_layer)
+                                            .then(|| {
+                                                self.layout.as_ref().map(|l| {
+                                                    l.get_zmk_binding(self.selected_layer, selected_ki)
+                                                })
+                                            })
+                                            .flatten()
+                                    })
+                                });
+                            let can_swap_side = binding
+                                .as_ref()
+                                .and_then(|binding| {
+                                    self.layout.as_ref().and_then(|layout| {
+                                        toggle_handed_zmk_binding(binding, &layout.zmk_behaviors)
+                                    })
+                                })
+                                .is_some();
+                            let is_mod = binding
+                                .as_ref()
+                                .and_then(|binding| {
+                                    self.layout.as_ref().and_then(|layout| {
+                                        zmk_binding_behavior_name(binding, &layout.zmk_behaviors)
+                                    })
+                                })
+                                .map(|name| matches!(name, "Key Press" | "Sticky Key" | "Mod-Tap"))
+                                .unwrap_or(false)
+                                && can_swap_side;
+                            (is_mod, can_swap_side, false, false, false, false, false, false)
                         };
                         if hovered_is_mod {
                             if hovered_can_swap_side {
@@ -13076,9 +13192,24 @@ impl EntropyApp {
             }
 
             // Right-click on mod key — open second picker to change tap/key
-            if response.secondary_clicked() && !is_zmk {
-                let kc = layout.get_keycode(self.selected_layer, *ki);
+            if response.secondary_clicked() {
                 let ctrl_held = ui.input(|i| i.modifiers.ctrl);
+                if is_zmk {
+                    if ctrl_held {
+                        let binding = layout.get_zmk_binding(self.selected_layer, *ki);
+                        if let Some(swapped) = toggle_handed_zmk_binding(&binding, &layout.zmk_behaviors) {
+                            self.assign_zmk_binding(self.selected_layer, *ki, swapped);
+                            self.secondary_click_handled = true;
+                        }
+                    }
+                    if self.secondary_click_handled {
+                        continue;
+                    }
+                }
+                if is_zmk {
+                    // Non-Ctrl right click on ZMK layer keys is handled by layer preview jump below.
+                } else {
+                    let kc = layout.get_keycode(self.selected_layer, *ki);
 
                 // Ctrl+RClick on layer keys: change layer number
                 if ctrl_held {
@@ -13166,6 +13297,7 @@ impl EntropyApp {
                         self.keycode_picker.vial_quantum_pending_mt = None;
                     }
                     self.secondary_click_handled = true;
+                }
                 }
             }
 
