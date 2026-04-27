@@ -1693,6 +1693,8 @@ pub struct EntropyApp {
     editing_layer_focus_requested: bool,
     /// Current connected device name (for per-device layer names)
     current_device_name: String,
+    /// Friendly names learned from firmware/device info, keyed by device path.
+    device_display_names: std::collections::HashMap<String, String>,
     /// ZMK lock state: 0=Locked, 1=Unlocked
     zmk_lock_state: i32,
     /// Keep the unlock overlay visible while reconnecting/loading after unlock was detected.
@@ -1801,6 +1803,7 @@ impl EntropyApp {
             editing_layer_text: String::new(),
             editing_layer_focus_requested: false,
             current_device_name: String::new(),
+            device_display_names: std::collections::HashMap::new(),
             zmk_lock_state: 1, // Unlocked by default
             zmk_unlock_reconnect_pending: false,
             unlock_open: false,
@@ -2737,6 +2740,13 @@ impl EntropyApp {
                     self.zmk_base_layer_count = r.layer_count;
                 }
                 self.current_device_name = r.device_name.clone();
+                if let Some(dev) = self
+                    .selected_device
+                    .and_then(|idx| self.device_manager.devices().get(idx))
+                {
+                    self.device_display_names
+                        .insert(dev.path.clone(), r.device_name.clone());
+                }
                 self.zmk_lock_state = r.zmk_lock_state;
                 self.keycode_picker.tap_dance_entries = r.tap_dance_entries.clone();
                 self.combo_entries = r.combo_entries.clone();
@@ -11641,11 +11651,20 @@ impl EntropyApp {
                                     for (i, dev) in self.device_manager.devices().iter().enumerate()
                                     {
                                         let is_selected = self.selected_device == Some(i);
-                                        let display_name = if is_selected
-                                            && dev.firmware == FirmwareProtocol::Zmk
-                                            && !self.current_device_name.trim().is_empty()
-                                        {
-                                            self.current_device_name.as_str()
+                                        let cached_display_name = self
+                                            .device_display_names
+                                            .get(&dev.path)
+                                            .map(String::as_str);
+                                        let display_name = if dev.firmware == FirmwareProtocol::Zmk {
+                                            cached_display_name
+                                                .or_else(|| {
+                                                    if is_selected && !self.current_device_name.trim().is_empty() {
+                                                        Some(self.current_device_name.as_str())
+                                                    } else {
+                                                        None
+                                                    }
+                                                })
+                                                .unwrap_or(dev.name.as_str())
                                         } else {
                                             dev.name.as_str()
                                         };
