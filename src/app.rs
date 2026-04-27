@@ -3181,7 +3181,16 @@ impl EntropyApp {
         let msg = match &self.zmk_op_rx {
             Some(rx) => match rx.try_recv() {
                 Ok(m) => m,
-                Err(_) => return,
+                Err(mpsc::TryRecvError::Empty) => return,
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    self.zmk_op_rx = None;
+                    self.zmk_unlock_reconnect_pending = false;
+                    self.status_msg = "Unlock polling stopped, reconnecting…".into();
+                    if let Some(idx) = self.selected_device {
+                        self.start_connect(idx);
+                    }
+                    return;
+                }
             },
             None => return,
         };
@@ -6169,7 +6178,6 @@ impl EntropyApp {
     /// Show ZMK unlock overlay in the same visual language as the Vial unlock flow.
     #[cfg(not(target_arch = "wasm32"))]
     fn show_zmk_unlock_modal(&self, ctx: &egui::Context) {
-        ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
         egui::Area::new(egui::Id::new("zmk_unlock_overlay"))
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
             .order(egui::Order::Foreground)
