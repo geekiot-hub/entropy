@@ -565,25 +565,25 @@ pub fn keycode_label_with_names(value: u16, custom: &[CustomKeycode], layer_name
     // One-shot mod: 0x52A0 / 0x52B0
     if value & 0xFF00 == 0x52A0 || value & 0xFF00 == 0x52B0 {
         let mod_str = match value {
-            0x52A2 => "Left Ctrl",
-            0x52B2 => "Right Ctrl",
-            0x52A1 => "Left Shift",
-            0x52B1 => "Right Shift",
-            0x52A4 => "Left Alt",
-            0x52B4 => "Right Alt",
+            0x52A2 => "LCtrl",
+            0x52B2 => "RCtrl",
+            0x52A1 => "LShift",
+            0x52B1 => "RShift",
+            0x52A4 => "LAlt",
+            0x52B4 => "RAlt",
             0x52A8 => {
-                #[cfg(target_os = "macos")] { "Left Cmd" }
-                #[cfg(target_os = "windows")] { "Left Win" }
-                #[cfg(not(any(target_os = "macos", target_os = "windows")))] { "Left Super" }
+                #[cfg(target_os = "macos")] { "LCmd" }
+                #[cfg(target_os = "windows")] { "LWin" }
+                #[cfg(not(any(target_os = "macos", target_os = "windows")))] { "LSuper" }
             }
             0x52B8 => {
-                #[cfg(target_os = "macos")] { "Right Cmd" }
-                #[cfg(target_os = "windows")] { "Right Win" }
-                #[cfg(not(any(target_os = "macos", target_os = "windows")))] { "Right Super" }
+                #[cfg(target_os = "macos")] { "RCmd" }
+                #[cfg(target_os = "windows")] { "RWin" }
+                #[cfg(not(any(target_os = "macos", target_os = "windows")))] { "RSuper" }
             }
             0x52A7 => "Meh",
             0x52AF => "Hyper",
-            _ => "Modifier",
+            _ => "Mod",
         };
         return format!("OSM/{}", mod_str);
     }
@@ -752,10 +752,20 @@ pub fn keycode_tooltip(value: u16, custom: &[CustomKeycode], layer_names: &[Stri
 
     // ── One-shot mod: 0x52A0/0x52B0 range ───────────────────────────────────
     if value & 0xFF00 == 0x52A0 || value & 0xFF00 == 0x52B0 {
-        let mods = value & 0x1F;
-        let right = value >= 0x52B0;
-        let m = mod_name(mods as u16, right);
-        return format!("One-Shot {}{} — activates {} for the very next keypress only", side(mods as u16), m, m);
+        let full_name = match value {
+            0x52A2 => "Left Ctrl".to_string(),
+            0x52B2 => "Right Ctrl".to_string(),
+            0x52A1 => "Left Shift".to_string(),
+            0x52B1 => "Right Shift".to_string(),
+            0x52A4 => "Left Alt".to_string(),
+            0x52B4 => "Right Alt".to_string(),
+            0x52A8 => format!("Left {}", gui_mod_name()),
+            0x52B8 => format!("Right {}", gui_mod_name()),
+            0x52A7 => "Meh (Ctrl+Shift+Alt)".to_string(),
+            0x52AF => format!("Hyper (Ctrl+Shift+Alt+{})", gui_mod_name()),
+            _ => "modifier".to_string(),
+        };
+        return format!("One-Shot {full_name} — applies {full_name} to the next keypress only");
     }
 
     // ── Layer ops 0x5200..0x52FF ─────────────────────────────────────────────

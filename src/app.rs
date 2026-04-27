@@ -760,6 +760,14 @@ fn zmk_modded_key_retarget_base(
     }
 }
 
+fn zmk_is_plain_modifier_binding(
+    binding: &ZmkBinding,
+    behaviors: &[crate::zmk::BehaviorInfo],
+) -> bool {
+    matches!(zmk_binding_behavior_name(binding, behaviors), Some("Key Press"))
+        && toggle_zmk_modifier_usage(binding.param1).is_some()
+}
+
 fn zmk_mod_tap_retarget_base(
     binding: &ZmkBinding,
     behaviors: &[crate::zmk::BehaviorInfo],
@@ -5203,6 +5211,10 @@ impl EntropyApp {
                         self.keycode_picker.zmk_layer_retarget_pending = Some(binding);
                         self.secondary_click_handled = true;
                     }
+                } else if zmk_is_plain_modifier_binding(&binding, behaviors) {
+                    self.open_picker_for_target(key_target, encoder_target, is_zmk);
+                    self.keycode_picker.selected_tab = crate::keycode_picker::KeycodeTab::Modifiers;
+                    self.secondary_click_handled = true;
                 } else if let Some(base) = zmk_modded_key_retarget_base(&binding, behaviors) {
                     self.open_picker_for_target(key_target, encoder_target, is_zmk);
                     self.keycode_picker.vial_quantum_pending_mod = Some(base);
@@ -5258,6 +5270,12 @@ impl EntropyApp {
             if self.secondary_click_handled {
                 return;
             }
+        }
+        if (0x00E0..=0x00E7).contains(&kc) {
+            self.open_picker_for_target(key_target, encoder_target, is_zmk);
+            self.keycode_picker.selected_tab = crate::keycode_picker::KeycodeTab::Modifiers;
+            self.secondary_click_handled = true;
+            return;
         }
         if kc >= 0x7700 && kc <= 0x77FF {
             let macro_n = (kc - 0x7700) as u8;
@@ -12967,6 +12985,14 @@ impl EntropyApp {
                                     })
                                 })
                                 .is_some();
+                            let can_retarget_plain_mod = binding
+                                .as_ref()
+                                .and_then(|binding| {
+                                    self.layout.as_ref().map(|layout| {
+                                        zmk_is_plain_modifier_binding(binding, &layout.zmk_behaviors)
+                                    })
+                                })
+                                .unwrap_or(false);
                             let is_mod = binding
                                 .as_ref()
                                 .and_then(|binding| {
@@ -12976,7 +13002,7 @@ impl EntropyApp {
                                 })
                                 .map(|name| matches!(name, "Key Press" | "Sticky Key" | "Mod-Tap"))
                                 .unwrap_or(false)
-                                && (can_swap_side || can_retarget_mod_key);
+                                && (can_swap_side || can_retarget_mod_key || can_retarget_plain_mod);
                             let is_layer = binding
                                 .as_ref()
                                 .and_then(|binding| {
@@ -13000,7 +13026,7 @@ impl EntropyApp {
                                     ui.painter().text(
                                         egui::pos2(center_x, hint_y - 4.0),
                                         egui::Align2::CENTER_CENTER,
-                                        "Right click to change the tap/key part",
+                                        "Right click to change this modifier/key part",
                                         secondary_hint_font.clone(),
                                         hint_color,
                                     );
