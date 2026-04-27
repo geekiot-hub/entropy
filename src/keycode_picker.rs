@@ -17,6 +17,58 @@ use crate::popup_state::{PopupKey, PopupState};
 use crate::zmk::{zmk_behavior_kind, BehaviorInfo, ZmkBinding};
 use egui::{Color32, Key, RichText, Vec2};
 
+fn plain_modifier_tooltip(mod_name: &str) -> String {
+    format!(
+        "Use {mod_name} by itself as a held modifier\nLeft click assigns Left {mod_name}\nRight click assigns Right {mod_name}"
+    )
+}
+
+fn one_sided_modifier_tooltip(mod_name: &str, side: &str) -> String {
+    format!("Use {side} {mod_name} by itself as a held modifier")
+}
+
+fn mod_combo_tooltip(mod_name: &str, has_right_side: bool) -> String {
+    if has_right_side {
+        format!(
+            "Hold {mod_name} together with another key\nLeft click starts a Left {mod_name}+key binding\nRight click starts a Right {mod_name}+key binding\nThen choose the key part"
+        )
+    } else {
+        format!(
+            "Hold {mod_name} together with another key\nClick to choose the key part"
+        )
+    }
+}
+
+fn mod_tap_tooltip(mod_name: &str, has_right_side: bool) -> String {
+    if has_right_side {
+        format!(
+            "Dual-role key: hold for {mod_name}, tap for another key\nLeft click uses Left {mod_name}\nRight click uses Right {mod_name}\nThen choose the tap key"
+        )
+    } else {
+        format!(
+            "Dual-role key: hold for {mod_name}, tap for another key\nClick to choose the tap key"
+        )
+    }
+}
+
+fn one_shot_modifier_tooltip(mod_name: &str, has_right_side: bool) -> String {
+    if has_right_side {
+        format!(
+            "Applies {mod_name} to the next keypress only\nLeft click assigns One-Shot Left {mod_name}\nRight click assigns One-Shot Right {mod_name}"
+        )
+    } else {
+        format!("Applies {mod_name} to the next keypress only")
+    }
+}
+
+fn zmk_sticky_modifier_tooltip(mod_name: &str) -> String {
+    format!("Applies {mod_name} to the next keypress only")
+}
+
+fn zmk_mod_tap_tooltip(mod_name: &str) -> String {
+    format!("Dual-role key: hold for {mod_name}, tap for a key you choose next")
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct TapDanceEntry {
     pub on_tap: u16,
@@ -2115,10 +2167,7 @@ impl KeycodePicker {
                 if resp.clicked_by(egui::PointerButton::Secondary) {
                     self.assign_keycode_value(*right_value);
                 }
-                resp.on_hover_text(format!(
-                    "Left click: Left {mod_name}
-Right click: Right {mod_name}"
-                ));
+                resp.on_hover_text(plain_modifier_tooltip(mod_name));
             }
         });
 
@@ -2160,12 +2209,9 @@ Right click: Right {mod_name}"
                     if resp.clicked_by(egui::PointerButton::Secondary) {
                         self.vial_quantum_pending_mod = Some(*right_value);
                     }
-                    resp.on_hover_text(format!(
-                        "Left click: Left {mod_name}+key
-Right click: Right {mod_name}+key"
-                    ));
+                    resp.on_hover_text(mod_combo_tooltip(mod_name, true));
                 } else {
-                    resp.on_hover_text(format!("Always sends {mod_name}+key"));
+                    resp.on_hover_text(mod_combo_tooltip(mod_name, false));
                 }
             }
         });
@@ -2210,12 +2256,9 @@ Right click: Right {mod_name}+key"
                     if resp.clicked_by(egui::PointerButton::Secondary) {
                         self.vial_quantum_pending_mt = Some(*right_value);
                     }
-                    resp.on_hover_text(format!(
-                        "Left click: hold Left {mod_name}
-Right click: hold Right {mod_name}"
-                    ));
+                    resp.on_hover_text(mod_tap_tooltip(mod_name, true));
                 } else {
-                    resp.on_hover_text(format!("Hold {mod_name}, tap regular key"));
+                    resp.on_hover_text(mod_tap_tooltip(mod_name, false));
                 }
             }
         });
@@ -2256,12 +2299,9 @@ Right click: hold Right {mod_name}"
                     if resp.clicked_by(egui::PointerButton::Secondary) {
                         self.assign_keycode_value(*right_value);
                     }
-                    resp.on_hover_text(format!(
-                        "Left click: One-Shot Left {mod_name}
-Right click: One-Shot Right {mod_name}"
-                    ));
+                    resp.on_hover_text(one_shot_modifier_tooltip(mod_name, true));
                 } else {
-                    resp.on_hover_text(format!("One-Shot {mod_name}"));
+                    resp.on_hover_text(one_shot_modifier_tooltip(mod_name, false));
                 }
             }
         });
@@ -2383,12 +2423,12 @@ Right click: One-Shot Right {mod_name}"
         // Pending mod+key selection
         if let Some(base) = self.vial_quantum_pending_mod {
             ui.label(
-                RichText::new("Now pick the KEY to add the modifier to:")
+                RichText::new("Choose the key to pair with the modifier")
                     .size(11.5)
                     .strong(),
             );
             ui.label(
-                RichText::new("Click any key below to create the combo, or Escape to cancel")
+                RichText::new("This key will always be sent together with the selected modifier")
                     .size(10.5)
                     .color(Color32::from_gray(150)),
             );
@@ -2425,9 +2465,9 @@ Right click: One-Shot Right {mod_name}"
             return;
         }
         if let Some(base) = self.vial_quantum_pending_mt {
-            ui.label(RichText::new("Now pick the TAP key:").size(11.5).strong());
+            ui.label(RichText::new("Choose the tap key").size(11.5).strong());
             ui.label(
-                RichText::new("Hold = modifier, tap = this key")
+                RichText::new("Hold will send the modifier; tap will send the key you pick")
                     .size(10.5)
                     .color(Color32::from_gray(150)),
             );
@@ -2475,18 +2515,18 @@ Right click: One-Shot Right {mod_name}"
         );
         ui.add_space(4.0);
         let mod_bases: Vec<(String, u16, String)> = vec![
-            ("Ctrl+…".into(), 0x0100, "Left Ctrl + next key".into()),
-            ("Shift+…".into(), 0x0200, "Left Shift + next key".into()),
-            ("Alt+…".into(), 0x0400, "Left Alt + next key".into()),
-            (format!("{}+…", gui), 0x0800, format!("{} + next key", lgui)),
-            ("C+S+…".into(), 0x0300, "Ctrl+Shift + next key".into()),
-            ("C+A+…".into(), 0x0500, "Ctrl+Alt + next key".into()),
-            ("S+A+…".into(), 0x0600, "Shift+Alt + next key".into()),
-            ("Meh+…".into(), 0x0700, "Ctrl+Shift+Alt + next key".into()),
+            ("Ctrl+…".into(), 0x0100, "Hold Left Ctrl together with the key you choose next".into()),
+            ("Shift+…".into(), 0x0200, "Hold Left Shift together with the key you choose next".into()),
+            ("Alt+…".into(), 0x0400, "Hold Left Alt together with the key you choose next".into()),
+            (format!("{}+…", gui), 0x0800, format!("Hold Left {lgui} together with the key you choose next")),
+            ("C+S+…".into(), 0x0300, "Hold Ctrl+Shift together with the key you choose next".into()),
+            ("C+A+…".into(), 0x0500, "Hold Ctrl+Alt together with the key you choose next".into()),
+            ("S+A+…".into(), 0x0600, "Hold Shift+Alt together with the key you choose next".into()),
+            ("Meh+…".into(), 0x0700, "Hold Ctrl+Shift+Alt together with the key you choose next".into()),
             (
                 "Hyper+…".into(),
                 0x0F00,
-                format!("Ctrl+Shift+Alt+{} + next key", gui_mod_name()),
+                format!("Hold Ctrl+Shift+Alt+{} together with the key you choose next", gui_mod_name()),
             ),
         ];
         ui.horizontal_wrapped(|ui| {
@@ -2512,16 +2552,16 @@ Right click: One-Shot Right {mod_name}"
         );
         ui.add_space(4.0);
         let mt_bases: Vec<(String, u16, String)> = vec![
-            ("MT Ctrl".into(), 0x2100, "Hold=LCtrl, tap=…".into()),
-            ("MT Shift".into(), 0x2200, "Hold=LShift, tap=…".into()),
-            ("MT Alt".into(), 0x2400, "Hold=LAlt, tap=…".into()),
+            ("MT Ctrl".into(), 0x2100, "Dual-role key: hold for Left Ctrl, tap for the key you choose next".into()),
+            ("MT Shift".into(), 0x2200, "Dual-role key: hold for Left Shift, tap for the key you choose next".into()),
+            ("MT Alt".into(), 0x2400, "Dual-role key: hold for Left Alt, tap for the key you choose next".into()),
             (
                 format!("MT {}", lgui),
                 0x2800,
-                format!("Hold=L{}, tap=…", lgui),
+                format!("Dual-role key: hold for Left {lgui}, tap for the key you choose next"),
             ),
-            ("MT Meh".into(), 0x2700, "Hold=Meh, tap=…".into()),
-            ("MT Hyper".into(), 0x2F00, "Hold=Hyper, tap=…".into()),
+            ("MT Meh".into(), 0x2700, "Dual-role key: hold for Meh, tap for the key you choose next".into()),
+            ("MT Hyper".into(), 0x2F00, "Dual-role key: hold for Hyper, tap for the key you choose next".into()),
         ];
         ui.horizontal_wrapped(|ui| {
             for (label, base, tip) in &mt_bases {
@@ -4870,12 +4910,12 @@ Repeat"
 
         // Modifier HID usages
         let mods: &[(&str, u32, &str)] = &[
-            ("Ctrl", 0x000700E0, "Left Control"),
-            ("Shift", 0x000700E1, "Left Shift"),
-            ("Alt", 0x000700E2, "Left Alt"),
-            ("Ctrl", 0x000700E4, "Right Control"),
-            ("Shift", 0x000700E5, "Right Shift"),
-            ("Alt", 0x000700E6, "Right Alt / AltGr"),
+            ("Ctrl", 0x000700E0, "Use Left Ctrl by itself as a held modifier"),
+            ("Shift", 0x000700E1, "Use Left Shift by itself as a held modifier"),
+            ("Alt", 0x000700E2, "Use Left Alt by itself as a held modifier"),
+            ("Ctrl", 0x000700E4, "Use Right Ctrl by itself as a held modifier"),
+            ("Shift", 0x000700E5, "Use Right Shift by itself as a held modifier"),
+            ("Alt", 0x000700E6, "Use Right Alt / AltGr by itself as a held modifier"),
         ];
 
         ui.label(
@@ -4907,7 +4947,7 @@ Repeat"
                 if resp.clicked() {
                     self.zmk_assign(id, lgui_usage, 0);
                 }
-                resp.on_hover_text(format!("Left {}", lgui));
+                resp.on_hover_text(one_sided_modifier_tooltip(lgui, "Left"));
                 let resp = ui.add(
                     egui::Button::new(RichText::new(rgui).size(11.0))
                         .min_size(Vec2::new(80.0, 38.0)),
@@ -4915,7 +4955,7 @@ Repeat"
                 if resp.clicked() {
                     self.zmk_assign(id, rgui_usage, 0);
                 }
-                resp.on_hover_text(format!("Right {}", rgui));
+                resp.on_hover_text(one_sided_modifier_tooltip(rgui, "Right"));
             }
         });
 
@@ -4928,16 +4968,16 @@ Repeat"
         ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| {
             let sk_mods: &[(&str, u32, &str)] = &[
-                ("SK\nLCtrl", 0x000700E0, "One-Shot Left Ctrl"),
+                ("SK\nLCtrl", 0x000700E0, "Applies Left Ctrl to the next keypress only"),
                 (
                     "SK\nLShift",
                     0x000700E1,
-                    "One-Shot Left Shift — capitalise next letter",
+                    "Applies Left Shift to the next keypress only",
                 ),
-                ("SK\nLAlt", 0x000700E2, "One-Shot Left Alt"),
-                ("SK\nRCtrl", 0x000700E4, "One-Shot Right Ctrl"),
-                ("SK\nRShift", 0x000700E5, "One-Shot Right Shift"),
-                ("SK\nRAlt", 0x000700E6, "One-Shot Right Alt / AltGr"),
+                ("SK\nLAlt", 0x000700E2, "Applies Left Alt to the next keypress only"),
+                ("SK\nRCtrl", 0x000700E4, "Applies Right Ctrl to the next keypress only"),
+                ("SK\nRShift", 0x000700E5, "Applies Right Shift to the next keypress only"),
+                ("SK\nRAlt", 0x000700E6, "Applies Right Alt / AltGr to the next keypress only"),
             ];
             for (label, usage, tip) in sk_mods {
                 if let Some(id) = sticky_id {
@@ -4965,7 +5005,7 @@ Repeat"
                 if resp.clicked() {
                     self.zmk_assign(id, lgui_usage, 0);
                 }
-                resp.on_hover_text(format!("One-Shot Left {}", lgui));
+                resp.on_hover_text(zmk_sticky_modifier_tooltip(&format!("Left {lgui}")));
                 let resp = ui.add(
                     egui::Button::new(RichText::new(format!("SK {}", rgui)).size(10.5))
                         .min_size(Vec2::new(80.0, 38.0)),
@@ -4973,7 +5013,7 @@ Repeat"
                 if resp.clicked() {
                     self.zmk_assign(id, rgui_usage, 0);
                 }
-                resp.on_hover_text(format!("One-Shot Right {}", rgui));
+                resp.on_hover_text(zmk_sticky_modifier_tooltip(&format!("Right {rgui}")));
             }
         });
 
@@ -4987,12 +5027,12 @@ Repeat"
             ui.add_space(4.0);
             ui.horizontal_wrapped(|ui| {
                 let mt_mods: &[(&str, u32, &str)] = &[
-                    ("MT Ctrl", 0x000700E0, "Hold Left Ctrl, tap a key you choose next"),
-                    ("MT Shift", 0x000700E1, "Hold Left Shift, tap a key you choose next"),
-                    ("MT Alt", 0x000700E2, "Hold Left Alt, tap a key you choose next"),
-                    ("MT RCtrl", 0x000700E4, "Hold Right Ctrl, tap a key you choose next"),
-                    ("MT RShift", 0x000700E5, "Hold Right Shift, tap a key you choose next"),
-                    ("MT RAlt", 0x000700E6, "Hold Right Alt / AltGr, tap a key you choose next"),
+                    ("MT Ctrl", 0x000700E0, "Dual-role key: hold for Left Ctrl, tap for a key you choose next"),
+                    ("MT Shift", 0x000700E1, "Dual-role key: hold for Left Shift, tap for a key you choose next"),
+                    ("MT Alt", 0x000700E2, "Dual-role key: hold for Left Alt, tap for a key you choose next"),
+                    ("MT RCtrl", 0x000700E4, "Dual-role key: hold for Right Ctrl, tap for a key you choose next"),
+                    ("MT RShift", 0x000700E5, "Dual-role key: hold for Right Shift, tap for a key you choose next"),
+                    ("MT RAlt", 0x000700E6, "Dual-role key: hold for Right Alt / AltGr, tap for a key you choose next"),
                 ];
                 for (label, usage, tip) in mt_mods {
                     let resp = ui.add(
@@ -5011,7 +5051,7 @@ Repeat"
                 if resp.clicked() {
                     self.zmk_mod_tap_pending = Some(lgui_usage);
                 }
-                resp.on_hover_text(format!("Hold Left {}, tap a key you choose next", lgui));
+                resp.on_hover_text(zmk_mod_tap_tooltip(&format!("Left {lgui}")));
                 let resp = ui.add(
                     egui::Button::new(RichText::new(format!("MT {}", rgui)).size(10.5))
                         .min_size(Vec2::new(84.0, 38.0)),
@@ -5019,7 +5059,7 @@ Repeat"
                 if resp.clicked() {
                     self.zmk_mod_tap_pending = Some(rgui_usage);
                 }
-                resp.on_hover_text(format!("Hold Right {}, tap a key you choose next", rgui));
+                resp.on_hover_text(zmk_mod_tap_tooltip(&format!("Right {rgui}")));
             });
         }
     }
