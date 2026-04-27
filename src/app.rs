@@ -1709,6 +1709,11 @@ pub struct EntropyApp {
     /// Channel for ZMK background operation results
     #[cfg(not(target_arch = "wasm32"))]
     zmk_op_rx: Option<mpsc::Receiver<ZmkOpResult>>,
+    /// Background friendly-name probe for inactive ZMK serial devices.
+    #[cfg(not(target_arch = "wasm32"))]
+    zmk_name_rx: Option<mpsc::Receiver<(String, Option<String>)>>,
+    #[cfg(not(target_arch = "wasm32"))]
+    zmk_name_pending: std::collections::HashSet<String>,
 }
 
 impl EntropyApp {
@@ -1815,6 +1820,10 @@ impl EntropyApp {
             #[cfg(not(target_arch = "wasm32"))]
             zmk_op_rx: None,
             #[cfg(not(target_arch = "wasm32"))]
+            zmk_name_rx: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            zmk_name_pending: std::collections::HashSet::new(),
+            #[cfg(not(target_arch = "wasm32"))]
             connect_state: ConnectState::Idle,
         };
         // Auto-connect to first device if available
@@ -1837,6 +1846,8 @@ impl EntropyApp {
         self.hid_device = None;
         self.zmk_conn = None;
         self.zmk_op_rx = None;
+        self.zmk_name_rx = None;
+        self.zmk_name_pending.clear();
         self.connect_state = ConnectState::Idle;
         self.zmk_lock_state = 1;
         self.zmk_unlock_reconnect_pending = false;
@@ -3028,6 +3039,68 @@ impl EntropyApp {
             // Return connection via a special channel — we just drop it here since
             // we can't easily return it. The UI will reconnect.
             drop(conn);
+        });
+    }
+
+    /// Poll background friendly-name probe for inactive ZMK serial devices.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn poll_zmk_name_probe(&mut self, ctx: &egui::Context) {
+        let Some(rx) = &self.zmk_name_rx else {
+            return;
+        };
+        match rx.try_recv() {
+            Ok((path, maybe_name)) => {
+                self.zmk_name_pending.remove(&path);
+                self.zmk_name_rx = None;
+                if let Some(name) = maybe_name.filter(|name| !name.trim().is_empty()) {
+                    self.device_display_names.insert(path, name);
+                    ctx.request_repaint();
+                }
+            }
+            Err(mpsc::TryRecvError::Empty) => {}
+            Err(mpsc::TryRecvError::Disconnected) => {
+                self.zmk_name_rx = None;
+                self.zmk_name_pending.clear();
+            }
+        }
+    }
+
+    /// Start one background friendly-name probe for an unknown inactive ZMK device.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn schedule_zmk_name_probe(&mut self, ctx: &egui::Context) {
+        if self.zmk_name_rx.is_some() {
+            return;
+        }
+        let selected_path = self
+            .selected_device
+            .and_then(|idx| self.device_manager.devices().get(idx))
+            .map(|dev| dev.path.clone());
+        let Some(path) = self
+            .device_manager
+            .devices()
+            .iter()
+            .find(|dev| {
+                dev.firmware == FirmwareProtocol::Zmk
+                    && Some(&dev.path) != selected_path.as_ref()
+                    && !self.device_display_names.contains_key(&dev.path)
+                    && !self.zmk_name_pending.contains(&dev.path)
+            })
+            .map(|dev| dev.path.clone())
+        else {
+            return;
+        };
+
+        self.zmk_name_pending.insert(path.clone());
+        let (tx, rx) = mpsc::channel();
+        self.zmk_name_rx = Some(rx);
+        let ctx_clone = ctx.clone();
+        std::thread::spawn(move || {
+            let name = crate::zmk::ZmkConnection::open(&path)
+                .ok()
+                .map(|conn| conn.device_name)
+                .filter(|name| !name.trim().is_empty());
+            let _ = tx.send((path, name));
+            ctx_clone.request_repaint();
         });
     }
 
@@ -5340,6 +5413,13 @@ impl eframe::App for EntropyApp {
             self.scan_frame = self.scan_frame.wrapping_add(1);
             self.last_device_scan_at = now;
             self.rescan_and_autoselect_device();
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.poll_zmk_name_probe(ctx);
+            if !zmk_unlock_flow_active {
+                self.schedule_zmk_name_probe(ctx);
+            }
         }
 
         #[cfg(not(target_arch = "wasm32"))]
