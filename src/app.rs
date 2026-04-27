@@ -726,6 +726,30 @@ fn zmk_layer_target(binding: &ZmkBinding, behaviors: &[crate::zmk::BehaviorInfo]
     }
 }
 
+fn vial_layer_target(kc: u16) -> Option<usize> {
+    if (0x5200..0x5300).contains(&kc) {
+        let op = (kc >> 5) & 0x7;
+        // QK_ONE_SHOT_MOD also lives in the 0x52xx range (op=5), but it is a
+        // modifier keycode, not a layer key. Do not preview/jump layers for OSM.
+        (op != 5).then_some((kc & 0x1F) as usize)
+    } else if kc & 0xF000 == 0x4000 {
+        Some(((kc >> 8) & 0xF) as usize)
+    } else {
+        None
+    }
+}
+
+fn vial_layer_retarget_base(kc: u16) -> Option<u16> {
+    if (0x5200..0x5300).contains(&kc) {
+        let op = (kc >> 5) & 0x7;
+        (op != 5).then_some(kc & 0xFFE0)
+    } else if kc & 0xF000 == 0x4000 {
+        Some(0x4000)
+    } else {
+        None
+    }
+}
+
 fn zmk_modded_key_retarget_base(
     binding: &ZmkBinding,
     behaviors: &[crate::zmk::BehaviorInfo],
@@ -5224,14 +5248,7 @@ impl EntropyApp {
             return;
         }
         if !ctrl_held {
-            let target_layer = if kc >= 0x5200 && kc < 0x5300 {
-                Some((kc & 0x1F) as usize)
-            } else if kc & 0xF000 == 0x4000 {
-                Some(((kc >> 8) & 0xF) as usize)
-            } else {
-                None
-            };
-            if let Some(target_layer) = target_layer {
+            if let Some(target_layer) = vial_layer_target(kc) {
                 if target_layer != self.selected_layer {
                     self.jump_back_stack.push(self.selected_layer);
                     self.selected_layer = target_layer;
@@ -5250,14 +5267,7 @@ impl EntropyApp {
                 }
                 self.secondary_click_handled = true;
             } else {
-                let layer_base: Option<u16> = if kc >= 0x5200 && kc < 0x5300 {
-                    Some(kc & 0xFFE0)
-                } else if kc & 0xF000 == 0x4000 {
-                    Some(0x4000)
-                } else {
-                    None
-                };
-                if let Some(base) = layer_base {
+                if let Some(base) = vial_layer_retarget_base(kc) {
                     self.open_picker_for_target(key_target, encoder_target, is_zmk);
                     self.keycode_picker.vial_layer_pending = Some(base);
                     self.secondary_click_handled = true;
@@ -5293,7 +5303,7 @@ impl EntropyApp {
             self.secondary_click_handled = true;
             return;
         }
-        let is_layer_key = (kc >= 0x5200 && kc < 0x5300) || (kc & 0xF000 == 0x4000);
+        let is_layer_key = vial_layer_target(kc).is_some();
         let pending_base: Option<u16> = if is_layer_key {
             None
         } else if kc >= 0x2000 && kc < 0x4000 {
@@ -12926,8 +12936,7 @@ impl EntropyApp {
                                     let is_mouse = is_mouse_keycode(kc);
                                     let is_alt_repeat = is_alt_repeat_keycode(kc);
                                     let is_grave_escape = kc == 0x7C16;
-                                    let is_layer =
-                                        (kc >= 0x5200 && kc < 0x5300) || (kc & 0xF000 == 0x4000);
+                                    let is_layer = vial_layer_target(kc).is_some();
                                     let can_retarget_mod_key = !is_layer
                                         && ((kc >= 0x2000 && kc < 0x4000)
                                             || (kc >= 0x0100 && kc < 0x2000 && (kc & 0xFF) != 0));
@@ -13375,14 +13384,9 @@ impl EntropyApp {
                 zmk_layer_target(&binding, &layout.zmk_behaviors)
             } else {
                 let kc = layout.get_keycode(self.selected_layer, *ki);
-                // MO/TG/TO/OSL/TT/DF range: 0x5200..0x52FF, LT: 0x4000..0x4FFF
-                if kc >= 0x5200 && kc < 0x5300 {
-                    Some((kc & 0x1F) as usize)
-                } else if kc & 0xF000 == 0x4000 {
-                    Some(((kc >> 8) & 0xF) as usize)
-                } else {
-                    None
-                }
+                // MO/TG/TO/OSL/TT/DF range and LT; OSM also lives in 0x52xx
+                // but is deliberately excluded by vial_layer_target().
+                vial_layer_target(kc)
             };
 
             if let Some(preview_layer_idx) = preview_layer {

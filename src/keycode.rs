@@ -622,8 +622,7 @@ pub fn keycode_label_with_names(value: u16, custom: &[CustomKeycode], layer_name
 
     // One-shot mod: 0x52A0..=0x52BF (Vial protocol v6)
     if let Some(bits) = osm_mod_bits(value) {
-        return format!("OSM
-{}", osm_mod_short_name(bits));
+        return format!("OSM\n{}", osm_mod_short_name(bits));
     }
 
     // Layer ops — vial v6 protocol (0x5000..0x5FFF) MUST come before LT check!
@@ -643,8 +642,7 @@ pub fn keycode_label_with_names(value: u16, custom: &[CustomKeycode], layer_name
             2 => layer_label("DF",  sub & 0x1F),
             3 => layer_label("TG",  sub & 0x1F),
             4 => layer_label("OSL", sub & 0x1F),
-            5 => format!("OSM
-{}", osm_mod_short_name(sub & 0x1F)),
+            5 => format!("OSM\n{}", osm_mod_short_name(sub & 0x1F)),
             6 => layer_label("TT",  sub & 0x1F),
             7 => layer_label("PDF", sub & 0x1F),
             _ => format!("{:04X}", value),
