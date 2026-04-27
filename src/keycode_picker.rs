@@ -61,6 +61,8 @@ pub struct KeycodePicker {
     pub zmk_result: Option<ZmkBinding>,
     pub zmk_selected_behavior: Option<usize>,
     pub zmk_layer_count: usize,
+    pub zmk_layer_tap_pending: Option<u32>,
+    pub zmk_mod_tap_pending: Option<u32>,
     // Vial Quantum tab pending state
     pub vial_quantum_pending_mod: Option<u16>,
     pub vial_quantum_pending_mt: Option<u16>,
@@ -130,6 +132,7 @@ impl KeycodeTab {
         KeycodeTab::Modifiers,
         KeycodeTab::Layers,
         KeycodeTab::Media,
+        KeycodeTab::Mouse,
         KeycodeTab::Special,
         KeycodeTab::ZmkAdvanced,
     ];
@@ -188,6 +191,61 @@ fn is_symbol(value: u16) -> bool {
     )
 }
 
+fn zmk_tab_matches(tab: KeycodeTab, kc: &crate::keycode::Keycode) -> bool {
+    match tab {
+        KeycodeTab::Basic => {
+            matches!(kc.category, KeycodeCategory::Basic) && !is_symbol(kc.value)
+        }
+        KeycodeTab::Symbols => {
+            matches!(kc.category, KeycodeCategory::Basic) && is_symbol(kc.value)
+        }
+        KeycodeTab::Function => matches!(kc.category, KeycodeCategory::Function),
+        KeycodeTab::Navigation => matches!(kc.category, KeycodeCategory::Navigation),
+        KeycodeTab::Modifiers => matches!(kc.category, KeycodeCategory::Modifier),
+        KeycodeTab::Media => matches!(kc.category, KeycodeCategory::Media),
+        KeycodeTab::Mouse => matches!(kc.category, KeycodeCategory::Mouse),
+        KeycodeTab::Special => matches!(kc.category, KeycodeCategory::Special),
+        _ => false,
+    }
+}
+
+fn zmk_hid_usage_for_qmk_value(value: u16) -> Option<u32> {
+    let consumer = |usage: u32| Some(0x000C_0000u32 | usage);
+    let system = |usage: u32| Some(0x0001_0000u32 | usage);
+    match value {
+        0x0004..=0x00A4 => Some(0x0007_0000u32 | value as u32),
+        // System control page.
+        0x00A5 => system(0x0081), // Power
+        0x00A6 => system(0x0082), // Sleep
+        0x00A7 => system(0x0083), // Wake
+        // Consumer page: media, audio, brightness, app/browser controls.
+        0x00A8 => consumer(0x00E2), // Mute
+        0x00A9 => consumer(0x00E9), // Volume Up
+        0x00AA => consumer(0x00EA), // Volume Down
+        0x00AB => consumer(0x00B5), // Next Track
+        0x00AC => consumer(0x00B6), // Previous Track
+        0x00AD => consumer(0x00B7), // Stop
+        0x00AE => consumer(0x00CD), // Play/Pause
+        0x00AF => consumer(0x0183), // Media Select
+        0x00B0 => consumer(0x00B8), // Eject
+        0x00B1 => consumer(0x018A), // Mail
+        0x00B2 => consumer(0x0192), // Calculator
+        0x00B3 => consumer(0x0194), // Files / local browser
+        0x00B4 => consumer(0x0221), // Search
+        0x00B5 => consumer(0x0223), // Browser Home
+        0x00B6 => consumer(0x0224), // Browser Back
+        0x00B7 => consumer(0x0225), // Browser Forward
+        0x00B8 => consumer(0x0226), // Browser Stop
+        0x00B9 => consumer(0x0227), // Browser Refresh
+        0x00BA => consumer(0x022A), // Browser Favorites / Bookmarks
+        0x00BB => consumer(0x00B3), // Fast Forward
+        0x00BC => consumer(0x00B4), // Rewind
+        0x00BD => consumer(0x006F), // Brightness Up
+        0x00BE => consumer(0x0070), // Brightness Down
+        _ => None,
+    }
+}
+
 impl Default for KeycodePicker {
     fn default() -> Self {
         Self {
@@ -215,6 +273,8 @@ impl Default for KeycodePicker {
             zmk_result: None,
             zmk_selected_behavior: None,
             zmk_layer_count: 4,
+            zmk_layer_tap_pending: None,
+            zmk_mod_tap_pending: None,
             vial_quantum_pending_mod: None,
             vial_quantum_pending_mt: None,
             vial_layer_pending: None,
@@ -746,8 +806,10 @@ impl KeycodePicker {
     pub fn show(&mut self, ctx: &egui::Context) {
         let macro_key_pick_open = self.macro_key_pick.is_some();
         let layer_pick_open = self.vial_layer_pending.is_some();
-        let pending_key_pick_open =
-            self.vial_quantum_pending_mod.is_some() || self.vial_quantum_pending_mt.is_some();
+        let pending_key_pick_open = self.vial_quantum_pending_mod.is_some()
+            || self.vial_quantum_pending_mt.is_some()
+            || self.zmk_layer_tap_pending.is_some()
+            || self.zmk_mod_tap_pending.is_some();
         let tap_dance_editor_open = self.tap_dance_editor_open.is_some();
         let td_key_pick_open = self.td_key_pick.is_some();
 
@@ -4068,6 +4130,11 @@ Repeat"
     }
 
     fn show_zmk(&mut self, ctx: &egui::Context) {
+        if self.zmk_layer_tap_pending.is_some() || self.zmk_mod_tap_pending.is_some() {
+            self.show_zmk_tap_key_picker(ctx);
+            return;
+        }
+
         // Physical key capture for ZMK
         let captured = ctx.input(|i| {
             for event in &i.events {
@@ -4130,6 +4197,7 @@ Repeat"
             egui::ScrollArea::vertical().show(ui, |ui| match self.selected_tab {
                 KeycodeTab::Layers => self.show_zmk_layers(ui),
                 KeycodeTab::Modifiers => self.show_zmk_modifiers(ui),
+                KeycodeTab::Mouse => self.show_zmk_mouse(ui),
                 KeycodeTab::Special => self.show_zmk_special(ui),
                 KeycodeTab::ZmkAdvanced => self.show_zmk_advanced(ui),
                 _ => self.show_zmk_keys(ui),
@@ -4151,15 +4219,15 @@ Repeat"
         };
         let key_choices: Vec<&'static crate::keycode::Keycode> = KEYCODES
             .iter()
-            .filter(|kc| self.selected_tab.vial_matches(kc))
-            .filter(|kc| kc.value < 0x0200)
+            .filter(|kc| zmk_tab_matches(self.selected_tab, kc))
+            .filter(|kc| zmk_hid_usage_for_qmk_value(kc.value).is_some())
             .collect();
         if let Some(value) =
             show_grouped_popup_key_buttons(ui, key_choices, &self.layer_names, true)
         {
-            let id = beh_id;
-            let zmk_usage = 0x0007_0000u32 | value as u32;
-            self.zmk_assign(id, zmk_usage, 0);
+            if let Some(zmk_usage) = zmk_hid_usage_for_qmk_value(value) {
+                self.zmk_assign(beh_id, zmk_usage, 0);
+            }
         }
     }
 
@@ -4239,7 +4307,7 @@ Repeat"
                         .strong(),
                     );
 
-                    for (_, header, _, id) in &op_ids {
+                    for (name, header, _, id) in &op_ids {
                         let op_short = header
                             .split('\n')
                             .last()
@@ -4280,7 +4348,11 @@ Repeat"
                         );
                         if resp.clicked() {
                             if let Some(beh_id) = id {
-                                self.zmk_assign(*beh_id, n as u32, 0);
+                                if *name == "Layer-Tap" {
+                                    self.zmk_layer_tap_pending = Some(n as u32);
+                                } else {
+                                    self.zmk_assign(*beh_id, n as u32, 0);
+                                }
                             }
                         }
                     }
@@ -4295,6 +4367,7 @@ Repeat"
 
         let key_press_id = self.zmk_find_behavior("Key Press").map(|b| b.id);
         let sticky_id = self.zmk_find_behavior("Sticky Key").map(|b| b.id);
+        let mod_tap_id = self.zmk_find_behavior("Mod-Tap").map(|b| b.id);
 
         // Modifier HID usages
         let mods: &[(&str, u32, &str)] = &[
@@ -4404,6 +4477,205 @@ Repeat"
                 resp.on_hover_text(format!("One-Shot Right {}", rgui));
             }
         });
+
+        if mod_tap_id.is_some() {
+            ui.separator();
+            ui.label(
+                RichText::new("Mod-Tap — hold modifier, tap chosen key")
+                    .size(11.0)
+                    .color(Color32::from_gray(150)),
+            );
+            ui.add_space(4.0);
+            ui.horizontal_wrapped(|ui| {
+                let mt_mods: &[(&str, u32, &str)] = &[
+                    ("MT Ctrl", 0x000700E0, "Hold Left Ctrl, tap a key you choose next"),
+                    ("MT Shift", 0x000700E1, "Hold Left Shift, tap a key you choose next"),
+                    ("MT Alt", 0x000700E2, "Hold Left Alt, tap a key you choose next"),
+                    ("MT RCtrl", 0x000700E4, "Hold Right Ctrl, tap a key you choose next"),
+                    ("MT RShift", 0x000700E5, "Hold Right Shift, tap a key you choose next"),
+                    ("MT RAlt", 0x000700E6, "Hold Right Alt / AltGr, tap a key you choose next"),
+                ];
+                for (label, usage, tip) in mt_mods {
+                    let resp = ui.add(
+                        egui::Button::new(RichText::new(*label).size(10.5))
+                            .min_size(Vec2::new(84.0, 38.0)),
+                    );
+                    if resp.clicked() {
+                        self.zmk_mod_tap_pending = Some(*usage);
+                    }
+                    resp.on_hover_text(*tip);
+                }
+                let resp = ui.add(
+                    egui::Button::new(RichText::new(format!("MT {}", lgui)).size(10.5))
+                        .min_size(Vec2::new(84.0, 38.0)),
+                );
+                if resp.clicked() {
+                    self.zmk_mod_tap_pending = Some(lgui_usage);
+                }
+                resp.on_hover_text(format!("Hold Left {}, tap a key you choose next", lgui));
+                let resp = ui.add(
+                    egui::Button::new(RichText::new(format!("MT {}", rgui)).size(10.5))
+                        .min_size(Vec2::new(84.0, 38.0)),
+                );
+                if resp.clicked() {
+                    self.zmk_mod_tap_pending = Some(rgui_usage);
+                }
+                resp.on_hover_text(format!("Hold Right {}, tap a key you choose next", rgui));
+            });
+        }
+    }
+
+
+    fn show_zmk_tap_key_picker(&mut self, ctx: &egui::Context) {
+        let layer_pending = self.zmk_layer_tap_pending;
+        let title = if layer_pending.is_some() {
+            "Layer-Tap key"
+        } else {
+            "Mod-Tap key"
+        };
+
+        let captured = ctx.input(|i| {
+            for event in &i.events {
+                if let egui::Event::Key {
+                    key,
+                    pressed: true,
+                    modifiers,
+                    ..
+                } = event
+                {
+                    if *key == Key::Escape {
+                        return Some(None);
+                    }
+                    if modifiers.is_none() {
+                        if let Some(usage) = egui_key_to_zmk_usage(*key) {
+                            return Some(Some(usage));
+                        }
+                    }
+                }
+            }
+            None
+        });
+
+        if let Some(choice) = captured {
+            match choice {
+                Some(usage) => self.finish_zmk_hold_tap(usage),
+                None => self.clear_zmk_hold_tap_pending(),
+            }
+            return;
+        }
+
+        let mut pick_open = true;
+        crate::ui_style::centered_modal_window(
+            ctx,
+            title,
+            self.popup_state.id(PopupKey::PendingKeyPickWindow),
+            &mut pick_open,
+            Vec2::new(KEY_PICKER_POPUP_WIDTH, KEY_PICKER_POPUP_HEIGHT),
+        )
+        .show(ctx, |ui| {
+            apply_picker_button_visuals(ui);
+            if let Some(layer) = layer_pending {
+                crate::ui_style::modal_intro(
+                    ui,
+                    &format!("Choose the tap key for LT({layer})"),
+                );
+                crate::ui_style::modal_hint(ui, "Hold will activate the layer; tap will send this key");
+            } else {
+                crate::ui_style::modal_intro(ui, "Choose the tap key for Mod-Tap");
+                crate::ui_style::modal_hint(ui, "Hold will send the modifier; tap will send this key");
+            }
+            ui.add_space(crate::ui_style::modal_space_xs());
+
+            let key_choices: Vec<&'static crate::keycode::Keycode> = KEYCODES
+                .iter()
+                .filter(|kc| {
+                    matches!(
+                        kc.category,
+                        KeycodeCategory::Basic
+                            | KeycodeCategory::Function
+                            | KeycodeCategory::Navigation
+                            | KeycodeCategory::Media
+                    )
+                })
+                .filter(|kc| zmk_hid_usage_for_qmk_value(kc.value).is_some())
+                .collect();
+            egui::ScrollArea::vertical()
+                .max_height(KEY_PICKER_SCROLL_HEIGHT)
+                .auto_shrink([false, false])
+                .show(ui, |ui| {
+                    if let Some(value) =
+                        show_grouped_popup_key_buttons(ui, key_choices, &self.layer_names, true)
+                    {
+                        if let Some(usage) = zmk_hid_usage_for_qmk_value(value) {
+                            self.finish_zmk_hold_tap(usage);
+                        }
+                    }
+                });
+        });
+
+        if !pick_open {
+            self.clear_zmk_hold_tap_pending();
+        }
+    }
+
+    fn finish_zmk_hold_tap(&mut self, tap_usage: u32) {
+        if let Some(layer) = self.zmk_layer_tap_pending.take() {
+            if let Some(id) = self.zmk_find_behavior("Layer-Tap").map(|b| b.id) {
+                self.zmk_assign(id, layer, tap_usage);
+            }
+            self.zmk_mod_tap_pending = None;
+            return;
+        }
+        if let Some(modifier) = self.zmk_mod_tap_pending.take() {
+            if let Some(id) = self.zmk_find_behavior("Mod-Tap").map(|b| b.id) {
+                self.zmk_assign(id, modifier, tap_usage);
+            }
+            self.zmk_layer_tap_pending = None;
+        }
+    }
+
+    fn clear_zmk_hold_tap_pending(&mut self) {
+        self.zmk_layer_tap_pending = None;
+        self.zmk_mod_tap_pending = None;
+    }
+
+
+    fn show_zmk_mouse(&mut self, ui: &mut egui::Ui) {
+        let mouse_press_id = self.zmk_find_behavior("Mouse Key Press").map(|b| b.id);
+
+        if let Some(id) = mouse_press_id {
+            ui.label(
+                RichText::new("Mouse buttons")
+                    .size(11.0)
+                    .color(Color32::from_gray(150)),
+            );
+            ui.add_space(4.0);
+            let buttons: &[(&str, u32, &str)] = &[
+                ("Left", 0x0009_0001, "Left mouse button"),
+                ("Right", 0x0009_0002, "Right mouse button"),
+                ("Middle", 0x0009_0003, "Middle mouse button"),
+                ("Back", 0x0009_0004, "Mouse back button"),
+                ("Forward", 0x0009_0005, "Mouse forward button"),
+            ];
+            ui.horizontal_wrapped(|ui| {
+                for (label, usage, tip) in buttons {
+                    let resp = ui.add(
+                        egui::Button::new(RichText::new(*label).size(11.0))
+                            .min_size(Vec2::new(72.0, 38.0)),
+                    );
+                    if resp.clicked() {
+                        self.zmk_assign(id, *usage, 0);
+                    }
+                    resp.on_hover_text(*tip);
+                }
+            });
+        } else {
+            ui.label(
+                RichText::new("Mouse button behavior not found on this device")
+                    .size(11.0)
+                    .color(Color32::from_gray(150)),
+            );
+        }
     }
 
     fn show_zmk_special(&mut self, ui: &mut egui::Ui) {
@@ -4585,6 +4857,7 @@ Repeat"
             "To Layer",
             "Sticky Layer",
             "Layer-Tap",
+            "Mod-Tap",
             "Transparent",
             "None",
             "Bootloader",
@@ -4594,6 +4867,7 @@ Repeat"
             "Studio Unlock",
             "Bluetooth",
             "Output Selection",
+            "Mouse Key Press",
         ];
 
         let behaviors: Vec<(u32, String)> = self

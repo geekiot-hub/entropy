@@ -645,7 +645,7 @@ pub fn zmk_binding_label(binding: &ZmkBinding, behaviors: &[BehaviorInfo], layer
         // External Power
         "External Power"   => "ExtPwr".to_string(),
         // Mouse
-        "Mouse Key Press"  => format!("Ms\n{}", p1),
+        "Mouse Key Press"  => format!("Ms\n{}", key(p1)),
         "mouse_move"       => "MsMove".to_string(),
         "mouse_scroll"     => "MsScrl".to_string(),
         // Encoder
@@ -717,7 +717,7 @@ pub fn zmk_binding_tooltip(binding: &ZmkBinding, behaviors: &[BehaviorInfo], lay
             1 => "Output: BLE — send keystrokes via Bluetooth".to_string(),
             _ => "Output selection".to_string(),
         },
-        "Mouse Key Press"  => format!("Mouse key (0x{:04X})", p1),
+        "Mouse Key Press"  => format!("Mouse button: {}", key_name(p1)),
         "mouse_move"       => "Mouse cursor movement".to_string(),
         "mouse_scroll"     => "Mouse scroll wheel".to_string(),
         _ => {
@@ -806,18 +806,54 @@ fn hid_usage_label(usage: u32) -> String {
     let page = usage >> 16;
     let usage_id = usage & 0xFFFF;
 
-    // Consumer page (0x0C) — media/volume keys
+    // Mouse buttons (0x09).
+    if page == 0x09 {
+        return match usage_id {
+            0x01 => "Left".to_string(),
+            0x02 => "Right".to_string(),
+            0x03 => "Middle".to_string(),
+            0x04 => "Back".to_string(),
+            0x05 => "Forward".to_string(),
+            _ => format!("Mouse{}", usage_id),
+        };
+    }
+
+    // Generic desktop system controls (0x01).
+    if page == 0x01 {
+        return match usage_id {
+            0x81 => "Power".to_string(),
+            0x82 => "Sleep".to_string(),
+            0x83 => "Wake".to_string(),
+            _ => format!("Sys:{:02X}", usage_id),
+        };
+    }
+
+    // Consumer page (0x0C) — media/volume/app/browser keys.
     if page == 0x0C || (page == 0 && usage_id >= 0xB0 && usage_id <= 0xFF) {
         return match usage_id {
+            0x6F => "Bri+".to_string(),
+            0x70 => "Bri-".to_string(),
+            0xB3 => "Fwd".to_string(),
+            0xB4 => "Rew".to_string(),
             0xB5 => "Next".to_string(),
             0xB6 => "Prev".to_string(),
             0xB7 => "Stop".to_string(),
+            0xB8 => "Eject".to_string(),
             0xCD => "Play".to_string(),
             0xE2 => "Mute".to_string(),
             0xE9 => "Vol+".to_string(),
             0xEA => "Vol-".to_string(),
-            0x6F => "Bri+".to_string(),
-            0x70 => "Bri-".to_string(),
+            0x183 => "Media".to_string(),
+            0x18A => "Mail".to_string(),
+            0x192 => "Calc".to_string(),
+            0x194 => "Files".to_string(),
+            0x221 => "Search".to_string(),
+            0x223 => "Home".to_string(),
+            0x224 => "Back".to_string(),
+            0x225 => "Forward".to_string(),
+            0x226 => "Stop".to_string(),
+            0x227 => "Refresh".to_string(),
+            0x22A => "Favs".to_string(),
             _ => format!("C:{:02X}", usage_id),
         };
     }
