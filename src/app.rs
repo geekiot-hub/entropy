@@ -3355,22 +3355,26 @@ impl EntropyApp {
             })
             .count();
 
-        let painter = ui.painter().clone();
-        painter.text(
-            egui::pos2(content_rect.center().x, title_y),
-            egui::Align2::CENTER_CENTER,
-            "Matrix Tester",
-            FontId::proportional(18.0),
-            ui.visuals().text_color(),
-        );
-        painter.text(
-            egui::pos2(content_rect.center().x, desc_y),
-            egui::Align2::CENTER_CENTER,
-            "Press switches on the keyboard to verify every matrix position",
-            FontId::proportional(13.0),
-            app_muted_text(dark),
+        ui.allocate_ui_at_rect(
+            egui::Rect::from_min_max(
+                egui::pos2(content_rect.left(), content_rect.top()),
+                egui::pos2(content_rect.right(), desc_y + 10.0),
+            ),
+            |ui| {
+                ui.vertical_centered(|ui| {
+                    ui.add_space(18.0);
+                    ui.label(RichText::new("Matrix Tester").size(18.0).strong());
+                    ui.add_space(6.0);
+                    ui.label(
+                        RichText::new("Press switches on the keyboard to verify every matrix position")
+                            .size(13.0)
+                            .color(app_muted_text(dark)),
+                    );
+                });
+            },
         );
 
+        let painter = ui.painter().clone();
         let complete = tested_count == total_keys && total_keys > 0;
         let status_text = format!("Tested: {tested_count}/{total_keys}");
         let status_rect = egui::Rect::from_center_size(
