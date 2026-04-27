@@ -27,6 +27,124 @@ impl HostDataMode {
     }
 }
 
+
+#[derive(Clone, Debug)]
+pub struct FeatureCheck {
+    pub ok: bool,
+    pub label: &'static str,
+    pub hint: &'static str,
+}
+
+pub fn volume_check() -> FeatureCheck {
+    platform_volume_check()
+}
+
+pub fn media_check() -> FeatureCheck {
+    platform_media_check()
+}
+
+#[cfg(target_os = "windows")]
+fn platform_volume_check() -> FeatureCheck {
+    FeatureCheck {
+        ok: true,
+        label: "native Windows audio",
+        hint: "Uses the Windows default output device",
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn platform_volume_check() -> FeatureCheck {
+    if command_exists("wpctl") {
+        FeatureCheck {
+            ok: true,
+            label: "wpctl",
+            hint: "Uses PipeWire default sink volume",
+        }
+    } else if command_exists("pactl") {
+        FeatureCheck {
+            ok: true,
+            label: "pactl",
+            hint: "Uses PulseAudio/PipeWire Pulse default sink volume",
+        }
+    } else {
+        FeatureCheck {
+            ok: false,
+            label: "missing wpctl/pactl",
+            hint: "Install wireplumber or pulseaudio-utils/pavucontrol package for volume sync",
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn platform_volume_check() -> FeatureCheck {
+    FeatureCheck {
+        ok: command_exists("osascript"),
+        label: "osascript",
+        hint: "Uses macOS system output volume",
+    }
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+fn platform_volume_check() -> FeatureCheck {
+    FeatureCheck {
+        ok: false,
+        label: "unsupported OS",
+        hint: "Volume sync is implemented for Windows, Linux and macOS",
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn platform_media_check() -> FeatureCheck {
+    FeatureCheck {
+        ok: true,
+        label: "native Windows media session",
+        hint: "Uses Windows global media session metadata",
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn platform_media_check() -> FeatureCheck {
+    if command_exists("playerctl") {
+        FeatureCheck {
+            ok: true,
+            label: "playerctl",
+            hint: "Uses MPRIS metadata from the active player",
+        }
+    } else {
+        FeatureCheck {
+            ok: false,
+            label: "missing playerctl",
+            hint: "Install playerctl and use an MPRIS-compatible player for media info",
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn platform_media_check() -> FeatureCheck {
+    FeatureCheck {
+        ok: command_exists("osascript"),
+        label: "Spotify / Music via AppleScript",
+        hint: "macOS may ask for Automation permission for Entropy, System Events, Spotify or Music",
+    }
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+fn platform_media_check() -> FeatureCheck {
+    FeatureCheck {
+        ok: false,
+        label: "unsupported OS",
+        hint: "Media sync is implemented for Windows, Linux and macOS",
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn command_exists(program: &str) -> bool {
+    let Some(paths) = std::env::var_os("PATH") else {
+        return false;
+    };
+    std::env::split_paths(&paths).any(|dir| dir.join(program).is_file())
+}
+
 pub struct QmkHidHostBridge {
     mode: HostDataMode,
     stop: Arc<AtomicBool>,

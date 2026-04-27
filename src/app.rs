@@ -1586,6 +1586,7 @@ enum SettingsTab {
     GraveEscape,
     LayoutOptions,
     Touchpad,
+    LiveFeatures,
     Combo,
     KeyOverrides,
     AltRepeat,
@@ -3273,6 +3274,9 @@ impl EntropyApp {
             }
             SettingsTab::Touchpad => {
                 self.draw_touchpad_settings_page(ui, content_rect);
+            }
+            SettingsTab::LiveFeatures => {
+                self.draw_live_features_settings_page(ui, content_rect);
             }
             SettingsTab::Combo => {
                 self.draw_combo_settings_page(ui, ctx, content_rect);
@@ -6501,6 +6505,11 @@ impl EntropyApp {
 
     fn open_touchpad_settings_page(&mut self) {
         self.settings_tab = SettingsTab::Touchpad;
+        self.main_menu_tab = MainMenuTab::Settings;
+    }
+
+    fn open_live_features_settings_page(&mut self) {
+        self.settings_tab = SettingsTab::LiveFeatures;
         self.main_menu_tab = MainMenuTab::Settings;
     }
 
@@ -9751,6 +9760,155 @@ impl EntropyApp {
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
+    fn selected_live_features_path_and_mode(&self) -> Option<(String, crate::qmk_hid_host::HostDataMode)> {
+        let selected = self.selected_device.and_then(|idx| self.device_manager.devices().get(idx))?;
+        if selected.firmware != FirmwareProtocol::Vial {
+            return None;
+        }
+
+        let mut mode = crate::qmk_hid_host::HostDataMode::default();
+        if let Some(layout) = self.layout.as_ref() {
+            mode = Self::qmk_hid_host_mode_for(layout, self.layout_options_value);
+        }
+        if Self::device_uses_automatic_display_host_data(selected) {
+            mode.clock_volume = true;
+            mode.media = true;
+        }
+
+        (!mode.is_empty()).then_some((selected.path.clone(), mode))
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn selected_live_features_path_and_mode(&self) -> Option<(String, crate::qmk_hid_host::HostDataMode)> {
+        None
+    }
+
+    fn live_features_available_for_selected_device(&self) -> bool {
+        self.selected_live_features_path_and_mode().is_some()
+    }
+
+    fn draw_live_feature_row(
+        ui: &mut egui::Ui,
+        label: &str,
+        status: &str,
+        ok: bool,
+        hint: Option<&str>,
+    ) {
+        let dark = ui.visuals().dark_mode;
+        let status_color = if ok {
+            if dark {
+                Color32::from_rgb(205, 210, 205)
+            } else {
+                Color32::from_rgb(65, 70, 65)
+            }
+        } else if dark {
+            Color32::from_rgb(230, 188, 150)
+        } else {
+            Color32::from_rgb(150, 82, 44)
+        };
+        crate::ui_style::settings_list_row_with_tooltip(
+            ui,
+            452.0,
+            54.0,
+            label,
+            true,
+            hint,
+            168.0,
+            |ui| {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.label(RichText::new(status).size(12.0).color(status_color));
+                });
+            },
+        );
+    }
+
+    fn draw_live_features_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
+        let dark = ui.visuals().dark_mode;
+        let content_width = 470.0_f32;
+        let path_and_mode = self.selected_live_features_path_and_mode();
+        let bridge_active = {
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                path_and_mode
+                    .as_ref()
+                    .map(|(path, _)| self.qmk_hid_hosts.contains_key(path))
+                    .unwrap_or(false)
+            }
+            #[cfg(target_arch = "wasm32")]
+            {
+                false
+            }
+        };
+
+        ui.allocate_ui_at_rect(content_rect, |ui| {
+            ui.vertical_centered(|ui| {
+                ui.add_space(18.0);
+                ui.label(RichText::new("Live Features").size(18.0).strong());
+                ui.add_space(6.0);
+                ui.label(
+                    RichText::new("Entropy-powered live data for firmware features")
+                        .size(13.0)
+                        .color(app_muted_text(dark)),
+                );
+                ui.add_space(24.0);
+
+                let Some((_, mode)) = path_and_mode else {
+                    crate::ui_style::modal_empty_state(
+                        ui,
+                        "Live Features are not active for this keyboard",
+                        Some("Select a preset or connect firmware that uses Entropy-powered live data"),
+                    );
+                    return;
+                };
+
+                ui.set_width(content_width);
+                let status = if bridge_active { "active" } else { "starting" };
+                Self::draw_live_feature_row(
+                    ui,
+                    "Entropy background",
+                    status,
+                    bridge_active,
+                    Some("Keep Entropy running in the background for live firmware data"),
+                );
+                if mode.clock_volume {
+                    Self::draw_live_feature_row(
+                        ui,
+                        "Time sync",
+                        "ready",
+                        true,
+                        Some("Uses the local system clock"),
+                    );
+                    let volume = crate::qmk_hid_host::volume_check();
+                    Self::draw_live_feature_row(
+                        ui,
+                        "Volume sync",
+                        if volume.ok { volume.label } else { "needs setup" },
+                        volume.ok,
+                        Some(volume.hint),
+                    );
+                }
+                if mode.media {
+                    let media = crate::qmk_hid_host::media_check();
+                    Self::draw_live_feature_row(
+                        ui,
+                        "Media info",
+                        if media.ok { media.label } else { "needs setup" },
+                        media.ok,
+                        Some(media.hint),
+                    );
+                }
+
+                ui.add_space(18.0);
+                ui.label(
+                    RichText::new("No manual setup is needed when all rows are ready")
+                        .size(12.0)
+                        .color(app_muted_text(dark)),
+                );
+            });
+        });
+    }
+
     fn draw_touchpad_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
         let dark = ui.visuals().dark_mode;
         let content_width = 470.0_f32;
@@ -11660,6 +11818,7 @@ impl EntropyApp {
                     .iter()
                     .any(|option| !Self::is_encoder_layout_option(option));
                 let show_touchpad_item = self.touchpad_settings.supported;
+                let show_live_features_item = self.live_features_available_for_selected_device();
                 let show_magic_item = self.magic_settings.supported;
                 let show_tap_hold_item = self.tap_hold_settings.supported;
                 let show_one_shot_item = self.one_shot_settings.supported;
@@ -11669,6 +11828,7 @@ impl EntropyApp {
                     + show_encoders_item as usize
                     + show_layout_options_item as usize
                     + show_touchpad_item as usize
+                    + show_live_features_item as usize
                     + show_magic_item as usize
                     + show_tap_hold_item as usize
                     + show_one_shot_item as usize;
@@ -11703,6 +11863,7 @@ impl EntropyApp {
                         encoders_hovered,
                         layout_options_hovered,
                         touchpad_hovered,
+                        live_features_hovered,
                         magic_hovered,
                         tap_hold_hovered,
                         one_shot_hovered,
@@ -11790,6 +11951,16 @@ impl EntropyApp {
                                                 && self.settings_tab == SettingsTab::Touchpad,
                                         )
                                     });
+                                    let live_features_resp = show_live_features_item.then(|| {
+                                        top_dropdown_item(
+                                            ui,
+                                            item_width,
+                                            "Live Features",
+                                            true,
+                                            self.main_menu_tab == MainMenuTab::Settings
+                                                && self.settings_tab == SettingsTab::LiveFeatures,
+                                        )
+                                    });
                                     let magic_resp = show_magic_item.then(|| {
                                         top_dropdown_item(
                                             ui,
@@ -11866,6 +12037,10 @@ impl EntropyApp {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.open_touchpad_settings_page();
                                     }
+                                    if live_features_resp.as_ref().map(|r| r.clicked()).unwrap_or(false) {
+                                        self.close_top_dropdowns(ui.ctx());
+                                        self.open_live_features_settings_page();
+                                    }
                                     if magic_resp.as_ref().map(|r| r.clicked()).unwrap_or(false) {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.open_magic_settings_page();
@@ -11887,6 +12062,7 @@ impl EntropyApp {
                                         encoders_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         layout_options_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         touchpad_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
+                                        live_features_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         magic_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         tap_hold_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         one_shot_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
@@ -11901,6 +12077,7 @@ impl EntropyApp {
                                             || encoders_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
                                             || layout_options_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
                                             || touchpad_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
+                                            || live_features_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
                                             || magic_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
                                             || tap_hold_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
                                             || one_shot_resp.as_ref().map(|r| r.clicked()).unwrap_or(false),
@@ -11922,6 +12099,7 @@ impl EntropyApp {
                                     || encoders_hovered
                                     || layout_options_hovered
                                     || touchpad_hovered
+                                    || live_features_hovered
                                     || magic_hovered
                                     || tap_hold_hovered
                                     || one_shot_hovered
