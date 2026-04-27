@@ -603,6 +603,8 @@ struct ConnectResult {
     auto_shift_timeout: Option<u16>,
     /// Mouse Keys settings from QMK settings, if supported (qsid 9..=17)
     mouse_keys_settings: MouseKeysSettingsState,
+    /// Ergohaven K:03 Pro touchpad settings from QMK settings, if supported
+    touchpad_settings: TouchpadSettingsState,
     /// Tap-Hold settings from QMK settings, if supported
     tap_hold_settings: TapHoldSettingsState,
     /// Magic settings from QMK settings, if supported
@@ -825,6 +827,37 @@ struct MouseKeysSettingsState {
     wheel_time_to_max: u16,
     /// Whether any of the qsids were readable (firmware support flag)
     supported: bool,
+}
+
+/// Ergohaven K:03 Pro touchpad settings (qsid 120..=124).
+#[derive(Clone, Copy, Debug, Default)]
+struct TouchpadSettingsState {
+    /// qsid 120: touchpad DPI/CPI
+    dpi: u16,
+    /// qsid 121: sensitivity in sniper mode
+    sniper_sens: u8,
+    /// qsid 122: sensitivity in scroll mode
+    scroll_sens: u8,
+    /// qsid 123: sensitivity in text mode
+    text_sens: u8,
+    /// qsid 124 bits 0..=2: invert scroll, acceleration, sticky mode
+    bits: u8,
+    /// Whether qsid 120 was readable on a known K:03 Pro touchpad firmware
+    supported: bool,
+}
+
+impl TouchpadSettingsState {
+    fn bit(self, bit: u8) -> bool {
+        self.bits & (1 << bit) != 0
+    }
+
+    fn set_bit(&mut self, bit: u8, enabled: bool) {
+        if enabled {
+            self.bits |= 1 << bit;
+        } else {
+            self.bits &= !(1 << bit);
+        }
+    }
 }
 
 /// Mirrors Vial GUI Tap-Hold settings. Values are QMK settings qsids.
@@ -1534,6 +1567,7 @@ enum SettingsTab {
     OneShotKeys,
     GraveEscape,
     LayoutOptions,
+    Touchpad,
     Combo,
     KeyOverrides,
     AltRepeat,
@@ -1604,6 +1638,7 @@ pub struct EntropyApp {
     auto_shift_timeout: Option<u16>,
     auto_shift_timeout_text: String,
     mouse_keys_settings: MouseKeysSettingsState,
+    touchpad_settings: TouchpadSettingsState,
     tap_hold_settings: TapHoldSettingsState,
     magic_settings: MagicSettingsState,
     one_shot_settings: OneShotSettingsState,
@@ -1712,6 +1747,7 @@ impl EntropyApp {
             auto_shift_timeout: None,
             auto_shift_timeout_text: String::new(),
             mouse_keys_settings: MouseKeysSettingsState::default(),
+            touchpad_settings: TouchpadSettingsState::default(),
             tap_hold_settings: TapHoldSettingsState::default(),
             magic_settings: MagicSettingsState::default(),
             one_shot_settings: OneShotSettingsState::default(),
@@ -1792,6 +1828,7 @@ impl EntropyApp {
         self.keycode_picker.open = false;
         self.current_device_name.clear();
         self.mouse_keys_settings = MouseKeysSettingsState::default();
+        self.touchpad_settings = TouchpadSettingsState::default();
         self.tap_hold_settings = TapHoldSettingsState::default();
         self.magic_settings = MagicSettingsState::default();
         self.one_shot_settings = OneShotSettingsState::default();
@@ -1876,6 +1913,7 @@ impl EntropyApp {
         self.auto_shift_timeout = None;
         self.auto_shift_timeout_text.clear();
         self.mouse_keys_settings = MouseKeysSettingsState::default();
+        self.touchpad_settings = TouchpadSettingsState::default();
         self.tap_hold_settings = TapHoldSettingsState::default();
         self.magic_settings = MagicSettingsState::default();
         self.one_shot_settings = OneShotSettingsState::default();
@@ -2143,6 +2181,53 @@ impl EntropyApp {
                             mk
                         };
 
+                        // Ergohaven K:03 Pro touchpad settings (qsid 120..=124). These qsids
+                        // overlap with other Ergohaven pointing devices, so expose the page only
+                        // for known K:03 Pro identities.
+                        let touchpad_settings = {
+                            let mut tp = TouchpadSettingsState::default();
+                            if Self::device_uses_touchpad_settings(&dev) {
+                                match dev_conn.get_qmk_setting_u16(120) {
+                                    Ok(v) => {
+                                        tp.dpi = v;
+                                        tp.supported = true;
+                                        tp.sniper_sens = dev_conn
+                                            .get_qmk_setting_u8(121)
+                                            .unwrap_or_else(|e| {
+                                                log::warn!(
+                                                    "get_qmk_setting_u8(touchpad sniper sens): {e}"
+                                                );
+                                                0
+                                            });
+                                        tp.scroll_sens = dev_conn
+                                            .get_qmk_setting_u8(122)
+                                            .unwrap_or_else(|e| {
+                                                log::warn!(
+                                                    "get_qmk_setting_u8(touchpad scroll sens): {e}"
+                                                );
+                                                0
+                                            });
+                                        tp.text_sens = dev_conn
+                                            .get_qmk_setting_u8(123)
+                                            .unwrap_or_else(|e| {
+                                                log::warn!(
+                                                    "get_qmk_setting_u8(touchpad text sens): {e}"
+                                                );
+                                                0
+                                            });
+                                        tp.bits = dev_conn.get_qmk_setting_u8(124).unwrap_or_else(|e| {
+                                            log::warn!("get_qmk_setting_u8(touchpad bits): {e}");
+                                            0
+                                        });
+                                    }
+                                    Err(e) => {
+                                        log::warn!("get_qmk_setting_u16(touchpad dpi): {e}");
+                                    }
+                                }
+                            }
+                            tp
+                        };
+
                         // Tap-Hold settings. If qsid 7 is unsupported, we treat the page as unavailable.
                         let tap_hold_settings = {
                             let mut th = TapHoldSettingsState::default();
@@ -2392,6 +2477,7 @@ impl EntropyApp {
                             auto_shift_options: auto_shift_options.unwrap_or_default(),
                             auto_shift_timeout,
                             mouse_keys_settings,
+                            touchpad_settings,
                             tap_hold_settings,
                             magic_settings,
                             one_shot_settings,
@@ -2453,6 +2539,7 @@ impl EntropyApp {
                                 auto_shift_options: AutoShiftOptionsState::default(),
                                 auto_shift_timeout: None,
                                 mouse_keys_settings: MouseKeysSettingsState::default(),
+                                touchpad_settings: TouchpadSettingsState::default(),
                                 tap_hold_settings: TapHoldSettingsState::default(),
                                 magic_settings: MagicSettingsState::default(),
                                 one_shot_settings: OneShotSettingsState::default(),
@@ -2521,6 +2608,7 @@ impl EntropyApp {
                             auto_shift_options: AutoShiftOptionsState::default(),
                             auto_shift_timeout: None,
                             mouse_keys_settings: MouseKeysSettingsState::default(),
+                            touchpad_settings: TouchpadSettingsState::default(),
                             tap_hold_settings: TapHoldSettingsState::default(),
                             magic_settings: MagicSettingsState::default(),
                             one_shot_settings: OneShotSettingsState::default(),
@@ -2606,6 +2694,7 @@ impl EntropyApp {
                     .map(|timeout| timeout.to_string())
                     .unwrap_or_default();
                 self.mouse_keys_settings = r.mouse_keys_settings;
+                self.touchpad_settings = r.touchpad_settings;
                 self.tap_hold_settings = r.tap_hold_settings;
                 self.magic_settings = r.magic_settings;
                 self.one_shot_settings = r.one_shot_settings;
@@ -3123,6 +3212,9 @@ impl EntropyApp {
             }
             SettingsTab::LayoutOptions => {
                 self.draw_layout_options_settings_page(ui, content_rect);
+            }
+            SettingsTab::Touchpad => {
+                self.draw_touchpad_settings_page(ui, content_rect);
             }
             SettingsTab::Combo => {
                 self.draw_combo_settings_page(ui, ctx, content_rect);
@@ -6165,6 +6257,22 @@ impl EntropyApp {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
+    fn device_uses_touchpad_settings(device: &crate::device::Device) -> bool {
+        if device.firmware != FirmwareProtocol::Vial {
+            return false;
+        }
+
+        let name = device.name.to_ascii_lowercase();
+        let looks_like_k03_pro = name.contains("k:03")
+            || name.contains("k03")
+            || name.contains("k-03")
+            || name.contains("k 03");
+        let ergohaven_k03_pro = device.vendor_id == 0xE126 && device.product_id == 0x00A1;
+
+        ergohaven_k03_pro || looks_like_k03_pro
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
     fn qmk_hid_host_mode_for(layout: &KeyboardLayout, packed: Option<u32>) -> crate::qmk_hid_host::HostDataMode {
         let values = Self::unpack_layout_option_values(&layout.layout_options, packed.unwrap_or(0));
         let mut mode = crate::qmk_hid_host::HostDataMode::default();
@@ -6284,6 +6392,11 @@ impl EntropyApp {
 
     fn open_layout_options_settings_page(&mut self) {
         self.settings_tab = SettingsTab::LayoutOptions;
+        self.main_menu_tab = MainMenuTab::Settings;
+    }
+
+    fn open_touchpad_settings_page(&mut self) {
+        self.settings_tab = SettingsTab::Touchpad;
         self.main_menu_tab = MainMenuTab::Settings;
     }
 
@@ -9118,6 +9231,355 @@ impl EntropyApp {
         }
     }
 
+    fn touchpad_numeric_value(&self, qsid: u16) -> u16 {
+        match qsid {
+            120 => self.touchpad_settings.dpi,
+            121 => self.touchpad_settings.sniper_sens as u16,
+            122 => self.touchpad_settings.scroll_sens as u16,
+            123 => self.touchpad_settings.text_sens as u16,
+            _ => 0,
+        }
+    }
+
+    fn set_touchpad_numeric_value(&mut self, qsid: u16, value: u16) {
+        match qsid {
+            120 => self.touchpad_settings.dpi = value,
+            121 => self.touchpad_settings.sniper_sens = value.min(u8::MAX as u16) as u8,
+            122 => self.touchpad_settings.scroll_sens = value.min(u8::MAX as u16) as u8,
+            123 => self.touchpad_settings.text_sens = value.min(u8::MAX as u16) as u8,
+            _ => {}
+        }
+    }
+
+    fn write_touchpad_numeric_setting(&mut self, qsid: u16, value: u16) {
+        let Some(hid) = &self.hid_device else {
+            return;
+        };
+        let result = if qsid == 120 {
+            hid.set_qmk_setting_u16(qsid, value.clamp(100, 1000))
+        } else {
+            hid.set_qmk_setting_u8(qsid, value.clamp(1, 255) as u8)
+        };
+        if let Err(e) = result {
+            self.status_msg = format!("Failed to save Touchpad setting (qsid {qsid}): {}", e);
+            log::warn!("set_qmk_setting(touchpad qsid {qsid}) failed: {e}");
+        }
+    }
+
+    fn write_touchpad_bits(&mut self) {
+        let Some(hid) = &self.hid_device else {
+            return;
+        };
+        if let Err(e) = hid.set_qmk_setting_u8(124, self.touchpad_settings.bits) {
+            self.status_msg = format!("Failed to save Touchpad options: {}", e);
+            log::warn!("set_qmk_setting_u8(touchpad qsid 124) failed: {e}");
+        }
+    }
+
+    fn draw_touchpad_editor_content(
+        &mut self,
+        ui: &mut egui::Ui,
+        row_range: std::ops::Range<usize>,
+        suppress_tooltips: bool,
+    ) {
+        const CONTENT_WIDTH: f32 = 452.0;
+        const ROW_HEIGHT: f32 = 54.0;
+        const FIELD_WIDTH: f32 = 86.0;
+        const SWITCH_WIDTH: f32 = 46.0;
+
+        for row_idx in row_range {
+            match row_idx {
+                0..=3 => {
+                    let (qsid, label, tooltip, min, max) = match row_idx {
+                        0 => (
+                            120,
+                            "DPI",
+                            "Touchpad pointer resolution in dots per inch",
+                            100,
+                            1000,
+                        ),
+                        1 => (
+                            121,
+                            "Sniper sens",
+                            "Pointer sensitivity while sniper mode is active",
+                            1,
+                            255,
+                        ),
+                        2 => (
+                            122,
+                            "Scroll sens",
+                            "Scroll gesture sensitivity",
+                            1,
+                            255,
+                        ),
+                        3 => (
+                            123,
+                            "Text sens",
+                            "Pointer sensitivity while text mode is active",
+                            1,
+                            255,
+                        ),
+                        _ => unreachable!(),
+                    };
+                    let current = self.touchpad_numeric_value(qsid);
+                    crate::ui_style::settings_list_row_with_tooltip(
+                        ui,
+                        CONTENT_WIDTH,
+                        ROW_HEIGHT,
+                        label,
+                        true,
+                        if suppress_tooltips { None } else { Some(tooltip) },
+                        FIELD_WIDTH,
+                        |ui| {
+                            let edit_id = egui::Id::new(("touchpad_edit", qsid));
+                            let mut text = ui.ctx().data_mut(|d| {
+                                d.get_temp::<String>(edit_id)
+                                    .unwrap_or_else(|| current.to_string())
+                            });
+                            if text.parse::<u16>().ok() != Some(current)
+                                && !ui.memory(|m| m.has_focus(edit_id))
+                            {
+                                text = current.to_string();
+                            }
+
+                            let resp = crate::ui_style::modern_text_field(
+                                ui,
+                                edit_id,
+                                &mut text,
+                                FIELD_WIDTH,
+                                "",
+                                5,
+                                egui::Align::Center,
+                            );
+                            let commit = resp.lost_focus()
+                                || (resp.has_focus()
+                                    && ui.input(|i| i.key_pressed(egui::Key::Enter)));
+                            if commit {
+                                match text.trim().parse::<u16>() {
+                                    Ok(value) => {
+                                        let value = value.clamp(min, max);
+                                        if value != current {
+                                            self.set_touchpad_numeric_value(qsid, value);
+                                            self.write_touchpad_numeric_setting(qsid, value);
+                                        }
+                                        text = value.to_string();
+                                    }
+                                    Err(_) => text = current.to_string(),
+                                }
+                            }
+                            ui.ctx().data_mut(|d| d.insert_temp(edit_id, text));
+                        },
+                    );
+                }
+                4..=6 => {
+                    let (bit, label, tooltip) = match row_idx {
+                        4 => (
+                            0,
+                            "Invert scroll",
+                            "Reverse the touchpad scroll direction",
+                        ),
+                        5 => (
+                            1,
+                            "Acceleration",
+                            "Use firmware pointer acceleration for touchpad movement",
+                        ),
+                        6 => (
+                            2,
+                            "Sticky mode",
+                            "Keep the selected touchpad mode active until another mode is selected",
+                        ),
+                        _ => unreachable!(),
+                    };
+                    crate::ui_style::settings_list_row_with_tooltip(
+                        ui,
+                        CONTENT_WIDTH,
+                        ROW_HEIGHT,
+                        label,
+                        true,
+                        if suppress_tooltips { None } else { Some(tooltip) },
+                        SWITCH_WIDTH,
+                        |ui| {
+                            let mut value = self.touchpad_settings.bit(bit);
+                            let resp = crate::ui_style::settings_switch(ui, &mut value);
+                            if resp.changed() {
+                                self.touchpad_settings.set_bit(bit, value);
+                                self.write_touchpad_bits();
+                            }
+                        },
+                    );
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn draw_touchpad_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
+        let dark = ui.visuals().dark_mode;
+        let content_width = 470.0_f32;
+        let hid_ready = {
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                self.hid_device.is_some()
+            }
+            #[cfg(target_arch = "wasm32")]
+            {
+                false
+            }
+        };
+
+        ui.allocate_ui_at_rect(content_rect, |ui| {
+            ui.vertical_centered(|ui| {
+                ui.add_space(18.0);
+                ui.label(RichText::new("Touchpad").size(18.0).strong());
+                ui.add_space(6.0);
+                ui.label(
+                    RichText::new("Tune K:03 Pro touchpad pointer, scroll and mode behavior")
+                        .size(13.0)
+                        .color(app_muted_text(dark)),
+                );
+                ui.add_space(24.0);
+
+                if !self.touchpad_settings.supported {
+                    crate::ui_style::modal_empty_state(
+                        ui,
+                        "Touchpad settings are not available on this firmware",
+                        Some("Connect a K:03 Pro firmware with Touchpad QMK_SETTINGS to use this page"),
+                    );
+                    return;
+                }
+
+                if !hid_ready {
+                    crate::ui_style::modal_empty_state(
+                        ui,
+                        "Connect a Vial keyboard to edit Touchpad settings",
+                        None,
+                    );
+                    return;
+                }
+
+                const VISIBLE_ROWS: usize = 6;
+                const TOTAL_ROWS: usize = 7;
+                const ROW_HEIGHT: f32 = 54.0;
+                let list_height = ROW_HEIGHT * VISIBLE_ROWS as f32;
+                let content_height = ROW_HEIGHT * TOTAL_ROWS as f32;
+                let max_offset = (content_height - list_height).max(0.0);
+                let offset_id = ui.id().with("touchpad_settings_smooth_offset");
+                let target_id = ui.id().with("touchpad_settings_smooth_target");
+                let mut scroll_offset = ui
+                    .ctx()
+                    .data_mut(|d| d.get_persisted::<f32>(offset_id).unwrap_or(0.0))
+                    .clamp(0.0, max_offset);
+                let mut target_offset = ui
+                    .ctx()
+                    .data_mut(|d| d.get_persisted::<f32>(target_id).unwrap_or(scroll_offset))
+                    .clamp(0.0, max_offset);
+                let (viewport, viewport_resp) = ui.allocate_exact_size(
+                    egui::vec2(content_width, list_height),
+                    Sense::hover(),
+                );
+
+                let track_width = 6.0;
+                let track_rect = egui::Rect::from_min_max(
+                    egui::pos2(viewport.right() - track_width, viewport.top()),
+                    egui::pos2(viewport.right(), viewport.bottom()),
+                );
+                let scrollbar_resp = if max_offset > 0.0 {
+                    Some(ui.interact(
+                        track_rect.expand2(egui::vec2(5.0, 0.0)),
+                        ui.id().with("touchpad_settings_scrollbar"),
+                        Sense::click_and_drag(),
+                    ))
+                } else {
+                    None
+                };
+
+                let mut scroll_active = false;
+                let scroll_delta = if viewport_resp.hovered() {
+                    ui.input(|i| {
+                        if i.smooth_scroll_delta.y.abs() > 0.0 {
+                            i.smooth_scroll_delta.y
+                        } else {
+                            i.raw_scroll_delta.y
+                        }
+                    })
+                } else {
+                    0.0
+                };
+                if scroll_delta.abs() > 0.0 && max_offset > 0.0 {
+                    scroll_active = true;
+                    target_offset = (target_offset - scroll_delta * 0.72).clamp(0.0, max_offset);
+                }
+
+                let handle_height = if max_offset > 0.0 {
+                    (list_height / content_height * viewport.height()).clamp(42.0, viewport.height())
+                } else {
+                    viewport.height()
+                };
+                if let Some(resp) = &scrollbar_resp {
+                    if (resp.dragged() || resp.clicked()) && max_offset > 0.0 {
+                        if let Some(pointer_pos) = ui.input(|i| i.pointer.interact_pos()) {
+                            scroll_active = true;
+                            let travel = (track_rect.height() - handle_height).max(1.0);
+                            let t = ((pointer_pos.y - track_rect.top() - handle_height / 2.0)
+                                / travel)
+                                .clamp(0.0, 1.0);
+                            target_offset = t * max_offset;
+                            scroll_offset = target_offset;
+                        }
+                    }
+                }
+
+                if (scroll_offset - target_offset).abs() > 0.35 {
+                    scroll_offset += (target_offset - scroll_offset) * 0.42;
+                    scroll_active = true;
+                    ui.ctx().request_repaint();
+                } else {
+                    scroll_offset = target_offset;
+                }
+                scroll_offset = scroll_offset.clamp(0.0, max_offset);
+                target_offset = target_offset.clamp(0.0, max_offset);
+                ui.ctx().data_mut(|d| {
+                    d.insert_persisted(offset_id, scroll_offset);
+                    d.insert_persisted(target_id, target_offset);
+                });
+
+                let first_visible_row = (scroll_offset / ROW_HEIGHT).floor() as usize;
+                let row_y_offset = scroll_offset - first_visible_row as f32 * ROW_HEIGHT;
+                let last_visible_row = (first_visible_row + VISIBLE_ROWS + 1).min(TOTAL_ROWS);
+                let visible_row_count = last_visible_row.saturating_sub(first_visible_row);
+                let content_rect = egui::Rect::from_min_size(
+                    egui::pos2(viewport.left(), viewport.top() - row_y_offset),
+                    egui::vec2(content_width, ROW_HEIGHT * visible_row_count as f32),
+                );
+                let suppress_tooltips = scroll_active || ui.input(|i| i.pointer.primary_down());
+                ui.allocate_ui_at_rect(content_rect, |ui| {
+                    ui.set_clip_rect(viewport);
+                    ui.set_min_size(content_rect.size());
+                    ui.spacing_mut().item_spacing.y = 0.0;
+                    self.draw_touchpad_editor_content(
+                        ui,
+                        first_visible_row..last_visible_row,
+                        suppress_tooltips,
+                    );
+                });
+
+                if max_offset > 0.0 {
+                    let track_hovered = scrollbar_resp
+                        .as_ref()
+                        .map(|resp| resp.hovered() || resp.dragged())
+                        .unwrap_or(false);
+                    crate::ui_style::paint_floating_scrollbar_handle(
+                        ui,
+                        track_rect,
+                        handle_height,
+                        scroll_offset / max_offset,
+                        track_hovered,
+                    );
+                }
+            });
+        });
+    }
+
     fn write_mouse_keys_setting(&mut self, qsid: u16, value: u16) {
         let Some(hid) = &self.hid_device else {
             return;
@@ -10858,6 +11320,7 @@ impl EntropyApp {
                     .layout_options
                     .iter()
                     .any(|option| !Self::is_encoder_layout_option(option));
+                let show_touchpad_item = self.touchpad_settings.supported;
                 let show_magic_item = self.magic_settings.supported;
                 let show_tap_hold_item = self.tap_hold_settings.supported;
                 let show_one_shot_item = self.one_shot_settings.supported;
@@ -10866,6 +11329,7 @@ impl EntropyApp {
                     + show_layer_leds_item as usize
                     + show_encoders_item as usize
                     + show_layout_options_item as usize
+                    + show_touchpad_item as usize
                     + show_magic_item as usize
                     + show_tap_hold_item as usize
                     + show_one_shot_item as usize;
@@ -10899,6 +11363,7 @@ impl EntropyApp {
                         layer_leds_hovered,
                         encoders_hovered,
                         layout_options_hovered,
+                        touchpad_hovered,
                         magic_hovered,
                         tap_hold_hovered,
                         one_shot_hovered,
@@ -10976,6 +11441,16 @@ impl EntropyApp {
                                                 && self.settings_tab == SettingsTab::LayoutOptions,
                                         )
                                     });
+                                    let touchpad_resp = show_touchpad_item.then(|| {
+                                        top_dropdown_item(
+                                            ui,
+                                            item_width,
+                                            "Touchpad",
+                                            true,
+                                            self.main_menu_tab == MainMenuTab::Settings
+                                                && self.settings_tab == SettingsTab::Touchpad,
+                                        )
+                                    });
                                     let magic_resp = show_magic_item.then(|| {
                                         top_dropdown_item(
                                             ui,
@@ -11048,6 +11523,10 @@ impl EntropyApp {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.open_layout_options_settings_page();
                                     }
+                                    if touchpad_resp.as_ref().map(|r| r.clicked()).unwrap_or(false) {
+                                        self.close_top_dropdowns(ui.ctx());
+                                        self.open_touchpad_settings_page();
+                                    }
                                     if magic_resp.as_ref().map(|r| r.clicked()).unwrap_or(false) {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.open_magic_settings_page();
@@ -11068,6 +11547,7 @@ impl EntropyApp {
                                         layer_leds_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         encoders_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         layout_options_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
+                                        touchpad_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         magic_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         tap_hold_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         one_shot_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
@@ -11081,6 +11561,7 @@ impl EntropyApp {
                                             || layer_leds_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
                                             || encoders_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
                                             || layout_options_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
+                                            || touchpad_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
                                             || magic_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
                                             || tap_hold_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
                                             || one_shot_resp.as_ref().map(|r| r.clicked()).unwrap_or(false),
@@ -11101,6 +11582,7 @@ impl EntropyApp {
                                     || layer_leds_hovered
                                     || encoders_hovered
                                     || layout_options_hovered
+                                    || touchpad_hovered
                                     || magic_hovered
                                     || tap_hold_hovered
                                     || one_shot_hovered
