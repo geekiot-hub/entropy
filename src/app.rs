@@ -6169,16 +6169,12 @@ impl EntropyApp {
     /// Show ZMK unlock overlay in the same visual language as the Vial unlock flow.
     #[cfg(not(target_arch = "wasm32"))]
     fn show_zmk_unlock_modal(&self, ctx: &egui::Context) {
-        let screen = ctx.screen_rect();
+        ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
         egui::Area::new(egui::Id::new("zmk_unlock_overlay"))
-            .fixed_pos(screen.min)
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
             .order(egui::Order::Foreground)
             .show(ctx, |ui| {
-                ui.set_min_size(screen.size());
-                let overlay_response = ui.allocate_rect(screen, egui::Sense::click());
-                if overlay_response.clicked() {
-                    overlay_response.request_focus();
-                }
+                let screen = ui.ctx().screen_rect();
                 let dark = ui.visuals().dark_mode;
                 let screen_bg = if dark {
                     Color32::from_gray(12)
