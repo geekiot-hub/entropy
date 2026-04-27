@@ -589,8 +589,6 @@ struct ConnectResult {
     zmk_conn: Option<crate::zmk::ZmkConnection>,
     /// ZMK lock state at connect time
     zmk_lock_state: i32,
-    /// Whether ZMK Studio reports staged unsaved changes
-    zmk_has_unsaved: bool,
     /// Macro texts read from device
     macro_texts: Vec<String>,
     /// Tap dance entries
@@ -642,10 +640,6 @@ enum ZmkOpResult {
     AddLayerFail(String),
     RemoveLayerOk,
     RemoveLayerFail(String),
-    SaveOk,
-    SaveFail(String),
-    DiscardOk,
-    DiscardFail(String),
     LockStateChanged(i32),
 }
 
@@ -1701,8 +1695,6 @@ pub struct EntropyApp {
     current_device_name: String,
     /// ZMK lock state: 0=Locked, 1=Unlocked
     zmk_lock_state: i32,
-    /// Whether ZMK has unsaved changes
-    zmk_has_unsaved: bool,
     /// Vial unlock dialog open
     unlock_open: bool,
     vial_unlock_keys: Vec<(u8, u8)>,
@@ -1808,7 +1800,6 @@ impl EntropyApp {
             editing_layer_focus_requested: false,
             current_device_name: String::new(),
             zmk_lock_state: 1, // Unlocked by default
-            zmk_has_unsaved: false,
             unlock_open: false,
             vial_unlock_keys: vec![],
             vial_unlock_polling: false,
@@ -1841,7 +1832,6 @@ impl EntropyApp {
         self.zmk_conn = None;
         self.zmk_op_rx = None;
         self.connect_state = ConnectState::Idle;
-        self.zmk_has_unsaved = false;
         self.zmk_lock_state = 1;
         self.zmk_no_extra_layers = false;
         self.unlock_open = false;
@@ -1919,7 +1909,6 @@ impl EntropyApp {
         self.sync_qmk_hid_host_bridges();
         self.hid_device = None;
         self.zmk_conn = None;
-        self.zmk_has_unsaved = false;
         self.zmk_lock_state = 1; // assume unlocked until we know
         self.zmk_no_extra_layers = false;
         self.combo_visible_count = 1;
@@ -2553,8 +2542,7 @@ impl EntropyApp {
                             layer_count,
                             zmk_conn: None,
                             zmk_lock_state: 1,
-                            zmk_has_unsaved: false,
-                        })
+                                        })
                     }
 
                     FirmwareProtocol::Zmk => {
@@ -2616,8 +2604,7 @@ impl EntropyApp {
                                 layer_count: 0,
                                 zmk_conn: Some(conn),
                                 zmk_lock_state: lock_state,
-                                zmk_has_unsaved: false,
-                            });
+                                                });
                         }
 
                         log::info!("Fetching ZMK behaviors…");
@@ -2662,10 +2649,6 @@ impl EntropyApp {
                             })
                             .collect();
 
-                        let zmk_has_unsaved = conn.check_unsaved_changes().unwrap_or_else(|e| {
-                            log::warn!("ZMK check_unsaved_changes failed: {e}");
-                            false
-                        });
 
                         Ok(ConnectResult {
                             device_name: dev.name.clone(),
@@ -2691,7 +2674,6 @@ impl EntropyApp {
                             layer_count,
                             zmk_conn: Some(conn),
                             zmk_lock_state: lock_state,
-                            zmk_has_unsaved,
                         })
                     }
                 }
@@ -2731,7 +2713,6 @@ impl EntropyApp {
                 }
                 self.current_device_name = r.device_name.clone();
                 self.zmk_lock_state = r.zmk_lock_state;
-                self.zmk_has_unsaved = r.zmk_has_unsaved;
                 self.keycode_picker.tap_dance_entries = r.tap_dance_entries.clone();
                 self.combo_entries = r.combo_entries.clone();
                 self.key_override_entries = r.key_override_entries.clone();
@@ -3042,8 +3023,7 @@ impl EntropyApp {
             } => {
                 log::info!("Added layer at index {layer_idx}: {layer_name}");
                 self.status_msg = "Added layer".into();
-                self.zmk_has_unsaved = false;
-                self.zmk_op_rx = None;
+                        self.zmk_op_rx = None;
                 // Reload to get updated layer list
                 if let Some(idx) = self.selected_device {
                     self.start_connect(idx);
@@ -3064,7 +3044,6 @@ impl EntropyApp {
             ZmkOpResult::RemoveLayerOk => {
                 log::info!("Removed layer");
                 self.status_msg = "Removed layer".into();
-                self.zmk_has_unsaved = false;
                 self.zmk_op_rx = None;
                 if let Some(idx) = self.selected_device {
                     self.start_connect(idx);
@@ -3073,35 +3052,6 @@ impl EntropyApp {
             ZmkOpResult::RemoveLayerFail(e) => {
                 log::error!("RemoveLayer error: {e}");
                 self.status_msg = format!("RemoveLayer error: {e}");
-                self.zmk_op_rx = None;
-            }
-            ZmkOpResult::SaveOk => {
-                log::info!("Saved");
-                self.status_msg = "✓ Saved".into();
-                self.zmk_has_unsaved = false;
-                self.zmk_op_rx = None;
-                if let Some(idx) = self.selected_device {
-                    self.start_connect(idx);
-                }
-            }
-            ZmkOpResult::SaveFail(e) => {
-                log::error!("Save error: {e}");
-                self.status_msg = format!("Save error: {e}");
-                self.zmk_op_rx = None;
-            }
-            ZmkOpResult::DiscardOk => {
-                log::info!("Discard ok");
-                self.status_msg = "Discarded".into();
-                self.zmk_has_unsaved = false;
-                self.zmk_op_rx = None;
-                // Reload after discard
-                if let Some(idx) = self.selected_device {
-                    self.start_connect(idx);
-                }
-            }
-            ZmkOpResult::DiscardFail(e) => {
-                log::error!("Discard error: {e}");
-                self.status_msg = format!("Discard error: {e}");
                 self.zmk_op_rx = None;
             }
         }
@@ -5166,20 +5116,20 @@ impl EntropyApp {
             }
         };
         let mut conn = conn;
-        match conn.set_layer_binding(layer_id, ki as i32, &binding) {
+        match conn
+            .set_layer_binding(layer_id, ki as i32, &binding)
+            .and_then(|()| conn.save_changes())
+        {
             Ok(()) => {
                 self.status_msg = "✓ Saved".into();
-                self.zmk_has_unsaved = true;
             }
             Err(e) => {
-                self.status_msg = format!("ZMK write error: {e}");
+                self.status_msg = format!("ZMK write/save error: {e}");
             }
         }
         self.zmk_conn = Some(conn);
     }
 
-    /// ZMK: save changes to flash in background.
-    #[cfg(not(target_arch = "wasm32"))]
     #[cfg(not(target_arch = "wasm32"))]
     fn undo(&mut self) {
         let Some(action) = self.undo_stack.pop() else {
@@ -5209,70 +5159,6 @@ impl EntropyApp {
                 self.undo_stack.pop();
             }
         }
-    }
-
-    fn zmk_save(&mut self) {
-        if self.zmk_op_rx.is_some() {
-            return;
-        } // operation in progress
-        let conn = match self.zmk_conn.take() {
-            Some(c) => c,
-            None => {
-                self.status_msg = "No ZMK connection".into();
-                return;
-            }
-        };
-
-        let (tx, rx) = mpsc::channel();
-        self.zmk_op_rx = Some(rx);
-
-        std::thread::spawn(move || {
-            let mut conn = conn;
-            match conn.save_changes() {
-                Ok(()) => {
-                    let _ = tx.send(ZmkOpResult::SaveOk);
-                }
-                Err(e) => {
-                    let _ = tx.send(ZmkOpResult::SaveFail(e.to_string()));
-                }
-            }
-            // Put connection back — we drop it here since we can't easily return it
-            // The caller will need to reconnect if needed
-            drop(conn);
-        });
-        self.status_msg = "Saving…".into();
-    }
-
-    /// ZMK: discard staged changes in firmware, then reload.
-    #[cfg(not(target_arch = "wasm32"))]
-    fn zmk_discard(&mut self) {
-        if self.zmk_op_rx.is_some() {
-            return;
-        }
-        let conn = match self.zmk_conn.take() {
-            Some(c) => c,
-            None => {
-                self.status_msg = "No ZMK connection".into();
-                return;
-            }
-        };
-
-        let (tx, rx) = mpsc::channel();
-        self.zmk_op_rx = Some(rx);
-
-        std::thread::spawn(move || {
-            let mut conn = conn;
-            match conn.discard_changes() {
-                Ok(()) => {
-                    let _ = tx.send(ZmkOpResult::DiscardOk);
-                }
-                Err(e) => {
-                    let _ = tx.send(ZmkOpResult::DiscardFail(e.to_string()));
-                }
-            }
-            drop(conn);
-        });
-        self.status_msg = "Discarding…".into();
     }
 
     /// ZMK: add layer in background.
@@ -12289,45 +12175,6 @@ impl EntropyApp {
                     }
                 }
 
-                // ZMK staged changes actions
-                if !any_top_dropdown_open && self.firmware == FirmwareProtocol::Zmk && self.zmk_has_unsaved {
-                    #[cfg(not(target_arch = "wasm32"))]
-                    {
-                        let op_busy = self.zmk_op_rx.is_some();
-                        let actions_rect = egui::Rect::from_min_size(
-                            egui::pos2(center_x + 150.0, bar_y + 9.0),
-                            Vec2::new(148.0, 34.0),
-                        );
-                        ui.allocate_ui_at_rect(actions_rect, |ui| {
-                            ui.horizontal(|ui| {
-                                ui.spacing_mut().item_spacing.x = 6.0;
-                                if crate::ui_style::modern_button(
-                                    ui,
-                                    "Save",
-                                    Vec2::new(64.0, 30.0),
-                                    !op_busy,
-                                )
-                                .on_hover_text("Save staged ZMK changes to the keyboard")
-                                .clicked()
-                                {
-                                    self.zmk_save();
-                                }
-                                if crate::ui_style::modern_button(
-                                    ui,
-                                    "Discard",
-                                    Vec2::new(78.0, 30.0),
-                                    !op_busy,
-                                )
-                                .on_hover_text("Discard staged ZMK changes and reload from the keyboard")
-                                .clicked()
-                                {
-                                    self.zmk_discard();
-                                }
-                            });
-                        });
-                    }
-                }
-
                 // Layer name / edit field
                 let name_rect = egui::Rect::from_min_size(
                     egui::pos2(center_x - 85.0, bar_y),
@@ -12399,8 +12246,15 @@ impl EntropyApp {
                                         .as_ref()
                                         .and_then(|l| l.zmk_layer_ids.get(selected).copied())
                                         .unwrap_or(selected as u32);
-                                    if let Err(e) = conn.set_layer_name(layer_id, &new_name) {
-                                        log::warn!("ZMK set_layer_name failed: {e}");
+                                    match conn
+                                        .set_layer_name(layer_id, &new_name)
+                                        .and_then(|()| conn.save_changes())
+                                    {
+                                        Ok(()) => self.status_msg = "✓ Saved".into(),
+                                        Err(e) => {
+                                            self.status_msg = format!("ZMK layer name save error: {e}");
+                                            log::warn!("ZMK set_layer_name/save failed: {e}");
+                                        }
                                     }
                                 }
                             }
