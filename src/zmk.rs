@@ -570,6 +570,36 @@ impl ZmkConnection {
     }
 }
 
+pub(crate) fn zmk_behavior_kind(name: &str) -> &'static str {
+    let normalized = name.trim().to_ascii_lowercase();
+    match normalized.as_str() {
+        "none" | "no key" | "no-key" | "no operation" | "no op" => "none",
+        "transparent" | "trans" | "trns" => "transparent",
+        "key press" | "key" | "kp" => "key_press",
+        "grave/escape" | "grave escape" | "grave-escape" | "gesc" => "grave_escape",
+        "key repeat" | "repeat" => "key_repeat",
+        "key toggle" => "key_toggle",
+        "momentary layer" | "mo" => "momentary_layer",
+        "toggle layer" | "tg" => "toggle_layer",
+        "to layer" | "to" => "to_layer",
+        "sticky layer" | "one-shot layer" | "osl" => "sticky_layer",
+        "layer-tap" | "layer tap" | "lt" => "layer_tap",
+        "mod-tap" | "mod tap" | "mt" => "mod_tap",
+        "sticky key" | "one-shot key" | "one shot key" | "osm" => "sticky_key",
+        "caps word" => "caps_word",
+        "reset" => "reset",
+        "bootloader" => "bootloader",
+        "studio unlock" => "studio_unlock",
+        "bluetooth" => "bluetooth",
+        "output selection" | "output" => "output_selection",
+        "external power" => "external_power",
+        "mouse key press" | "mouse button" => "mouse_key_press",
+        "mouse_move" | "mouse move" => "mouse_move",
+        "mouse_scroll" | "mouse scroll" => "mouse_scroll",
+        _ => "unknown",
+    }
+}
+
 fn zmk_mod_mask_to_vial_base(mask: u32) -> Option<u16> {
     match mask {
         0x01 => Some(0x0100),
@@ -683,6 +713,40 @@ fn zmk_hid_usage_label_with_vial_style(usage: u32, layer_names: &[String]) -> St
     }
 }
 
+fn zmk_equivalent_vial_keycode(kind: &str, p1: u32, p2: u32) -> Option<u16> {
+    match kind {
+        "none" => Some(0x0000),
+        "transparent" => Some(0x0001),
+        "grave_escape" => Some(0x7C16),
+        "bootloader" => Some(0x7C00),
+        "caps_word" => Some(0x7C73),
+        "key_repeat" => Some(0x7C79),
+        "key_press" => zmk_hid_usage_to_vial_value(p1),
+        "mouse_key_press" => zmk_hid_usage_to_vial_value(p1),
+        "momentary_layer" if p1 < 32 => Some(0x5220 | p1 as u16),
+        "toggle_layer" if p1 < 32 => Some(0x5260 | p1 as u16),
+        "to_layer" if p1 < 32 => Some(0x5200 | p1 as u16),
+        "sticky_layer" if p1 < 32 => Some(0x5280 | p1 as u16),
+        "layer_tap" if p1 <= 0x0F => {
+            zmk_hid_usage_to_vial_value(p2)
+                .filter(|tap| *tap <= 0xFF)
+                .map(|tap| 0x4000 | ((p1 as u16) << 8) | tap)
+        }
+        "mod_tap" => {
+            if let (Some(base), Some(tap)) = (
+                zmk_modifier_usage_to_vial_mt_base(p1),
+                zmk_hid_usage_to_vial_value(p2).filter(|tap| *tap <= 0xFF),
+            ) {
+                Some(base | tap)
+            } else {
+                None
+            }
+        }
+        "sticky_key" => zmk_modifier_usage_to_vial_osm(p1),
+        _ => None,
+    }
+}
+
 /// Get a display label for a ZMK binding given behavior info.
 pub fn zmk_binding_label(binding: &ZmkBinding, behaviors: &[BehaviorInfo], layer_names: &[String]) -> String {
     if binding.is_none() {
@@ -691,8 +755,13 @@ pub fn zmk_binding_label(binding: &ZmkBinding, behaviors: &[BehaviorInfo], layer
 
     let behavior = behaviors.iter().find(|b| b.id == binding.behavior_id as u32);
     let name = behavior.map(|b| b.display_name.as_str()).unwrap_or("???");
+    let kind = zmk_behavior_kind(name);
     let p1 = binding.param1;
     let p2 = binding.param2;
+
+    if let Some(value) = zmk_equivalent_vial_keycode(kind, p1, p2) {
+        return crate::keycode::keycode_label_with_names(value, &[], layer_names);
+    }
 
     let key = |u: u32| zmk_hid_usage_label_with_vial_style(u, layer_names);
     let layer = |n: u32| -> String {
@@ -709,26 +778,26 @@ pub fn zmk_binding_label(binding: &ZmkBinding, behaviors: &[BehaviorInfo], layer
     };
     let _ = layer; // suppress unused
 
-    match name {
+    match kind {
         // Simple key — just show the key label
-        "Key Press" => key(p1),
+        "key_press" => key(p1),
         // Transparent — like Vial TRNS
-        "Transparent" => crate::keycode::keycode_label_with_names(0x0001, &[], layer_names),
+        "transparent" => crate::keycode::keycode_label_with_names(0x0001, &[], layer_names),
         // None / no key
-        "None" => crate::keycode::keycode_label_with_names(0x0000, &[], layer_names),
+        "none" => crate::keycode::keycode_label_with_names(0x0000, &[], layer_names),
         // Grave/Escape
-        "Grave/Escape" => crate::keycode::keycode_label_with_names(0x7C16, &[], layer_names),
+        "grave_escape" => crate::keycode::keycode_label_with_names(0x7C16, &[], layer_names),
         // Key Repeat
-        "Key Repeat" => crate::keycode::keycode_label_with_names(0x7C79, &[], layer_names),
+        "key_repeat" => crate::keycode::keycode_label_with_names(0x7C79, &[], layer_names),
         // Key Toggle
-        "Key Toggle" => format!("KT\n{}", key(p1)),
+        "key_toggle" => format!("KT\n{}", key(p1)),
         // Layer operations
-        "Momentary Layer"  => layer_label("MO", p1),
-        "Toggle Layer"     => layer_label("TG", p1),
-        "To Layer"         => layer_label("TO", p1),
-        "Sticky Layer"     => layer_label("OSL", p1),
+        "momentary_layer"  => layer_label("MO", p1),
+        "toggle_layer"     => layer_label("TG", p1),
+        "to_layer"         => layer_label("TO", p1),
+        "sticky_layer"     => layer_label("OSL", p1),
         // Layer-Tap: tap=key, hold=layer
-        "Layer-Tap"        => {
+        "layer_tap"        => {
             if p1 <= 0x0F {
                 if let Some(tap) = zmk_hid_usage_to_vial_value(p2).filter(|tap| *tap <= 0xFF) {
                     crate::keycode::keycode_label_with_names(0x4000 | ((p1 as u16) << 8) | tap, &[], layer_names)
@@ -740,7 +809,7 @@ pub fn zmk_binding_label(binding: &ZmkBinding, behaviors: &[BehaviorInfo], layer
             }
         }
         // Mod-Tap: tap=key, hold=mod
-        "Mod-Tap"          => {
+        "mod_tap"          => {
             if let (Some(base), Some(tap)) = (
                 zmk_modifier_usage_to_vial_mt_base(p1),
                 zmk_hid_usage_to_vial_value(p2).filter(|tap| *tap <= 0xFF),
@@ -751,7 +820,7 @@ pub fn zmk_binding_label(binding: &ZmkBinding, behaviors: &[BehaviorInfo], layer
             }
         }
         // Sticky Key (one-shot)
-        "Sticky Key"       => {
+        "sticky_key"       => {
             if let Some(value) = zmk_modifier_usage_to_vial_osm(p1) {
                 crate::keycode::keycode_label_with_names(value, &[], layer_names)
             } else {
@@ -759,14 +828,14 @@ pub fn zmk_binding_label(binding: &ZmkBinding, behaviors: &[BehaviorInfo], layer
             }
         }
         // Caps Word
-        "Caps Word"        => crate::keycode::keycode_label_with_names(0x7C73, &[], layer_names),
+        "caps_word"        => crate::keycode::keycode_label_with_names(0x7C73, &[], layer_names),
         // Reset / Bootloader
-        "Reset"            => "Restart".to_string(),
-        "Bootloader"       => crate::keycode::keycode_label_with_names(0x7C00, &[], layer_names),
+        "reset"            => "Restart".to_string(),
+        "bootloader"       => crate::keycode::keycode_label_with_names(0x7C00, &[], layer_names),
         // Studio Unlock
-        "Studio Unlock"    => "Unlock".to_string(),
+        "studio_unlock"    => "Unlock".to_string(),
         // Bluetooth — p1=action, p2=profile index for SEL
-        "Bluetooth" => match p1 {
+        "bluetooth" => match p1 {
             0 => "BT\nClear".to_string(),
             1 => "BT\nClear All".to_string(),
             2 => "BT\nNext".to_string(),
@@ -775,18 +844,18 @@ pub fn zmk_binding_label(binding: &ZmkBinding, behaviors: &[BehaviorInfo], layer
             _ => format!("BT\n{}", p1),
         },
         // Output Selection — p1: 0=USB, 1=BLE
-        "Output Selection" => match p1 {
+        "output_selection" => match p1 {
             0 => "USB".to_string(),
             1 => "BLE".to_string(),
             _ => "Output".to_string(),
         },
         // External Power
-        "External Power" => match p1 {
+        "external_power" => match p1 {
             0 => "Power\nOff".to_string(),
             _ => "Power\nOn".to_string(),
         },
         // Mouse
-        "Mouse Key Press"  => format!("Ms\n{}", key(p1)),
+        "mouse_key_press"  => format!("Ms\n{}", key(p1)),
         "mouse_move"       => "MsMove".to_string(),
         "mouse_scroll"     => "MsScrl".to_string(),
         // Encoder
@@ -810,13 +879,18 @@ pub fn zmk_binding_label(binding: &ZmkBinding, behaviors: &[BehaviorInfo], layer
 /// Get a human-readable tooltip for a ZMK binding.
 pub fn zmk_binding_tooltip(binding: &ZmkBinding, behaviors: &[BehaviorInfo], layer_names: &[String]) -> String {
     if binding.is_none() {
-        return "No key — does nothing".to_string();
+        return crate::keycode::keycode_tooltip(0x0000, &[], layer_names);
     }
 
     let behavior = behaviors.iter().find(|b| b.id == binding.behavior_id as u32);
     let name = behavior.map(|b| b.display_name.as_str()).unwrap_or("Unknown");
+    let kind = zmk_behavior_kind(name);
     let p1 = binding.param1;
     let p2 = binding.param2;
+
+    if let Some(value) = zmk_equivalent_vial_keycode(kind, p1, p2) {
+        return crate::keycode::keycode_tooltip(value, &[], layer_names);
+    }
 
     let layer_display = |n: u32| -> String {
         match layer_names.get(n as usize) {
@@ -826,26 +900,26 @@ pub fn zmk_binding_tooltip(binding: &ZmkBinding, behaviors: &[BehaviorInfo], lay
     };
     let key_name = |u: u32| hid_usage_label(u);
 
-    match name {
-        "Key Press"        => format!("Press {}", key_name(p1)),
-        "Transparent"      => "Transparent — uses the binding from the layer below".to_string(),
-        "None"             => "No key — does nothing".to_string(),
-        "Grave/Escape"     => format!("Grave/Escape — sends Esc normally, ` when Shift or {} held", crate::keycode::gui_mod_name()),
-        "Key Repeat"       => "Repeat — repeats the last pressed key".to_string(),
-        "Key Toggle"       => format!("Key Toggle — toggles {} on/off", key_name(p1)),
-        "Caps Word"        => "Caps Word — capitalises next word, then deactivates".to_string(),
-        "Sticky Key"       => format!("One-Shot {} — activates for the next keypress only", key_name(p1)),
-        "Momentary Layer"  => format!("MO({}) — activate {} while held, return on release", p1, layer_display(p1)),
-        "Toggle Layer"     => format!("TG({}) — toggle {} on/off", p1, layer_display(p1)),
-        "To Layer"         => format!("TO({}) — switch to {} and stay", p1, layer_display(p1)),
-        "Sticky Layer"     => format!("OSL({}) — activate {} for next keypress only", p1, layer_display(p1)),
-        "Layer-Tap"        => format!("Layer Tap — tap for {}, hold to activate {}", key_name(p2), layer_display(p1)),
-        "Mod-Tap"          => format!("Mod Tap — tap for {}, hold for {}", key_name(p2), key_name(p1)),
-        "Bootloader"       => "Bootloader — put keyboard into flash mode".to_string(),
-        "Reset"            => "Restart the keyboard".to_string(),
-        "Studio Unlock"    => "Unlock editing — allow live keymap changes".to_string(),
-        "External Power"   => match p1 { 0 => "External power off".to_string(), _ => "External power on".to_string() },
-        "Bluetooth" => match p1 {
+    match kind {
+        "key_press"        => format!("Press {}", key_name(p1)),
+        "transparent"      => "Transparent — uses the binding from the layer below".to_string(),
+        "none"             => "No key — does nothing".to_string(),
+        "grave_escape"     => format!("Grave/Escape — sends Esc normally, ` when Shift or {} held", crate::keycode::gui_mod_name()),
+        "key_repeat"       => "Repeat — repeats the last pressed key".to_string(),
+        "key_toggle"       => format!("Key Toggle — toggles {} on/off", key_name(p1)),
+        "caps_word"        => "Caps Word — capitalises next word, then deactivates".to_string(),
+        "sticky_key"       => format!("One-Shot {} — activates for the next keypress only", key_name(p1)),
+        "momentary_layer"  => format!("MO({}) — activate {} while held, return on release", p1, layer_display(p1)),
+        "toggle_layer"     => format!("TG({}) — toggle {} on/off", p1, layer_display(p1)),
+        "to_layer"         => format!("TO({}) — switch to {} and stay", p1, layer_display(p1)),
+        "sticky_layer"     => format!("OSL({}) — activate {} for next keypress only", p1, layer_display(p1)),
+        "layer_tap"        => format!("Layer Tap — tap for {}, hold to activate {}", key_name(p2), layer_display(p1)),
+        "mod_tap"          => format!("Mod Tap — tap for {}, hold for {}", key_name(p2), key_name(p1)),
+        "bootloader"       => "Bootloader — put keyboard into flash mode".to_string(),
+        "reset"            => "Restart the keyboard".to_string(),
+        "studio_unlock"    => "Unlock editing — allow live keymap changes".to_string(),
+        "external_power"   => match p1 { 0 => "External power off".to_string(), _ => "External power on".to_string() },
+        "bluetooth" => match p1 {
             0 => "Bluetooth: forget current profile".to_string(),
             1 => "Bluetooth: forget all profiles".to_string(),
             2 => "Bluetooth: next profile".to_string(),
@@ -853,12 +927,12 @@ pub fn zmk_binding_tooltip(binding: &ZmkBinding, behaviors: &[BehaviorInfo], lay
             4 => format!("Bluetooth: profile {}", p2),
             _ => format!("Bluetooth action {}", p1),
         },
-        "Output Selection" => match p1 {
+        "output_selection" => match p1 {
             0 => "Output: USB".to_string(),
             1 => "Output: Bluetooth".to_string(),
             _ => "Output selection".to_string(),
         },
-        "Mouse Key Press"  => format!("Mouse button: {}", key_name(p1)),
+        "mouse_key_press"  => format!("Mouse button: {}", key_name(p1)),
         "mouse_move"       => "Mouse cursor movement".to_string(),
         "mouse_scroll"     => "Mouse scroll wheel".to_string(),
         _ => {

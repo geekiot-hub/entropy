@@ -1,6 +1,6 @@
 use crate::device::DeviceManager;
 use crate::firmware::FirmwareProtocol;
-use crate::zmk::{zmk_binding_label, zmk_binding_tooltip, ZmkBinding};
+use crate::zmk::{zmk_behavior_kind, zmk_binding_label, zmk_binding_tooltip, ZmkBinding};
 
 #[cfg(target_os = "windows")]
 static TRAY_QUIT_REQUESTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -13407,7 +13407,7 @@ impl EntropyApp {
                     .zmk_behaviors
                     .iter()
                     .find(|b| b.id == binding.behavior_id as u32)
-                    .map(|b| b.display_name == "Transparent")
+                    .map(|b| zmk_behavior_kind(&b.display_name) == "transparent")
                     .unwrap_or(false);
                 let border = layer_led_outline.unwrap_or_else(|| {
                     if dark {
@@ -13436,7 +13436,7 @@ impl EntropyApp {
                                     .zmk_behaviors
                                     .iter()
                                     .find(|beh| beh.id == b.behavior_id as u32)
-                                    .map(|beh| beh.display_name == "Transparent")
+                                    .map(|beh| zmk_behavior_kind(&beh.display_name) == "transparent")
                                     .unwrap_or(false)
                             });
                         let label = if let Some(fb) = fallback {
@@ -13896,7 +13896,7 @@ impl EntropyApp {
                         .zmk_behaviors
                         .iter()
                         .find(|b| b.id == binding.behavior_id as u32)
-                        .map(|b| b.display_name == "Transparent")
+                        .map(|b| zmk_behavior_kind(&b.display_name) == "transparent")
                         .unwrap_or(false);
                     if is_trans && layer > 0 && !is_hovering {
                         let fallback = (0..layer)
@@ -13907,7 +13907,7 @@ impl EntropyApp {
                                     .zmk_behaviors
                                     .iter()
                                     .find(|beh| beh.id == b.behavior_id as u32)
-                                    .map(|beh| beh.display_name == "Transparent")
+                                    .map(|beh| zmk_behavior_kind(&beh.display_name) == "transparent")
                                     .unwrap_or(false)
                             });
                         if let Some(fb) = fallback {

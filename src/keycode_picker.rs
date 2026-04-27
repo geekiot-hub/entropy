@@ -14,7 +14,7 @@ use crate::keycode::{
     keycode_tooltip, KeycodeCategory, KEYCODES,
 };
 use crate::popup_state::{PopupKey, PopupState};
-use crate::zmk::{BehaviorInfo, ZmkBinding};
+use crate::zmk::{zmk_behavior_kind, BehaviorInfo, ZmkBinding};
 use egui::{Color32, Key, RichText, Vec2};
 
 #[derive(Clone, Debug, Default)]
@@ -781,7 +781,10 @@ fn show_grouped_popup_choice_buttons(
 
 impl KeycodePicker {
     fn zmk_find_behavior<'a>(&'a self, name: &str) -> Option<&'a BehaviorInfo> {
-        self.zmk_behaviors.iter().find(|b| b.display_name == name)
+        let requested_kind = zmk_behavior_kind(name);
+        self.zmk_behaviors.iter().find(|b| {
+            b.display_name == name || zmk_behavior_kind(&b.display_name) == requested_kind
+        })
     }
 
     fn zmk_assign(&mut self, behavior_id: u32, param1: u32, param2: u32) {
