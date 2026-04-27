@@ -486,15 +486,7 @@ fn top_dropdown_item(
 
     if ui.is_rect_visible(rect) {
         if selected || hovered {
-            let fill = if selected {
-                if dark {
-                    Color32::from_rgb(58, 52, 54)
-                } else {
-                    Color32::from_rgb(244, 236, 236)
-                }
-            } else {
-                app_hover_fill(dark)
-            };
+            let fill = app_hover_fill(dark);
             ui.painter().rect_filled(rect, 8.0, fill);
         }
 
@@ -575,6 +567,9 @@ use egui::{Color32, FontId, RichText, Sense, Stroke, Vec2};
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::sync::mpsc;
+#[cfg(target_os = "windows")]
+static TRAY_QUIT_REQUESTED: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
 
 #[derive(Debug, Clone, Default)]
 struct VialFeatureSupport {
@@ -4843,7 +4838,12 @@ impl eframe::App for EntropyApp {
 
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         #[cfg(target_os = "windows")]
-        self.cache_windows_hwnd(frame);
+        {
+            self.cache_windows_hwnd(frame);
+            if TRAY_QUIT_REQUESTED.swap(false, std::sync::atomic::Ordering::Relaxed) {
+                std::process::exit(0);
+            }
+        }
         self.handle_close_to_tray(ctx);
         #[cfg(target_os = "windows")]
         self.poll_tray_events(ctx);
@@ -5948,8 +5948,28 @@ impl EntropyApp {
                 _ => {}
             }
         }));
+        let ctx_for_menu_handler = ctx.clone();
+        tray_icon::menu::MenuEvent::set_event_handler(Some(move |event: tray_icon::menu::MenuEvent| {
+            if event.id == "entropy_tray_quit" {
+                TRAY_QUIT_REQUESTED.store(true, std::sync::atomic::Ordering::Relaxed);
+                ctx_for_menu_handler.request_repaint();
+            }
+        }));
+        let tray_menu = tray_icon::menu::Menu::new();
+        let quit_item = tray_icon::menu::MenuItem::with_id(
+            "entropy_tray_quit",
+            "Quit Entropy",
+            true,
+            None,
+        );
+        if let Err(e) = tray_menu.append(&quit_item) {
+            log::warn!("failed to create tray menu: {e}");
+        }
         match tray_icon::TrayIconBuilder::new()
             .with_tooltip("Entropy")
+            .with_menu(Box::new(tray_menu))
+            .with_menu_on_left_click(false)
+            .with_menu_on_right_click(true)
             .with_icon(icon)
             .build()
         {
