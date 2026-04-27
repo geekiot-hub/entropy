@@ -2,6 +2,9 @@ use crate::device::DeviceManager;
 use crate::firmware::FirmwareProtocol;
 use crate::zmk::{zmk_binding_label, zmk_binding_tooltip, ZmkBinding};
 
+#[cfg(target_os = "windows")]
+static TRAY_QUIT_REQUESTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 /// Sanitize a device name into a filesystem-safe slug.
 fn device_id_slug(device_name: &str) -> String {
     device_name
@@ -5167,6 +5170,8 @@ impl EntropyApp {
 
 impl eframe::App for EntropyApp {
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        #[cfg(not(target_arch = "wasm32"))]
+        self.fallback_entropy_display_presets_before_exit();
         std::process::exit(0);
     }
 
@@ -5176,6 +5181,8 @@ impl eframe::App for EntropyApp {
         self.handle_close_to_tray(ctx);
         #[cfg(target_os = "windows")]
         self.poll_tray_events(ctx);
+        #[cfg(target_os = "windows")]
+        self.handle_tray_quit_request();
 
         let combo_capture_open_at_frame_start = self.combo_capture_open;
         let keyboard_input_wanted_at_frame_start = ctx.wants_keyboard_input();
@@ -6125,6 +6132,35 @@ impl EntropyApp {
             .replace("qmk-hid-host", "Entropy")
     }
 
+    fn display_preset_needs_entropy(label: &str) -> bool {
+        let lower = label.to_ascii_lowercase();
+        lower.contains("qmk-hid-host")
+            || lower.contains("clock")
+            || lower.contains("volume")
+            || lower.contains("media")
+    }
+
+    fn static_display_preset_fallback_idx(option: &LayoutOption) -> Option<usize> {
+        let is_static = |choice: &String| !Self::display_preset_needs_entropy(choice);
+        option
+            .choices
+            .iter()
+            .position(|choice| choice.to_ascii_lowercase().contains("status") && is_static(choice))
+            .or_else(|| {
+                option.choices.iter().position(|choice| {
+                    let lower = choice.to_ascii_lowercase();
+                    (lower.contains("splash") || lower.contains("bongo")) && is_static(choice)
+                })
+            })
+            .or_else(|| {
+                option
+                    .choices
+                    .iter()
+                    .position(|choice| choice.eq_ignore_ascii_case("disabled") && is_static(choice))
+            })
+            .or_else(|| option.choices.iter().position(is_static))
+    }
+
     #[cfg(not(target_arch = "wasm32"))]
     fn qmk_hid_host_mode_for(layout: &KeyboardLayout, packed: Option<u32>) -> crate::qmk_hid_host::HostDataMode {
         let values = Self::unpack_layout_option_values(&layout.layout_options, packed.unwrap_or(0));
@@ -6138,19 +6174,68 @@ impl EntropyApp {
                 .copied()
                 .unwrap_or(0)
                 .min(option.choices.len().saturating_sub(1) as u32) as usize;
-            let selected = option
-                .choices
-                .get(selected_idx)
-                .map(|s| s.to_ascii_lowercase())
-                .unwrap_or_default();
-            if selected.contains("clock") || selected.contains("volume") {
+            let selected = option.choices.get(selected_idx).map(|s| s.as_str()).unwrap_or("");
+            let selected_lower = selected.to_ascii_lowercase();
+            if Self::display_preset_needs_entropy(selected)
+                && (selected_lower.contains("clock") || selected_lower.contains("volume"))
+            {
                 mode.clock_volume = true;
             }
-            if selected.contains("media") {
+            if Self::display_preset_needs_entropy(selected) && selected_lower.contains("media") {
                 mode.media = true;
             }
         }
         mode
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn fallback_entropy_display_presets_before_exit(&mut self) {
+        let Some(layout) = self.layout.as_ref() else {
+            return;
+        };
+        if layout.layout_options.is_empty() {
+            return;
+        }
+
+        let mut values = Self::unpack_layout_option_values(
+            &layout.layout_options,
+            self.layout_options_value.unwrap_or(0),
+        );
+        let mut changed = false;
+
+        for (idx, option) in layout.layout_options.iter().enumerate() {
+            if Self::is_encoder_layout_option(option) || option.choices.is_empty() {
+                continue;
+            }
+            let selected_idx = values
+                .get(idx)
+                .copied()
+                .unwrap_or(0)
+                .min(option.choices.len().saturating_sub(1) as u32) as usize;
+            let selected = option.choices.get(selected_idx).map(|s| s.as_str()).unwrap_or("");
+            if !Self::display_preset_needs_entropy(selected) {
+                continue;
+            }
+            if let Some(fallback_idx) = Self::static_display_preset_fallback_idx(option) {
+                if fallback_idx != selected_idx {
+                    values[idx] = fallback_idx as u32;
+                    changed = true;
+                }
+            }
+        }
+
+        if !changed {
+            return;
+        }
+
+        let packed = Self::pack_layout_option_values(&layout.layout_options, &values);
+        self.layout_options_value = Some(packed);
+        self.qmk_hid_host = None;
+        if let Some(hid) = &self.hid_device {
+            if let Err(e) = hid.set_layout_options(packed) {
+                log::warn!("fallback display preset before exit failed: {e}");
+            }
+        }
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -6416,9 +6501,11 @@ impl EntropyApp {
                 _ => {}
             }
         }));
+        let ctx_for_menu = ctx.clone();
         tray_icon::menu::MenuEvent::set_event_handler(Some(move |event: tray_icon::menu::MenuEvent| {
             if event.id == "entropy_tray_quit" {
-                std::process::exit(0);
+                TRAY_QUIT_REQUESTED.store(true, std::sync::atomic::Ordering::Relaxed);
+                ctx_for_menu.request_repaint();
             }
         }));
         let tray_menu = tray_icon::menu::Menu::new();
@@ -6441,6 +6528,14 @@ impl EntropyApp {
         {
             Ok(icon) => self.tray_icon = Some(icon),
             Err(e) => log::warn!("failed to create tray icon: {e}"),
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    fn handle_tray_quit_request(&mut self) {
+        if TRAY_QUIT_REQUESTED.swap(false, std::sync::atomic::Ordering::Relaxed) {
+            self.fallback_entropy_display_presets_before_exit();
+            std::process::exit(0);
         }
     }
 
