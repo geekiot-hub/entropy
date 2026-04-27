@@ -1882,7 +1882,14 @@ impl EntropyApp {
                 .position(|dev| dev.path == path)
             {
                 self.selected_device = Some(idx);
-                if self.layout.is_none() && !was_loading {
+                let device = self.device_manager.devices().get(idx);
+                let zmk_unlock_flow_active = device
+                    .map(|dev| dev.firmware == FirmwareProtocol::Zmk)
+                    .unwrap_or(false)
+                    && (self.zmk_lock_state == crate::zmk_proto::core::LockState::Locked as i32
+                        || self.zmk_unlock_reconnect_pending
+                        || self.zmk_op_rx.is_some());
+                if self.layout.is_none() && !was_loading && !zmk_unlock_flow_active {
                     self.start_connect(idx);
                 } else {
                     self.sync_qmk_hid_host_bridges();
