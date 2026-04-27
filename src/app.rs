@@ -3025,7 +3025,7 @@ impl EntropyApp {
         let content_width = 470.0_f32;
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
-                ui.add_space(4.0);
+                ui.add_space(18.0);
                 ui.allocate_ui_with_layout(
                     Vec2::new(content_width, 0.0),
                     egui::Layout::top_down(egui::Align::Center),
@@ -3037,7 +3037,7 @@ impl EntropyApp {
                             )
                             .halign(egui::Align::Center),
                         );
-                        ui.add_space(8.0);
+                        ui.add_space(6.0);
                         ui.add_sized(
                             Vec2::new(content_width, 18.0),
                             egui::Label::new(
@@ -3061,17 +3061,39 @@ impl EntropyApp {
                         }
                         ui.add_space(16.0);
 
-                        for step in universal_symbols_setup_steps() {
-                            ui.add_sized(
-                                Vec2::new(content_width, 20.0),
-                                egui::Label::new(RichText::new(*step).size(12.0))
-                                    .wrap()
-                                    .halign(egui::Align::Center),
+                        let steps = universal_symbols_setup_steps();
+                        let step_height = 24.0_f32;
+                        let block_height = steps.len() as f32 * step_height;
+                        let block_rect = ui
+                            .allocate_exact_size(
+                                Vec2::new(content_width, block_height),
+                                egui::Sense::hover(),
+                            )
+                            .0;
+                        let fill = if dark {
+                            Color32::from_rgb(38, 38, 41)
+                        } else {
+                            Color32::from_rgb(252, 252, 254)
+                        };
+                        ui.painter().rect(
+                            block_rect,
+                            14.0,
+                            fill,
+                            crate::ui_style::modal_outline_stroke(dark),
+                            egui::StrokeKind::Inside,
+                        );
+                        for (idx, step) in steps.iter().enumerate() {
+                            let y = block_rect.top() + step_height * idx as f32 + step_height / 2.0;
+                            ui.painter().text(
+                                egui::pos2(block_rect.center().x, y),
+                                egui::Align2::CENTER_CENTER,
+                                *step,
+                                FontId::proportional(12.0),
+                                if idx == 0 { app_accent() } else { ui.visuals().text_color() },
                             );
-                            ui.add_space(5.0);
                         }
 
-                        ui.add_space(14.0);
+                        ui.add_space(16.0);
                         self.draw_universal_symbols_setup_actions(ui);
                     },
                 );
@@ -3294,7 +3316,7 @@ impl EntropyApp {
         content_rect: egui::Rect,
         dark: bool,
     ) {
-        let title_y = content_rect.top() + 18.0;
+        let title_y = content_rect.top() + 27.0;
         let desc_y = title_y + 28.0;
         let status_y = desc_y + 30.0;
         let supported = self.firmware == FirmwareProtocol::Vial;
@@ -3339,7 +3361,11 @@ impl EntropyApp {
             egui::Align2::CENTER_CENTER,
             "Matrix Tester",
             FontId::proportional(18.0),
-            ui.visuals().text_color(),
+            if dark {
+                Color32::from_rgb(235, 235, 238)
+            } else {
+                Color32::from_rgb(34, 34, 38)
+            },
         );
         painter.text(
             egui::pos2(content_rect.center().x, desc_y),
@@ -3397,7 +3423,7 @@ impl EntropyApp {
             Color32::from_rgb(242, 230, 232)
         };
 
-        let board_top = content_rect.top() + 92.0;
+        let board_top = content_rect.top() + 101.0;
         let hint_y = ui.max_rect().bottom() - 36.0;
         let board_rect = egui::Rect::from_min_max(
             egui::pos2(content_rect.left(), board_top),
