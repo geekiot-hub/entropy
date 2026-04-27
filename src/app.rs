@@ -726,6 +726,60 @@ fn zmk_layer_target(binding: &ZmkBinding, behaviors: &[crate::zmk::BehaviorInfo]
     }
 }
 
+fn zmk_modded_key_retarget_base(
+    binding: &ZmkBinding,
+    behaviors: &[crate::zmk::BehaviorInfo],
+) -> Option<u16> {
+    match zmk_binding_behavior_name(binding, behaviors)? {
+        "Key Press" => {
+            let usage = binding.param1 & 0x00FF_FFFF;
+            let mod_mask = binding.param1 >> 24;
+            if usage != 0 && mod_mask != 0 {
+                match mod_mask {
+                    0x01 => Some(0x0100),
+                    0x02 => Some(0x0200),
+                    0x04 => Some(0x0400),
+                    0x08 => Some(0x0800),
+                    0x10 => Some(0x1100),
+                    0x20 => Some(0x1200),
+                    0x40 => Some(0x1400),
+                    0x80 => Some(0x1800),
+                    0x03 => Some(0x0300),
+                    0x05 => Some(0x0500),
+                    0x06 => Some(0x0600),
+                    0x07 => Some(0x0700),
+                    0x0A => Some(0x0A00),
+                    0x0F => Some(0x0F00),
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+fn zmk_mod_tap_retarget_base(
+    binding: &ZmkBinding,
+    behaviors: &[crate::zmk::BehaviorInfo],
+) -> Option<u16> {
+    match zmk_binding_behavior_name(binding, behaviors)? {
+        "Mod-Tap" => match binding.param1 {
+            0x0007_00E0 => Some(0x2100),
+            0x0007_00E1 => Some(0x2200),
+            0x0007_00E2 => Some(0x2400),
+            0x0007_00E3 => Some(0x2800),
+            0x0007_00E4 => Some(0x3100),
+            0x0007_00E5 => Some(0x3200),
+            0x0007_00E6 => Some(0x3400),
+            0x0007_00E7 => Some(0x3800),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
 fn toggle_handed_zmk_binding(
     binding: &ZmkBinding,
     behaviors: &[crate::zmk::BehaviorInfo],
@@ -5129,31 +5183,34 @@ impl EntropyApp {
         encoder_target: Option<usize>,
     ) {
         if is_zmk {
-            if ctrl_held {
-                if let Some(ki) = key_target {
-                    let (binding, can_retarget_layer) = self
-                        .layout
-                        .as_ref()
-                        .map(|layout| {
-                            let binding = layout.get_zmk_binding(self.selected_layer, ki);
-                            let can_retarget_layer =
-                                zmk_layer_target(&binding, &layout.zmk_behaviors).is_some();
-                            (binding, can_retarget_layer)
-                        })
-                        .unwrap_or_else(|| (ZmkBinding::none(), false));
-                    let behaviors = self
-                        .layout
-                        .as_ref()
-                        .map(|layout| layout.zmk_behaviors.as_slice())
-                        .unwrap_or(&[]);
+            if let Some(ki) = key_target {
+                let binding = self
+                    .layout
+                    .as_ref()
+                    .map(|layout| layout.get_zmk_binding(self.selected_layer, ki))
+                    .unwrap_or_else(ZmkBinding::none);
+                let behaviors = self
+                    .layout
+                    .as_ref()
+                    .map(|layout| layout.zmk_behaviors.as_slice())
+                    .unwrap_or(&[]);
+                if ctrl_held {
                     if let Some(swapped) = toggle_handed_zmk_binding(&binding, behaviors) {
                         self.assign_zmk_binding(self.selected_layer, ki, swapped);
                         self.secondary_click_handled = true;
-                    } else if can_retarget_layer {
+                    } else if zmk_layer_target(&binding, behaviors).is_some() {
                         self.open_picker_for_target(key_target, encoder_target, is_zmk);
                         self.keycode_picker.zmk_layer_retarget_pending = Some(binding);
                         self.secondary_click_handled = true;
                     }
+                } else if let Some(base) = zmk_modded_key_retarget_base(&binding, behaviors) {
+                    self.open_picker_for_target(key_target, encoder_target, is_zmk);
+                    self.keycode_picker.vial_quantum_pending_mod = Some(base);
+                    self.secondary_click_handled = true;
+                } else if let Some(base) = zmk_mod_tap_retarget_base(&binding, behaviors) {
+                    self.open_picker_for_target(key_target, encoder_target, is_zmk);
+                    self.keycode_picker.vial_quantum_pending_mt = Some(base);
+                    self.secondary_click_handled = true;
                 }
             }
             return;
@@ -12901,6 +12958,15 @@ impl EntropyApp {
                                     })
                                 })
                                 .is_some();
+                            let can_retarget_mod_key = binding
+                                .as_ref()
+                                .and_then(|binding| {
+                                    self.layout.as_ref().and_then(|layout| {
+                                        zmk_modded_key_retarget_base(binding, &layout.zmk_behaviors)
+                                            .or_else(|| zmk_mod_tap_retarget_base(binding, &layout.zmk_behaviors))
+                                    })
+                                })
+                                .is_some();
                             let is_mod = binding
                                 .as_ref()
                                 .and_then(|binding| {
@@ -12910,7 +12976,7 @@ impl EntropyApp {
                                 })
                                 .map(|name| matches!(name, "Key Press" | "Sticky Key" | "Mod-Tap"))
                                 .unwrap_or(false)
-                                && can_swap_side;
+                                && (can_swap_side || can_retarget_mod_key);
                             let is_layer = binding
                                 .as_ref()
                                 .and_then(|binding| {
@@ -12925,14 +12991,21 @@ impl EntropyApp {
                             if hovered_can_swap_side {
                                 if self.firmware == FirmwareProtocol::Zmk {
                                     ui.painter().text(
-                                        egui::pos2(center_x, hint_y - 10.0),
+                                        egui::pos2(center_x, hint_y - 22.0),
                                         egui::Align2::CENTER_CENTER,
                                         "Left click to change this key",
                                         hint_font.clone(),
                                         hint_color,
                                     );
                                     ui.painter().text(
-                                        egui::pos2(center_x, hint_y + 8.0),
+                                        egui::pos2(center_x, hint_y - 4.0),
+                                        egui::Align2::CENTER_CENTER,
+                                        "Right click to change the tap/key part",
+                                        secondary_hint_font.clone(),
+                                        hint_color,
+                                    );
+                                    ui.painter().text(
+                                        egui::pos2(center_x, hint_y + 12.0),
                                         egui::Align2::CENTER_CENTER,
                                         "Ctrl+right-click to switch left/right side",
                                         secondary_hint_font,
