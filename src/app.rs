@@ -3061,29 +3061,15 @@ impl EntropyApp {
                         }
                         ui.add_space(16.0);
 
-                        let steps = universal_symbols_setup_steps();
-                        let max_step_width = steps
-                            .iter()
-                            .map(|step| step.chars().count() as f32 * 6.0 + 18.0)
-                            .fold(0.0, f32::max)
-                            .min(content_width);
-                        ui.horizontal_centered(|ui| {
-                            ui.allocate_ui_with_layout(
-                                Vec2::new(max_step_width, 0.0),
-                                egui::Layout::top_down(egui::Align::Min),
-                                |ui| {
-                                    for step in steps {
-                                        ui.horizontal(|ui| {
-                                            ui.label(
-                                                RichText::new("•").size(13.0).color(app_accent()),
-                                            );
-                                            ui.label(RichText::new(*step).size(12.0));
-                                        });
-                                        ui.add_space(5.0);
-                                    }
-                                },
+                        for step in universal_symbols_setup_steps() {
+                            ui.add_sized(
+                                Vec2::new(content_width, 20.0),
+                                egui::Label::new(RichText::new(*step).size(12.0))
+                                    .wrap()
+                                    .halign(egui::Align::Center),
                             );
-                        });
+                            ui.add_space(5.0);
+                        }
 
                         ui.add_space(14.0);
                         self.draw_universal_symbols_setup_actions(ui);
@@ -3129,15 +3115,6 @@ impl EntropyApp {
                 {
                     self.run_linux_universal_symbols_setup("linux/fcitx5/install-user.sh", "Fcitx5");
                 }
-            }
-
-            #[cfg(target_os = "windows")]
-            {
-                ui.label(
-                    RichText::new("Windows backend is active while Entropy is running")
-                        .size(11.0)
-                        .color(app_muted_text(ui.visuals().dark_mode)),
-                );
             }
 
             #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
