@@ -1436,9 +1436,24 @@ impl KeycodePicker {
             ui.allocate_exact_size(Vec2::new(available_width, height), egui::Sense::hover());
         let origin = egui::pos2(rect.min.x + x_offset, rect.min.y);
         for &(row, col, span, fallback_label, value) in keys {
-            let display_label = crate::keycode::find_keycode(value)
-                .map(|_| keycode_label_with_names(value, &[], &self.layer_names))
-                .unwrap_or_else(|| fallback_label.to_string());
+            let display_label = match value {
+                0x0035 => "~\n`".to_string(),
+                0x001E => "!\n1".to_string(),
+                0x001F => "@\n2".to_string(),
+                0x0020 => "#\n3".to_string(),
+                0x0021 => "$\n4".to_string(),
+                0x0022 => "%\n5".to_string(),
+                0x0023 => "^\n6".to_string(),
+                0x0024 => "&\n7".to_string(),
+                0x0025 => "*\n8".to_string(),
+                0x0026 => "(\n9".to_string(),
+                0x0027 => ")\n0".to_string(),
+                0x002D => "_\n-".to_string(),
+                0x002E => "+\n=".to_string(),
+                _ => crate::keycode::find_keycode(value)
+                    .map(|_| keycode_label_with_names(value, &[], &self.layer_names))
+                    .unwrap_or_else(|| fallback_label.to_string()),
+            };
             self.basic_key_button_at(
                 ui,
                 origin,
