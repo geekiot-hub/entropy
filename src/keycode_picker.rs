@@ -2264,28 +2264,6 @@ Right click: One-Shot Right {mod_name}"
         });
     }
 
-    fn zmk_vial_style_behavior_button(
-        &mut self,
-        ui: &mut egui::Ui,
-        label: &str,
-        tooltip: &str,
-        behavior_name: &str,
-        param1: u32,
-        param2: u32,
-        size: Vec2,
-    ) {
-        let Some(id) = self.zmk_behavior_id(behavior_name) else {
-            return;
-        };
-        let resp = ui
-            .add(egui::Button::new(RichText::new(label).size(10.5)).min_size(size))
-            .on_hover_cursor(egui::CursorIcon::PointingHand);
-        if resp.clicked() {
-            self.zmk_assign(id, param1, param2);
-        }
-        resp.on_hover_text(tooltip);
-    }
-
     fn show_zmk_bluetooth_tab(&mut self, ui: &mut egui::Ui) {
         if self.firmware != FirmwareProtocol::Zmk {
             self.show_vial_generic(ui);
@@ -2304,117 +2282,96 @@ Right click: One-Shot Right {mod_name}"
         }
 
         ui.label(
-            RichText::new("Bluetooth profiles")
+            RichText::new("Profiles")
                 .size(11.0)
                 .color(Color32::from_gray(150)),
         );
-        ui.add_space(6.0);
+        ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| {
             for n in 0..=4u32 {
-                let Some(id) = self.zmk_behavior_id("Bluetooth") else {
-                    continue;
-                };
-                let resp = ui
-                    .add_sized(Vec2::new(78.0, 48.0), egui::Button::new(""))
-                    .on_hover_cursor(egui::CursorIcon::PointingHand);
-                let visuals = ui.style().interact(&resp);
-                let top_color = if ui.visuals().dark_mode {
-                    Color32::from_gray(105)
-                } else {
-                    Color32::from_gray(145)
-                };
-                ui.painter().text(
-                    egui::pos2(resp.rect.center().x, resp.rect.center().y - 8.0),
-                    egui::Align2::CENTER_CENTER,
-                    "Profile",
-                    egui::FontId::proportional(9.5),
-                    top_color,
+                self.zmk_special_behavior_button(
+                    ui,
+                    &format!("Profile\n{n}"),
+                    &format!("Select Bluetooth profile {n}"),
+                    "Bluetooth",
+                    4,
+                    n,
+                    62.0,
                 );
-                ui.painter().text(
-                    egui::pos2(resp.rect.center().x, resp.rect.center().y + 8.0),
-                    egui::Align2::CENTER_CENTER,
-                    n.to_string(),
-                    egui::FontId::proportional(15.0),
-                    visuals.fg_stroke.color,
-                );
-                if resp.clicked() {
-                    self.zmk_assign(id, 4, n);
-                }
-                resp.on_hover_text(format!("Select Bluetooth profile {n}"));
             }
         });
 
-        ui.add_space(12.0);
+        ui.add_space(10.0);
         ui.label(
-            RichText::new("Bluetooth actions")
+            RichText::new("Actions")
                 .size(11.0)
                 .color(Color32::from_gray(150)),
         );
-        ui.add_space(6.0);
+        ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| {
-            self.zmk_vial_style_behavior_button(
+            self.zmk_special_behavior_button(
                 ui,
-                "BT\nPrev",
+                "Previous",
                 "Switch to previous Bluetooth profile",
                 "Bluetooth",
                 3,
                 0,
-                Vec2::new(72.0, 44.0),
+                68.0,
             );
-            self.zmk_vial_style_behavior_button(
+            self.zmk_special_behavior_button(
                 ui,
-                "BT\nNext",
+                "Next",
                 "Switch to next Bluetooth profile",
                 "Bluetooth",
                 2,
                 0,
-                Vec2::new(72.0, 44.0),
+                56.0,
             );
-            self.zmk_vial_style_behavior_button(
+            self.zmk_special_behavior_button(
                 ui,
-                "BT\nClear",
-                "Forget current Bluetooth profile",
+                "Forget\nCurrent",
+                "Forget the current Bluetooth profile",
                 "Bluetooth",
                 0,
                 0,
-                Vec2::new(76.0, 44.0),
+                76.0,
             );
-            self.zmk_vial_style_behavior_button(
+            self.zmk_special_behavior_button(
                 ui,
-                "BT\nClear all",
+                "Forget\nAll",
                 "Forget all Bluetooth profiles",
                 "Bluetooth",
                 1,
                 0,
-                Vec2::new(84.0, 44.0),
+                66.0,
             );
         });
 
-        ui.add_space(12.0);
+        ui.add_space(10.0);
         ui.label(
             RichText::new("Output")
                 .size(11.0)
                 .color(Color32::from_gray(150)),
         );
-        ui.add_space(6.0);
+        ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| {
-            self.zmk_vial_style_behavior_button(
+            self.zmk_special_behavior_button(
                 ui,
-                "Out\nUSB",
+                "USB",
                 "Send keystrokes via USB",
                 "Output Selection",
                 0,
                 0,
-                Vec2::new(72.0, 44.0),
+                56.0,
             );
-            self.zmk_vial_style_behavior_button(
+            self.zmk_special_behavior_button(
                 ui,
-                "Out\nBLE",
+                "Bluetooth",
                 "Send keystrokes via Bluetooth",
                 "Output Selection",
                 1,
                 0,
-                Vec2::new(72.0, 44.0),
+                78.0,
             );
         });
     }
@@ -3995,39 +3952,39 @@ Repeat"
             if self.firmware == FirmwareProtocol::Zmk {
                 self.zmk_special_behavior_button(
                     ui,
-                    "Restart\nKeyboard",
+                    "Restart",
                     "Restart the keyboard",
                     "Reset",
                     0,
                     0,
-                    82.0,
+                    62.0,
                 );
                 self.zmk_special_behavior_button(
                     ui,
-                    "Unlock\nEditing",
+                    "Unlock",
                     "Allow live keymap editing",
                     "Studio Unlock",
                     0,
                     0,
-                    82.0,
+                    62.0,
                 );
                 self.zmk_special_behavior_button(
                     ui,
-                    "External\nPower On",
+                    "Power\nOn",
                     "Turn external power on",
                     "External Power",
                     1,
                     0,
-                    86.0,
+                    62.0,
                 );
                 self.zmk_special_behavior_button(
                     ui,
-                    "External\nPower Off",
+                    "Power\nOff",
                     "Turn external power off",
                     "External Power",
                     0,
                     0,
-                    88.0,
+                    62.0,
                 );
             }
         });
