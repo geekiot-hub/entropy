@@ -6121,8 +6121,8 @@ impl EntropyApp {
 
     fn display_preset_choice_label(label: &str) -> String {
         label
-            .replace(" (qmk-hid-host)", " (needs Entropy in background)")
-            .replace("qmk-hid-host", "Entropy in background")
+            .replace(" (qmk-hid-host)", " (Entropy)")
+            .replace("qmk-hid-host", "Entropy")
     }
 
     #[cfg(not(target_arch = "wasm32"))]
