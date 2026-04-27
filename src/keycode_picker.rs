@@ -61,6 +61,7 @@ pub struct KeycodePicker {
     pub zmk_result: Option<ZmkBinding>,
     pub zmk_selected_behavior: Option<usize>,
     pub zmk_layer_count: usize,
+    pub zmk_layer_action_pending: Option<(u32, bool)>,
     pub zmk_layer_tap_pending: Option<u32>,
     pub zmk_mod_tap_pending: Option<u32>,
     // Vial Quantum tab pending state
@@ -127,12 +128,7 @@ impl KeycodeTab {
     pub const ZMK_TABS: &'static [KeycodeTab] = &[
         KeycodeTab::Basic,
         KeycodeTab::Symbols,
-        KeycodeTab::Function,
-        KeycodeTab::Navigation,
         KeycodeTab::Modifiers,
-        KeycodeTab::Layers,
-        KeycodeTab::Media,
-        KeycodeTab::Mouse,
         KeycodeTab::Special,
         KeycodeTab::ZmkAdvanced,
     ];
@@ -246,6 +242,13 @@ fn zmk_hid_usage_for_qmk_value(value: u16) -> Option<u32> {
     }
 }
 
+fn zmk_mouse_button_usage_for_qmk_value(value: u16) -> Option<u32> {
+    match value {
+        0x00D1..=0x00D8 => Some(0x0009_0000u32 | (value as u32 - 0x00D0)),
+        _ => None,
+    }
+}
+
 impl Default for KeycodePicker {
     fn default() -> Self {
         Self {
@@ -273,6 +276,7 @@ impl Default for KeycodePicker {
             zmk_result: None,
             zmk_selected_behavior: None,
             zmk_layer_count: 4,
+            zmk_layer_action_pending: None,
             zmk_layer_tap_pending: None,
             zmk_mod_tap_pending: None,
             vial_quantum_pending_mod: None,
@@ -784,6 +788,72 @@ impl KeycodePicker {
         self.open = false;
     }
 
+    fn zmk_behavior_id(&self, name: &str) -> Option<u32> {
+        self.zmk_find_behavior(name).map(|b| b.id)
+    }
+
+    fn zmk_assign_keycode_value(&mut self, value: u16) -> bool {
+        if value == 0x0000 {
+            if let Some(id) = self.zmk_behavior_id("None") {
+                self.zmk_assign(id, 0, 0);
+                return true;
+            }
+        }
+        if value == 0x0001 {
+            if let Some(id) = self.zmk_behavior_id("Transparent") {
+                self.zmk_assign(id, 0, 0);
+                return true;
+            }
+        }
+
+        let special = match value {
+            0x7C00 => Some("Bootloader"),
+            0x7C16 => Some("Grave/Escape"),
+            0x7C73 => Some("Caps Word"),
+            0x7C79 => Some("Key Repeat"),
+            _ => None,
+        };
+        if let Some(name) = special {
+            if let Some(id) = self.zmk_behavior_id(name) {
+                self.zmk_assign(id, 0, 0);
+                return true;
+            }
+        }
+
+        if let Some(mouse_usage) = zmk_mouse_button_usage_for_qmk_value(value) {
+            if let Some(id) = self.zmk_behavior_id("Mouse Key Press") {
+                self.zmk_assign(id, mouse_usage, 0);
+                return true;
+            }
+        }
+
+        if let Some(usage) = zmk_hid_usage_for_qmk_value(value) {
+            if let Some(id) = self.zmk_behavior_id("Key Press") {
+                self.zmk_assign(id, usage, 0);
+                return true;
+            }
+        }
+
+        false
+    }
+
+    fn zmk_keycode_supported(&self, value: u16) -> bool {
+        match value {
+            0x0000 => self.zmk_behavior_id("None").is_some(),
+            0x0001 => self.zmk_behavior_id("Transparent").is_some(),
+            0x7C00 => self.zmk_behavior_id("Bootloader").is_some(),
+            0x7C16 => self.zmk_behavior_id("Grave/Escape").is_some(),
+            0x7C73 => self.zmk_behavior_id("Caps Word").is_some(),
+            0x7C79 => self.zmk_behavior_id("Key Repeat").is_some(),
+            _ => {
+                (zmk_hid_usage_for_qmk_value(value).is_some()
+                    && self.zmk_behavior_id("Key Press").is_some())
+                    || (zmk_mouse_button_usage_for_qmk_value(value).is_some()
+                        && self.zmk_behavior_id("Mouse Key Press").is_some())
+            }
+        }
+    }
+
     fn finalize_vial_special_tab_close(&mut self) {
         if self.selected_tab == KeycodeTab::Macro {
             if let Some(raw_n) = self.macro_inline_selected {
@@ -808,6 +878,7 @@ impl KeycodePicker {
         let layer_pick_open = self.vial_layer_pending.is_some();
         let pending_key_pick_open = self.vial_quantum_pending_mod.is_some()
             || self.vial_quantum_pending_mt.is_some()
+            || self.zmk_layer_action_pending.is_some()
             || self.zmk_layer_tap_pending.is_some()
             || self.zmk_mod_tap_pending.is_some();
         let tap_dance_editor_open = self.tap_dance_editor_open.is_some();
@@ -1387,8 +1458,15 @@ impl KeycodePicker {
             );
         }
         if resp.clicked() {
-            self.result = Some(value);
-            self.open = false;
+            match self.firmware {
+                FirmwareProtocol::Vial => {
+                    self.result = Some(value);
+                    self.open = false;
+                }
+                FirmwareProtocol::Zmk => {
+                    self.zmk_assign_keycode_value(value);
+                }
+            }
         }
         resp.on_hover_text(tip);
     }
@@ -4130,6 +4208,10 @@ Repeat"
     }
 
     fn show_zmk(&mut self, ctx: &egui::Context) {
+        if self.zmk_layer_action_pending.is_some() {
+            self.show_zmk_layer_picker(ctx);
+            return;
+        }
         if self.zmk_layer_tap_pending.is_some() || self.zmk_mod_tap_pending.is_some() {
             self.show_zmk_tap_key_picker(ctx);
             return;
@@ -4169,197 +4251,325 @@ Repeat"
             return;
         }
 
+        if !KeycodeTab::ZMK_TABS.contains(&self.selected_tab) {
+            self.selected_tab = KeycodeTab::Basic;
+        }
+
         let mut still_open = true;
+        let picker_size = Vec2::new(920.0, 560.0);
         crate::ui_style::centered_modal_window(
             ctx,
-            "Binding",
+            "Key Editor",
             self.popup_state.id(PopupKey::PickerWindow),
             &mut still_open,
-            Vec2::new(KEY_PICKER_POPUP_WIDTH, KEY_PICKER_POPUP_HEIGHT),
+            picker_size,
         )
         .show(ctx, |ui| {
             apply_picker_button_visuals(ui);
             crate::ui_style::modal_intro(ui, "Press a key on your keyboard, or pick below");
             ui.add_space(4.0);
 
-            // Tab bar
             ui.horizontal_wrapped(|ui| {
                 ui.spacing_mut().item_spacing = egui::vec2(6.0, 6.0);
                 for tab in KeycodeTab::ZMK_TABS {
                     let active = self.selected_tab == *tab;
                     if picker_tab_button(ui, tab.label(), active).clicked() {
                         self.selected_tab = *tab;
+                        self.zmk_layer_action_pending = None;
+                        self.zmk_layer_tap_pending = None;
+                        self.zmk_mod_tap_pending = None;
                     }
                 }
             });
             ui.add_space(crate::ui_style::modal_space_sm());
 
-            egui::ScrollArea::vertical().show(ui, |ui| match self.selected_tab {
-                KeycodeTab::Layers => self.show_zmk_layers(ui),
-                KeycodeTab::Modifiers => self.show_zmk_modifiers(ui),
-                KeycodeTab::Mouse => self.show_zmk_mouse(ui),
-                KeycodeTab::Special => self.show_zmk_special(ui),
-                KeycodeTab::ZmkAdvanced => self.show_zmk_advanced(ui),
-                _ => self.show_zmk_keys(ui),
-            });
+            let content_height = 455.0;
+            ui.allocate_ui_with_layout(
+                Vec2::new(ui.available_width(), content_height),
+                egui::Layout::top_down(egui::Align::Min),
+                |ui| {
+                    ui.set_min_height(content_height);
+                    egui::ScrollArea::vertical()
+                        .max_height(content_height)
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| {
+                            ui.scope(|ui| {
+                                apply_picker_button_visuals(ui);
+                                if self.selected_tab == KeycodeTab::Basic {
+                                    ui.add_space(88.0);
+                                    self.show_vial_basic(ui);
+                                } else {
+                                    let centered_width = 840.0_f32.min(ui.available_width());
+                                    let x_offset =
+                                        ((ui.available_width() - centered_width).max(0.0) * 0.5)
+                                            .floor();
+                                    ui.horizontal(|ui| {
+                                        if x_offset > 0.0 {
+                                            ui.add_space(x_offset);
+                                        }
+                                        ui.allocate_ui_with_layout(
+                                            Vec2::new(centered_width, 0.0),
+                                            egui::Layout::top_down(egui::Align::Min),
+                                            |ui| self.show_zmk_tab_content(ui),
+                                        );
+                                    });
+                                }
+                            });
+                        });
+                },
+            );
         });
         if !still_open {
             self.open = false;
         }
     }
 
-    /// Generic ZMK keys tab — shows Key Press behavior with HID usages from KEYCODES table
-    fn show_zmk_keys(&mut self, ui: &mut egui::Ui) {
-        let beh_id = match self.zmk_find_behavior("Key Press") {
-            Some(b) => b.id,
-            None => {
-                ui.label("Key Press behavior not found on device");
-                return;
-            }
-        };
-        let key_choices: Vec<&'static crate::keycode::Keycode> = KEYCODES
-            .iter()
-            .filter(|kc| zmk_tab_matches(self.selected_tab, kc))
-            .filter(|kc| zmk_hid_usage_for_qmk_value(kc.value).is_some())
-            .collect();
-        if let Some(value) =
-            show_grouped_popup_key_buttons(ui, key_choices, &self.layer_names, true)
-        {
-            if let Some(zmk_usage) = zmk_hid_usage_for_qmk_value(value) {
-                self.zmk_assign(beh_id, zmk_usage, 0);
-            }
+    fn show_zmk_tab_content(&mut self, ui: &mut egui::Ui) {
+        match self.selected_tab {
+            KeycodeTab::Basic => self.show_vial_basic(ui),
+            KeycodeTab::Symbols => self.show_zmk_symbols(ui),
+            KeycodeTab::Modifiers => self.show_zmk_modifiers(ui),
+            KeycodeTab::Special => self.show_zmk_special(ui),
+            KeycodeTab::ZmkAdvanced => self.show_zmk_advanced(ui),
+            _ => self.show_zmk_generic(ui),
         }
     }
 
+    fn show_zmk_generic(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal_wrapped(|ui| {
+            for kc in KEYCODES.iter() {
+                if !zmk_tab_matches(self.selected_tab, kc) || !self.zmk_keycode_supported(kc.value) {
+                    continue;
+                }
+                let tip = keycode_tooltip(kc.value, &[], &self.layer_names);
+                let label = keycode_label_with_names(kc.value, &[], &self.layer_names);
+                let resp = ui
+                    .add(
+                        egui::Button::new(RichText::new(label).size(11.0))
+                            .min_size(Vec2::new(52.0, 38.0)),
+                    )
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
+                if resp.clicked() {
+                    self.zmk_assign_keycode_value(kc.value);
+                }
+                resp.on_hover_text(tip);
+            }
+        });
+    }
+
+    fn show_zmk_symbols(&mut self, ui: &mut egui::Ui) {
+        let main_symbol_order = [
+            '.', ',', ';', ':', '!', '?', '/', '`', '~', '\'', '"', '(', ')', '[', ']', '{', '}',
+            '<', '>', '+', '*', '=', '#', '@', '$', '%', '^', '&', '|', '\\', '_', '№',
+        ];
+        let extra_symbol_order = [
+            '₽', '€', '«', '»', '‘', '’', '„', '“', '”', '—', '–', '•', '×', '±', '≠', '≈', '✓',
+            '§', '°', '‰', '′', '″', '™',
+        ];
+
+        self.show_zmk_smart_symbol_section(
+            ui,
+            "Universal symbols — same output in any language",
+            &main_symbol_order,
+        );
+
+        ui.add_space(12.0);
+        ui.separator();
+        ui.add_space(8.0);
+        ui.label(
+            RichText::new("Layout symbols — follow the active keyboard language")
+                .size(11.0)
+                .color(Color32::from_gray(150)),
+        );
+        ui.add_space(6.0);
+        ui.horizontal_wrapped(|ui| {
+            for kc in KEYCODES.iter() {
+                if !KeycodeTab::Symbols.vial_matches(kc) || !self.zmk_keycode_supported(kc.value) {
+                    continue;
+                }
+                let tip = keycode_tooltip(kc.value, &[], &self.layer_names);
+                let label = keycode_label_with_names(kc.value, &[], &self.layer_names);
+                let resp = ui
+                    .add(
+                        egui::Button::new(RichText::new(label).size(11.0))
+                            .min_size(Vec2::new(52.0, 38.0)),
+                    )
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
+                if resp.clicked() {
+                    self.zmk_assign_keycode_value(kc.value);
+                }
+                resp.on_hover_text(tip);
+            }
+        });
+
+        ui.add_space(12.0);
+        ui.separator();
+        ui.add_space(8.0);
+        self.show_zmk_smart_symbol_section(
+            ui,
+            "Extra universal symbols — typography and math",
+            &extra_symbol_order,
+        );
+    }
+
+    fn show_zmk_smart_symbol_section(&mut self, ui: &mut egui::Ui, title: &str, order: &[char]) {
+        ui.label(
+            RichText::new(title)
+                .size(11.0)
+                .color(Color32::from_gray(150)),
+        );
+        if let Some(hint) = crate::smart_input::universal_output_setup_hint() {
+            ui.add_space(3.0);
+            ui.label(
+                RichText::new(hint)
+                    .size(10.0)
+                    .color(Color32::from_gray(120)),
+            );
+        }
+        ui.add_space(6.0);
+        ui.horizontal_wrapped(|ui| {
+            for wanted in order {
+                let Some(smart) = crate::smart_input::SMART_SYMBOLS
+                    .iter()
+                    .copied()
+                    .find(|smart| smart.symbol == *wanted)
+                else {
+                    continue;
+                };
+                if !self.zmk_keycode_supported(smart.trigger_keycode) {
+                    continue;
+                }
+                let label = smart.symbol.to_string();
+                let tip = format!(
+                    "Universal symbol: {} — types {} consistently regardless of the active keyboard language",
+                    smart.name, smart.symbol
+                );
+                let resp = ui
+                    .add(
+                        egui::Button::new(RichText::new(label).size(11.0))
+                            .min_size(Vec2::new(52.0, 38.0)),
+                    )
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
+                if resp.clicked() {
+                    self.zmk_assign_keycode_value(smart.trigger_keycode);
+                }
+                resp.on_hover_text(tip);
+            }
+        });
+    }
+
+
     fn show_zmk_layers(&mut self, ui: &mut egui::Ui) {
-        let ops: &[(&str, &str, &str)] = &[
+        ui.spacing_mut().item_spacing = Vec2::new(6.0, 8.0);
+        let ops: &[(&str, &str, &str, bool)] = &[
             (
                 "Momentary Layer",
-                "Hold\n(MO)",
+                "MO — Momentary",
                 "Hold to activate, release to return",
+                false,
             ),
-            ("Toggle Layer", "Toggle\n(TG)", "Tap to toggle on/off"),
-            ("To Layer", "Switch\n(TO)", "Switch and stay on this layer"),
+            ("Toggle Layer", "TG — Toggle", "Tap to toggle on/off", false),
             (
                 "Sticky Layer",
-                "One-Shot\n(SL)",
+                "OSL — One-Shot",
                 "Active for next keypress only",
+                false,
             ),
-            ("Layer-Tap", "Tap\n(LT)", "Hold=layer, tap=key"),
+            ("To Layer", "TO — Switch", "Switch and stay on this layer", false),
+            ("Layer-Tap", "LT — Layer-Tap", "Hold = activate layer, tap = key", true),
         ];
-        let op_ids: Vec<(&str, &str, &str, Option<u32>)> = ops
-            .iter()
-            .map(|(name, header, hint)| {
-                let id = self.zmk_find_behavior(name).map(|b| b.id);
-                (*name, *header, *hint, id)
-            })
-            .collect();
 
-        let layer_count = self.zmk_layer_count.max(1) as u16;
-        let col_w = 80.0_f32;
-        let row_h = 32.0_f32;
-        let dark = ui.visuals().dark_mode;
-
-        egui::Grid::new("zmk_layers_grid")
-            .spacing([4.0, 2.0])
-            .show(ui, |ui| {
-                ui.label("");
-                for (_, header, hint, _) in &op_ids {
-                    ui.add(
-                        egui::Label::new(RichText::new(*header).size(10.0).strong())
-                            .sense(egui::Sense::hover()),
+        ui.label(
+            RichText::new("Layers: choose a layer action, then pick the target layer")
+                .size(11.0)
+                .color(Color32::from_gray(150)),
+        );
+        ui.add_space(6.0);
+        ui.horizontal_wrapped(|ui| {
+            for (behavior_name, label, hint, needs_tap_key) in ops {
+                let Some(id) = self.zmk_behavior_id(behavior_name) else {
+                    continue;
+                };
+                let resp = ui
+                    .add(
+                        egui::Button::new(RichText::new(*label).size(10.5))
+                            .min_size(Vec2::new(102.0, 34.0)),
                     )
-                    .on_hover_text(*hint);
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
+                if resp.clicked() {
+                    self.zmk_layer_action_pending = Some((id, *needs_tap_key));
                 }
-                ui.end_row();
+                resp.on_hover_text(*hint);
+            }
+        });
+    }
 
-                for n in 0..layer_count {
+    fn show_zmk_layer_picker(&mut self, ctx: &egui::Context) {
+        ctx.input(|i| {
+            for event in &i.events {
+                if let egui::Event::Key { key, pressed: true, .. } = event {
+                    if *key == egui::Key::Escape {
+                        self.zmk_layer_action_pending = None;
+                        self.open = false;
+                        return;
+                    }
+                }
+            }
+        });
+
+        let Some((behavior_id, needs_tap_key)) = self.zmk_layer_action_pending else {
+            return;
+        };
+
+        let mut still_open = true;
+        crate::ui_style::centered_modal_window(
+            ctx,
+            "Pick layer",
+            self.popup_state.id(PopupKey::PickLayerWindow),
+            &mut still_open,
+            Vec2::new(300.0, 120.0),
+        )
+        .show(ctx, |ui| {
+            apply_picker_button_visuals(ui);
+            crate::ui_style::modal_intro(ui, "Choose which layer (Esc to cancel)");
+            ui.add_space(crate::ui_style::modal_space_sm());
+            ui.horizontal_wrapped(|ui| {
+                for n in 0u32..self.zmk_layer_count.max(4) as u32 {
                     let raw = self
                         .layer_names
                         .get(n as usize)
                         .cloned()
                         .unwrap_or(n.to_string());
-                    let is_named = !raw.is_empty() && raw != n.to_string();
-                    let row_bg = if n % 2 == 0 {
-                        if dark {
-                            Color32::from_rgba_premultiplied(255, 255, 255, 6)
-                        } else {
-                            Color32::from_rgba_premultiplied(0, 0, 0, 8)
-                        }
+                    let label = if !raw.is_empty() && raw != n.to_string() {
+                        format!("{}: {}", n, raw)
                     } else {
-                        Color32::TRANSPARENT
+                        format!("Layer {}", n)
                     };
-                    let label_color = if is_named {
-                        crate::ui_style::accent()
-                    } else if dark {
-                        Color32::from_gray(110)
-                    } else {
-                        Color32::from_gray(160)
-                    };
-                    ui.label(
-                        RichText::new(if is_named {
-                            raw
+                    let resp = picker_button(
+                        ui,
+                        &label,
+                        crate::ui_style::modal_small_button_size(84.0),
+                        true,
+                        false,
+                    )
+                    .on_hover_text(label.clone());
+                    if resp.clicked() {
+                        self.zmk_layer_action_pending = None;
+                        if needs_tap_key {
+                            self.zmk_layer_tap_pending = Some(n);
                         } else {
-                            format!("Layer {}", n)
-                        })
-                        .size(11.5)
-                        .color(label_color)
-                        .strong(),
-                    );
-
-                    for (name, header, _, id) in &op_ids {
-                        let op_short = header
-                            .split('\n')
-                            .last()
-                            .unwrap_or("")
-                            .trim_matches(|c| c == '(' || c == ')');
-                        let btn_text = format!("{}({})", op_short, n);
-                        let enabled = id.is_some();
-                        let btn_color = if enabled {
-                            if is_named {
-                                if dark {
-                                    Color32::from_gray(220)
-                                } else {
-                                    Color32::from_gray(30)
-                                }
-                            } else {
-                                if dark {
-                                    Color32::from_gray(100)
-                                } else {
-                                    Color32::from_gray(160)
-                                }
-                            }
-                        } else {
-                            Color32::from_gray(80)
-                        };
-                        let fill = if is_named && enabled {
-                            if dark {
-                                Color32::from_rgb(38, 43, 88)
-                            } else {
-                                Color32::from_rgb(224, 227, 249)
-                            }
-                        } else {
-                            row_bg
-                        };
-                        let resp = ui.add(
-                            egui::Button::new(RichText::new(&btn_text).size(10.5).color(btn_color))
-                                .fill(fill)
-                                .min_size(Vec2::new(col_w, row_h)),
-                        );
-                        if resp.clicked() {
-                            if let Some(beh_id) = id {
-                                if *name == "Layer-Tap" {
-                                    self.zmk_layer_tap_pending = Some(n as u32);
-                                } else {
-                                    self.zmk_assign(*beh_id, n as u32, 0);
-                                }
-                            }
+                            self.zmk_assign(behavior_id, n, 0);
                         }
                     }
-                    ui.end_row();
                 }
             });
+        });
+        if !still_open {
+            self.zmk_layer_action_pending = None;
+            self.open = false;
+        }
     }
+
 
     fn show_zmk_modifiers(&mut self, ui: &mut egui::Ui) {
         let lgui = gui_label(false);
@@ -4559,7 +4769,10 @@ Repeat"
         if let Some(choice) = captured {
             match choice {
                 Some(usage) => self.finish_zmk_hold_tap(usage),
-                None => self.clear_zmk_hold_tap_pending(),
+                None => {
+                    self.clear_zmk_hold_tap_pending();
+                    self.open = false;
+                }
             }
             return;
         }
@@ -4615,6 +4828,7 @@ Repeat"
 
         if !pick_open {
             self.clear_zmk_hold_tap_pending();
+            self.open = false;
         }
     }
 
@@ -4676,6 +4890,99 @@ Repeat"
                     .color(Color32::from_gray(150)),
             );
         }
+    }
+
+    fn show_zmk_keycode_buttons_by_category(&mut self, ui: &mut egui::Ui, category: KeycodeCategory) {
+        ui.horizontal_wrapped(|ui| {
+            for kc in KEYCODES.iter().filter(|kc| kc.category == category) {
+                if !self.zmk_keycode_supported(kc.value) {
+                    continue;
+                }
+                let label = keycode_label_with_names(kc.value, &[], &self.layer_names);
+                let resp = ui
+                    .add(
+                        egui::Button::new(RichText::new(label).size(11.0))
+                            .min_size(Vec2::new(56.0, 42.0)),
+                    )
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
+                if resp.clicked() {
+                    self.zmk_assign_keycode_value(kc.value);
+                }
+                resp.on_hover_text(keycode_tooltip(kc.value, &[], &self.layer_names));
+            }
+        });
+    }
+
+    fn show_zmk_numpad_buttons(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal_wrapped(|ui| {
+            let num_text_color = if ui.visuals().dark_mode {
+                Color32::from_gray(105)
+            } else {
+                Color32::from_gray(145)
+            };
+            for kc in KEYCODES
+                .iter()
+                .filter(|kc| matches!(kc.category, KeycodeCategory::Numpad))
+            {
+                if !self.zmk_keycode_supported(kc.value) {
+                    continue;
+                }
+                let display = match kc.name {
+                    "KC_NUMLOCK" => "Lock",
+                    "KC_KP_SLASH" => "÷",
+                    "KC_KP_ASTERISK" => "×",
+                    "KC_KP_MINUS" => "−",
+                    "KC_KP_PLUS" => "+",
+                    "KC_KP_ENTER" => "Enter",
+                    "KC_KP_1" => "1",
+                    "KC_KP_2" => "2",
+                    "KC_KP_3" => "3",
+                    "KC_KP_4" => "4",
+                    "KC_KP_5" => "5",
+                    "KC_KP_6" => "6",
+                    "KC_KP_7" => "7",
+                    "KC_KP_8" => "8",
+                    "KC_KP_9" => "9",
+                    "KC_KP_0" => "0",
+                    "KC_KP_DOT" => ".",
+                    "KC_KP_COMMA" => ",",
+                    "KC_KP_EQUAL" => "=",
+                    _ => kc
+                        .label
+                        .strip_prefix("Num ")
+                        .or_else(|| kc.label.strip_prefix("Numpad "))
+                        .or_else(|| kc.label.strip_prefix("Num"))
+                        .unwrap_or(kc.label),
+                };
+                let font_size = if display.len() > 2 { 10.5 } else { 13.0 };
+                let resp = ui.add_sized(Vec2::new(56.0, 42.0), egui::Button::new(""));
+                let rect = resp.rect;
+                let painter = ui.painter();
+                let main_color = if resp.hovered() {
+                    ui.visuals().widgets.hovered.fg_stroke.color
+                } else {
+                    ui.visuals().widgets.inactive.fg_stroke.color
+                };
+                painter.text(
+                    egui::pos2(rect.center().x, rect.center().y - 6.0),
+                    egui::Align2::CENTER_CENTER,
+                    "Num",
+                    egui::FontId::proportional(9.5),
+                    num_text_color,
+                );
+                painter.text(
+                    egui::pos2(rect.center().x, rect.center().y + 6.0),
+                    egui::Align2::CENTER_CENTER,
+                    display,
+                    egui::FontId::proportional(font_size),
+                    main_color,
+                );
+                if resp.clicked() {
+                    self.zmk_assign_keycode_value(kc.value);
+                }
+                resp.on_hover_text(keycode_tooltip(kc.value, &[], &self.layer_names));
+            }
+        });
     }
 
     fn show_zmk_special(&mut self, ui: &mut egui::Ui) {
@@ -4748,6 +5055,61 @@ Repeat"
                 resp.on_hover_text("Studio Unlock — tap to allow ZMK Studio to edit the keymap");
             }
         });
+
+        ui.add_space(10.0);
+        ui.label(
+            RichText::new("Media, Apps, System")
+                .size(11.0)
+                .color(Color32::from_gray(150)),
+        );
+        ui.add_space(4.0);
+        self.show_zmk_keycode_buttons_by_category(ui, KeycodeCategory::Media);
+
+        ui.add_space(10.0);
+        ui.label(
+            RichText::new("Mouse")
+                .size(11.0)
+                .color(Color32::from_gray(150)),
+        );
+        ui.add_space(4.0);
+        self.show_zmk_keycode_buttons_by_category(ui, KeycodeCategory::Mouse);
+
+        ui.add_space(10.0);
+        ui.label(
+            RichText::new("Extra function keys")
+                .size(11.0)
+                .color(Color32::from_gray(150)),
+        );
+        ui.add_space(4.0);
+        ui.horizontal_wrapped(|ui| {
+            for value in 0x0068u16..=0x0073u16 {
+                let Some(kc) = KEYCODES.iter().find(|kc| kc.value == value) else {
+                    continue;
+                };
+                if !self.zmk_keycode_supported(kc.value) {
+                    continue;
+                }
+                let resp = ui
+                    .add(
+                        egui::Button::new(RichText::new(kc.label).size(11.0))
+                            .min_size(Vec2::new(56.0, 42.0)),
+                    )
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
+                if resp.clicked() {
+                    self.zmk_assign_keycode_value(kc.value);
+                }
+                resp.on_hover_text(format!("Function key {}", kc.label));
+            }
+        });
+
+        ui.add_space(10.0);
+        ui.label(
+            RichText::new("Numpad")
+                .size(11.0)
+                .color(Color32::from_gray(150)),
+        );
+        ui.add_space(4.0);
+        self.show_zmk_numpad_buttons(ui);
 
         ui.separator();
         ui.label(
