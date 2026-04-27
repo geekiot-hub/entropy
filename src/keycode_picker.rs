@@ -1031,12 +1031,12 @@ impl KeycodePicker {
 
     fn zmk_modifier_usage_from_vial_osm(value: u16) -> Option<u32> {
         match value {
-            0x52A2 => Some(0x0007_00E0), // LCtrl
-            0x52A1 => Some(0x0007_00E1), // LShift
+            0x52A1 => Some(0x0007_00E0), // LCtrl
+            0x52A2 => Some(0x0007_00E1), // LShift
             0x52A4 => Some(0x0007_00E2), // LAlt
             0x52A8 => Some(0x0007_00E3), // LGUI
-            0x52B2 => Some(0x0007_00E4), // RCtrl
-            0x52B1 => Some(0x0007_00E5), // RShift
+            0x52B1 => Some(0x0007_00E4), // RCtrl
+            0x52B2 => Some(0x0007_00E5), // RShift
             0x52B4 => Some(0x0007_00E6), // RAlt
             0x52B8 => Some(0x0007_00E7), // RGUI
             _ => None,
@@ -2271,8 +2271,8 @@ impl KeycodePicker {
         );
         ui.add_space(4.0);
         let mut osm: Vec<(String, u16, Option<u16>, String)> = vec![
-            ("OSM Ctrl".into(), 0x52A2, Some(0x52B2), "Ctrl".into()),
-            ("OSM Shift".into(), 0x52A1, Some(0x52B1), "Shift".into()),
+            ("OSM Ctrl".into(), 0x52A1, Some(0x52B1), "Ctrl".into()),
+            ("OSM Shift".into(), 0x52A2, Some(0x52B2), "Shift".into()),
             ("OSM Alt".into(), 0x52A4, Some(0x52B4), "Alt".into()),
             (format!("OSM {}", lgui), 0x52A8, Some(0x52B8), lgui.to_string()),
             ("OSM Meh".into(), 0x52A7, None, "Meh (Ctrl+Shift+Alt)".into()),

@@ -25,6 +25,64 @@ pub fn gui_mod_name() -> &'static str {
     #[cfg(not(any(target_os = "macos", target_os = "windows")))] { "Super" }
 }
 
+fn osm_mod_bits(value: u16) -> Option<u16> {
+    (0x52A0..=0x52BF).contains(&value).then_some(value & 0x1F)
+}
+
+fn osm_mod_short_name(bits: u16) -> String {
+    let right = bits & 0x10 != 0;
+    let core = bits & 0x0F;
+    let gui = gui_sym();
+    let name = match core {
+        0x01 => "Ctrl".to_string(),
+        0x02 => "Shift".to_string(),
+        0x04 => "Alt".to_string(),
+        0x08 => gui.to_string(),
+        0x03 => "CS".to_string(),
+        0x05 => "CA".to_string(),
+        0x09 => format!("C{gui}"),
+        0x0B => format!("CS{gui}"),
+        0x06 => "SA".to_string(),
+        0x0A => format!("S{gui}"),
+        0x0E => format!("SA{gui}"),
+        0x0D => format!("CA{gui}"),
+        0x0C => format!("A{gui}"),
+        0x07 => "Meh".to_string(),
+        0x0F => "Hyper".to_string(),
+        _ => "Mod".to_string(),
+    };
+
+    match core {
+        0x01 | 0x02 | 0x04 | 0x08 => format!("{}{}", if right { "R" } else { "L" }, name),
+        _ if right => format!("R{name}"),
+        _ => name,
+    }
+}
+
+fn osm_mod_full_name(bits: u16) -> String {
+    let right = bits & 0x10 != 0;
+    let side = if right { "Right" } else { "Left" };
+    let gui = gui_mod_name();
+    match bits & 0x0F {
+        0x01 => format!("{side} Ctrl"),
+        0x02 => format!("{side} Shift"),
+        0x04 => format!("{side} Alt"),
+        0x08 => format!("{side} {gui}"),
+        0x03 => format!("{side} Ctrl+Shift"),
+        0x05 => format!("{side} Ctrl+Alt"),
+        0x09 => format!("{side} Ctrl+{gui}"),
+        0x0B => format!("{side} Ctrl+Shift+{gui}"),
+        0x06 => format!("{side} Shift+Alt"),
+        0x0A => format!("{side} Shift+{gui}"),
+        0x0E => format!("{side} Shift+Alt+{gui}"),
+        0x0D => format!("{side} Ctrl+Alt+{gui}"),
+        0x0C => format!("{side} Alt+{gui}"),
+        0x07 => format!("{side} Meh (Ctrl+Shift+Alt)"),
+        0x0F => format!("{side} Hyper (Ctrl+Shift+Alt+{gui})"),
+        _ => "modifier".to_string(),
+    }
+}
+
 pub fn key_label_font_sizes(label: &str) -> (Option<f32>, f32) {
     let lines: Vec<&str> = label.split('\n').collect();
     let is_symbol_line = |line: &str| {
@@ -562,30 +620,10 @@ pub fn keycode_label_with_names(value: u16, custom: &[CustomKeycode], layer_name
         return format!("USER{}", value - QK_KB);
     }
 
-    // One-shot mod: 0x52A0 / 0x52B0
-    if value & 0xFF00 == 0x52A0 || value & 0xFF00 == 0x52B0 {
-        let mod_str = match value {
-            0x52A2 => "LCtrl",
-            0x52B2 => "RCtrl",
-            0x52A1 => "LShift",
-            0x52B1 => "RShift",
-            0x52A4 => "LAlt",
-            0x52B4 => "RAlt",
-            0x52A8 => {
-                #[cfg(target_os = "macos")] { "LCmd" }
-                #[cfg(target_os = "windows")] { "LWin" }
-                #[cfg(not(any(target_os = "macos", target_os = "windows")))] { "LSuper" }
-            }
-            0x52B8 => {
-                #[cfg(target_os = "macos")] { "RCmd" }
-                #[cfg(target_os = "windows")] { "RWin" }
-                #[cfg(not(any(target_os = "macos", target_os = "windows")))] { "RSuper" }
-            }
-            0x52A7 => "Meh",
-            0x52AF => "Hyper",
-            _ => "Mod",
-        };
-        return format!("OSM/{}", mod_str);
+    // One-shot mod: 0x52A0..=0x52BF (Vial protocol v6)
+    if let Some(bits) = osm_mod_bits(value) {
+        return format!("OSM
+{}", osm_mod_short_name(bits));
     }
 
     // Layer ops — vial v6 protocol (0x5000..0x5FFF) MUST come before LT check!
@@ -605,18 +643,8 @@ pub fn keycode_label_with_names(value: u16, custom: &[CustomKeycode], layer_name
             2 => layer_label("DF",  sub & 0x1F),
             3 => layer_label("TG",  sub & 0x1F),
             4 => layer_label("OSL", sub & 0x1F),
-            5 => {
-                let mods = sub;
-                let gui = gui_sym();
-                let mod_str: String = match mods {
-                    0x01 => "LShift".into(), 0x02 => "LCtrl".into(), 0x04 => "LAlt".into(),
-                    0x08 => format!("L{}", gui),
-                    0x11 => "RShift".into(), 0x12 => "RCtrl".into(), 0x14 => "RAlt".into(),
-                    0x18 => format!("R{}", gui),
-                    0x07 => "Meh".into(), 0x0F => "Hyper".into(), _ => "Mod".into(),
-                };
-                format!("OSM/{}", mod_str)
-            }
+            5 => format!("OSM
+{}", osm_mod_short_name(sub & 0x1F)),
             6 => layer_label("TT",  sub & 0x1F),
             7 => layer_label("PDF", sub & 0x1F),
             _ => format!("{:04X}", value),
@@ -750,21 +778,9 @@ pub fn keycode_tooltip(value: u16, custom: &[CustomKeycode], layer_names: &[Stri
         return tip;
     }
 
-    // ── One-shot mod: 0x52A0/0x52B0 range ───────────────────────────────────
-    if value & 0xFF00 == 0x52A0 || value & 0xFF00 == 0x52B0 {
-        let full_name = match value {
-            0x52A2 => "Left Ctrl".to_string(),
-            0x52B2 => "Right Ctrl".to_string(),
-            0x52A1 => "Left Shift".to_string(),
-            0x52B1 => "Right Shift".to_string(),
-            0x52A4 => "Left Alt".to_string(),
-            0x52B4 => "Right Alt".to_string(),
-            0x52A8 => format!("Left {}", gui_mod_name()),
-            0x52B8 => format!("Right {}", gui_mod_name()),
-            0x52A7 => "Meh (Ctrl+Shift+Alt)".to_string(),
-            0x52AF => format!("Hyper (Ctrl+Shift+Alt+{})", gui_mod_name()),
-            _ => "modifier".to_string(),
-        };
+    // ── One-shot mod: 0x52A0..=0x52BF (Vial protocol v6) ─────────────────────
+    if let Some(bits) = osm_mod_bits(value) {
+        let full_name = osm_mod_full_name(bits);
         return format!("One-Shot {full_name} — applies {full_name} to the next keypress only");
     }
 
