@@ -5977,7 +5977,12 @@ impl EntropyApp {
                 } else {
                     Color32::from_gray(28)
                 };
-                let subtitle_color = app_muted_text(dark);
+                // Match Vial unlock header positioning and subtitle tone exactly.
+                let subtitle_color = if dark {
+                    Color32::from_gray(180)
+                } else {
+                    Color32::from_gray(96)
+                };
                 let card_fill = if dark {
                     Color32::from_rgb(24, 24, 27)
                 } else {
@@ -6005,15 +6010,17 @@ impl EntropyApp {
                 };
 
                 let center = screen.center();
+                let center_x = center.x;
+                let top_y = screen.min.y + 40.0;
                 ui.painter().text(
-                    egui::pos2(center.x, screen.min.y + 40.0),
+                    egui::pos2(center_x, top_y),
                     egui::Align2::CENTER_CENTER,
                     "🔓 Unlock Keyboard",
                     FontId::proportional(24.0),
                     title_color,
                 );
                 ui.painter().text(
-                    egui::pos2(center.x, screen.min.y + 70.0),
+                    egui::pos2(center_x, top_y + 30.0),
                     egui::Align2::CENTER_CENTER,
                     "Press and hold the Studio Unlock key on your keyboard",
                     FontId::proportional(14.0),
