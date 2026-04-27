@@ -2186,7 +2186,7 @@ impl EntropyApp {
                         // for known K:03 Pro identities.
                         let touchpad_settings = {
                             let mut tp = TouchpadSettingsState::default();
-                            if Self::device_uses_touchpad_settings(&dev) {
+                            if Self::device_uses_touchpad_settings(&dev, &layout) {
                                 match dev_conn.get_qmk_setting_u16(120) {
                                     Ok(v) => {
                                         tp.dpi = v;
@@ -6257,19 +6257,27 @@ impl EntropyApp {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn device_uses_touchpad_settings(device: &crate::device::Device) -> bool {
+    fn device_uses_touchpad_settings(
+        device: &crate::device::Device,
+        layout: &KeyboardLayout,
+    ) -> bool {
         if device.firmware != FirmwareProtocol::Vial {
             return false;
         }
 
-        let name = device.name.to_ascii_lowercase();
+        let name = format!("{} {}", device.name, layout.name).to_ascii_lowercase();
         let looks_like_k03_pro = name.contains("k:03")
             || name.contains("k03")
             || name.contains("k-03")
             || name.contains("k 03");
         let ergohaven_k03_pro = device.vendor_id == 0xE126 && device.product_id == 0x00A1;
+        let k03_pro_layout_shape = layout.rows == 10
+            && layout.cols == 6
+            && layout.custom_keycodes.iter().any(|kc| kc.name == "EH_SNP")
+            && layout.custom_keycodes.iter().any(|kc| kc.name == "EH_SCR")
+            && layout.custom_keycodes.iter().any(|kc| kc.name == "EH_TXT");
 
-        ergohaven_k03_pro || looks_like_k03_pro
+        ergohaven_k03_pro || looks_like_k03_pro || k03_pro_layout_shape
     }
 
     #[cfg(not(target_arch = "wasm32"))]
