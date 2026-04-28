@@ -2351,7 +2351,6 @@ impl EntropyApp {
                                 }
                             }
                             log::info!("Vial: patched {} keys", patched);
-                            crate::keyboard::normalize_near_grid_vertical_gaps(&mut layout.keys);
                         } else {
                             log::info!("Vial: no embedded layout found for '{}'", dev.name);
                         }
