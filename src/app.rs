@@ -568,6 +568,26 @@ use crate::keycode::{key_label_font_sizes, keycode_label_with_names, keycode_too
 use crate::keycode_picker::{egui_key_to_qmk, KeycodePicker, KeycodeTab};
 use egui::{Color32, FontId, RichText, Sense, Stroke, Vec2};
 
+const LAYOUT_BASE_UNIT: f32 = 54.0_f32 * 1.15;
+const LAYOUT_KEY_PADDING: f32 = 2.5_f32;
+const LAYOUT_FIT_MARGIN: f32 = 40.0_f32;
+
+fn layout_keycap_rect(
+    offset_x: f32,
+    offset_y: f32,
+    unit: f32,
+    padding: f32,
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+) -> egui::Rect {
+    egui::Rect::from_min_size(
+        egui::pos2(offset_x + x * unit + padding, offset_y + y * unit + padding),
+        Vec2::new(w * unit - padding * 2.0, h * unit - padding * 2.0),
+    )
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 use std::sync::mpsc;
 
@@ -4072,8 +4092,8 @@ impl EntropyApp {
             return;
         }
 
-        let base_unit = 54.0_f32 * 1.15;
-        let padding = 4.0_f32;
+        let base_unit = LAYOUT_BASE_UNIT;
+        let padding = LAYOUT_KEY_PADDING;
         let mut min_x = f32::MAX;
         let mut min_y = f32::MAX;
         let mut max_x = f32::MIN;
@@ -4096,7 +4116,7 @@ impl EntropyApp {
 
         let span_x = max_x - min_x;
         let span_y = max_y - min_y;
-        let margin = 40.0_f32;
+        let margin = LAYOUT_FIT_MARGIN;
         let board_size = board_rect.size();
         let scale_x = (board_size.x - margin) / (span_x * base_unit).max(1.0);
         let scale_y = (board_size.y - margin) / (span_y * base_unit).max(1.0);
@@ -4132,12 +4152,15 @@ impl EntropyApp {
                 .get(matrix_idx)
                 .copied()
                 .unwrap_or(false);
-            let rect = egui::Rect::from_min_size(
-                egui::pos2(
-                    offset_x + key.x * unit + padding,
-                    offset_y + key.y * unit + padding,
-                ),
-                Vec2::new(key.w * unit - padding * 2.0, key.h * unit - padding * 2.0),
+            let rect = layout_keycap_rect(
+                offset_x,
+                offset_y,
+                unit,
+                padding,
+                key.x,
+                key.y,
+                key.w,
+                key.h,
             );
 
             let fill = if is_pressed {
@@ -5996,10 +6019,10 @@ impl eframe::App for EntropyApp {
 
                     // Draw layout keys with highlighted unlock keys
                     if let Some(layout) = &self.layout {
-                        let base_unit = 54.0f32 * 1.15;
+                        let base_unit = LAYOUT_BASE_UNIT;
                         let (off_x, off_y, unit, padding) =
                             self.last_layout_geometry.unwrap_or_else(|| {
-                                let padding = 4.0f32;
+                                let padding = LAYOUT_KEY_PADDING;
                                 let mut min_x = f32::MAX;
                                 let mut min_y = f32::MAX;
                                 let mut max_x = f32::MIN;
@@ -6018,7 +6041,7 @@ impl eframe::App for EntropyApp {
                                 }
                                 let span_x = max_x - min_x;
                                 let span_y = max_y - min_y;
-                                let margin = 40.0f32;
+                                let margin = LAYOUT_FIT_MARGIN;
                                 let scale_x =
                                     (screen.width() - margin) / (span_x * base_unit).max(1.0);
                                 let scale_y =
@@ -6038,15 +6061,15 @@ impl eframe::App for EntropyApp {
                             let is_unlock = unlock_keys
                                 .iter()
                                 .any(|(r, c)| key.row == *r && key.col == *c);
-                            let rect = egui::Rect::from_min_size(
-                                egui::pos2(
-                                    off_x + key.x * unit + padding,
-                                    off_y + key.y * unit + padding,
-                                ),
-                                egui::Vec2::new(
-                                    key.w * unit - padding * 2.0,
-                                    key.h * unit - padding * 2.0,
-                                ),
+                            let rect = layout_keycap_rect(
+                                off_x,
+                                off_y,
+                                unit,
+                                padding,
+                                key.x,
+                                key.y,
+                                key.w,
+                                key.h,
                             );
                             let bg = if is_unlock {
                                 app_accent()
@@ -11640,8 +11663,8 @@ impl EntropyApp {
     }
 
     fn draw_layout(&mut self, ui: &mut egui::Ui, layout: &KeyboardLayout, ctx: &egui::Context) {
-        let base_unit = 54.0_f32 * 1.15; // +15%
-        let padding = 2.5_f32;
+        let base_unit = LAYOUT_BASE_UNIT;
+        let padding = LAYOUT_KEY_PADDING;
 
         let avail = ui.available_size();
 
@@ -11673,7 +11696,7 @@ impl EntropyApp {
         let span_y = max_y - min_y;
 
         // Scale unit to fit available space with some margin
-        let margin = 40.0_f32;
+        let margin = LAYOUT_FIT_MARGIN;
         let scale_x = (avail.x - margin) / (span_x * base_unit).max(1.0);
         let scale_y = (avail.y - margin) / (span_y * base_unit).max(1.0);
         let scale = scale_x.min(scale_y).min(1.0);
@@ -13212,12 +13235,15 @@ impl EntropyApp {
             .iter()
             .enumerate()
             .map(|(ki, key)| {
-                let rect = egui::Rect::from_min_size(
-                    egui::pos2(
-                        offset_x + key.x * unit + padding,
-                        offset_y + key.y * unit + padding,
-                    ),
-                    Vec2::new(key.w * unit - padding * 2.0, key.h * unit - padding * 2.0),
+                let rect = layout_keycap_rect(
+                    offset_x,
+                    offset_y,
+                    unit,
+                    padding,
+                    key.x,
+                    key.y,
+                    key.w,
+                    key.h,
                 );
                 (ki, rect)
             })
@@ -13227,15 +13253,15 @@ impl EntropyApp {
             .iter()
             .enumerate()
             .map(|(ei, encoder)| {
-                let rect = egui::Rect::from_min_size(
-                    egui::pos2(
-                        offset_x + encoder.x * unit + padding,
-                        offset_y + encoder.y * unit + padding,
-                    ),
-                    Vec2::new(
-                        encoder.w * unit - padding * 2.0,
-                        encoder.h * unit - padding * 2.0,
-                    ),
+                let rect = layout_keycap_rect(
+                    offset_x,
+                    offset_y,
+                    unit,
+                    padding,
+                    encoder.x,
+                    encoder.y,
+                    encoder.w,
+                    encoder.h,
                 );
                 (ei, rect)
             })
