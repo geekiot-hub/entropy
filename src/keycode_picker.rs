@@ -4455,29 +4455,49 @@ Repeat"
                 let visuals = ui.style().interact(&resp);
                 let painter = ui.painter();
                 let lines: Vec<&str> = text.split('\n').collect();
-                let text_font = if lines.iter().any(|line| line.chars().count() > 8) {
-                    9.4
+                if lines.len() == 2 {
+                    let top_color = if ui.visuals().dark_mode {
+                        Color32::from_gray(105)
+                    } else {
+                        Color32::from_gray(145)
+                    };
+                    let top_galley = painter.layout_no_wrap(
+                        lines[0].to_owned(),
+                        egui::FontId::proportional(9.3),
+                        top_color,
+                    );
+                    let bottom_galley = painter.layout_no_wrap(
+                        lines[1].to_owned(),
+                        egui::FontId::proportional(10.6),
+                        visuals.fg_stroke.color,
+                    );
+                    let line_spacing = 1.0;
+                    let top_size = top_galley.size();
+                    let bottom_size = bottom_galley.size();
+                    let total_height = top_size.y + line_spacing + bottom_size.y;
+                    let top_pos = egui::pos2(
+                        resp.rect.center().x - top_size.x / 2.0,
+                        resp.rect.center().y - total_height / 2.0,
+                    );
+                    painter.galley(top_pos, top_galley, top_color);
+                    let bottom_pos = egui::pos2(
+                        resp.rect.center().x - bottom_size.x / 2.0,
+                        top_pos.y + top_size.y + line_spacing,
+                    );
+                    painter.galley(bottom_pos, bottom_galley, visuals.fg_stroke.color);
                 } else {
-                    10.5
-                };
-                let galleys: Vec<_> = lines
-                    .iter()
-                    .map(|line| {
-                        painter.layout_no_wrap(
-                            (*line).to_owned(),
-                            egui::FontId::proportional(text_font),
-                            visuals.fg_stroke.color,
-                        )
-                    })
-                    .collect();
-                let line_spacing = 1.0;
-                let total_height: f32 = galleys.iter().map(|galley| galley.size().y).sum::<f32>()
-                    + line_spacing * (galleys.len().saturating_sub(1) as f32);
-                let mut y = resp.rect.center().y - total_height / 2.0;
-                for galley in galleys {
-                    let pos = egui::pos2(resp.rect.center().x - galley.size().x / 2.0, y);
-                    y += galley.size().y + line_spacing;
-                    painter.galley(pos, galley, visuals.fg_stroke.color);
+                    let text_font = if text.chars().count() > 8 { 9.4 } else { 10.5 };
+                    let text_galley = painter.layout_no_wrap(
+                        text.to_owned(),
+                        egui::FontId::proportional(text_font),
+                        visuals.fg_stroke.color,
+                    );
+                    let text_size = text_galley.size();
+                    let text_pos = egui::pos2(
+                        resp.rect.center().x - text_size.x / 2.0,
+                        resp.rect.center().y - text_size.y / 2.0,
+                    );
+                    painter.galley(text_pos, text_galley, visuals.fg_stroke.color);
                 }
                 if resp.clicked() {
                     self.assign_keycode_value(value);
