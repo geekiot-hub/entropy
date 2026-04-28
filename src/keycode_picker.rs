@@ -1829,11 +1829,11 @@ impl KeycodePicker {
     }
 
     fn show_vial_basic(&mut self, ui: &mut egui::Ui) {
-        const COLS: usize = 19;
+        const COLS: usize = 16;
         const ROWS: usize = 6;
 
-        let cell_w = 44.0;
-        let cell_h = 44.0;
+        let cell_w = 54.0;
+        let cell_h = 54.0;
         let gap = 3.0;
         let width = COLS as f32 * cell_w + (COLS.saturating_sub(1)) as f32 * gap;
         let height = ROWS as f32 * cell_h + (ROWS.saturating_sub(1)) as f32 * gap;
