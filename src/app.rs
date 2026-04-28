@@ -2008,12 +2008,6 @@ pub struct EntropyApp {
     matrix_tester_last_poll: std::time::Instant,
     matrix_tester_unlock_prompted: bool,
     matrix_tester_lock_checked: bool,
-    #[cfg(not(target_arch = "wasm32"))]
-    matrix_tester_poll_rx: Option<std::sync::mpsc::Receiver<Result<Vec<bool>, String>>>,
-    #[cfg(not(target_arch = "wasm32"))]
-    matrix_tester_poll_stop: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
-    #[cfg(not(target_arch = "wasm32"))]
-    matrix_tester_poll_signature: Option<(String, usize, usize)>,
     macro_auto_unlock_cancelled: bool,
     settings_tab: SettingsTab,
     layer_names: Vec<String>,
@@ -2131,12 +2125,6 @@ impl EntropyApp {
             matrix_tester_last_poll: std::time::Instant::now(),
             matrix_tester_unlock_prompted: false,
             matrix_tester_lock_checked: false,
-            #[cfg(not(target_arch = "wasm32"))]
-            matrix_tester_poll_rx: None,
-            #[cfg(not(target_arch = "wasm32"))]
-            matrix_tester_poll_stop: None,
-            #[cfg(not(target_arch = "wasm32"))]
-            matrix_tester_poll_signature: None,
             macro_auto_unlock_cancelled: false,
             settings_tab: SettingsTab::MatrixTester,
             layer_names: load_layer_names("default"),
@@ -3534,8 +3522,6 @@ impl EntropyApp {
         self.matrix_tester_last_poll = std::time::Instant::now();
         self.matrix_tester_unlock_prompted = false;
         self.matrix_tester_lock_checked = false;
-        #[cfg(not(target_arch = "wasm32"))]
-        self.stop_matrix_tester_poll_worker();
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -3600,82 +3586,22 @@ impl EntropyApp {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn stop_matrix_tester_poll_worker(&mut self) {
-        if let Some(stop) = self.matrix_tester_poll_stop.take() {
-            stop.store(true, std::sync::atomic::Ordering::Relaxed);
+    fn poll_matrix_tester(&mut self, ctx: &egui::Context, layout: &KeyboardLayout) {
+        if self.main_menu_tab != MainMenuTab::Settings || self.firmware != FirmwareProtocol::Vial {
+            return;
         }
-        self.matrix_tester_poll_rx = None;
-        self.matrix_tester_poll_signature = None;
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    fn ensure_matrix_tester_poll_worker(&mut self, layout: &KeyboardLayout) {
-        let Some(dev) = self
-            .selected_device
-            .and_then(|idx| self.device_manager.devices().get(idx))
-            .cloned()
-        else {
-            self.stop_matrix_tester_poll_worker();
+        if self.unlock_open || self.vial_unlock_polling {
+            return;
+        }
+        let Some(hid) = &self.hid_device else {
             return;
         };
-        let signature = (dev.path.clone(), layout.rows, layout.cols);
-        if self.matrix_tester_poll_signature.as_ref() == Some(&signature)
-            && self.matrix_tester_poll_rx.is_some()
+
+        let now = std::time::Instant::now();
+        if now.duration_since(self.matrix_tester_last_poll) >= std::time::Duration::from_millis(50)
         {
-            return;
-        }
-
-        self.stop_matrix_tester_poll_worker();
-        let (tx, rx) = std::sync::mpsc::channel();
-        let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-        let stop_thread = stop.clone();
-        let rows = layout.rows;
-        let cols = layout.cols;
-        let path = dev.path;
-        std::thread::spawn(move || {
-            let hid = match crate::hid::HidDevice::open(&path) {
-                Ok(hid) => hid,
-                Err(e) => {
-                    let _ = tx.send(Err(format!("Matrix tester reconnect failed: {e}")));
-                    return;
-                }
-            };
-            while !stop_thread.load(std::sync::atomic::Ordering::Relaxed) {
-                let result = hid.get_switch_matrix(rows, cols).map_err(|e| e.to_string());
-                if tx.send(result).is_err() {
-                    break;
-                }
-                std::thread::sleep(std::time::Duration::from_millis(5));
-            }
-        });
-        self.matrix_tester_poll_rx = Some(rx);
-        self.matrix_tester_poll_stop = Some(stop);
-        self.matrix_tester_poll_signature = Some(signature);
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    fn poll_matrix_tester(&mut self, ctx: &egui::Context, layout: &KeyboardLayout) {
-        if self.main_menu_tab != MainMenuTab::Settings
-            || self.settings_tab != SettingsTab::MatrixTester
-            || self.firmware != FirmwareProtocol::Vial
-            || self.unlock_open
-            || self.vial_unlock_polling
-        {
-            self.stop_matrix_tester_poll_worker();
-            return;
-        }
-
-        self.ensure_matrix_tester_poll_worker(layout);
-
-        let mut latest: Option<Result<Vec<bool>, String>> = None;
-        if let Some(rx) = &self.matrix_tester_poll_rx {
-            while let Ok(result) = rx.try_recv() {
-                latest = Some(result);
-            }
-        }
-
-        if let Some(result) = latest {
-            match result {
+            self.matrix_tester_last_poll = now;
+            match hid.get_switch_matrix(layout.rows, layout.cols) {
                 Ok(pressed) => {
                     if self.matrix_tester_ever_pressed.len() != pressed.len() {
                         self.matrix_tester_ever_pressed = vec![false; pressed.len()];
@@ -3691,11 +3617,10 @@ impl EntropyApp {
                 }
                 Err(e) => {
                     log::warn!("Matrix poll error: {e}");
-                    self.stop_matrix_tester_poll_worker();
                 }
             }
         }
-        ctx.request_repaint_after(std::time::Duration::from_millis(16));
+        ctx.request_repaint_after(std::time::Duration::from_millis(50));
     }
 
     fn draw_settings_screen(
@@ -3708,8 +3633,6 @@ impl EntropyApp {
         #[cfg(not(target_arch = "wasm32"))]
         if self.settings_tab == SettingsTab::MatrixTester {
             self.poll_matrix_tester(ctx, layout);
-        } else {
-            self.stop_matrix_tester_poll_worker();
         }
 
         if self.settings_tab == SettingsTab::MatrixTester {
