@@ -2697,7 +2697,12 @@ impl KeycodePicker {
         _footer_text: &'static str,
     ) -> u8 {
         let mut selected_macro = raw_n;
-        crate::ui_style::modal_section_title(ui, "Choose macro");
+        ui.label(
+            RichText::new("Choose macro")
+                .size(11.0)
+                .color(Color32::from_gray(150)),
+        );
+        ui.add_space(4.0);
         egui::Frame::NONE.show(ui, |ui| {
             ui.set_max_height(86.0);
             egui::ScrollArea::vertical()
@@ -3039,7 +3044,12 @@ impl KeycodePicker {
         self.tap_dance_editor_open = Some(selected);
         self.ensure_tap_dance_name_len(selected as usize);
 
-        crate::ui_style::modal_section_title(ui, "Choose tap dance");
+        ui.label(
+            RichText::new("Choose tap dance")
+                .size(11.0)
+                .color(Color32::from_gray(150)),
+        );
+        ui.add_space(4.0);
         egui::Frame::NONE.show(ui, |ui| {
             ui.set_max_height(86.0);
             egui::ScrollArea::vertical()
