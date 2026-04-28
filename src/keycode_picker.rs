@@ -2278,10 +2278,10 @@ impl KeycodePicker {
         );
         ui.add_space(4.0);
         let plain: Vec<(String, u16, u16, String)> = vec![
-            ("Mod\nCtrl".into(), 0x00E0, 0x00E4, "Ctrl".into()),
-            ("Mod\nShift".into(), 0x00E1, 0x00E5, "Shift".into()),
-            ("Mod\nAlt".into(), 0x00E2, 0x00E6, "Alt".into()),
-            (format!("Mod\n{gui}"), 0x00E3, 0x00E7, lgui.to_string()),
+            ("Ctrl".into(), 0x00E0, 0x00E4, "Ctrl".into()),
+            ("Shift".into(), 0x00E1, 0x00E5, "Shift".into()),
+            ("Alt".into(), 0x00E2, 0x00E6, "Alt".into()),
+            (gui.into(), 0x00E3, 0x00E7, lgui.to_string()),
         ];
         ui.horizontal_wrapped(|ui| {
             for (label, left_value, right_value, mod_name) in &plain {
