@@ -4343,19 +4343,6 @@ Repeat"
             ("🪟", "Mission", 0x00BF),
             ("🚀", "Launch", 0x00C0),
         ];
-        let basic_app_keys: &[(&str, u16)] = &[
-            ("Exec", 0x0074),
-            ("Help", 0x0075),
-            ("Select", 0x0077),
-            ("Stop", 0x0078),
-            ("Again", 0x0079),
-            ("Undo", 0x007A),
-            ("Cut", 0x007B),
-            ("Copy", 0x007C),
-            ("Paste", 0x007D),
-            ("Find", 0x007E),
-        ];
-
         ui.add_space(10.0);
         ui.label(
             RichText::new("Media, Apps, System")
@@ -4408,69 +4395,57 @@ Repeat"
 
         ui.add_space(10.0);
         ui.label(
-            RichText::new("Basic app / edit keys")
+            RichText::new("OS / edit shortcuts")
                 .size(11.0)
                 .color(Color32::from_gray(150)),
         );
         ui.add_space(4.0);
-        ui.horizontal_wrapped(|ui| {
-            for (label, value) in basic_app_keys {
-                if !self.picker_value_supported(*value) {
-                    continue;
-                }
-                let resp = ui.add(
-                    egui::Button::new(RichText::new(*label).size(11.0))
-                        .min_size(Vec2::new(56.0, 42.0)),
-                );
-                if resp.clicked() {
-                    self.assign_keycode_value(*value);
-                }
-                resp.on_hover_text(self.picker_keycode_tooltip(*value, &[]));
-            }
-        });
-
-        ui.add_space(10.0);
-        ui.label(
-            RichText::new("OS shortcuts")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
-        );
-        ui.add_space(4.0);
-        let os_shortcuts: &[(&str, &str, u16, &str)] = &[
-            (
-                "Win/Linux",
-                "Prev Word",
-                0x0100 | 0x0050,
-                "Ctrl + Left Arrow",
-            ),
-            (
-                "Win/Linux",
-                "Next Word",
-                0x0100 | 0x004F,
-                "Ctrl + Right Arrow",
-            ),
-            (
-                "Win/Linux",
-                "Prev App",
-                0x0600 | 0x002B,
-                "Shift + Alt + Tab",
-            ),
-            ("Win/Linux", "Next App", 0x0400 | 0x002B, "Alt + Tab"),
-            ("macOS", "Prev Word", 0x0400 | 0x0050, "Option + Left Arrow"),
-            (
-                "macOS",
-                "Next Word",
-                0x0400 | 0x004F,
-                "Option + Right Arrow",
-            ),
-            (
-                "macOS",
-                "Prev App",
-                0x0A00 | 0x002B,
-                "Shift + Command + Tab",
-            ),
-            ("macOS", "Next App", 0x0800 | 0x002B, "Command + Tab"),
-        ];
+        let mut os_shortcuts: Vec<(&str, &str, u16, &str)> = Vec::new();
+        #[cfg(target_os = "macos")]
+        {
+            os_shortcuts.extend_from_slice(&[
+                ("macOS", "Undo", 0x0800 | 0x001D, "Command + Z"),
+                ("macOS", "Redo", 0x0A00 | 0x001D, "Command + Shift + Z"),
+                ("macOS", "Cut", 0x0800 | 0x001B, "Command + X"),
+                ("macOS", "Copy", 0x0800 | 0x0006, "Command + C"),
+                ("macOS", "Paste", 0x0800 | 0x0019, "Command + V"),
+                ("macOS", "Find", 0x0800 | 0x0009, "Command + F"),
+                ("macOS", "Prev Word", 0x0400 | 0x0050, "Option + Left Arrow"),
+                ("macOS", "Next Word", 0x0400 | 0x004F, "Option + Right Arrow"),
+                ("macOS", "Prev App", 0x0A00 | 0x002B, "Shift + Command + Tab"),
+                ("macOS", "Next App", 0x0800 | 0x002B, "Command + Tab"),
+            ]);
+        }
+        #[cfg(target_os = "windows")]
+        {
+            os_shortcuts.extend_from_slice(&[
+                ("Windows", "Undo", 0x0100 | 0x001D, "Ctrl + Z"),
+                ("Windows", "Redo", 0x0100 | 0x001C, "Ctrl + Y"),
+                ("Windows", "Cut", 0x0100 | 0x001B, "Ctrl + X"),
+                ("Windows", "Copy", 0x0100 | 0x0006, "Ctrl + C"),
+                ("Windows", "Paste", 0x0100 | 0x0019, "Ctrl + V"),
+                ("Windows", "Find", 0x0100 | 0x0009, "Ctrl + F"),
+                ("Windows", "Prev Word", 0x0100 | 0x0050, "Ctrl + Left Arrow"),
+                ("Windows", "Next Word", 0x0100 | 0x004F, "Ctrl + Right Arrow"),
+                ("Windows", "Prev App", 0x0600 | 0x002B, "Shift + Alt + Tab"),
+                ("Windows", "Next App", 0x0400 | 0x002B, "Alt + Tab"),
+            ]);
+        }
+        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+        {
+            os_shortcuts.extend_from_slice(&[
+                ("Linux", "Undo", 0x0100 | 0x001D, "Ctrl + Z"),
+                ("Linux", "Redo", 0x0100 | 0x001C, "Ctrl + Y"),
+                ("Linux", "Cut", 0x0100 | 0x001B, "Ctrl + X"),
+                ("Linux", "Copy", 0x0100 | 0x0006, "Ctrl + C"),
+                ("Linux", "Paste", 0x0100 | 0x0019, "Ctrl + V"),
+                ("Linux", "Find", 0x0100 | 0x0009, "Ctrl + F"),
+                ("Linux", "Prev Word", 0x0100 | 0x0050, "Ctrl + Left Arrow"),
+                ("Linux", "Next Word", 0x0100 | 0x004F, "Ctrl + Right Arrow"),
+                ("Linux", "Prev App", 0x0600 | 0x002B, "Shift + Alt + Tab"),
+                ("Linux", "Next App", 0x0400 | 0x002B, "Alt + Tab"),
+            ]);
+        }
         ui.horizontal_wrapped(|ui| {
             let os_text_color = if ui.visuals().dark_mode {
                 Color32::from_gray(105)
@@ -4478,19 +4453,19 @@ Repeat"
                 Color32::from_gray(145)
             };
             for (os, text, value, tip) in os_shortcuts {
-                if !self.picker_value_supported(*value) {
+                if !self.picker_value_supported(value) {
                     continue;
                 }
                 let resp = ui.add_sized(Vec2::new(78.0, 44.0), egui::Button::new(""));
                 let visuals = ui.style().interact(&resp);
                 let painter = ui.painter();
                 let os_galley = painter.layout_no_wrap(
-                    (*os).to_owned(),
+                    os.to_owned(),
                     egui::FontId::proportional(9.5),
                     os_text_color,
                 );
                 let text_galley = painter.layout_no_wrap(
-                    (*text).to_owned(),
+                    text.to_owned(),
                     egui::FontId::proportional(10.5),
                     visuals.fg_stroke.color,
                 );
@@ -4509,9 +4484,9 @@ Repeat"
                 );
                 painter.galley(text_pos, text_galley, visuals.fg_stroke.color);
                 if resp.clicked() {
-                    self.assign_keycode_value(*value);
+                    self.assign_keycode_value(value);
                 }
-                resp.on_hover_text(*tip);
+                resp.on_hover_text(tip);
             }
         });
 
