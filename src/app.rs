@@ -693,12 +693,28 @@ fn paint_layout_keycap(
             center.y + dx * angle.sin() + dy * angle.cos(),
         )
     };
-    let points = vec![
-        rotate(rect.left_top()),
-        rotate(rect.right_top()),
-        rotate(rect.right_bottom()),
-        rotate(rect.left_bottom()),
+
+    let radius = 6.0_f32.min(rect.width() * 0.5).min(rect.height() * 0.5);
+    let corner_segments = 5;
+    let mut points = Vec::with_capacity((corner_segments + 1) * 4);
+    let corners = [
+        (egui::pos2(rect.right() - radius, rect.top() + radius), -std::f32::consts::FRAC_PI_2, 0.0),
+        (egui::pos2(rect.right() - radius, rect.bottom() - radius), 0.0, std::f32::consts::FRAC_PI_2),
+        (egui::pos2(rect.left() + radius, rect.bottom() - radius), std::f32::consts::FRAC_PI_2, std::f32::consts::PI),
+        (egui::pos2(rect.left() + radius, rect.top() + radius), std::f32::consts::PI, std::f32::consts::PI * 1.5),
     ];
+    for (corner_center, start, end) in corners {
+        for step in 0..=corner_segments {
+            let t = step as f32 / corner_segments as f32;
+            let theta = start + (end - start) * t;
+            let point = egui::pos2(
+                corner_center.x + radius * theta.cos(),
+                corner_center.y + radius * theta.sin(),
+            );
+            points.push(rotate(point));
+        }
+    }
+
     painter.add(egui::Shape::convex_polygon(points, fill, stroke));
 }
 
