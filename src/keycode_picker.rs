@@ -361,7 +361,7 @@ fn picker_mod_key_label(base: u16) -> String {
 }
 
 fn picker_mod_tap_label(base: u16) -> String {
-    format!("hold {}/tap key", modifier_label_from_bits((base >> 8) & 0x1F))
+    format!("Hold {}/key", modifier_label_from_bits((base >> 8) & 0x1F))
 }
 
 fn picker_action_label(label: &str) -> String {

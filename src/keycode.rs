@@ -76,8 +76,8 @@ fn osm_mod_full_name(bits: u16) -> String {
 }
 
 pub fn key_label_font_sizes(label: &str) -> (Option<f32>, f32) {
-    if label.starts_with("hold ") && label.contains('/') {
-        return (Some(8.2), 10.2);
+    if label.starts_with("Hold ") && label.contains('/') {
+        return (Some(8.5), 10.8);
     }
 
     let lines: Vec<&str> = label.split('\n').collect();
@@ -666,7 +666,7 @@ pub fn keycode_label_with_names(value: u16, custom: &[CustomKeycode], layer_name
         let right = (value >> 12) & 0x1 != 0;
         let kc_str = find_keycode(kc as u16).map(|k| k.label).unwrap_or("?");
         let mod_str = decode_mods(mods as u16, right);
-        return format!("hold {}/tap {}", mod_str, kc_str);
+        return format!("Hold {}/{}", mod_str, kc_str);
     }
 
     // Modifier+key combos: 0x0100..0x1F00 | kc
