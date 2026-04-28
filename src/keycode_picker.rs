@@ -2224,12 +2224,8 @@ impl KeycodePicker {
                 ("To Layer", "Layer\nTO", "Switch and stay on this layer", false),
                 ("Layer-Tap", "Layer\nLT", "Hold = activate layer, tap = key", true),
             ];
-            let visible_zmk_ops: Vec<_> = zmk_ops
-                .iter()
-                .filter(|(behavior_name, _, _, _)| self.zmk_behavior_id(behavior_name).is_some())
-                .collect();
-            Self::centered_key_row(ui, visible_zmk_ops.len(), |ui| {
-                for (behavior_name, label, hint, needs_tap_key) in visible_zmk_ops {
+            ui.horizontal_wrapped(|ui| {
+                for (behavior_name, label, hint, needs_tap_key) in zmk_ops {
                     let Some(id) = self.zmk_behavior_id(behavior_name) else {
                         continue;
                     };
@@ -2248,7 +2244,7 @@ impl KeycodePicker {
             });
             return;
         }
-        Self::centered_key_row(ui, ops.len() + 1, |ui| {
+        ui.horizontal_wrapped(|ui| {
             for (base, label, hint) in ops {
                 let resp = ui
                     .add_sized(Self::picker_key_size(), egui::Button::new(""))
@@ -2292,7 +2288,7 @@ impl KeycodePicker {
             ("Alt".into(), 0x00E2, 0x00E6, "Alt".into()),
             (gui.into(), 0x00E3, 0x00E7, lgui.to_string()),
         ];
-        Self::centered_key_row(ui, plain.len(), |ui| {
+        ui.horizontal_wrapped(|ui| {
             for (label, left_value, right_value, mod_name) in &plain {
                 let resp = ui
                     .add_sized(Self::picker_key_size(), egui::Button::new(""))
@@ -2331,7 +2327,7 @@ impl KeycodePicker {
             (picker_mod_key_label(0x0A00), 0x0A00, None, format!("{}+Shift", lgui)),
             (picker_mod_key_label(0x0F00), 0x0F00, None, format!("Ctrl+Shift+Alt+{}", gui_mod_name())),
         ];
-        Self::centered_key_row(ui, mk.len(), |ui| {
+        ui.horizontal_wrapped(|ui| {
             for (label, left_value, right_value, mod_name) in &mk {
                 let resp = ui
                     .add_sized(Self::picker_key_size(), egui::Button::new(""))
@@ -2375,7 +2371,7 @@ impl KeycodePicker {
                     || right.and_then(Self::zmk_modifier_usage_from_vial_mt_base).is_some()
             });
         }
-        Self::centered_key_row(ui, mt.len(), |ui| {
+        ui.horizontal_wrapped(|ui| {
             for (label, left_value, right_value, mod_name) in &mt {
                 let resp = ui
                     .add_sized(Self::picker_key_size(), egui::Button::new(""))
@@ -2416,7 +2412,7 @@ impl KeycodePicker {
                     || right.and_then(Self::zmk_modifier_usage_from_vial_osm).is_some()
             });
         }
-        Self::centered_key_row(ui, osm.len(), |ui| {
+        ui.horizontal_wrapped(|ui| {
             for (label, left_value, right_value, mod_name) in &osm {
                 let resp = ui
                     .add_sized(Self::picker_key_size(), egui::Button::new(""))
@@ -4030,17 +4026,6 @@ impl KeycodePicker {
             _ => 840.0,
         };
         width.min(ui.available_width())
-    }
-
-    fn centered_key_row(ui: &mut egui::Ui, key_count: usize, add_contents: impl FnOnce(&mut egui::Ui)) {
-        let width = Self::key_grid_width(key_count, ui.spacing().item_spacing.x);
-        ui.horizontal(|ui| {
-            let x_offset = ((ui.available_width() - width).max(0.0) * 0.5).floor();
-            if x_offset > 0.0 {
-                ui.add_space(x_offset);
-            }
-            add_contents(ui);
-        });
     }
 
     fn paint_compact_picker_label(ui: &egui::Ui, resp: &egui::Response, label: &str) {
