@@ -159,7 +159,6 @@ struct SmartHrmPending {
 #[derive(Default)]
 struct SmartHrmState {
     pending: Option<SmartHrmPending>,
-    swallow_keyups: Vec<u32>,
     last_real_key: Option<Instant>,
     last_config_load: Option<Instant>,
     config: SmartHrmRuntimeConfig,
@@ -423,16 +422,6 @@ fn smart_hrm_hand_for_vk(vk: u32) -> Option<i8> {
 }
 
 #[cfg(target_os = "windows")]
-fn smart_hrm_swallow_keyup(state: &mut SmartHrmState, vk: u32) -> bool {
-    if let Some(pos) = state.swallow_keyups.iter().position(|queued| *queued == vk) {
-        state.swallow_keyups.remove(pos);
-        true
-    } else {
-        false
-    }
-}
-
-#[cfg(target_os = "windows")]
 fn smart_hrm_should_hold(pending: SmartHrmPending, next_vk: u32, config: SmartHrmRuntimeConfig) -> bool {
     if !pending.prior_idle_ok {
         return false;
@@ -461,11 +450,22 @@ unsafe fn handle_smart_hrm_event(vk: u32, is_key_down: bool, is_key_up: bool) ->
     let config = refresh_smart_hrm_config(&mut state);
     if !config.enabled() {
         state.pending = None;
-        state.swallow_keyups.clear();
         if is_key_down {
             state.last_real_key = Some(now);
         }
         return false;
+    }
+
+    if is_key_down {
+        if let Some(mut carrier) = smart_hrm_carrier_for_vk(vk) {
+            carrier.prior_idle_ok = state
+                .last_real_key
+                .map(|last| now.duration_since(last).as_millis() >= config.prior_idle_ms as u128)
+                .unwrap_or(true);
+            release_smart_hrm_transport_modifiers(carrier.carrier_vk);
+            state.pending = Some(carrier);
+            return true;
+        }
     }
 
     if let Some(mut pending) = state.pending {
@@ -477,51 +477,21 @@ unsafe fn handle_smart_hrm_event(vk: u32, is_key_down: bool, is_key_up: bool) ->
                     send_vk_tap(pending.tap_vk);
                 }
                 state.pending = None;
-                smart_hrm_swallow_keyup(&mut state, vk);
                 state.last_real_key = Some(now);
                 return true;
             }
             if is_key_down {
                 return true;
             }
-        } else if is_key_down {
-            if smart_hrm_carrier_for_vk(vk).is_some() {
-                // Home-row-to-home-row rolls should stay typing-first. Emit the
-                // previous tap before arming the next carrier instead of letting
-                // the previous transport leak or become a modifier.
-                if pending.hold_active {
-                    send_vk_keyup(pending.hold_vk);
-                } else {
-                    send_vk_tap(pending.tap_vk);
-                }
+        } else if is_key_down && !pending.hold_active {
+            if smart_hrm_should_hold(pending, vk, config) {
+                send_vk_keydown(pending.hold_vk);
+                pending.hold_active = true;
+                state.pending = Some(pending);
+            } else {
+                send_vk_tap(pending.tap_vk);
                 state.pending = None;
-            } else if !pending.hold_active {
-                if smart_hrm_should_hold(pending, vk, config) {
-                    send_vk_keydown(pending.hold_vk);
-                    pending.hold_active = true;
-                    state.pending = Some(pending);
-                } else {
-                    send_vk_tap(pending.tap_vk);
-                    state.pending = None;
-                }
             }
-        }
-    }
-
-    if is_key_up && smart_hrm_swallow_keyup(&mut state, vk) {
-        return true;
-    }
-
-    if is_key_down {
-        if let Some(mut carrier) = smart_hrm_carrier_for_vk(vk) {
-            carrier.prior_idle_ok = state
-                .last_real_key
-                .map(|last| now.duration_since(last).as_millis() >= config.prior_idle_ms as u128)
-                .unwrap_or(true);
-            release_smart_hrm_transport_modifiers(carrier.carrier_vk);
-            state.swallow_keyups.push(carrier.carrier_vk);
-            state.pending = Some(carrier);
-            return true;
         }
     }
 
