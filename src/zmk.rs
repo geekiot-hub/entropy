@@ -593,12 +593,12 @@ pub(crate) fn zmk_behavior_kind(name: &str) -> &'static str {
         "bluetooth" => "bluetooth",
         "output selection" | "output" => "output_selection",
         "external power" => "external_power",
-        "soft off" | "soft_off" => "soft_off",
-        "rgb underglow" | "rgb_ug" | "rgb" => "rgb_underglow",
-        "backlight" | "bl" => "backlight",
-        "mouse key press" | "mouse button" => "mouse_key_press",
-        "mouse_move" | "mouse move" => "mouse_move",
-        "mouse_scroll" | "mouse scroll" => "mouse_scroll",
+        "soft off" | "soft_off" | "soft-off" | "z_so_off" => "soft_off",
+        "rgb underglow" | "underglow" | "rgb_ug" | "rgb ug" | "rgb" => "rgb_underglow",
+        "backlight" | "bcklight" | "bl" => "backlight",
+        "mouse key press" | "mouse button" | "mkp" => "mouse_key_press",
+        "mouse_move" | "mouse move" | "mouse-move" | "mmv" => "mouse_move",
+        "mouse_scroll" | "mouse scroll" | "mouse-scroll" | "msc" => "mouse_scroll",
         _ => "unknown",
     }
 }
