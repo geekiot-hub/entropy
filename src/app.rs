@@ -1909,6 +1909,7 @@ enum SettingsTab {
     KeyOverrides,
     AltRepeat,
     MouseKeys,
+    ZmkBehaviors,
 }
 
 pub struct EntropyApp {
@@ -3698,6 +3699,9 @@ impl EntropyApp {
             SettingsTab::MouseKeys => {
                 self.draw_mouse_keys_settings_page(ui, content_rect);
             }
+            SettingsTab::ZmkBehaviors => {
+                self.draw_zmk_behaviors_page(ui, content_rect);
+            }
         }
 
         if self.settings_tab != SettingsTab::MatrixTester {
@@ -3718,6 +3722,85 @@ impl EntropyApp {
             FontId::proportional(11.0),
             hint_color,
         );
+    }
+
+    fn draw_zmk_behaviors_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
+        let dark = ui.visuals().dark_mode;
+        let behaviors = self
+            .layout
+            .as_ref()
+            .map(|layout| layout.zmk_behaviors.clone())
+            .unwrap_or_default();
+        ui.allocate_ui_at_rect(content_rect, |ui| {
+            ui.vertical_centered(|ui| {
+                ui.add_space(18.0);
+                ui.label(RichText::new("ZMK Behaviors").size(18.0).strong());
+                ui.add_space(6.0);
+                ui.label(
+                    RichText::new("Firmware-reported actions. To assign one: click a key, then open the picker’s Advanced tab")
+                        .size(13.0)
+                        .color(app_muted_text(dark)),
+                );
+                ui.add_space(18.0);
+            });
+
+            let content_width = 560.0_f32.min(ui.available_width());
+            let left = (ui.available_width() - content_width).max(0.0) * 0.5;
+            ui.horizontal(|ui| {
+                if left > 0.0 {
+                    ui.add_space(left);
+                }
+                ui.vertical(|ui| {
+                    ui.set_width(content_width);
+                    if behaviors.is_empty() {
+                        ui.label(
+                            RichText::new("No ZMK behaviors reported by the current device")
+                                .size(12.0)
+                                .color(app_muted_text(dark)),
+                        );
+                        return;
+                    }
+
+                    let mut sorted = behaviors;
+                    sorted.sort_by(|a, b| {
+                        a.display_name
+                            .to_ascii_lowercase()
+                            .cmp(&b.display_name.to_ascii_lowercase())
+                    });
+                    egui::ScrollArea::vertical()
+                        .max_height(330.0)
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| {
+                            for behavior in sorted {
+                                let metadata = behavior.metadata.first();
+                                let p1 = metadata.map(|m| m.param1.len()).unwrap_or(0);
+                                let p2 = metadata.map(|m| m.param2.len()).unwrap_or(0);
+                                ui.horizontal(|ui| {
+                                    ui.label(
+                                        RichText::new(behavior.display_name.clone())
+                                            .size(12.0)
+                                            .strong(),
+                                    );
+                                    ui.label(
+                                        RichText::new(format!(
+                                            "id={} · metadata={} · p1={} · p2={}",
+                                            behavior.id,
+                                            behavior.metadata.len(),
+                                            p1,
+                                            p2
+                                        ))
+                                        .size(10.5)
+                                        .color(app_muted_text(dark)),
+                                    );
+                                });
+                                ui.add_space(6.0);
+                                ui.separator();
+                                ui.add_space(6.0);
+                            }
+                        });
+                });
+            });
+        });
     }
 
     fn draw_app_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
@@ -12089,15 +12172,22 @@ impl EntropyApp {
                 let combo_supported = !self.combo_entries.is_empty();
                 let key_override_supported = !self.key_override_entries.is_empty();
                 let auto_shift_supported = self.auto_shift_timeout.is_some();
+                let zmk_behaviors_supported = self.firmware == FirmwareProtocol::Zmk
+                    && self
+                        .layout
+                        .as_ref()
+                        .map(|layout| !layout.zmk_behaviors.is_empty())
+                        .unwrap_or(false);
                 let advanced_item_count = combo_supported as usize
                     + auto_shift_supported as usize
-                    + key_override_supported as usize;
+                    + key_override_supported as usize
+                    + zmk_behaviors_supported as usize;
                 let dropdown_rect = egui::Rect::from_min_size(
                     egui::pos2(
                         advanced_rect.center().x - 76.0,
                         advanced_rect.bottom() + 6.0,
                     ),
-                    Vec2::new(152.0, (advanced_item_count.max(1) as f32) * 28.0 + 22.0),
+                    Vec2::new(172.0, (advanced_item_count.max(1) as f32) * 28.0 + 22.0),
                 );
                 let hover_bridge_rect = advanced_rect.union(dropdown_rect).expand(3.0);
                 let pointer_over_bridge = ui
@@ -12113,8 +12203,13 @@ impl EntropyApp {
                 if show_dropdown {
                     let dark = ui.visuals().dark_mode;
                     let item_width = dropdown_rect.width() - 16.0;
-                    let (combo_hovered, auto_shift_hovered, key_override_hovered, advanced_clicked) =
-                        egui::Area::new(egui::Id::new("advanced_dropdown_area"))
+                    let (
+                        combo_hovered,
+                        auto_shift_hovered,
+                        key_override_hovered,
+                        zmk_behaviors_hovered,
+                        advanced_clicked,
+                    ) = egui::Area::new(egui::Id::new("advanced_dropdown_area"))
                             .order(egui::Order::Foreground)
                             .fixed_pos(dropdown_rect.min)
                             .show(ui.ctx(), |ui| {
@@ -12151,6 +12246,16 @@ impl EntropyApp {
                                                     && self.settings_tab == SettingsTab::KeyOverrides,
                                             )
                                         });
+                                        let zmk_behaviors_resp = zmk_behaviors_supported.then(|| {
+                                            top_dropdown_item(
+                                                ui,
+                                                item_width,
+                                                "ZMK Behaviors",
+                                                true,
+                                                self.main_menu_tab == MainMenuTab::Advanced
+                                                    && self.settings_tab == SettingsTab::ZmkBehaviors,
+                                            )
+                                        });
                                         if combo_resp.as_ref().map(|r| r.clicked()).unwrap_or(false) {
                                             self.close_top_dropdowns(ui.ctx());
                                             self.settings_tab = SettingsTab::Combo;
@@ -12169,13 +12274,20 @@ impl EntropyApp {
                                             self.settings_tab = SettingsTab::KeyOverrides;
                                             self.main_menu_tab = MainMenuTab::Advanced;
                                         }
+                                        if zmk_behaviors_resp.as_ref().map(|r| r.clicked()).unwrap_or(false) {
+                                            self.close_top_dropdowns(ui.ctx());
+                                            self.settings_tab = SettingsTab::ZmkBehaviors;
+                                            self.main_menu_tab = MainMenuTab::Advanced;
+                                        }
                                         (
                                             combo_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                             auto_shift_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                             key_override_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
+                                            zmk_behaviors_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                             combo_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
                                                 || auto_shift_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
-                                                || key_override_resp.as_ref().map(|r| r.clicked()).unwrap_or(false),
+                                                || key_override_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
+                                                || zmk_behaviors_resp.as_ref().map(|r| r.clicked()).unwrap_or(false),
                                         )
                                     })
                                     .inner
@@ -12189,6 +12301,7 @@ impl EntropyApp {
                                     || combo_hovered
                                     || auto_shift_hovered
                                     || key_override_hovered
+                                    || zmk_behaviors_hovered
                                     || pointer_over_bridge),
                         )
                     });
