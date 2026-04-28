@@ -2968,20 +2968,14 @@ impl EntropyApp {
                                                 });
                         }
 
+                        log::info!("Fetching ZMK behaviors…");
+                        conn.fetch_all_behaviors()
+                            .map_err(|e| format!("ZMK behaviors failed: {e}"))?;
+
                         log::info!("Fetching ZMK keymap…");
                         let keymap = conn
                             .get_keymap()
                             .map_err(|e| format!("ZMK keymap failed: {e}"))?;
-
-                        let keymap_behavior_ids = keymap.layers.iter().flat_map(|layer| {
-                            layer
-                                .bindings
-                                .iter()
-                                .filter_map(|binding| (binding.behavior_id >= 0).then_some(binding.behavior_id as u32))
-                        });
-                        log::info!("Fetching ZMK behaviors…");
-                        conn.fetch_behaviors_with_extra_ids(keymap_behavior_ids)
-                            .map_err(|e| format!("ZMK behaviors failed: {e}"))?;
 
                         log::info!("Fetching ZMK physical layouts…");
                         let phys = conn
