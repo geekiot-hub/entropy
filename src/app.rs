@@ -645,32 +645,8 @@ fn layout_keycap_rect(
     )
 }
 
-fn rotated_layout_rect(
-    rect: egui::Rect,
-    rotation: f32,
-    rotation_x: f32,
-    rotation_y: f32,
-    geometry: LayoutGeometry,
-) -> egui::Rect {
-    if rotation == 0.0 {
-        return rect;
-    }
-
-    let angle_rad = rotation.to_radians();
-    let anchor = egui::pos2(
-        geometry.offset_x + rotation_x * geometry.unit,
-        geometry.offset_y + rotation_y * geometry.unit,
-    );
-    let center = rect.center();
-    let dx = center.x - anchor.x;
-    let dy = center.y - anchor.y;
-    let rx = anchor.x + dx * angle_rad.cos() - dy * angle_rad.sin();
-    let ry = anchor.y + dx * angle_rad.sin() + dy * angle_rad.cos();
-    egui::Rect::from_center_size(egui::pos2(rx, ry), rect.size())
-}
-
 fn layout_physical_key_rect(key: &PhysicalKey, geometry: LayoutGeometry) -> egui::Rect {
-    let rect = layout_keycap_rect(
+    layout_keycap_rect(
         geometry.offset_x,
         geometry.offset_y,
         geometry.unit,
@@ -679,12 +655,11 @@ fn layout_physical_key_rect(key: &PhysicalKey, geometry: LayoutGeometry) -> egui
         key.y,
         key.w,
         key.h,
-    );
-    rotated_layout_rect(rect, key.rotation, key.rotation_x, key.rotation_y, geometry)
+    )
 }
 
 fn layout_physical_encoder_rect(encoder: &PhysicalEncoder, geometry: LayoutGeometry) -> egui::Rect {
-    let rect = layout_keycap_rect(
+    layout_keycap_rect(
         geometry.offset_x,
         geometry.offset_y,
         geometry.unit,
@@ -693,13 +668,6 @@ fn layout_physical_encoder_rect(encoder: &PhysicalEncoder, geometry: LayoutGeome
         encoder.y,
         encoder.w,
         encoder.h,
-    );
-    rotated_layout_rect(
-        rect,
-        encoder.rotation,
-        encoder.rotation_x,
-        encoder.rotation_y,
-        geometry,
     )
 }
 
