@@ -4447,40 +4447,22 @@ Repeat"
             ]);
         }
         ui.horizontal_wrapped(|ui| {
-            let os_text_color = if ui.visuals().dark_mode {
-                Color32::from_gray(105)
-            } else {
-                Color32::from_gray(145)
-            };
-            for (os, text, value, tip) in os_shortcuts {
+            for (_os, text, value, tip) in os_shortcuts {
                 if !self.picker_value_supported(value) {
                     continue;
                 }
                 let resp = ui.add_sized(Vec2::new(78.0, 44.0), egui::Button::new(""));
                 let visuals = ui.style().interact(&resp);
                 let painter = ui.painter();
-                let os_galley = painter.layout_no_wrap(
-                    os.to_owned(),
-                    egui::FontId::proportional(9.5),
-                    os_text_color,
-                );
                 let text_galley = painter.layout_no_wrap(
                     text.to_owned(),
                     egui::FontId::proportional(10.5),
                     visuals.fg_stroke.color,
                 );
-                let line_spacing = 1.0;
-                let os_size = os_galley.size();
                 let text_size = text_galley.size();
-                let total_height = os_size.y + line_spacing + text_size.y;
-                let os_pos = egui::pos2(
-                    resp.rect.center().x - os_size.x / 2.0,
-                    resp.rect.center().y - total_height / 2.0,
-                );
-                painter.galley(os_pos, os_galley, os_text_color);
                 let text_pos = egui::pos2(
                     resp.rect.center().x - text_size.x / 2.0,
-                    os_pos.y + os_size.y + line_spacing,
+                    resp.rect.center().y - text_size.y / 2.0,
                 );
                 painter.galley(text_pos, text_galley, visuals.fg_stroke.color);
                 if resp.clicked() {

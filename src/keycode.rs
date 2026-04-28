@@ -477,6 +477,57 @@ pub fn find_keycode(value: u16) -> Option<&'static Keycode> {
     KEYCODES.iter().find(|k| k.value == value)
 }
 
+fn os_shortcut_label(value: u16) -> Option<&'static str> {
+    #[cfg(target_os = "macos")]
+    {
+        match value {
+            0x081D => Some("Undo"),
+            0x0A1D => Some("Redo"),
+            0x081B => Some("Cut"),
+            0x0806 => Some("Copy"),
+            0x0819 => Some("Paste"),
+            0x0809 => Some("Find"),
+            0x0450 => Some("Prev\nWord"),
+            0x044F => Some("Next\nWord"),
+            0x0A2B => Some("Prev\nApp"),
+            0x082B => Some("Next\nApp"),
+            _ => None,
+        }
+    }
+    #[cfg(target_os = "windows")]
+    {
+        match value {
+            0x011D => Some("Undo"),
+            0x011C => Some("Redo"),
+            0x011B => Some("Cut"),
+            0x0106 => Some("Copy"),
+            0x0119 => Some("Paste"),
+            0x0109 => Some("Find"),
+            0x0150 => Some("Prev\nWord"),
+            0x014F => Some("Next\nWord"),
+            0x062B => Some("Prev\nApp"),
+            0x042B => Some("Next\nApp"),
+            _ => None,
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        match value {
+            0x011D => Some("Undo"),
+            0x011C => Some("Redo"),
+            0x011B => Some("Cut"),
+            0x0106 => Some("Copy"),
+            0x0119 => Some("Paste"),
+            0x0109 => Some("Find"),
+            0x0150 => Some("Prev\nWord"),
+            0x014F => Some("Next\nWord"),
+            0x062B => Some("Prev\nApp"),
+            0x042B => Some("Next\nApp"),
+            _ => None,
+        }
+    }
+}
+
 fn smart_symbol_label(value: u16) -> Option<String> {
     crate::smart_input::smart_symbol_for_keycode(value).map(|smart| smart.symbol.to_string())
 }
@@ -593,6 +644,9 @@ pub fn keycode_label_with_names(value: u16, custom: &[CustomKeycode], layer_name
     }
     if let Some(label) = smart_symbol_label(value) {
         return label;
+    }
+    if let Some(label) = os_shortcut_label(value) {
+        return label.to_string();
     }
     if let Some(kc) = find_keycode(value) {
         return kc.label.to_string();
