@@ -1829,8 +1829,8 @@ impl KeycodePicker {
     }
 
     fn show_vial_basic(&mut self, ui: &mut egui::Ui) {
-        const COLS: usize = 15;
-        const ROWS: usize = 7;
+        const COLS: usize = 19;
+        const ROWS: usize = 6;
 
         let cell_w = 44.0;
         let cell_h = 44.0;
@@ -1922,23 +1922,23 @@ impl KeycodePicker {
             (5, 0, 2, "Ctrl", 0x00E0),
             (5, 2, 1, gui_label(false), 0x00E3),
             (5, 3, 1, "Alt", 0x00E2),
-            (5, 4, 7, "Space", 0x002C),
-            (5, 11, 1, "Alt", 0x00E6),
-            (5, 12, 1, "Menu", 0x0065),
-            (5, 13, 2, "Ctrl", 0x00E4),
-            (6, 1, 1, "Print\nScreen", 0x0046),
-            (6, 2, 1, "Scroll\nLock", 0x0047),
-            (6, 3, 1, "Pause", 0x0048),
-            (6, 4, 1, "Insert", 0x0049),
-            (6, 5, 1, "Delete", 0x004C),
-            (6, 6, 1, "Home", 0x004A),
-            (6, 7, 1, "End", 0x004D),
-            (6, 8, 1, "Page\nUp", 0x004B),
-            (6, 9, 1, "Page\nDown", 0x004E),
-            (6, 11, 1, "←", 0x0050),
-            (6, 12, 1, "↑", 0x0052),
-            (6, 13, 1, "↓", 0x0051),
-            (6, 14, 1, "→", 0x004F),
+            (5, 4, 5, "Space", 0x002C),
+            (5, 9, 1, "Alt", 0x00E6),
+            (5, 10, 1, "Menu", 0x0065),
+            (5, 11, 2, "Ctrl", 0x00E4),
+            (0, 16, 1, "Print\nScreen", 0x0046),
+            (1, 16, 1, "Scroll\nLock", 0x0047),
+            (2, 16, 1, "Pause", 0x0048),
+            (3, 16, 1, "Insert", 0x0049),
+            (3, 17, 1, "Home", 0x004A),
+            (3, 18, 1, "Page\nUp", 0x004B),
+            (4, 16, 1, "Delete", 0x004C),
+            (4, 17, 1, "End", 0x004D),
+            (4, 18, 1, "Page\nDown", 0x004E),
+            (5, 16, 1, "←", 0x0050),
+            (5, 17, 1, "↓", 0x0051),
+            (5, 18, 1, "→", 0x004F),
+            (4, 15, 1, "↑", 0x0052),
         ];
 
         let (rect, _) =
