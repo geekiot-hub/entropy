@@ -783,28 +783,28 @@ fn zmk_equivalent_vial_keycode(kind: &str, p1: u32, p2: u32) -> Option<u16> {
 
 fn zmk_axis_label(value: u32, kind: &str) -> Option<&'static str> {
     match (kind, value) {
-        ("move", 0x0000_FDA8) => Some("Move\nUp"),
-        ("move", 0x0000_0258) => Some("Move\nDown"),
-        ("move", 0xFDA8_0000) => Some("Move\nLeft"),
-        ("move", 0x0258_0000) => Some("Move\nRight"),
-        ("scroll", 0x0000_000A) => Some("Scroll\nUp"),
-        ("scroll", 0x0000_FFF6) => Some("Scroll\nDown"),
-        ("scroll", 0xFFF6_0000) => Some("Scroll\nLeft"),
-        ("scroll", 0x000A_0000) => Some("Scroll\nRight"),
+        ("move", 0x0000_FDA8 | 0x0000_FA24) => Some("Move\nUp"),
+        ("move", 0x0000_0258 | 0x0000_05DC) => Some("Move\nDown"),
+        ("move", 0xFDA8_0000 | 0xFA24_0000) => Some("Move\nLeft"),
+        ("move", 0x0258_0000 | 0x05DC_0000) => Some("Move\nRight"),
+        ("scroll", 0x0000_000A | 0x0000_001E) => Some("Scroll\nUp"),
+        ("scroll", 0x0000_FFF6 | 0x0000_FFE2) => Some("Scroll\nDown"),
+        ("scroll", 0xFFF6_0000 | 0xFFE2_0000) => Some("Scroll\nLeft"),
+        ("scroll", 0x000A_0000 | 0x001E_0000) => Some("Scroll\nRight"),
         _ => None,
     }
 }
 
 fn zmk_axis_tooltip(value: u32, kind: &str) -> Option<&'static str> {
     match (kind, value) {
-        ("move", 0x0000_FDA8) => Some("Mouse move up"),
-        ("move", 0x0000_0258) => Some("Mouse move down"),
-        ("move", 0xFDA8_0000) => Some("Mouse move left"),
-        ("move", 0x0258_0000) => Some("Mouse move right"),
-        ("scroll", 0x0000_000A) => Some("Mouse wheel scroll up"),
-        ("scroll", 0x0000_FFF6) => Some("Mouse wheel scroll down"),
-        ("scroll", 0xFFF6_0000) => Some("Mouse wheel scroll left"),
-        ("scroll", 0x000A_0000) => Some("Mouse wheel scroll right"),
+        ("move", 0x0000_FDA8 | 0x0000_FA24) => Some("Mouse move up"),
+        ("move", 0x0000_0258 | 0x0000_05DC) => Some("Mouse move down"),
+        ("move", 0xFDA8_0000 | 0xFA24_0000) => Some("Mouse move left"),
+        ("move", 0x0258_0000 | 0x05DC_0000) => Some("Mouse move right"),
+        ("scroll", 0x0000_000A | 0x0000_001E) => Some("Mouse wheel scroll up"),
+        ("scroll", 0x0000_FFF6 | 0x0000_FFE2) => Some("Mouse wheel scroll down"),
+        ("scroll", 0xFFF6_0000 | 0xFFE2_0000) => Some("Mouse wheel scroll left"),
+        ("scroll", 0x000A_0000 | 0x001E_0000) => Some("Mouse wheel scroll right"),
         _ => None,
     }
 }

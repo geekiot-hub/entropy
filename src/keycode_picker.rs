@@ -184,6 +184,7 @@ impl KeycodeTab {
         KeycodeTab::Symbols,
         KeycodeTab::Modifiers,
         KeycodeTab::Special,
+        KeycodeTab::Rgb,
         KeycodeTab::Bluetooth,
         KeycodeTab::ZmkAdvanced,
     ];
@@ -312,7 +313,7 @@ fn zmk_mouse_button_usage_for_qmk_value(value: u16) -> Option<u32> {
 }
 
 fn zmk_mouse_move_param_for_qmk_value(value: u16) -> Option<u32> {
-    const MOVE_DEFAULT: u32 = 600;
+    const MOVE_DEFAULT: u32 = 1500;
     let neg = (!MOVE_DEFAULT + 1) & 0xFFFF;
     match value {
         0x00CD => Some(neg),
@@ -324,7 +325,7 @@ fn zmk_mouse_move_param_for_qmk_value(value: u16) -> Option<u32> {
 }
 
 fn zmk_mouse_scroll_param_for_qmk_value(value: u16) -> Option<u32> {
-    const SCROLL_DEFAULT: u32 = 10;
+    const SCROLL_DEFAULT: u32 = 30;
     let neg = (!SCROLL_DEFAULT + 1) & 0xFFFF;
     match value {
         0x00D9 => Some(SCROLL_DEFAULT),
@@ -1929,6 +1930,7 @@ impl KeycodePicker {
                     | KeycodeTab::Symbols
                     | KeycodeTab::Modifiers
                     | KeycodeTab::Special
+                    | KeycodeTab::Rgb
                     | KeycodeTab::Bluetooth
                     | KeycodeTab::ZmkAdvanced
             );
@@ -1965,6 +1967,7 @@ impl KeycodePicker {
             KeycodeTab::Layers => self.show_vial_layers(ui),
             KeycodeTab::Modifiers => self.show_vial_modifiers(ui),
             KeycodeTab::Quantum => self.show_vial_quantum(ui),
+            KeycodeTab::Rgb if self.firmware == FirmwareProtocol::Zmk => self.show_zmk_rgb(ui),
             KeycodeTab::Rgb => self.show_vial_rgb(ui),
             KeycodeTab::Macro => self.show_vial_macros(ui),
             KeycodeTab::TapDance => self.show_vial_tap_dance(ui),
@@ -3727,6 +3730,80 @@ impl KeycodePicker {
         self.macro_inline_selected = Some(selected);
     }
 
+    fn zmk_lighting_button(
+        &mut self,
+        ui: &mut egui::Ui,
+        label: &str,
+        tooltip: &str,
+        behavior_name: &str,
+        param1: u32,
+        param2: u32,
+    ) {
+        let Some(id) = self.zmk_behavior_id(behavior_name) else {
+            return;
+        };
+        let resp = ui
+            .add(
+                egui::Button::new(RichText::new(label).size(10.5))
+                    .min_size(Vec2::new(80.0, 36.0)),
+            )
+            .on_hover_cursor(egui::CursorIcon::PointingHand);
+        if resp.clicked() {
+            self.zmk_assign(id, param1, param2);
+        }
+        resp.on_hover_text(tooltip);
+    }
+
+    fn show_zmk_rgb(&mut self, ui: &mut egui::Ui) {
+        ui.label(
+            RichText::new("Backlight")
+                .size(11.0)
+                .color(Color32::from_gray(150)),
+        );
+        ui.add_space(4.0);
+        ui.horizontal_wrapped(|ui| {
+            let bl_actions: &[(&str, &str, u32, u32)] = &[
+                ("Toggle", "Toggle backlight", 2, 0),
+                ("Cycle", "Cycle backlight brightness", 5, 0),
+                ("On", "Turn backlight on", 0, 0),
+                ("Off", "Turn backlight off", 1, 0),
+                ("Brightness -", "Decrease backlight brightness", 4, 0),
+                ("Brightness +", "Increase backlight brightness", 3, 0),
+            ];
+            for (label, tip, p1, p2) in bl_actions {
+                self.zmk_lighting_button(ui, label, tip, "Backlight", *p1, *p2);
+            }
+        });
+
+        ui.add_space(12.0);
+        ui.label(
+            RichText::new("RGB Underglow")
+                .size(11.0)
+                .color(Color32::from_gray(150)),
+        );
+        ui.add_space(4.0);
+        ui.horizontal_wrapped(|ui| {
+            let rgb_actions: &[(&str, &str, u32, u32)] = &[
+                ("Toggle", "Toggle RGB underglow", 0, 0),
+                ("On", "Turn RGB underglow on", 1, 0),
+                ("Off", "Turn RGB underglow off", 2, 0),
+                ("Hue -", "Decrease RGB hue", 4, 0),
+                ("Hue +", "Increase RGB hue", 3, 0),
+                ("Saturation -", "Decrease RGB saturation", 6, 0),
+                ("Saturation +", "Increase RGB saturation", 5, 0),
+                ("Brightness -", "Decrease RGB brightness", 8, 0),
+                ("Brightness +", "Increase RGB brightness", 7, 0),
+                ("Speed -", "Decrease RGB animation speed", 10, 0),
+                ("Speed +", "Increase RGB animation speed", 9, 0),
+                ("Effect -", "Previous RGB effect", 12, 0),
+                ("Effect +", "Next RGB effect", 11, 0),
+            ];
+            for (label, tip, p1, p2) in rgb_actions {
+                self.zmk_lighting_button(ui, label, tip, "RGB Underglow", *p1, *p2);
+            }
+        });
+    }
+
     fn show_vial_rgb(&mut self, ui: &mut egui::Ui) {
         // Backlight
         ui.label(
@@ -4110,27 +4187,6 @@ Repeat"
                     0,
                     62.0,
                 );
-                if let Some(id) = self.zmk_behavior_id("Key Toggle") {
-                    let resp = ui
-                        .add_sized(
-                            Vec2::new(62.0, 42.0),
-                            egui::Button::new(RichText::new("Key\nToggle").size(10.5)),
-                        )
-                        .on_hover_cursor(egui::CursorIcon::PointingHand);
-                    if resp.clicked() {
-                        self.zmk_selected_behavior = Some(id as usize);
-                    }
-                    resp.on_hover_text("Toggle a key on/off — choose the key next");
-                }
-                self.zmk_special_behavior_button(
-                    ui,
-                    "Soft\nOff",
-                    "Turn the keyboard off until hardware wake/reset",
-                    "Soft Off",
-                    0,
-                    0,
-                    62.0,
-                );
                 self.zmk_special_behavior_button(
                     ui,
                     "Power\nOn",
@@ -4151,66 +4207,6 @@ Repeat"
                 );
             }
         });
-
-        if self.firmware == FirmwareProtocol::Zmk
-            && (self.zmk_behavior_id("RGB Underglow").is_some()
-                || self.zmk_behavior_id("Backlight").is_some())
-        {
-            ui.add_space(10.0);
-            ui.label(
-                RichText::new("Lighting")
-                    .size(11.0)
-                    .color(Color32::from_gray(150)),
-            );
-            ui.add_space(4.0);
-            ui.horizontal_wrapped(|ui| {
-                let rgb_actions: &[(&str, &str, u32, u32, f32)] = &[
-                    ("RGB\nToggle", "Toggle RGB underglow", 0, 0, 66.0),
-                    ("RGB\nOn", "Turn RGB underglow on", 1, 0, 56.0),
-                    ("RGB\nOff", "Turn RGB underglow off", 2, 0, 56.0),
-                    ("Hue+", "Increase RGB hue", 3, 0, 54.0),
-                    ("Hue-", "Decrease RGB hue", 4, 0, 54.0),
-                    ("Sat+", "Increase RGB saturation", 5, 0, 54.0),
-                    ("Sat-", "Decrease RGB saturation", 6, 0, 54.0),
-                    ("Bright+", "Increase RGB brightness", 7, 0, 64.0),
-                    ("Bright-", "Decrease RGB brightness", 8, 0, 64.0),
-                    ("Speed+", "Increase RGB animation speed", 9, 0, 62.0),
-                    ("Speed-", "Decrease RGB animation speed", 10, 0, 62.0),
-                    ("Effect+", "Next RGB effect", 11, 0, 62.0),
-                    ("Effect-", "Previous RGB effect", 12, 0, 62.0),
-                ];
-                for (label, tip, p1, p2, width) in rgb_actions {
-                    self.zmk_special_behavior_button(
-                        ui,
-                        label,
-                        tip,
-                        "RGB Underglow",
-                        *p1,
-                        *p2,
-                        *width,
-                    );
-                }
-                let bl_actions: &[(&str, &str, u32, u32, f32)] = &[
-                    ("BL\nOn", "Turn backlight on", 0, 0, 54.0),
-                    ("BL\nOff", "Turn backlight off", 1, 0, 54.0),
-                    ("BL\nToggle", "Toggle backlight", 2, 0, 66.0),
-                    ("BL+", "Increase backlight brightness", 3, 0, 50.0),
-                    ("BL-", "Decrease backlight brightness", 4, 0, 50.0),
-                    ("BL\nCycle", "Cycle backlight brightness", 5, 0, 62.0),
-                ];
-                for (label, tip, p1, p2, width) in bl_actions {
-                    self.zmk_special_behavior_button(
-                        ui,
-                        label,
-                        tip,
-                        "Backlight",
-                        *p1,
-                        *p2,
-                        *width,
-                    );
-                }
-            });
-        }
 
         let mouse_values: Vec<u16> = crate::keycode::KEYCODES
             .iter()
@@ -5834,8 +5830,6 @@ Repeat"
             "Mouse Key Press",
             "Mouse Move",
             "Mouse Scroll",
-            "Key Toggle",
-            "Soft Off",
             "External Power",
             "RGB Underglow",
             "Backlight",
