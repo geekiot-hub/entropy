@@ -1703,11 +1703,7 @@ impl KeycodePicker {
 
                                 if self.selected_tab == KeycodeTab::Basic {
                                     ui.add_space(28.0);
-                                    if self.firmware == FirmwareProtocol::Zmk {
-                                        self.show_zmk_tab_content(ui);
-                                    } else {
-                                        self.show_vial_tab_content(ui);
-                                    }
+                                    self.show_vial_tab_content(ui);
                                 } else {
                                     let centered_width = self.tab_content_width(ui);
                                     let x_offset =
@@ -1720,13 +1716,7 @@ impl KeycodePicker {
                                         ui.allocate_ui_with_layout(
                                             Vec2::new(centered_width, 0.0),
                                             egui::Layout::top_down(egui::Align::Min),
-                                            |ui| {
-                                                if self.firmware == FirmwareProtocol::Zmk {
-                                                    self.show_zmk_tab_content(ui);
-                                                } else {
-                                                    self.show_vial_tab_content(ui);
-                                                }
-                                            },
+                                            |ui| self.show_vial_tab_content(ui),
                                         );
                                     });
                                 }
