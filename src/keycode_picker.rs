@@ -1924,16 +1924,19 @@ impl KeycodePicker {
 
     fn vial_tab_supported(&self, tab: KeycodeTab) -> bool {
         if self.firmware == FirmwareProtocol::Zmk {
-            return matches!(
-                tab,
+            return match tab {
                 KeycodeTab::Basic
-                    | KeycodeTab::Symbols
-                    | KeycodeTab::Modifiers
-                    | KeycodeTab::Special
-                    | KeycodeTab::Rgb
-                    | KeycodeTab::Bluetooth
-                    | KeycodeTab::ZmkAdvanced
-            );
+                | KeycodeTab::Symbols
+                | KeycodeTab::Modifiers
+                | KeycodeTab::Special
+                | KeycodeTab::Bluetooth
+                | KeycodeTab::ZmkAdvanced => true,
+                KeycodeTab::Rgb => {
+                    self.zmk_behavior_id("RGB Underglow").is_some()
+                        || self.zmk_behavior_id("Backlight").is_some()
+                }
+                _ => false,
+            };
         }
         match tab {
             KeycodeTab::Rgb => self.supports_rgb,
