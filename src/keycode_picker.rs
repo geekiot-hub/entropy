@@ -11,7 +11,7 @@ fn inactive_picker_entry_text(dark: bool) -> egui::Color32 {
 use crate::firmware::FirmwareProtocol;
 use crate::keycode::{
     gui_label, gui_mod_name, gui_sym, key_label_font_sizes, keycode_label_with_names,
-    keycode_tooltip, KeycodeCategory, KEYCODES,
+    keycode_tooltip, modifier_label_from_bits, KeycodeCategory, KEYCODES,
 };
 use crate::popup_state::{PopupKey, PopupState};
 use crate::zmk::{zmk_behavior_kind, BehaviorInfo, ZmkBinding};
@@ -354,6 +354,14 @@ fn zmk_mouse_scroll_label(value: u16) -> &'static str {
         0x00DC => "Mouse wheel scroll right",
         _ => "Mouse scroll",
     }
+}
+
+fn picker_mod_key_label(base: u16) -> String {
+    format!("{}/key", modifier_label_from_bits(base >> 8))
+}
+
+fn picker_mod_tap_label(base: u16) -> String {
+    format!("{}/key", modifier_label_from_bits((base >> 8) & 0x1F))
 }
 
 fn picker_action_label(label: &str) -> String {
@@ -2319,18 +2327,17 @@ impl KeycodePicker {
                 .color(Color32::from_gray(150)),
         );
         ui.add_space(4.0);
-        let gui_symbol = gui_sym();
         let mk: Vec<(String, u16, Option<u16>, String)> = vec![
-            ("Ctrl/key".into(), 0x0100, Some(0x1100), "Ctrl".into()),
-            ("Shift/key".into(), 0x0200, Some(0x1200), "Shift".into()),
-            ("Alt/key".into(), 0x0400, Some(0x1400), "Alt".into()),
-            (format!("{gui_symbol}/key"), 0x0800, Some(0x1800), lgui.to_string()),
-            ("Ctrl+Shift/key".into(), 0x0300, None, "Ctrl+Shift".into()),
-            ("Ctrl+Alt/key".into(), 0x0500, None, "Ctrl+Alt".into()),
-            ("Shift+Alt/key".into(), 0x0600, None, "Shift+Alt (LSA)".into()),
-            ("Meh/key".into(), 0x0700, None, "Ctrl+Shift+Alt".into()),
-            (format!("Shift+{gui_symbol}/key"), 0x0A00, None, format!("{}+Shift", lgui)),
-            ("Hyper/key".into(), 0x0F00, None, format!("Ctrl+Shift+Alt+{}", gui_mod_name())),
+            (picker_mod_key_label(0x0100), 0x0100, Some(0x1100), "Ctrl".into()),
+            (picker_mod_key_label(0x0200), 0x0200, Some(0x1200), "Shift".into()),
+            (picker_mod_key_label(0x0400), 0x0400, Some(0x1400), "Alt".into()),
+            (picker_mod_key_label(0x0800), 0x0800, Some(0x1800), lgui.to_string()),
+            (picker_mod_key_label(0x0300), 0x0300, None, "Ctrl+Shift".into()),
+            (picker_mod_key_label(0x0500), 0x0500, None, "Ctrl+Alt".into()),
+            (picker_mod_key_label(0x0600), 0x0600, None, "Shift+Alt (LSA)".into()),
+            (picker_mod_key_label(0x0700), 0x0700, None, "Ctrl+Shift+Alt".into()),
+            (picker_mod_key_label(0x0A00), 0x0A00, None, format!("{}+Shift", lgui)),
+            (picker_mod_key_label(0x0F00), 0x0F00, None, format!("Ctrl+Shift+Alt+{}", gui_mod_name())),
         ];
         ui.horizontal_wrapped(|ui| {
             for (label, left_value, right_value, mod_name) in &mk {
@@ -2360,15 +2367,15 @@ impl KeycodePicker {
         );
         ui.add_space(4.0);
         let mut mt: Vec<(String, u16, Option<u16>, String)> = vec![
-            ("Ctrl/key".into(), 0x2100, Some(0x3100), "Ctrl".into()),
-            ("Shift/key".into(), 0x2200, Some(0x3200), "Shift".into()),
-            ("Alt/key".into(), 0x2400, Some(0x3400), "Alt".into()),
-            (format!("{gui_symbol}/key"), 0x2800, Some(0x3800), lgui.to_string()),
-            ("Ctrl+Shift/key".into(), 0x2300, None, "Ctrl+Shift".into()),
-            ("Ctrl+Alt/key".into(), 0x2500, None, "Ctrl+Alt".into()),
-            ("Shift+Alt/key".into(), 0x2600, None, "Shift+Alt (LSA)".into()),
-            ("Meh/key".into(), 0x2700, None, "Meh (Ctrl+Shift+Alt)".into()),
-            ("Hyper/key".into(), 0x2F00, None, format!("Hyper (Ctrl+Shift+Alt+{})", gui_mod_name())),
+            (picker_mod_tap_label(0x2100), 0x2100, Some(0x3100), "Ctrl".into()),
+            (picker_mod_tap_label(0x2200), 0x2200, Some(0x3200), "Shift".into()),
+            (picker_mod_tap_label(0x2400), 0x2400, Some(0x3400), "Alt".into()),
+            (picker_mod_tap_label(0x2800), 0x2800, Some(0x3800), lgui.to_string()),
+            (picker_mod_tap_label(0x2300), 0x2300, None, "Ctrl+Shift".into()),
+            (picker_mod_tap_label(0x2500), 0x2500, None, "Ctrl+Alt".into()),
+            (picker_mod_tap_label(0x2600), 0x2600, None, "Shift+Alt (LSA)".into()),
+            (picker_mod_tap_label(0x2700), 0x2700, None, "Meh (Ctrl+Shift+Alt)".into()),
+            (picker_mod_tap_label(0x2F00), 0x2F00, None, format!("Hyper (Ctrl+Shift+Alt+{})", gui_mod_name())),
         ];
         if self.firmware == FirmwareProtocol::Zmk {
             mt.retain(|(_, left, right, _)| {

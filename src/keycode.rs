@@ -711,19 +711,24 @@ pub fn keycode_label_with_names(value: u16, custom: &[CustomKeycode], layer_name
     format!("{:04X}", value)
 }
 
-fn decode_mods(mods: u16, _right: bool) -> &'static str {
+pub fn modifier_label_from_bits(mods: u16) -> String {
     match mods {
-        0x01 | 0x11 => "Ctrl",
-        0x02 | 0x12 => "Shift",
-        0x04 | 0x14 => "Alt",
-        0x08 | 0x18 => gui_sym(),
-        0x03 | 0x13 => "Ctrl+Shift",
-        0x05 | 0x15 => "Ctrl+Alt",
-        0x06 | 0x16 => "Shift+Alt",
-        0x07 | 0x17 => "Meh",
-        0x0F | 0x1F => "Hypr",
-        _ => "Mod",
+        0x01 | 0x11 => "Ctrl".to_string(),
+        0x02 | 0x12 => "Shift".to_string(),
+        0x04 | 0x14 => "Alt".to_string(),
+        0x08 | 0x18 => gui_sym().to_string(),
+        0x03 | 0x13 => "Ctrl+Shift".to_string(),
+        0x05 | 0x15 => "Ctrl+Alt".to_string(),
+        0x06 | 0x16 => "Shift+Alt".to_string(),
+        0x07 | 0x17 => "Meh".to_string(),
+        0x0F | 0x1F => "Hyper".to_string(),
+        0x0A | 0x1A => format!("Shift+{}", gui_sym()),
+        _ => "Mod".to_string(),
     }
+}
+
+fn decode_mods(mods: u16, _right: bool) -> String {
+    modifier_label_from_bits(mods)
 }
 
 pub fn keycode_label(value: u16) -> String {
