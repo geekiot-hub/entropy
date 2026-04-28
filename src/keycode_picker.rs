@@ -2195,14 +2195,14 @@ impl KeycodePicker {
         let ops: &[(u16, &str, &str)] = &[
             (
                 0x5220,
-                "MO — Momentary",
+                "Layer\nMO",
                 "Hold to activate, release to return",
             ),
-            (0x5260, "TG — Toggle", "Tap to toggle on/off"),
-            (0x5280, "OSL — One-Shot", "Active for next keypress only"),
-            (0x52C0, "TT — Tap-Toggle", "Hold = MO, tap = toggle"),
-            (0x5200, "TO — Switch", "Switch and stay on this layer"),
-            (0x5240, "DF — Default", "Set as permanent base layer"),
+            (0x5260, "Layer\nTG", "Tap to toggle on/off"),
+            (0x5280, "Layer\nOSL", "Active for next keypress only"),
+            (0x52C0, "Layer\nTT", "Hold = MO, tap = toggle"),
+            (0x5200, "Layer\nTO", "Switch and stay on this layer"),
+            (0x5240, "Layer\nDF", "Set as permanent base layer"),
         ];
 
         ui.label(
@@ -2213,11 +2213,11 @@ impl KeycodePicker {
         ui.add_space(6.0);
         if self.firmware == FirmwareProtocol::Zmk {
             let zmk_ops: &[(&str, &str, &str, bool)] = &[
-                ("Momentary Layer", "MO — Momentary", "Hold to activate, release to return", false),
-                ("Toggle Layer", "TG — Toggle", "Tap to toggle on/off", false),
-                ("Sticky Layer", "OSL — One-Shot", "Active for next keypress only", false),
-                ("To Layer", "TO — Switch", "Switch and stay on this layer", false),
-                ("Layer-Tap", "LT — Layer-Tap", "Hold = activate layer, tap = key", true),
+                ("Momentary Layer", "Layer\nMO", "Hold to activate, release to return", false),
+                ("Toggle Layer", "Layer\nTG", "Tap to toggle on/off", false),
+                ("Sticky Layer", "Layer\nOSL", "Active for next keypress only", false),
+                ("To Layer", "Layer\nTO", "Switch and stay on this layer", false),
+                ("Layer-Tap", "Layer\nLT", "Hold = activate layer, tap = key", true),
             ];
             ui.horizontal_wrapped(|ui| {
                 for (behavior_name, label, hint, needs_tap_key) in zmk_ops {
@@ -2226,10 +2226,11 @@ impl KeycodePicker {
                     };
                     let resp = ui
                         .add(
-                            egui::Button::new(RichText::new(*label).size(10.5))
-                                .min_size(Vec2::new(102.0, 34.0)),
+                            egui::Button::new("")
+                                .min_size(Vec2::new(56.0, 42.0)),
                         )
                         .on_hover_cursor(egui::CursorIcon::PointingHand);
+                    Self::paint_compact_picker_label(ui, &resp, label);
                     if resp.clicked() {
                         self.zmk_layer_action_pending = Some((id, *needs_tap_key));
                     }
@@ -2241,11 +2242,9 @@ impl KeycodePicker {
         ui.horizontal_wrapped(|ui| {
             for (base, label, hint) in ops {
                 let resp = ui
-                    .add(
-                        egui::Button::new(RichText::new(*label).size(10.5))
-                            .min_size(Vec2::new(102.0, 34.0)),
-                    )
+                    .add_sized(Vec2::new(56.0, 42.0), egui::Button::new(""))
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
+                Self::paint_compact_picker_label(ui, &resp, label);
                 if resp.clicked() {
                     self.vial_layer_pending = Some(*base);
                 }
@@ -2253,10 +2252,11 @@ impl KeycodePicker {
             }
             let lt_resp = ui
                 .add(
-                    egui::Button::new(RichText::new("LT — Layer-Tap").size(10.5))
-                        .min_size(Vec2::new(102.0, 34.0)),
+                    egui::Button::new("")
+                        .min_size(Vec2::new(56.0, 42.0)),
                 )
                 .on_hover_cursor(egui::CursorIcon::PointingHand);
+            Self::paint_compact_picker_label(ui, &lt_resp, "Layer\nLT");
             if lt_resp.clicked() {
                 self.vial_layer_pending = Some(0x4000);
             }
@@ -2278,19 +2278,17 @@ impl KeycodePicker {
         );
         ui.add_space(4.0);
         let plain: Vec<(String, u16, u16, String)> = vec![
-            ("Ctrl".into(), 0x00E0, 0x00E4, "Ctrl".into()),
-            ("Shift".into(), 0x00E1, 0x00E5, "Shift".into()),
-            ("Alt".into(), 0x00E2, 0x00E6, "Alt".into()),
-            (gui.into(), 0x00E3, 0x00E7, lgui.to_string()),
+            ("Mod\nCtrl".into(), 0x00E0, 0x00E4, "Ctrl".into()),
+            ("Mod\nShift".into(), 0x00E1, 0x00E5, "Shift".into()),
+            ("Mod\nAlt".into(), 0x00E2, 0x00E6, "Alt".into()),
+            (format!("Mod\n{gui}"), 0x00E3, 0x00E7, lgui.to_string()),
         ];
         ui.horizontal_wrapped(|ui| {
             for (label, left_value, right_value, mod_name) in &plain {
                 let resp = ui
-                    .add(
-                        egui::Button::new(RichText::new(label.as_str()).size(10.5))
-                            .min_size(Vec2::new(68.0, 34.0)),
-                    )
+                    .add_sized(Vec2::new(56.0, 42.0), egui::Button::new(""))
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
+                Self::paint_compact_picker_label(ui, &resp, label);
                 if resp.clicked_by(egui::PointerButton::Primary) {
                     self.assign_keycode_value(*left_value);
                 }
@@ -2313,25 +2311,23 @@ impl KeycodePicker {
         );
         ui.add_space(4.0);
         let mk: Vec<(String, u16, Option<u16>, String)> = vec![
-            ("Ctrl+key".into(), 0x0100, Some(0x1100), "Ctrl".into()),
-            ("Shift+key".into(), 0x0200, Some(0x1200), "Shift".into()),
-            ("Alt+key".into(), 0x0400, Some(0x1400), "Alt".into()),
-            (format!("{}+key", gui), 0x0800, Some(0x1800), lgui.to_string()),
-            ("Ctrl+Shift+key".into(), 0x0300, None, "Ctrl+Shift".into()),
-            ("Ctrl+Alt+key".into(), 0x0500, None, "Ctrl+Alt".into()),
-            ("Shift+Alt+key".into(), 0x0600, None, "Shift+Alt (LSA)".into()),
-            ("Meh+key".into(), 0x0700, None, "Ctrl+Shift+Alt".into()),
-            (format!("{}+Sh+key", gui), 0x0A00, None, format!("{}+Shift", lgui)),
-            ("Hyper+key".into(), 0x0F00, None, format!("Ctrl+Shift+Alt+{}", gui_mod_name())),
+            ("Mod+Key\nCtrl".into(), 0x0100, Some(0x1100), "Ctrl".into()),
+            ("Mod+Key\nShift".into(), 0x0200, Some(0x1200), "Shift".into()),
+            ("Mod+Key\nAlt".into(), 0x0400, Some(0x1400), "Alt".into()),
+            (format!("Mod+Key\n{gui}"), 0x0800, Some(0x1800), lgui.to_string()),
+            ("Mod+Key\nC+S".into(), 0x0300, None, "Ctrl+Shift".into()),
+            ("Mod+Key\nC+A".into(), 0x0500, None, "Ctrl+Alt".into()),
+            ("Mod+Key\nS+A".into(), 0x0600, None, "Shift+Alt (LSA)".into()),
+            ("Mod+Key\nMeh".into(), 0x0700, None, "Ctrl+Shift+Alt".into()),
+            (format!("Mod+Key\n{}+Sh", gui), 0x0A00, None, format!("{}+Shift", lgui)),
+            ("Mod+Key\nHyper".into(), 0x0F00, None, format!("Ctrl+Shift+Alt+{}", gui_mod_name())),
         ];
         ui.horizontal_wrapped(|ui| {
             for (label, left_value, right_value, mod_name) in &mk {
                 let resp = ui
-                    .add(
-                        egui::Button::new(RichText::new(label.as_str()).size(10.5))
-                            .min_size(Vec2::new(74.0, 34.0)),
-                    )
+                    .add_sized(Vec2::new(56.0, 42.0), egui::Button::new(""))
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
+                Self::paint_compact_picker_label(ui, &resp, label);
                 if resp.clicked_by(egui::PointerButton::Primary) {
                     self.vial_quantum_pending_mod = Some(*left_value);
                 }
@@ -2355,15 +2351,15 @@ impl KeycodePicker {
         ui.add_space(2.0);
         ui.add_space(4.0);
         let mut mt: Vec<(String, u16, Option<u16>, String)> = vec![
-            ("MT Ctrl".into(), 0x2100, Some(0x3100), "Ctrl".into()),
-            ("MT Shift".into(), 0x2200, Some(0x3200), "Shift".into()),
-            ("MT Alt".into(), 0x2400, Some(0x3400), "Alt".into()),
-            (format!("MT {}", lgui), 0x2800, Some(0x3800), lgui.to_string()),
-            ("MT C+S".into(), 0x2300, None, "Ctrl+Shift".into()),
-            ("MT C+A".into(), 0x2500, None, "Ctrl+Alt".into()),
-            ("MT S+A".into(), 0x2600, None, "Shift+Alt (LSA)".into()),
-            ("MT Meh".into(), 0x2700, None, "Meh (Ctrl+Shift+Alt)".into()),
-            ("MT Hyper".into(), 0x2F00, None, format!("Hyper (Ctrl+Shift+Alt+{})", gui_mod_name())),
+            ("Mod-Tap\nCtrl".into(), 0x2100, Some(0x3100), "Ctrl".into()),
+            ("Mod-Tap\nShift".into(), 0x2200, Some(0x3200), "Shift".into()),
+            ("Mod-Tap\nAlt".into(), 0x2400, Some(0x3400), "Alt".into()),
+            (format!("Mod-Tap\n{lgui}"), 0x2800, Some(0x3800), lgui.to_string()),
+            ("Mod-Tap\nC+S".into(), 0x2300, None, "Ctrl+Shift".into()),
+            ("Mod-Tap\nC+A".into(), 0x2500, None, "Ctrl+Alt".into()),
+            ("Mod-Tap\nS+A".into(), 0x2600, None, "Shift+Alt (LSA)".into()),
+            ("Mod-Tap\nMeh".into(), 0x2700, None, "Meh (Ctrl+Shift+Alt)".into()),
+            ("Mod-Tap\nHyper".into(), 0x2F00, None, format!("Hyper (Ctrl+Shift+Alt+{})", gui_mod_name())),
         ];
         if self.firmware == FirmwareProtocol::Zmk {
             mt.retain(|(_, left, right, _)| {
@@ -2374,11 +2370,9 @@ impl KeycodePicker {
         ui.horizontal_wrapped(|ui| {
             for (label, left_value, right_value, mod_name) in &mt {
                 let resp = ui
-                    .add(
-                        egui::Button::new(RichText::new(label.as_str()).size(10.5))
-                            .min_size(Vec2::new(68.0, 34.0)),
-                    )
+                    .add_sized(Vec2::new(56.0, 42.0), egui::Button::new(""))
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
+                Self::paint_compact_picker_label(ui, &resp, label);
                 if resp.clicked_by(egui::PointerButton::Primary) {
                     self.vial_quantum_pending_mt = Some(*left_value);
                 }
@@ -2401,12 +2395,12 @@ impl KeycodePicker {
         );
         ui.add_space(4.0);
         let mut osm: Vec<(String, u16, Option<u16>, String)> = vec![
-            ("OSM Ctrl".into(), 0x52A1, Some(0x52B1), "Ctrl".into()),
-            ("OSM Shift".into(), 0x52A2, Some(0x52B2), "Shift".into()),
-            ("OSM Alt".into(), 0x52A4, Some(0x52B4), "Alt".into()),
-            (format!("OSM {}", lgui), 0x52A8, Some(0x52B8), lgui.to_string()),
-            ("OSM Meh".into(), 0x52A7, None, "Meh (Ctrl+Shift+Alt)".into()),
-            ("OSM Hyper".into(), 0x52AF, None, format!("Hyper (Ctrl+Shift+Alt+{})", gui_mod_name())),
+            ("OSM\nCtrl".into(), 0x52A1, Some(0x52B1), "Ctrl".into()),
+            ("OSM\nShift".into(), 0x52A2, Some(0x52B2), "Shift".into()),
+            ("OSM\nAlt".into(), 0x52A4, Some(0x52B4), "Alt".into()),
+            (format!("OSM\n{lgui}"), 0x52A8, Some(0x52B8), lgui.to_string()),
+            ("OSM\nMeh".into(), 0x52A7, None, "Meh (Ctrl+Shift+Alt)".into()),
+            ("OSM\nHyper".into(), 0x52AF, None, format!("Hyper (Ctrl+Shift+Alt+{})", gui_mod_name())),
         ];
         if self.firmware == FirmwareProtocol::Zmk {
             osm.retain(|(_, left, right, _)| {
@@ -2417,11 +2411,9 @@ impl KeycodePicker {
         ui.horizontal_wrapped(|ui| {
             for (label, left_value, right_value, mod_name) in &osm {
                 let resp = ui
-                    .add(
-                        egui::Button::new(RichText::new(label.as_str()).size(10.5))
-                            .min_size(Vec2::new(68.0, 34.0)),
-                    )
+                    .add_sized(Vec2::new(56.0, 42.0), egui::Button::new(""))
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
+                Self::paint_compact_picker_label(ui, &resp, label);
                 if resp.clicked_by(egui::PointerButton::Primary) {
                     self.assign_keycode_value(*left_value);
                 }
