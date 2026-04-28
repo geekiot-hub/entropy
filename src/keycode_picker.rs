@@ -4212,100 +4212,107 @@ Repeat"
             });
         }
 
+        let mouse_values: Vec<u16> = crate::keycode::KEYCODES
+            .iter()
+            .filter(|kc| matches!(kc.category, crate::keycode::KeycodeCategory::Mouse))
+            .map(|kc| kc.value)
+            .filter(|value| self.picker_value_supported(*value))
+            .collect();
         if self.firmware != FirmwareProtocol::Zmk && !self.supports_mouse_keys {
             return;
         }
-        ui.add_space(10.0);
-        ui.label(
-            RichText::new("Mouse")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
-        );
-        ui.add_space(4.0);
-        ui.horizontal_wrapped(|ui| {
-            for kc in crate::keycode::KEYCODES
-                .iter()
-                .filter(|kc| matches!(kc.category, crate::keycode::KeycodeCategory::Mouse))
-            {
-                if !self.picker_value_supported(kc.value) {
-                    continue;
-                }
-                let resp = ui
-                    .add_sized(Vec2::new(56.0, 42.0), egui::Button::new(""))
-                    .on_hover_cursor(egui::CursorIcon::PointingHand);
-                let visuals = ui.style().interact(&resp);
-                let icon_color = visuals.fg_stroke.color.gamma_multiply(0.6);
-                if let Some(suffix) = kc.label.strip_prefix("🖱") {
-                    let mouse_galley = ui.painter().layout_no_wrap(
-                        "🖱".to_owned(),
-                        egui::FontId::proportional(15.5),
-                        icon_color,
-                    );
-                    let suffix_galley = ui.painter().layout_no_wrap(
-                        suffix.to_owned(),
-                        egui::FontId::proportional(10.5),
-                        visuals.fg_stroke.color,
-                    );
-                    let spacing = if suffix.is_empty() { 0.0 } else { 1.0 };
-                    let mouse_width = mouse_galley.size().x;
-                    let mouse_height = mouse_galley.size().y;
-                    let suffix_width = suffix_galley.size().x;
-                    let suffix_height = suffix_galley.size().y;
-                    let total_width = mouse_width + spacing + suffix_width;
-                    let start_x = resp.rect.center().x - total_width / 2.0;
-                    let mouse_pos = egui::pos2(start_x, resp.rect.center().y - mouse_height / 2.0);
-                    ui.painter().galley(mouse_pos, mouse_galley, icon_color);
-                    if !suffix.is_empty() {
-                        let suffix_pos = egui::pos2(
-                            start_x + mouse_width + spacing,
-                            resp.rect.center().y - suffix_height / 2.0,
+        if !mouse_values.is_empty() {
+            ui.add_space(10.0);
+            ui.label(
+                RichText::new("Mouse")
+                    .size(11.0)
+                    .color(Color32::from_gray(150)),
+            );
+            ui.add_space(4.0);
+            ui.horizontal_wrapped(|ui| {
+                for value in &mouse_values {
+                    let Some(kc) = crate::keycode::find_keycode(*value) else {
+                        continue;
+                    };
+                    let resp = ui
+                        .add_sized(Vec2::new(56.0, 42.0), egui::Button::new(""))
+                        .on_hover_cursor(egui::CursorIcon::PointingHand);
+                    let visuals = ui.style().interact(&resp);
+                    let icon_color = visuals.fg_stroke.color.gamma_multiply(0.6);
+                    if let Some(suffix) = kc.label.strip_prefix("🖱") {
+                        let mouse_galley = ui.painter().layout_no_wrap(
+                            "🖱".to_owned(),
+                            egui::FontId::proportional(15.5),
+                            icon_color,
+                        );
+                        let suffix_galley = ui.painter().layout_no_wrap(
+                            suffix.to_owned(),
+                            egui::FontId::proportional(10.5),
+                            visuals.fg_stroke.color,
+                        );
+                        let spacing = if suffix.is_empty() { 0.0 } else { 1.0 };
+                        let mouse_width = mouse_galley.size().x;
+                        let mouse_height = mouse_galley.size().y;
+                        let suffix_width = suffix_galley.size().x;
+                        let suffix_height = suffix_galley.size().y;
+                        let total_width = mouse_width + spacing + suffix_width;
+                        let start_x = resp.rect.center().x - total_width / 2.0;
+                        let mouse_pos =
+                            egui::pos2(start_x, resp.rect.center().y - mouse_height / 2.0);
+                        ui.painter().galley(mouse_pos, mouse_galley, icon_color);
+                        if !suffix.is_empty() {
+                            let suffix_pos = egui::pos2(
+                                start_x + mouse_width + spacing,
+                                resp.rect.center().y - suffix_height / 2.0,
+                            );
+                            ui.painter()
+                                .galley(suffix_pos, suffix_galley, visuals.fg_stroke.color);
+                        }
+                    } else if let Some((icon, text)) = kc.label.split_once(' ') {
+                        let icon_galley = ui.painter().layout_no_wrap(
+                            icon.to_owned(),
+                            egui::FontId::proportional(11.0),
+                            icon_color,
+                        );
+                        let text_galley = ui.painter().layout_no_wrap(
+                            text.to_owned(),
+                            egui::FontId::proportional(10.5),
+                            visuals.fg_stroke.color,
+                        );
+                        let spacing = 2.0;
+                        let icon_width = icon_galley.size().x;
+                        let icon_height = icon_galley.size().y;
+                        let text_height = text_galley.size().y;
+                        let total_width = icon_width + spacing + text_galley.size().x;
+                        let start_x = resp.rect.center().x - total_width / 2.0;
+                        let icon_pos =
+                            egui::pos2(start_x, resp.rect.center().y - icon_height / 2.0);
+                        ui.painter().galley(icon_pos, icon_galley, icon_color);
+                        let text_pos = egui::pos2(
+                            start_x + icon_width + spacing,
+                            resp.rect.center().y - text_height / 2.0,
                         );
                         ui.painter()
-                            .galley(suffix_pos, suffix_galley, visuals.fg_stroke.color);
+                            .galley(text_pos, text_galley, visuals.fg_stroke.color);
+                    } else {
+                        let galley = ui.painter().layout_no_wrap(
+                            kc.label.to_owned(),
+                            egui::FontId::proportional(10.5),
+                            visuals.fg_stroke.color,
+                        );
+                        let pos = egui::pos2(
+                            resp.rect.center().x - galley.size().x / 2.0,
+                            resp.rect.center().y - galley.size().y / 2.0,
+                        );
+                        ui.painter().galley(pos, galley, visuals.fg_stroke.color);
                     }
-                } else if let Some((icon, text)) = kc.label.split_once(' ') {
-                    let icon_galley = ui.painter().layout_no_wrap(
-                        icon.to_owned(),
-                        egui::FontId::proportional(11.0),
-                        icon_color,
-                    );
-                    let text_galley = ui.painter().layout_no_wrap(
-                        text.to_owned(),
-                        egui::FontId::proportional(10.5),
-                        visuals.fg_stroke.color,
-                    );
-                    let spacing = 2.0;
-                    let icon_width = icon_galley.size().x;
-                    let icon_height = icon_galley.size().y;
-                    let text_height = text_galley.size().y;
-                    let total_width = icon_width + spacing + text_galley.size().x;
-                    let start_x = resp.rect.center().x - total_width / 2.0;
-                    let icon_pos = egui::pos2(start_x, resp.rect.center().y - icon_height / 2.0);
-                    ui.painter().galley(icon_pos, icon_galley, icon_color);
-                    let text_pos = egui::pos2(
-                        start_x + icon_width + spacing,
-                        resp.rect.center().y - text_height / 2.0,
-                    );
-                    ui.painter()
-                        .galley(text_pos, text_galley, visuals.fg_stroke.color);
-                } else {
-                    let galley = ui.painter().layout_no_wrap(
-                        kc.label.to_owned(),
-                        egui::FontId::proportional(10.5),
-                        visuals.fg_stroke.color,
-                    );
-                    let pos = egui::pos2(
-                        resp.rect.center().x - galley.size().x / 2.0,
-                        resp.rect.center().y - galley.size().y / 2.0,
-                    );
-                    ui.painter().galley(pos, galley, visuals.fg_stroke.color);
+                    if resp.clicked() {
+                        self.assign_keycode_value(*value);
+                    }
+                    resp.on_hover_text(self.picker_keycode_tooltip(*value, &[]));
                 }
-                if resp.clicked() {
-                    self.assign_keycode_value(kc.value);
-                }
-                resp.on_hover_text(self.picker_keycode_tooltip(kc.value, &[]));
-            }
-        });
+            });
+        }
 
         let media_keys: &[(&str, &str, u16)] = &[
             ("⏻", "Power", 0x00A5),
