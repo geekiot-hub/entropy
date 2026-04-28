@@ -13588,12 +13588,12 @@ impl EntropyApp {
                                 })
                                 .map(|fb| zmk_binding_label(&fb, &layout.zmk_behaviors, &self.layer_names))
                                 .unwrap_or_default();
-                            draw_key_label_dimmed(&painter, draw_rect, &label, dark);
+                            draw_key_label_dimmed(&painter, draw_rect, &label, dark, key.rotation.to_radians());
                         }
                     } else {
                         let label =
                             zmk_binding_label(&binding, &layout.zmk_behaviors, &self.layer_names);
-                        draw_key_label(&painter, draw_rect, &label, dark);
+                        draw_key_label(&painter, draw_rect, &label, dark, key.rotation.to_radians());
                     }
                 }
             } else {
@@ -13633,7 +13633,7 @@ impl EntropyApp {
                                 &self.keycode_picker.tap_dance_names,
                             )
                         };
-                        draw_key_label_dimmed(&painter, draw_rect, &label, dark);
+                        draw_key_label_dimmed(&painter, draw_rect, &label, dark, key.rotation.to_radians());
                     }
                 } else if kc == 0x0000 {
                     let no_bg = if dark {
@@ -13678,7 +13678,7 @@ impl EntropyApp {
                         &self.keycode_picker.macro_names,
                         &self.keycode_picker.tap_dance_names,
                     );
-                    draw_key_label(&painter, draw_rect, &label, dark);
+                    draw_key_label(&painter, draw_rect, &label, dark, key.rotation.to_radians());
                 }
             }
         }
@@ -14131,7 +14131,41 @@ impl EntropyApp {
     }
 }
 
-fn draw_key_label_dimmed(painter: &egui::Painter, rect: egui::Rect, label: &str, dark: bool) {
+fn rotated_offset(dx: f32, dy: f32, angle: f32) -> egui::Vec2 {
+    egui::vec2(
+        dx * angle.cos() - dy * angle.sin(),
+        dx * angle.sin() + dy * angle.cos(),
+    )
+}
+
+fn paint_centered_text_rotated(
+    painter: &egui::Painter,
+    center: egui::Pos2,
+    text: &str,
+    font_id: FontId,
+    color: Color32,
+    rotation: f32,
+) {
+    if rotation == 0.0 {
+        painter.text(center, egui::Align2::CENTER_CENTER, text, font_id, color);
+        return;
+    }
+
+    let galley = painter.layout_no_wrap(text.to_string(), font_id, color);
+    let half = galley.size() * 0.5;
+    let pos = center - rotated_offset(half.x, half.y, rotation);
+    painter.add(egui::Shape::Text(
+        egui::epaint::TextShape::new(pos, galley, color).with_angle(rotation),
+    ));
+}
+
+fn draw_key_label_dimmed(
+    painter: &egui::Painter,
+    rect: egui::Rect,
+    label: &str,
+    dark: bool,
+    rotation: f32,
+) {
     let dim = if dark {
         Color32::from_rgb(62, 56, 56)
     } else {
@@ -14156,28 +14190,31 @@ fn draw_key_label_dimmed(painter: &egui::Painter, rect: egui::Rect, label: &str,
 
     if let Some(top_str) = top {
         let center = rect.center();
-        painter.text(
-            egui::pos2(center.x, center.y - 7.0),
-            egui::Align2::CENTER_CENTER,
+        paint_centered_text_rotated(
+            painter,
+            center + rotated_offset(0.0, -7.0, rotation),
             top_str,
             FontId::proportional(top_size.unwrap_or(9.0)),
             dim_top,
+            rotation,
         );
-        painter.text(
-            egui::pos2(center.x, center.y + 6.0),
-            egui::Align2::CENTER_CENTER,
+        paint_centered_text_rotated(
+            painter,
+            center + rotated_offset(0.0, 6.0, rotation),
             bottom,
             FontId::proportional(bottom_size),
             dim,
+            rotation,
         );
     } else {
         let font_size = if bottom == "↵" { 16.0 } else { bottom_size };
-        painter.text(
+        paint_centered_text_rotated(
+            painter,
             rect.center(),
-            egui::Align2::CENTER_CENTER,
             bottom,
             FontId::proportional(font_size),
             dim,
+            rotation,
         );
     }
 }
@@ -14316,7 +14353,13 @@ fn draw_key_label_dimmed_alpha(
     }
 }
 
-fn draw_key_label(painter: &egui::Painter, rect: egui::Rect, label: &str, dark: bool) {
+fn draw_key_label(
+    painter: &egui::Painter,
+    rect: egui::Rect,
+    label: &str,
+    dark: bool,
+    rotation: f32,
+) {
     // Split on "\n" first, then on "/" — show top part small+dim, bottom part normal
     let (top, bottom) = if label.contains('\n') {
         let mut parts = label.splitn(2, '\n');
@@ -14334,10 +14377,6 @@ fn draw_key_label(painter: &egui::Painter, rect: egui::Rect, label: &str, dark: 
 
     if let Some(top_str) = top {
         // Two-line layout
-        let center = rect.center();
-        let top_pos = egui::pos2(center.x, center.y - 7.0);
-        let bot_pos = egui::pos2(center.x, center.y + 6.0);
-
         let top_color = if dark {
             Color32::from_rgb(130, 130, 145)
         } else {
@@ -14348,25 +14387,27 @@ fn draw_key_label(painter: &egui::Painter, rect: egui::Rect, label: &str, dark: 
         } else {
             Color32::from_rgb(26, 26, 30)
         };
-        painter.text(
-            top_pos,
-            egui::Align2::CENTER_CENTER,
+        paint_centered_text_rotated(
+            painter,
+            rect.center() + rotated_offset(0.0, -7.0, rotation),
             top_str,
             FontId::proportional(top_size.unwrap_or(9.0)),
             top_color,
+            rotation,
         );
-        painter.text(
-            bot_pos,
-            egui::Align2::CENTER_CENTER,
+        paint_centered_text_rotated(
+            painter,
+            rect.center() + rotated_offset(0.0, 6.0, rotation),
             bottom,
             FontId::proportional(bottom_size),
             main_color,
+            rotation,
         );
     } else {
         let font_size = if bottom == "↵" { 16.0 } else { bottom_size };
-        painter.text(
+        paint_centered_text_rotated(
+            painter,
             rect.center(),
-            egui::Align2::CENTER_CENTER,
             bottom,
             FontId::proportional(font_size),
             if dark {
@@ -14374,6 +14415,7 @@ fn draw_key_label(painter: &egui::Painter, rect: egui::Rect, label: &str, dark: 
             } else {
                 Color32::from_rgb(26, 26, 30)
             },
+            rotation,
         );
     }
 }
