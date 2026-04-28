@@ -4061,17 +4061,6 @@ impl KeycodePicker {
                 ("Off", "Turn backlight off", 1, 0),
                 ("Brightness -", "Decrease backlight brightness", 4, 0),
                 ("Brightness +", "Increase backlight brightness", 3, 0),
-                ("Set 0%", "Set backlight brightness to 0%", 6, 0),
-                ("Set 10%", "Set backlight brightness to 10%", 6, 10),
-                ("Set 20%", "Set backlight brightness to 20%", 6, 20),
-                ("Set 30%", "Set backlight brightness to 30%", 6, 30),
-                ("Set 40%", "Set backlight brightness to 40%", 6, 40),
-                ("Set 50%", "Set backlight brightness to 50%", 6, 50),
-                ("Set 60%", "Set backlight brightness to 60%", 6, 60),
-                ("Set 70%", "Set backlight brightness to 70%", 6, 70),
-                ("Set 80%", "Set backlight brightness to 80%", 6, 80),
-                ("Set 90%", "Set backlight brightness to 90%", 6, 90),
-                ("Set 100%", "Set backlight brightness to 100%", 6, 100),
             ];
             for (label, tip, p1, p2) in bl_actions {
                 self.zmk_lighting_button(ui, label, tip, "Backlight", *p1, *p2);
@@ -5776,7 +5765,6 @@ Repeat"
         let unlock_id = self.zmk_find_behavior("Studio Unlock").map(|b| b.id);
         let bt_id = self.zmk_find_behavior("Bluetooth").map(|b| b.id);
         let out_id = self.zmk_find_behavior("Output Selection").map(|b| b.id);
-        let ext_power_id = self.zmk_find_behavior("External Power").map(|b| b.id);
 
         ui.label(
             RichText::new("Basic")
@@ -5932,19 +5920,14 @@ Repeat"
             ui.add_space(4.0);
             let bt_actions: &[(&str, u32, u32, &str)] = &[
                 ("BT\nCLR", 0, 0, "Clear current BT profile pairing"),
-                ("BT\nNext", 1, 0, "Switch to next BT profile"),
-                ("BT\nPrev", 2, 0, "Switch to previous BT profile"),
-                ("BT\nSEL 0", 3, 0, "Select BT profile 0"),
-                ("BT\nSEL 1", 3, 1, "Select BT profile 1"),
-                ("BT\nSEL 2", 3, 2, "Select BT profile 2"),
-                ("BT\nSEL 3", 3, 3, "Select BT profile 3"),
-                ("BT\nSEL 4", 3, 4, "Select BT profile 4"),
-                ("BT\nCLR ALL", 4, 0, "Clear ALL BT profiles"),
-                ("BT\nDISC 0", 5, 0, "Start discoverable advertising for profile 0"),
-                ("BT\nDISC 1", 5, 1, "Start discoverable advertising for profile 1"),
-                ("BT\nDISC 2", 5, 2, "Start discoverable advertising for profile 2"),
-                ("BT\nDISC 3", 5, 3, "Start discoverable advertising for profile 3"),
-                ("BT\nDISC 4", 5, 4, "Start discoverable advertising for profile 4"),
+                ("BT\nCLR ALL", 1, 0, "Clear ALL BT profiles"),
+                ("BT\nNext", 2, 0, "Switch to next BT profile"),
+                ("BT\nPrev", 3, 0, "Switch to previous BT profile"),
+                ("BT\nSEL 0", 4, 0, "Select BT profile 0"),
+                ("BT\nSEL 1", 4, 1, "Select BT profile 1"),
+                ("BT\nSEL 2", 4, 2, "Select BT profile 2"),
+                ("BT\nSEL 3", 4, 3, "Select BT profile 3"),
+                ("BT\nSEL 4", 4, 4, "Select BT profile 4"),
             ];
             ui.horizontal_wrapped(|ui| {
                 for (label, p1, p2, tip) in bt_actions {
@@ -5974,50 +5957,23 @@ Repeat"
                     .color(Color32::from_gray(150)),
             );
             ui.add_space(4.0);
-            let output_actions: &[(&str, u32, &str)] = &[
-                ("Out\nToggle", 0, "Toggle between USB and Bluetooth output"),
-                ("Out\nUSB", 1, "Output: USB"),
-                ("Out\nBLE", 2, "Output: Bluetooth"),
-                ("Out\nNone", 3, "Disable output selection"),
-            ];
             ui.horizontal_wrapped(|ui| {
-                for (label, p1, tip) in output_actions {
-                    let resp = ui.add(
-                        egui::Button::new(RichText::new(*label).size(10.5))
-                            .min_size(Self::picker_key_size()),
-                    );
-                    if resp.clicked() {
-                        self.zmk_assign(id, *p1, 0);
-                    }
-                    resp.on_hover_text(*tip);
+                let resp = ui.add(
+                    egui::Button::new(RichText::new("Out\nUSB").size(10.5))
+                        .min_size(Self::picker_key_size()),
+                );
+                if resp.clicked() {
+                    self.zmk_assign(id, 0, 0);
                 }
-            });
-        }
-
-        if let Some(id) = ext_power_id {
-            ui.separator();
-            ui.label(
-                RichText::new("External Power")
-                    .size(11.0)
-                    .color(Color32::from_gray(150)),
-            );
-            ui.add_space(4.0);
-            let power_actions: &[(&str, u32, &str)] = &[
-                ("Power\nOff", 0, "Turn external power off"),
-                ("Power\nOn", 1, "Turn external power on"),
-                ("Power\nToggle", 2, "Toggle external power"),
-            ];
-            ui.horizontal_wrapped(|ui| {
-                for (label, p1, tip) in power_actions {
-                    let resp = ui.add(
-                        egui::Button::new(RichText::new(*label).size(10.5))
-                            .min_size(Self::picker_key_size()),
-                    );
-                    if resp.clicked() {
-                        self.zmk_assign(id, *p1, 0);
-                    }
-                    resp.on_hover_text(*tip);
+                resp.on_hover_text("Output: USB");
+                let resp = ui.add(
+                    egui::Button::new(RichText::new("Out\nBLE").size(10.5))
+                        .min_size(Self::picker_key_size()),
+                );
+                if resp.clicked() {
+                    self.zmk_assign(id, 1, 0);
                 }
+                resp.on_hover_text("Output: Bluetooth");
             });
         }
     }

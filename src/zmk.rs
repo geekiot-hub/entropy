@@ -851,7 +851,6 @@ fn zmk_lighting_label(kind: &str, p1: u32) -> Option<&'static str> {
         ("backlight", 3) => Some("BL+"),
         ("backlight", 4) => Some("BL-"),
         ("backlight", 5) => Some("BL\nCycle"),
-        ("backlight", 6) => Some("BL\nSet"),
         _ => None,
     }
 }
@@ -877,7 +876,6 @@ fn zmk_lighting_tooltip(kind: &str, p1: u32) -> Option<&'static str> {
         ("backlight", 3) => Some("Increase backlight brightness"),
         ("backlight", 4) => Some("Decrease backlight brightness"),
         ("backlight", 5) => Some("Cycle backlight brightness"),
-        ("backlight", 6) => Some("Set backlight brightness"),
         _ => None,
     }
 }
@@ -969,34 +967,28 @@ pub fn zmk_binding_label(binding: &ZmkBinding, behaviors: &[BehaviorInfo], layer
         "bootloader"       => crate::keycode::keycode_label_with_names(0x7C00, &[], layer_names),
         // Studio Unlock
         "studio_unlock"    => "Unlock".to_string(),
-        // Bluetooth — p1=action, p2=profile index for SEL/DISC
+        // Bluetooth — p1=action, p2=profile index for SEL
         "bluetooth" => match p1 {
             0 => "BT\nClear".to_string(),
-            1 => "BT\nNext".to_string(),
-            2 => "BT\nPrev".to_string(),
-            3 => format!("BT\n{}", p2),
-            4 => "BT\nClear All".to_string(),
-            5 => format!("BT Disc\n{}", p2),
+            1 => "BT\nClear All".to_string(),
+            2 => "BT\nNext".to_string(),
+            3 => "BT\nPrev".to_string(),
+            4 => format!("BT\n{}", p2),
             _ => format!("BT\n{}", p1),
         },
-        // Output Selection — p1: 0=toggle, 1=USB, 2=BLE, 3=none
+        // Output Selection — p1: 0=USB, 1=BLE
         "output_selection" => match p1 {
-            0 => "Out\nToggle".to_string(),
-            1 => "USB".to_string(),
-            2 => "BLE".to_string(),
-            3 => "Out\nNone".to_string(),
+            0 => "USB".to_string(),
+            1 => "BLE".to_string(),
             _ => "Output".to_string(),
         },
         // External Power / Power
         "external_power" => match p1 {
             0 => "Power\nOff".to_string(),
-            1 => "Power\nOn".to_string(),
-            2 => "Power\nToggle".to_string(),
-            _ => "Power".to_string(),
+            _ => "Power\nOn".to_string(),
         },
         "soft_off" => "Soft\nOff".to_string(),
         // Lighting
-        "backlight" if p1 == 6 => format!("BL\n{}%", p2),
         "rgb_underglow" | "backlight" => zmk_lighting_label(kind, p1)
             .unwrap_or(name)
             .to_string(),
@@ -1064,31 +1056,22 @@ pub fn zmk_binding_tooltip(binding: &ZmkBinding, behaviors: &[BehaviorInfo], lay
         "bootloader"       => "Bootloader — put keyboard into flash mode".to_string(),
         "reset"            => "Restart the keyboard".to_string(),
         "studio_unlock"    => "Unlock editing — allow live keymap changes".to_string(),
-        "external_power"   => match p1 {
-            0 => "External power off".to_string(),
-            1 => "External power on".to_string(),
-            2 => "Toggle external power".to_string(),
-            _ => "External power".to_string(),
-        },
+        "external_power"   => match p1 { 0 => "External power off".to_string(), _ => "External power on".to_string() },
         "soft_off"         => "Turn the keyboard off until hardware wake/reset".to_string(),
-        "backlight" if p1 == 6 => format!("Set backlight brightness to {}%", p2),
         "rgb_underglow" | "backlight" => zmk_lighting_tooltip(kind, p1)
             .unwrap_or(name)
             .to_string(),
         "bluetooth" => match p1 {
             0 => "Bluetooth: forget current profile".to_string(),
-            1 => "Bluetooth: next profile".to_string(),
-            2 => "Bluetooth: previous profile".to_string(),
-            3 => format!("Bluetooth: profile {}", p2),
-            4 => "Bluetooth: forget all profiles".to_string(),
-            5 => format!("Bluetooth: discoverable advertising for profile {}", p2),
+            1 => "Bluetooth: forget all profiles".to_string(),
+            2 => "Bluetooth: next profile".to_string(),
+            3 => "Bluetooth: previous profile".to_string(),
+            4 => format!("Bluetooth: profile {}", p2),
             _ => format!("Bluetooth action {}", p1),
         },
         "output_selection" => match p1 {
-            0 => "Output: toggle USB/Bluetooth".to_string(),
-            1 => "Output: USB".to_string(),
-            2 => "Output: Bluetooth".to_string(),
-            3 => "Output: none".to_string(),
+            0 => "Output: USB".to_string(),
+            1 => "Output: Bluetooth".to_string(),
             _ => "Output selection".to_string(),
         },
         "mouse_key_press"  => zmk_mouse_button_param_to_vial_value(p1)
