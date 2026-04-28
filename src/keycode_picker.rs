@@ -4019,7 +4019,7 @@ impl KeycodePicker {
             KeycodeTab::Symbols | KeycodeTab::Special | KeycodeTab::Rgb | KeycodeTab::Custom => {
                 Self::key_grid_width(13, spacing)
             }
-            KeycodeTab::Modifiers => Self::key_grid_width(10, 6.0),
+            KeycodeTab::Modifiers => Self::key_grid_width(13, spacing),
             KeycodeTab::Macro | KeycodeTab::TapDance => Self::slot_grid_width(16, 4.0),
             KeycodeTab::Bluetooth => Self::key_grid_width(5, spacing),
             KeycodeTab::ZmkAdvanced => 840.0,
