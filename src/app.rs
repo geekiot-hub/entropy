@@ -571,6 +571,63 @@ use egui::{Color32, FontId, RichText, Sense, Stroke, Vec2};
 const LAYOUT_BASE_UNIT: f32 = 54.0_f32 * 1.15;
 const LAYOUT_KEY_PADDING: f32 = 2.5_f32;
 const LAYOUT_FIT_MARGIN: f32 = 40.0_f32;
+const LAYOUT_TOP_RESERVED_H: f32 = 32.0_f32 + 4.0_f32 + 68.0_f32;
+const LAYOUT_BOTTOM_RESERVED_H: f32 = 76.0_f32;
+
+#[derive(Clone, Copy)]
+struct LayoutGeometry {
+    offset_x: f32,
+    offset_y: f32,
+    unit: f32,
+    padding: f32,
+    layout_h: f32,
+}
+
+fn layout_geometry(layout: &KeyboardLayout, viewport: egui::Rect) -> LayoutGeometry {
+    let mut min_x: f32 = f32::MAX;
+    let mut min_y: f32 = f32::MAX;
+    let mut max_x: f32 = f32::MIN;
+    let mut max_y: f32 = f32::MIN;
+    for key in &layout.keys {
+        min_x = min_x.min(key.x);
+        min_y = min_y.min(key.y);
+        max_x = max_x.max(key.x + key.w);
+        max_y = max_y.max(key.y + key.h);
+    }
+    for encoder in &layout.encoders {
+        min_x = min_x.min(encoder.x);
+        min_y = min_y.min(encoder.y);
+        max_x = max_x.max(encoder.x + encoder.w);
+        max_y = max_y.max(encoder.y + encoder.h);
+    }
+    if min_x == f32::MAX {
+        min_x = 0.0;
+        min_y = 0.0;
+        max_x = 1.0;
+        max_y = 1.0;
+    }
+
+    let span_x = max_x - min_x;
+    let span_y = max_y - min_y;
+    let scale_x = (viewport.width() - LAYOUT_FIT_MARGIN)
+        / (span_x * LAYOUT_BASE_UNIT).max(1.0);
+    let scale_y = (viewport.height() - LAYOUT_FIT_MARGIN)
+        / (span_y * LAYOUT_BASE_UNIT).max(1.0);
+    let scale = scale_x.min(scale_y).min(1.0);
+    let unit = LAYOUT_BASE_UNIT * scale;
+    let layout_w = span_x * unit;
+    let layout_h = span_y * unit;
+    let content_top = viewport.top() + LAYOUT_TOP_RESERVED_H;
+    let content_bottom = viewport.bottom() - LAYOUT_BOTTOM_RESERVED_H;
+
+    LayoutGeometry {
+        offset_x: viewport.center().x - layout_w / 2.0 - min_x * unit,
+        offset_y: ((content_top + content_bottom) - layout_h) / 2.0 - min_y * unit,
+        unit,
+        padding: LAYOUT_KEY_PADDING,
+        layout_h,
+    }
+}
 
 fn layout_keycap_rect(
     offset_x: f32,
@@ -4092,40 +4149,11 @@ impl EntropyApp {
             return;
         }
 
-        let base_unit = LAYOUT_BASE_UNIT;
-        let padding = LAYOUT_KEY_PADDING;
-        let mut min_x = f32::MAX;
-        let mut min_y = f32::MAX;
-        let mut max_x = f32::MIN;
-        let mut max_y = f32::MIN;
-        for key in &layout.keys {
-            min_x = min_x.min(key.x);
-            min_y = min_y.min(key.y);
-            max_x = max_x.max(key.x + key.w);
-            max_y = max_y.max(key.y + key.h);
-        }
-        for encoder in &layout.encoders {
-            min_x = min_x.min(encoder.x);
-            min_y = min_y.min(encoder.y);
-            max_x = max_x.max(encoder.x + encoder.w);
-            max_y = max_y.max(encoder.y + encoder.h);
-        }
-        if min_x == f32::MAX {
-            return;
-        }
-
-        let span_x = max_x - min_x;
-        let span_y = max_y - min_y;
-        let margin = LAYOUT_FIT_MARGIN;
-        let board_size = board_rect.size();
-        let scale_x = (board_size.x - margin) / (span_x * base_unit).max(1.0);
-        let scale_y = (board_size.y - margin) / (span_y * base_unit).max(1.0);
-        let scale = scale_x.min(scale_y).min(1.0);
-        let unit = base_unit * scale;
-        let layout_w = span_x * unit;
-        let layout_h = span_y * unit;
-        let offset_x = board_rect.center().x - layout_w / 2.0 - min_x * unit;
-        let offset_y = board_rect.center().y - layout_h / 2.0 - min_y * unit;
+        let viewport = egui::Rect::from_min_max(
+            ui.min_rect().min,
+            egui::pos2(ui.min_rect().left() + ui.available_size().x, ui.max_rect().bottom()),
+        );
+        let geometry = layout_geometry(layout, viewport);
 
         let hint_color = if dark {
             Color32::from_gray(100)
@@ -4153,10 +4181,10 @@ impl EntropyApp {
                 .copied()
                 .unwrap_or(false);
             let rect = layout_keycap_rect(
-                offset_x,
-                offset_y,
-                unit,
-                padding,
+                geometry.offset_x,
+                geometry.offset_y,
+                geometry.unit,
+                geometry.padding,
                 key.x,
                 key.y,
                 key.w,
@@ -6019,42 +6047,14 @@ impl eframe::App for EntropyApp {
 
                     // Draw layout keys with highlighted unlock keys
                     if let Some(layout) = &self.layout {
-                        let base_unit = LAYOUT_BASE_UNIT;
                         let (off_x, off_y, unit, padding) =
                             self.last_layout_geometry.unwrap_or_else(|| {
-                                let padding = LAYOUT_KEY_PADDING;
-                                let mut min_x = f32::MAX;
-                                let mut min_y = f32::MAX;
-                                let mut max_x = f32::MIN;
-                                let mut max_y = f32::MIN;
-                                for key in &layout.keys {
-                                    min_x = min_x.min(key.x);
-                                    min_y = min_y.min(key.y);
-                                    max_x = max_x.max(key.x + key.w);
-                                    max_y = max_y.max(key.y + key.h);
-                                }
-                                for encoder in &layout.encoders {
-                                    min_x = min_x.min(encoder.x);
-                                    min_y = min_y.min(encoder.y);
-                                    max_x = max_x.max(encoder.x + encoder.w);
-                                    max_y = max_y.max(encoder.y + encoder.h);
-                                }
-                                let span_x = max_x - min_x;
-                                let span_y = max_y - min_y;
-                                let margin = LAYOUT_FIT_MARGIN;
-                                let scale_x =
-                                    (screen.width() - margin) / (span_x * base_unit).max(1.0);
-                                let scale_y =
-                                    (screen.height() - margin) / (span_y * base_unit).max(1.0);
-                                let scale = scale_x.min(scale_y).min(1.0);
-                                let unit = base_unit * scale;
-                                let layout_w = span_x * unit;
-                                let layout_h = span_y * unit;
+                                let geometry = layout_geometry(layout, screen);
                                 (
-                                    center_x - layout_w / 2.0 - min_x * unit,
-                                    screen.center().y - layout_h / 2.0 - min_y * unit,
-                                    unit,
-                                    padding,
+                                    geometry.offset_x,
+                                    geometry.offset_y,
+                                    geometry.unit,
+                                    geometry.padding,
                                 )
                             });
                         for key in &layout.keys {
@@ -11663,58 +11663,21 @@ impl EntropyApp {
     }
 
     fn draw_layout(&mut self, ui: &mut egui::Ui, layout: &KeyboardLayout, ctx: &egui::Context) {
-        let base_unit = LAYOUT_BASE_UNIT;
-        let padding = LAYOUT_KEY_PADDING;
-
         let avail = ui.available_size();
-
-        // Calculate layout bounding box (min AND max to handle rx offsets)
-        let mut min_x: f32 = f32::MAX;
-        let mut min_y: f32 = f32::MAX;
-        let mut max_x: f32 = f32::MIN;
-        let mut max_y: f32 = f32::MIN;
-        for key in &layout.keys {
-            min_x = min_x.min(key.x);
-            min_y = min_y.min(key.y);
-            max_x = max_x.max(key.x + key.w);
-            max_y = max_y.max(key.y + key.h);
-        }
-        for encoder in &layout.encoders {
-            min_x = min_x.min(encoder.x);
-            min_y = min_y.min(encoder.y);
-            max_x = max_x.max(encoder.x + encoder.w);
-            max_y = max_y.max(encoder.y + encoder.h);
-        }
-        if min_x == f32::MAX {
-            min_x = 0.0;
-            min_y = 0.0;
-            max_x = 1.0;
-            max_y = 1.0;
-        }
-
-        let span_x = max_x - min_x;
-        let span_y = max_y - min_y;
-
-        // Scale unit to fit available space with some margin
-        let margin = LAYOUT_FIT_MARGIN;
-        let scale_x = (avail.x - margin) / (span_x * base_unit).max(1.0);
-        let scale_y = (avail.y - margin) / (span_y * base_unit).max(1.0);
-        let scale = scale_x.min(scale_y).min(1.0);
-        let unit = base_unit * scale;
-
-        let layout_w = span_x * unit;
-        let layout_h = span_y * unit;
-        // Reserve space at top for main tabs + layer switcher
+        let viewport = egui::Rect::from_min_max(
+            ui.min_rect().min,
+            egui::pos2(ui.min_rect().left() + avail.x, ui.max_rect().bottom()),
+        );
+        let geometry = layout_geometry(layout, viewport);
+        let offset_x = geometry.offset_x;
+        let offset_y = geometry.offset_y;
+        let unit = geometry.unit;
+        let padding = geometry.padding;
+        let layout_h = geometry.layout_h;
         let main_tabs_h = 32.0_f32;
-        let main_tabs_gap = 4.0_f32;
         let layer_bar_h = 68.0_f32;
-        let top_reserved_h = main_tabs_h + main_tabs_gap + layer_bar_h;
-        let bottom_reserved_h = 76.0_f32;
+        let top_reserved_h = LAYOUT_TOP_RESERVED_H;
         let top_base_y = ui.min_rect().top() + 6.0;
-        let offset_x = (avail.x - layout_w) / 2.0 + ui.min_rect().left() - min_x * unit;
-        let content_top = ui.min_rect().top() + top_reserved_h;
-        let content_bottom = ui.max_rect().bottom() - bottom_reserved_h;
-        let offset_y = ((content_top + content_bottom) - layout_h) / 2.0 - min_y * unit;
         self.last_layout_geometry = Some((offset_x, offset_y, unit, padding));
 
         // ── Main menu tabs ────────────────────────────────────────────────
