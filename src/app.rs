@@ -2007,6 +2007,7 @@ pub struct EntropyApp {
     matrix_tester_ever_pressed: Vec<bool>,
     matrix_tester_last_poll: std::time::Instant,
     matrix_tester_unlock_prompted: bool,
+    matrix_tester_lock_checked: bool,
     macro_auto_unlock_cancelled: bool,
     settings_tab: SettingsTab,
     layer_names: Vec<String>,
@@ -2123,6 +2124,7 @@ impl EntropyApp {
             matrix_tester_ever_pressed: Vec::new(),
             matrix_tester_last_poll: std::time::Instant::now(),
             matrix_tester_unlock_prompted: false,
+            matrix_tester_lock_checked: false,
             macro_auto_unlock_cancelled: false,
             settings_tab: SettingsTab::MatrixTester,
             layer_names: load_layer_names("default"),
@@ -3519,6 +3521,7 @@ impl EntropyApp {
         self.matrix_tester_ever_pressed.clear();
         self.matrix_tester_last_poll = std::time::Instant::now();
         self.matrix_tester_unlock_prompted = false;
+        self.matrix_tester_lock_checked = false;
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -3575,6 +3578,7 @@ impl EntropyApp {
         self.vial_unlock_counter = 0;
         self.vial_unlock_best = 50;
         self.matrix_tester_unlock_prompted = false;
+        self.matrix_tester_lock_checked = false;
         if suppress_macro_auto_unlock {
             self.macro_auto_unlock_cancelled = true;
         }
@@ -4140,13 +4144,16 @@ impl EntropyApp {
 
         if supported
             && hid_ready
-            && self.is_vial_locked()
             && !self.unlock_open
             && !self.matrix_tester_unlock_prompted
+            && !self.matrix_tester_lock_checked
         {
-            self.unlock_open = true;
-            self.matrix_tester_unlock_prompted = true;
-            self.status_msg = "Keyboard is locked, unlock it to use Matrix Tester".into();
+            self.matrix_tester_lock_checked = true;
+            if self.is_vial_locked() {
+                self.unlock_open = true;
+                self.matrix_tester_unlock_prompted = true;
+                self.status_msg = "Keyboard is locked, unlock it to use Matrix Tester".into();
+            }
         }
 
         let total_keys = layout.keys.len();
@@ -11836,6 +11843,7 @@ impl EntropyApp {
                                 self.reset_matrix_tester_state();
                             }
                             self.matrix_tester_unlock_prompted = false;
+                            self.matrix_tester_lock_checked = false;
                             self.main_menu_tab = MainMenuTab::Settings;
                         }
                     }
@@ -12401,6 +12409,7 @@ impl EntropyApp {
                                             self.reset_matrix_tester_state();
                                         }
                                         self.matrix_tester_unlock_prompted = false;
+                                        self.matrix_tester_lock_checked = false;
                                         self.main_menu_tab = MainMenuTab::Settings;
                                     }
                                     if universal_symbols_resp.clicked() {
