@@ -382,31 +382,6 @@ fn picker_action_label(label: &str) -> String {
     }
 }
 
-fn mouse_picker_label(value: u16) -> &'static str {
-    match value {
-        0x00CD => "Mouse\nUp",
-        0x00CE => "Mouse\nDown",
-        0x00CF => "Mouse\nLeft",
-        0x00D0 => "Mouse\nRight",
-        0x00D1 => "Mouse\n1",
-        0x00D2 => "Mouse\n2",
-        0x00D3 => "Mouse\n3",
-        0x00D4 => "Mouse\n4",
-        0x00D5 => "Mouse\n5",
-        0x00D6 => "Mouse\n6",
-        0x00D7 => "Mouse\n7",
-        0x00D8 => "Mouse\n8",
-        0x00D9 => "Scroll\nUp",
-        0x00DA => "Scroll\nDown",
-        0x00DB => "Scroll\nLeft",
-        0x00DC => "Scroll\nRight",
-        0x00DD => "Accel\n0",
-        0x00DE => "Accel\n1",
-        0x00DF => "Accel\n2",
-        _ => "Mouse",
-    }
-}
-
 fn zmk_space_cadet_parts(value: u16) -> Option<(u32, u16)> {
     match value {
         0x7C18 => Some((0x0007_00E0, 0x0200 | 0x0026)),
@@ -4282,8 +4257,8 @@ Repeat"
                     let resp = ui
                         .add_sized(Self::picker_key_size(), egui::Button::new(""))
                         .on_hover_cursor(egui::CursorIcon::PointingHand);
-                    let label = mouse_picker_label(*value);
-                    Self::paint_compact_picker_label(ui, &resp, label);
+                    let label = keycode_label_with_names(*value, &[], &self.layer_names);
+                    Self::paint_compact_picker_label(ui, &resp, &label);
                     if resp.clicked() {
                         self.assign_keycode_value(*value);
                     }
@@ -4330,41 +4305,15 @@ Repeat"
         );
         ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| {
-            for (icon, text, value) in media_keys {
+            for (_, _, value) in media_keys {
                 if !self.picker_value_supported(*value) {
                     continue;
                 }
                 let resp = ui
                     .add_sized(Self::picker_key_size(), egui::Button::new(""))
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
-                let visuals = ui.style().interact(&resp);
-                let icon_color = visuals.fg_stroke.color.gamma_multiply(0.6);
-                let icon_galley = ui.painter().layout_no_wrap(
-                    (*icon).to_owned(),
-                    egui::FontId::proportional(10.5),
-                    icon_color,
-                );
-                let text_galley = ui.painter().layout_no_wrap(
-                    (*text).to_owned(),
-                    egui::FontId::proportional(10.5),
-                    visuals.fg_stroke.color,
-                );
-                let line_spacing = 1.0;
-                let icon_width = icon_galley.size().x;
-                let icon_height = icon_galley.size().y;
-                let text_width = text_galley.size().x;
-                let total_height = icon_height + line_spacing + text_galley.size().y;
-                let icon_pos = egui::pos2(
-                    resp.rect.center().x - icon_width / 2.0,
-                    resp.rect.center().y - total_height / 2.0,
-                );
-                ui.painter().galley(icon_pos, icon_galley, icon_color);
-                let text_pos = egui::pos2(
-                    resp.rect.center().x - text_width / 2.0,
-                    icon_pos.y + icon_height + line_spacing,
-                );
-                ui.painter()
-                    .galley(text_pos, text_galley, visuals.fg_stroke.color);
+                let label = keycode_label_with_names(*value, &[], &self.layer_names);
+                Self::paint_compact_picker_label(ui, &resp, &label);
                 if resp.clicked() {
                     self.assign_keycode_value(*value);
                 }
