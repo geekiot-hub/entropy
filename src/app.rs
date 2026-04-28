@@ -5,6 +5,8 @@ use crate::zmk::{zmk_behavior_kind, zmk_binding_label, zmk_binding_tooltip, ZmkB
 #[cfg(target_os = "windows")]
 static TRAY_QUIT_REQUESTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
+const MATRIX_TESTER_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(16);
+
 /// Sanitize a device name into a filesystem-safe slug.
 fn device_id_slug(device_name: &str) -> String {
     device_name
@@ -3519,7 +3521,7 @@ impl EntropyApp {
     fn reset_matrix_tester_state(&mut self) {
         self.matrix_tester_pressed.clear();
         self.matrix_tester_ever_pressed.clear();
-        self.matrix_tester_last_poll = std::time::Instant::now();
+        self.matrix_tester_last_poll = std::time::Instant::now() - MATRIX_TESTER_POLL_INTERVAL;
         self.matrix_tester_unlock_prompted = false;
         self.matrix_tester_lock_checked = false;
     }
@@ -3598,8 +3600,7 @@ impl EntropyApp {
         };
 
         let now = std::time::Instant::now();
-        if now.duration_since(self.matrix_tester_last_poll) >= std::time::Duration::from_millis(50)
-        {
+        if now.duration_since(self.matrix_tester_last_poll) >= MATRIX_TESTER_POLL_INTERVAL {
             self.matrix_tester_last_poll = now;
             match hid.get_switch_matrix(layout.rows, layout.cols) {
                 Ok(pressed) => {
@@ -3620,7 +3621,7 @@ impl EntropyApp {
                 }
             }
         }
-        ctx.request_repaint_after(std::time::Duration::from_millis(50));
+        ctx.request_repaint_after(MATRIX_TESTER_POLL_INTERVAL);
     }
 
     fn draw_settings_screen(
