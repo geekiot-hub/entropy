@@ -1837,6 +1837,20 @@ impl KeycodePicker {
         let gap = 3.0;
         let width = COLS as f32 * cell_w + (COLS.saturating_sub(1)) as f32 * gap;
         let height = ROWS as f32 * cell_h + (ROWS.saturating_sub(1)) as f32 * gap;
+        let available_width = ui.available_width();
+        let x_offset = ((available_width - width).max(0.0) * 0.5).floor();
+
+        ui.horizontal(|ui| {
+            if x_offset > 0.0 {
+                ui.add_space(x_offset);
+            }
+            ui.label(
+                RichText::new("Basic keys — standard keyboard layout")
+                    .size(11.0)
+                    .color(Color32::from_gray(150)),
+            );
+        });
+        ui.add_space(4.0);
 
         let keys: &[(usize, usize, usize, &str, u16)] = &[
             (0, 0, 1, "Esc", 0x0029),
@@ -1927,8 +1941,6 @@ impl KeycodePicker {
             (5, 18, 1, "→", 0x004F),
         ];
 
-        let available_width = ui.available_width();
-        let x_offset = ((available_width - width).max(0.0) * 0.5).floor();
         let (rect, _) =
             ui.allocate_exact_size(Vec2::new(available_width, height), egui::Sense::hover());
         let origin = egui::pos2(rect.min.x + x_offset, rect.min.y);
@@ -2173,6 +2185,12 @@ impl KeycodePicker {
 
     fn show_vial_custom(&mut self, ui: &mut egui::Ui) {
         let custom_keycodes = self.custom_keycodes.clone();
+        ui.label(
+            RichText::new("Custom keycodes — defined by this keyboard")
+                .size(11.0)
+                .color(Color32::from_gray(150)),
+        );
+        ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| {
             for (name, label, title, value) in custom_keycodes {
                 if label.is_empty() {
