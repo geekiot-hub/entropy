@@ -113,9 +113,6 @@ pub struct KeycodePicker {
     pub zmk_behaviors: Vec<BehaviorInfo>,
     pub zmk_result: Option<ZmkBinding>,
     pub zmk_selected_behavior: Option<usize>,
-    pub zmk_advanced_behavior: Option<u32>,
-    pub zmk_advanced_param1: u32,
-    pub zmk_advanced_param2: u32,
     pub zmk_layer_count: usize,
     pub zmk_layer_action_pending: Option<(u32, bool)>,
     pub zmk_layer_retarget_pending: Option<ZmkBinding>,
@@ -587,9 +584,6 @@ impl Default for KeycodePicker {
             zmk_behaviors: vec![],
             zmk_result: None,
             zmk_selected_behavior: None,
-            zmk_advanced_behavior: None,
-            zmk_advanced_param1: 0,
-            zmk_advanced_param2: 0,
             zmk_layer_count: 4,
             zmk_layer_action_pending: None,
             zmk_layer_retarget_pending: None,
@@ -5969,9 +5963,43 @@ Repeat"
     }
 
     fn show_zmk_advanced(&mut self, ui: &mut egui::Ui) {
-        if self.zmk_behaviors.is_empty() {
+        // All behaviors not shown in other tabs
+        let covered: &[&str] = &[
+            "Key Press",
+            "Sticky Key",
+            "Momentary Layer",
+            "Toggle Layer",
+            "To Layer",
+            "Sticky Layer",
+            "Layer-Tap",
+            "Mod-Tap",
+            "Transparent",
+            "None",
+            "Bootloader",
+            "Reset",
+            "Caps Word",
+            "Grave/Escape",
+            "Studio Unlock",
+            "Bluetooth",
+            "Output Selection",
+            "Mouse Key Press",
+            "Mouse Move",
+            "Mouse Scroll",
+            "External Power",
+            "RGB Underglow",
+            "Backlight",
+        ];
+
+        let behaviors: Vec<(u32, String)> = self
+            .zmk_behaviors
+            .iter()
+            .filter(|b| !covered.contains(&b.display_name.as_str()))
+            .map(|b| (b.id, b.display_name.clone()))
+            .collect();
+
+        if behaviors.is_empty() {
             ui.label(
-                RichText::new("No ZMK behaviors reported by this device")
+                RichText::new("No additional behaviors found on this device")
                     .size(11.0)
                     .color(Color32::from_gray(150)),
             );
@@ -5979,329 +6007,27 @@ Repeat"
         }
 
         ui.label(
-            RichText::new("ZMK behavior editor — choose a firmware behavior and set its parameters")
+            RichText::new("Other behaviors available on this device:")
                 .size(11.0)
                 .color(Color32::from_gray(150)),
         );
         ui.add_space(4.0);
-
-        let mut behaviors: Vec<(u32, String)> = self
-            .zmk_behaviors
-            .iter()
-            .map(|b| (b.id, b.display_name.clone()))
-            .collect();
-        behaviors.sort_by(|a, b| a.1.to_ascii_lowercase().cmp(&b.1.to_ascii_lowercase()));
-
-        if self.zmk_advanced_behavior.is_none() {
-            if let Some((id, _)) = behaviors.first() {
-                self.zmk_advanced_behavior = Some(*id);
-            }
-        }
-
-        egui::ScrollArea::horizontal()
-            .id_salt("zmk_advanced_behavior_strip")
-            .max_height(38.0)
-            .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    for (id, name) in &behaviors {
-                        let selected = self.zmk_advanced_behavior == Some(*id);
-                        let resp = picker_button(
-                            ui,
-                            name,
-                            crate::ui_style::modal_small_button_size(108.0),
-                            true,
-                            selected,
-                        );
-                        if resp.clicked() {
-                            self.zmk_advanced_behavior = Some(*id);
-                            if let Some(behavior) = self.zmk_behaviors.iter().find(|b| b.id == *id) {
-                                self.zmk_advanced_param1 = Self::zmk_param_default(
-                                    behavior.metadata.first().map(|m| m.param1.as_slice()).unwrap_or(&[]),
-                                );
-                                self.zmk_advanced_param2 = Self::zmk_param_default(
-                                    behavior.metadata.first().map(|m| m.param2.as_slice()).unwrap_or(&[]),
-                                );
-                            } else {
-                                self.zmk_advanced_param1 = 0;
-                                self.zmk_advanced_param2 = 0;
-                            }
-                        }
-                        resp.on_hover_text(format!("Behavior: {name} (id={id})"));
-                    }
-                });
-            });
-
-        ui.add_space(8.0);
-
-        let Some(selected_id) = self.zmk_advanced_behavior else {
-            return;
-        };
-        let Some(behavior) = self
-            .zmk_behaviors
-            .iter()
-            .find(|b| b.id == selected_id)
-            .cloned()
-        else {
-            return;
-        };
-
-        let metadata = behavior.metadata.first();
-        ui.label(RichText::new(&behavior.display_name).size(13.0).strong());
-        ui.label(
-            RichText::new(format!(
-                "id={} · metadata sets={}",
-                behavior.id,
-                behavior.metadata.len()
-            ))
-            .size(10.5)
-            .color(Color32::from_gray(145)),
-        );
-        ui.add_space(6.0);
-
-        let p1_desc = metadata.map(|m| m.param1.as_slice()).unwrap_or(&[]);
-        let p2_desc = metadata.map(|m| m.param2.as_slice()).unwrap_or(&[]);
-        let layer_names = self.layer_names.clone();
-        let layer_count = self.zmk_layer_count.max(self.layer_count).max(4);
-        Self::show_zmk_advanced_param_editor(
-            ui,
-            "Param 1",
-            "zmk_advanced_param1",
-            &mut self.zmk_advanced_param1,
-            p1_desc,
-            &layer_names,
-            layer_count,
-        );
-        ui.add_space(6.0);
-        Self::show_zmk_advanced_param_editor(
-            ui,
-            "Param 2",
-            "zmk_advanced_param2",
-            &mut self.zmk_advanced_param2,
-            p2_desc,
-            &layer_names,
-            layer_count,
-        );
-
-        ui.add_space(8.0);
-        let assign_resp = crate::ui_style::modern_button(
-            ui,
-            "Assign behavior",
-            Vec2::new(140.0, 32.0),
-            true,
-        );
-        assign_resp.clone().on_hover_text("Write this behavior binding to the selected key");
-        if assign_resp.clicked() {
-            self.zmk_result = Some(ZmkBinding {
-                behavior_id: selected_id as i32,
-                param1: self.zmk_advanced_param1,
-                param2: self.zmk_advanced_param2,
-            });
-            self.open = false;
-        }
-    }
-
-    fn zmk_param_default(
-        descriptions: &[crate::zmk_proto::behaviors::BehaviorParameterValueDescription],
-    ) -> u32 {
-        use crate::zmk_proto::behaviors::behavior_parameter_value_description::ValueType;
-        descriptions
-            .iter()
-            .find_map(|desc| match &desc.value_type {
-                Some(ValueType::Nil(_)) => Some(0),
-                Some(ValueType::Constant(c)) => Some(*c),
-                Some(ValueType::Range(r)) => Some(r.min.max(0) as u32),
-                Some(ValueType::LayerId(_)) => Some(0),
-                Some(ValueType::HidUsage(_)) => Some(0x0007_0004),
-                None => None,
-            })
-            .unwrap_or(0)
-    }
-
-    fn zmk_param_value_label(
-        value: u32,
-        descriptions: &[crate::zmk_proto::behaviors::BehaviorParameterValueDescription],
-        layer_names: &[String],
-    ) -> String {
-        use crate::zmk_proto::behaviors::behavior_parameter_value_description::ValueType;
-        for desc in descriptions {
-            match &desc.value_type {
-                Some(ValueType::Constant(c)) if *c == value => return desc.name.clone(),
-                Some(ValueType::Nil(_)) if value == 0 => return "None".to_string(),
-                Some(ValueType::HidUsage(_)) => {
-                    return keycode_label_with_names(
-                        Self::qmk_value_for_zmk_usage(value).unwrap_or(0),
-                        &[],
-                        layer_names,
-                    );
-                }
-                Some(ValueType::LayerId(_)) => {
-                    return layer_names
-                        .get(value as usize)
-                        .filter(|name| !name.is_empty() && *name != &value.to_string())
-                        .map(|name| format!("Layer {value}: {name}"))
-                        .unwrap_or_else(|| format!("Layer {value}"));
-                }
-                Some(ValueType::Range(_)) => return value.to_string(),
-                _ => {}
-            }
-        }
-        if value == 0 { "0".to_string() } else { format!("0x{value:04X}") }
-    }
-
-    fn qmk_value_for_zmk_usage(usage: u32) -> Option<u16> {
-        KEYCODES
-            .iter()
-            .find(|kc| zmk_hid_usage_for_qmk_value(kc.value) == Some(usage))
-            .map(|kc| kc.value)
-    }
-
-    fn show_zmk_advanced_param_editor(
-        ui: &mut egui::Ui,
-        label: &str,
-        id_salt: &'static str,
-        value: &mut u32,
-        descriptions: &[crate::zmk_proto::behaviors::BehaviorParameterValueDescription],
-        layer_names: &[String],
-        layer_count: usize,
-    ) {
-        use crate::zmk_proto::behaviors::behavior_parameter_value_description::ValueType;
-        ui.group(|ui| {
-            ui.horizontal(|ui| {
-                ui.label(RichText::new(label).size(11.5).strong());
-                ui.label(
-                    RichText::new(Self::zmk_param_value_label(*value, descriptions, layer_names))
-                        .size(10.5)
-                        .color(Color32::from_gray(150)),
+        ui.horizontal_wrapped(|ui| {
+            for (id, name) in &behaviors {
+                let resp = ui.add(
+                    egui::Button::new(RichText::new(name).size(11.0))
+                        .min_size(Self::picker_key_size()),
                 );
-            });
-            ui.add_space(4.0);
-
-            let has_named_values = descriptions.iter().any(|desc| {
-                matches!(
-                    desc.value_type,
-                    Some(ValueType::Nil(_)) | Some(ValueType::Constant(_))
-                )
-            });
-            if has_named_values {
-                ui.horizontal_wrapped(|ui| {
-                    for desc in descriptions {
-                        match &desc.value_type {
-                            Some(ValueType::Nil(_)) => {
-                                let text = if desc.name.is_empty() { "None" } else { desc.name.as_str() };
-                                if picker_button(ui, text, crate::ui_style::modal_small_button_size(82.0), true, *value == 0).clicked() {
-                                    *value = 0;
-                                }
-                            }
-                            Some(ValueType::Constant(c)) => {
-                                let text = if desc.name.is_empty() { "Const" } else { desc.name.as_str() };
-                                if picker_button(ui, text, crate::ui_style::modal_small_button_size(82.0), true, *value == *c).clicked() {
-                                    *value = *c;
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                });
-            }
-
-            if descriptions.iter().any(|desc| matches!(desc.value_type, Some(ValueType::LayerId(_)))) {
-                ui.add_space(4.0);
-                ui.horizontal_wrapped(|ui| {
-                    for n in 0..layer_count {
-                        let raw = layer_names.get(n).cloned().unwrap_or_else(|| n.to_string());
-                        let text = if !raw.is_empty() && raw != n.to_string() {
-                            format!("{n}: {raw}")
-                        } else {
-                            format!("L{n}")
-                        };
-                        if picker_button(ui, &text, crate::ui_style::modal_small_button_size(70.0), true, *value == n as u32).clicked() {
-                            *value = n as u32;
-                        }
-                    }
-                });
-            }
-
-            if descriptions.iter().any(|desc| matches!(desc.value_type, Some(ValueType::HidUsage(_)))) {
-                ui.add_space(4.0);
-                ui.label(RichText::new("Common keys").size(10.5).color(Color32::from_gray(150)));
-                egui::ScrollArea::horizontal()
-                    .id_salt(format!("{id_salt}_hid_keys"))
-                    .max_height(40.0)
-                    .show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            for kc in KEYCODES.iter().filter(|kc| {
-                                matches!(kc.category, KeycodeCategory::Basic | KeycodeCategory::Modifier | KeycodeCategory::Navigation | KeycodeCategory::Media)
-                                    && zmk_hid_usage_for_qmk_value(kc.value).is_some()
-                            }) {
-                                let usage = zmk_hid_usage_for_qmk_value(kc.value).unwrap_or(0);
-                                let selected = *value == usage;
-                                if picker_button(
-                                    ui,
-                                    &keycode_label_with_names(kc.value, &[], layer_names).replace('\n', " "),
-                                    crate::ui_style::modal_small_button_size(58.0),
-                                    true,
-                                    selected,
-                                ).clicked() {
-                                    *value = usage;
-                                }
-                            }
-                        });
+                if resp.clicked() {
+                    self.zmk_result = Some(ZmkBinding {
+                        behavior_id: *id as i32,
+                        param1: 0,
+                        param2: 0,
                     });
-            }
-
-            if let Some((min, max)) = descriptions.iter().find_map(|desc| match &desc.value_type {
-                Some(ValueType::Range(r)) => Some((r.min, r.max)),
-                _ => None,
-            }) {
-                ui.add_space(4.0);
-                let mut n = (*value as i32).clamp(min, max);
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new(format!("Range {min}..{max}")).size(10.5).color(Color32::from_gray(150)));
-                    if ui.add(egui::DragValue::new(&mut n).range(min..=max)).changed() {
-                        *value = n.max(0) as u32;
-                    }
-                });
-            }
-
-            ui.add_space(4.0);
-            let mut raw = ui
-                .ctx()
-                .data_mut(|d| d.get_temp::<String>(egui::Id::new(id_salt)).unwrap_or_else(|| format!("0x{:X}", *value)));
-            let parsed_current = Self::parse_zmk_param_text(&raw);
-            if parsed_current != Some(*value) && !ui.memory(|m| m.has_focus(egui::Id::new(id_salt))) {
-                raw = format!("0x{:X}", *value);
-            }
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("Raw").size(10.5).color(Color32::from_gray(150)));
-                let resp = crate::ui_style::modern_text_field(
-                    ui,
-                    egui::Id::new(id_salt),
-                    &mut raw,
-                    96.0,
-                    "0",
-                    10,
-                    egui::Align::RIGHT,
-                );
-                if resp.changed() {
-                    if let Some(parsed) = Self::parse_zmk_param_text(&raw) {
-                        *value = parsed;
-                    }
+                    self.open = false;
                 }
-            });
-            ui.ctx().data_mut(|d| d.insert_temp(egui::Id::new(id_salt), raw));
+                resp.on_hover_text(format!("Behavior: {} (id={})", name, id));
+            }
         });
     }
-
-    fn parse_zmk_param_text(text: &str) -> Option<u32> {
-        let trimmed = text.trim();
-        if trimmed.is_empty() {
-            return Some(0);
-        }
-        trimmed
-            .strip_prefix("0x")
-            .or_else(|| trimmed.strip_prefix("0X"))
-            .map(|hex| u32::from_str_radix(hex, 16).ok())
-            .unwrap_or_else(|| trimmed.parse::<u32>().ok())
-    }
-
 }
