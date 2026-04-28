@@ -2321,16 +2321,16 @@ impl KeycodePicker {
         ui.add_space(4.0);
         let gui_symbol = gui_sym();
         let mk: Vec<(String, u16, Option<u16>, String)> = vec![
-            ("Ctrl/…".into(), 0x0100, Some(0x1100), "Ctrl".into()),
-            ("Shift/…".into(), 0x0200, Some(0x1200), "Shift".into()),
-            ("Alt/…".into(), 0x0400, Some(0x1400), "Alt".into()),
-            (format!("{gui_symbol}/…"), 0x0800, Some(0x1800), lgui.to_string()),
-            ("Ctrl+Shift/…".into(), 0x0300, None, "Ctrl+Shift".into()),
-            ("Ctrl+Alt/…".into(), 0x0500, None, "Ctrl+Alt".into()),
-            ("Shift+Alt/…".into(), 0x0600, None, "Shift+Alt (LSA)".into()),
-            ("Meh/…".into(), 0x0700, None, "Ctrl+Shift+Alt".into()),
-            (format!("Shift+{gui_symbol}/…"), 0x0A00, None, format!("{}+Shift", lgui)),
-            ("Hyper/…".into(), 0x0F00, None, format!("Ctrl+Shift+Alt+{}", gui_mod_name())),
+            ("Ctrl/key".into(), 0x0100, Some(0x1100), "Ctrl".into()),
+            ("Shift/key".into(), 0x0200, Some(0x1200), "Shift".into()),
+            ("Alt/key".into(), 0x0400, Some(0x1400), "Alt".into()),
+            (format!("{gui_symbol}/key"), 0x0800, Some(0x1800), lgui.to_string()),
+            ("Ctrl+Shift/key".into(), 0x0300, None, "Ctrl+Shift".into()),
+            ("Ctrl+Alt/key".into(), 0x0500, None, "Ctrl+Alt".into()),
+            ("Shift+Alt/key".into(), 0x0600, None, "Shift+Alt (LSA)".into()),
+            ("Meh/key".into(), 0x0700, None, "Ctrl+Shift+Alt".into()),
+            (format!("Shift+{gui_symbol}/key"), 0x0A00, None, format!("{}+Shift", lgui)),
+            ("Hyper/key".into(), 0x0F00, None, format!("Ctrl+Shift+Alt+{}", gui_mod_name())),
         ];
         ui.horizontal_wrapped(|ui| {
             for (label, left_value, right_value, mod_name) in &mk {
@@ -2360,15 +2360,15 @@ impl KeycodePicker {
         );
         ui.add_space(4.0);
         let mut mt: Vec<(String, u16, Option<u16>, String)> = vec![
-            ("Ctrl/…".into(), 0x2100, Some(0x3100), "Ctrl".into()),
-            ("Shift/…".into(), 0x2200, Some(0x3200), "Shift".into()),
-            ("Alt/…".into(), 0x2400, Some(0x3400), "Alt".into()),
-            (format!("{gui_symbol}/…"), 0x2800, Some(0x3800), lgui.to_string()),
-            ("Ctrl+Shift/…".into(), 0x2300, None, "Ctrl+Shift".into()),
-            ("Ctrl+Alt/…".into(), 0x2500, None, "Ctrl+Alt".into()),
-            ("Shift+Alt/…".into(), 0x2600, None, "Shift+Alt (LSA)".into()),
-            ("Meh/…".into(), 0x2700, None, "Meh (Ctrl+Shift+Alt)".into()),
-            ("Hypr/…".into(), 0x2F00, None, format!("Hyper (Ctrl+Shift+Alt+{})", gui_mod_name())),
+            ("Ctrl/key".into(), 0x2100, Some(0x3100), "Ctrl".into()),
+            ("Shift/key".into(), 0x2200, Some(0x3200), "Shift".into()),
+            ("Alt/key".into(), 0x2400, Some(0x3400), "Alt".into()),
+            (format!("{gui_symbol}/key"), 0x2800, Some(0x3800), lgui.to_string()),
+            ("Ctrl+Shift/key".into(), 0x2300, None, "Ctrl+Shift".into()),
+            ("Ctrl+Alt/key".into(), 0x2500, None, "Ctrl+Alt".into()),
+            ("Shift+Alt/key".into(), 0x2600, None, "Shift+Alt (LSA)".into()),
+            ("Meh/key".into(), 0x2700, None, "Meh (Ctrl+Shift+Alt)".into()),
+            ("Hypr/key".into(), 0x2F00, None, format!("Hyper (Ctrl+Shift+Alt+{})", gui_mod_name())),
         ];
         if self.firmware == FirmwareProtocol::Zmk {
             mt.retain(|(_, left, right, _)| {
@@ -2646,16 +2646,16 @@ impl KeycodePicker {
         );
         ui.add_space(4.0);
         let mod_bases: Vec<(String, u16, String)> = vec![
-            ("Ctrl+…".into(), 0x0100, "Hold Left Ctrl together with the key you choose next".into()),
-            ("Shift+…".into(), 0x0200, "Hold Left Shift together with the key you choose next".into()),
-            ("Alt+…".into(), 0x0400, "Hold Left Alt together with the key you choose next".into()),
-            (format!("{}+…", gui), 0x0800, format!("Hold Left {lgui} together with the key you choose next")),
-            ("C+S+…".into(), 0x0300, "Hold Ctrl+Shift together with the key you choose next".into()),
-            ("C+A+…".into(), 0x0500, "Hold Ctrl+Alt together with the key you choose next".into()),
-            ("S+A+…".into(), 0x0600, "Hold Shift+Alt together with the key you choose next".into()),
-            ("Meh+…".into(), 0x0700, "Hold Ctrl+Shift+Alt together with the key you choose next".into()),
+            ("Ctrl+key".into(), 0x0100, "Hold Left Ctrl together with the key you choose next".into()),
+            ("Shift+key".into(), 0x0200, "Hold Left Shift together with the key you choose next".into()),
+            ("Alt+key".into(), 0x0400, "Hold Left Alt together with the key you choose next".into()),
+            (format!("{}+key", gui), 0x0800, format!("Hold Left {lgui} together with the key you choose next")),
+            ("C+S+key".into(), 0x0300, "Hold Ctrl+Shift together with the key you choose next".into()),
+            ("C+A+key".into(), 0x0500, "Hold Ctrl+Alt together with the key you choose next".into()),
+            ("S+A+key".into(), 0x0600, "Hold Shift+Alt together with the key you choose next".into()),
+            ("Meh+key".into(), 0x0700, "Hold Ctrl+Shift+Alt together with the key you choose next".into()),
             (
-                "Hyper+…".into(),
+                "Hyper+key".into(),
                 0x0F00,
                 format!("Hold Ctrl+Shift+Alt+{} together with the key you choose next", gui_mod_name()),
             ),
