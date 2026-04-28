@@ -2021,7 +2021,7 @@ impl KeycodePicker {
 
         let main_symbol_order = [
             '.', ',', ';', ':', '!', '?', '/', '`', '~', '\'', '"', '(', ')', '[', ']', '{', '}',
-            '<', '>', '+', '*', '=', '#', '@', '$', '%', '^', '&', '|', '\\', '_', '№',
+            '<', '>', '+', '*', '=', '#', '@', '$', '%', '^', '&', '|', '\\', '_',
         ];
         let extra_symbol_order = [
             '₽', '€', '«', '»', '‘', '’', '„', '“', '”', '—', '–', '•', '×', '±', '≠', '≈', '✓',
@@ -2068,8 +2068,6 @@ impl KeycodePicker {
         });
 
         ui.add_space(10.0);
-        ui.separator();
-        ui.add_space(10.0);
         ui.label(
             RichText::new("Layout symbols — follow the active keyboard language")
                 .size(11.0)
@@ -2094,8 +2092,6 @@ impl KeycodePicker {
             }
         });
 
-        ui.add_space(10.0);
-        ui.separator();
         ui.add_space(10.0);
         ui.label(
             RichText::new("Extra universal symbols — typography and math")
@@ -4743,7 +4739,7 @@ Repeat"
     fn show_zmk_symbols(&mut self, ui: &mut egui::Ui) {
         let main_symbol_order = [
             '.', ',', ';', ':', '!', '?', '/', '`', '~', '\'', '"', '(', ')', '[', ']', '{', '}',
-            '<', '>', '+', '*', '=', '#', '@', '$', '%', '^', '&', '|', '\\', '_', '№',
+            '<', '>', '+', '*', '=', '#', '@', '$', '%', '^', '&', '|', '\\', '_',
         ];
         let extra_symbol_order = [
             '₽', '€', '«', '»', '‘', '’', '„', '“', '”', '—', '–', '•', '×', '±', '≠', '≈', '✓',
@@ -4756,8 +4752,6 @@ Repeat"
             &main_symbol_order,
         );
 
-        ui.add_space(10.0);
-        ui.separator();
         ui.add_space(10.0);
         ui.label(
             RichText::new("Layout symbols — follow the active keyboard language")
@@ -4785,8 +4779,6 @@ Repeat"
             }
         });
 
-        ui.add_space(10.0);
-        ui.separator();
         ui.add_space(10.0);
         self.show_zmk_smart_symbol_section(
             ui,
