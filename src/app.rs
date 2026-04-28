@@ -563,7 +563,7 @@ fn keycode_tooltip_with_macro_names(
     }
     keycode_tooltip(value, custom, layer_names)
 }
-use crate::keyboard::{KeyboardLayout, LayoutOption};
+use crate::keyboard::{KeyboardLayout, LayoutOption, PhysicalEncoder, PhysicalKey};
 use crate::keycode::{key_label_font_sizes, keycode_label_with_names, keycode_tooltip};
 use crate::keycode_picker::{egui_key_to_qmk, KeycodePicker, KeycodeTab};
 use egui::{Color32, FontId, RichText, Sense, Stroke, Vec2};
@@ -642,6 +642,64 @@ fn layout_keycap_rect(
     egui::Rect::from_min_size(
         egui::pos2(offset_x + x * unit + padding, offset_y + y * unit + padding),
         Vec2::new(w * unit - padding * 2.0, h * unit - padding * 2.0),
+    )
+}
+
+fn rotated_layout_rect(
+    rect: egui::Rect,
+    rotation: f32,
+    rotation_x: f32,
+    rotation_y: f32,
+    geometry: LayoutGeometry,
+) -> egui::Rect {
+    if rotation == 0.0 {
+        return rect;
+    }
+
+    let angle_rad = rotation.to_radians();
+    let anchor = egui::pos2(
+        geometry.offset_x + rotation_x * geometry.unit,
+        geometry.offset_y + rotation_y * geometry.unit,
+    );
+    let center = rect.center();
+    let dx = center.x - anchor.x;
+    let dy = center.y - anchor.y;
+    let rx = anchor.x + dx * angle_rad.cos() - dy * angle_rad.sin();
+    let ry = anchor.y + dx * angle_rad.sin() + dy * angle_rad.cos();
+    egui::Rect::from_center_size(egui::pos2(rx, ry), rect.size())
+}
+
+fn layout_physical_key_rect(key: &PhysicalKey, geometry: LayoutGeometry) -> egui::Rect {
+    let rect = layout_keycap_rect(
+        geometry.offset_x,
+        geometry.offset_y,
+        geometry.unit,
+        geometry.padding,
+        key.x,
+        key.y,
+        key.w,
+        key.h,
+    );
+    rotated_layout_rect(rect, key.rotation, key.rotation_x, key.rotation_y, geometry)
+}
+
+fn layout_physical_encoder_rect(encoder: &PhysicalEncoder, geometry: LayoutGeometry) -> egui::Rect {
+    let rect = layout_keycap_rect(
+        geometry.offset_x,
+        geometry.offset_y,
+        geometry.unit,
+        geometry.padding,
+        encoder.x,
+        encoder.y,
+        encoder.w,
+        encoder.h,
+    );
+    rotated_layout_rect(
+        rect,
+        encoder.rotation,
+        encoder.rotation_x,
+        encoder.rotation_y,
+        geometry,
     )
 }
 
@@ -4180,16 +4238,7 @@ impl EntropyApp {
                 .get(matrix_idx)
                 .copied()
                 .unwrap_or(false);
-            let rect = layout_keycap_rect(
-                geometry.offset_x,
-                geometry.offset_y,
-                geometry.unit,
-                geometry.padding,
-                key.x,
-                key.y,
-                key.w,
-                key.h,
-            );
+            let rect = layout_physical_key_rect(key, geometry);
 
             let fill = if is_pressed {
                 app_accent()
@@ -6061,16 +6110,14 @@ impl eframe::App for EntropyApp {
                             let is_unlock = unlock_keys
                                 .iter()
                                 .any(|(r, c)| key.row == *r && key.col == *c);
-                            let rect = layout_keycap_rect(
-                                off_x,
-                                off_y,
+                            let geometry = LayoutGeometry {
+                                offset_x: off_x,
+                                offset_y: off_y,
                                 unit,
                                 padding,
-                                key.x,
-                                key.y,
-                                key.w,
-                                key.h,
-                            );
+                                layout_h: 0.0,
+                            };
+                            let rect = layout_physical_key_rect(key, geometry);
                             let bg = if is_unlock {
                                 app_accent()
                             } else {
@@ -13198,16 +13245,14 @@ impl EntropyApp {
             .iter()
             .enumerate()
             .map(|(ki, key)| {
-                let rect = layout_keycap_rect(
+                let geometry = LayoutGeometry {
                     offset_x,
                     offset_y,
                     unit,
                     padding,
-                    key.x,
-                    key.y,
-                    key.w,
-                    key.h,
-                );
+                    layout_h,
+                };
+                let rect = layout_physical_key_rect(key, geometry);
                 (ki, rect)
             })
             .collect();
@@ -13216,16 +13261,14 @@ impl EntropyApp {
             .iter()
             .enumerate()
             .map(|(ei, encoder)| {
-                let rect = layout_keycap_rect(
+                let geometry = LayoutGeometry {
                     offset_x,
                     offset_y,
                     unit,
                     padding,
-                    encoder.x,
-                    encoder.y,
-                    encoder.w,
-                    encoder.h,
-                );
+                    layout_h,
+                };
+                let rect = layout_physical_encoder_rect(encoder, geometry);
                 (ei, rect)
             })
             .collect();
@@ -13472,22 +13515,7 @@ impl EntropyApp {
                 .iter()
                 .find(|(press_ki, _)| *press_ki == *ki)
                 .map(|(_, press_rect)| *press_rect);
-            let draw_rect = if let Some(press_rect) = press_rect_override {
-                press_rect
-            } else if key.rotation != 0.0 {
-                let angle_rad = key.rotation.to_radians();
-                let ax = offset_x + key.rotation_x * unit;
-                let ay = offset_y + key.rotation_y * unit;
-                let anchor = egui::pos2(ax, ay);
-                let center = rect.center();
-                let dx = center.x - anchor.x;
-                let dy = center.y - anchor.y;
-                let rx = anchor.x + dx * angle_rad.cos() - dy * angle_rad.sin();
-                let ry = anchor.y + dx * angle_rad.sin() + dy * angle_rad.cos();
-                egui::Rect::from_center_size(egui::pos2(rx, ry), rect.size())
-            } else {
-                *rect
-            };
+            let draw_rect = press_rect_override.unwrap_or(*rect);
 
             let is_hovering = hover_alpha > 0.05;
 
