@@ -11641,7 +11641,7 @@ impl EntropyApp {
 
     fn draw_layout(&mut self, ui: &mut egui::Ui, layout: &KeyboardLayout, ctx: &egui::Context) {
         let base_unit = 54.0_f32 * 1.15; // +15%
-        let padding = 4.0_f32;
+        let padding = 2.5_f32;
 
         let avail = ui.available_size();
 
