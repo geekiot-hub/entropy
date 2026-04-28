@@ -90,6 +90,7 @@ pub enum MacroAction {
 pub struct KeycodePicker {
     pub open: bool,
     pub selected_tab: KeycodeTab,
+    pub basic_layout: BasicPickerLayout,
     pub search_query: String,
     pub result: Option<u16>,
     pub custom_keycodes: Vec<(String, String, String, u16)>,
@@ -144,6 +145,101 @@ pub struct KeycodePicker {
     /// Macro key picker: (macro_idx, action_idx) being edited
     macro_key_pick: Option<(usize, usize)>,
     popup_state: PopupState,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BasicPickerLayout {
+    Qwerty,
+    Dvorak,
+    Colemak,
+}
+
+impl BasicPickerLayout {
+    const ALL: [BasicPickerLayout; 3] = [
+        BasicPickerLayout::Qwerty,
+        BasicPickerLayout::Dvorak,
+        BasicPickerLayout::Colemak,
+    ];
+
+    fn label(self) -> &'static str {
+        match self {
+            BasicPickerLayout::Qwerty => "QWERTY",
+            BasicPickerLayout::Dvorak => "Dvorak",
+            BasicPickerLayout::Colemak => "Colemak",
+        }
+    }
+
+    fn map_value(self, value: u16) -> u16 {
+        match self {
+            BasicPickerLayout::Qwerty => value,
+            BasicPickerLayout::Dvorak => match value {
+                0x0014 => 0x0034, // Q position -> '
+                0x001A => 0x0036, // W position -> ,
+                0x0008 => 0x0037, // E position -> .
+                0x0015 => 0x0013, // R position -> P
+                0x0017 => 0x001C, // T position -> Y
+                0x001C => 0x0009, // Y position -> F
+                0x0018 => 0x000A, // U position -> G
+                0x000C => 0x0006, // I position -> C
+                0x0012 => 0x0015, // O position -> R
+                0x0013 => 0x000F, // P position -> L
+                0x002F => 0x0038, // [ position -> /
+                0x0030 => 0x002E, // ] position -> =
+                0x0004 => 0x0004, // A
+                0x0016 => 0x0012, // S position -> O
+                0x0007 => 0x0008, // D position -> E
+                0x0009 => 0x0018, // F position -> U
+                0x000A => 0x000C, // G position -> I
+                0x000B => 0x0007, // H position -> D
+                0x000D => 0x000B, // J position -> H
+                0x000E => 0x0017, // K position -> T
+                0x000F => 0x0011, // L position -> N
+                0x0033 => 0x0016, // ; position -> S
+                0x0034 => 0x002D, // ' position -> -
+                0x001D => 0x0033, // Z position -> ;
+                0x001B => 0x0014, // X position -> Q
+                0x0006 => 0x000D, // C position -> J
+                0x0019 => 0x000E, // V position -> K
+                0x0005 => 0x001B, // B position -> X
+                0x0011 => 0x0005, // N position -> B
+                0x0010 => 0x0010, // M
+                0x0036 => 0x001A, // , position -> W
+                0x0037 => 0x0019, // . position -> V
+                0x0038 => 0x001D, // / position -> Z
+                _ => value,
+            },
+            BasicPickerLayout::Colemak => match value {
+                0x0014 => 0x0014, // Q
+                0x001A => 0x001A, // W
+                0x0008 => 0x0009, // E position -> F
+                0x0015 => 0x0013, // R position -> P
+                0x0017 => 0x000A, // T position -> G
+                0x001C => 0x000D, // Y position -> J
+                0x0018 => 0x000F, // U position -> L
+                0x000C => 0x0018, // I position -> U
+                0x0012 => 0x001C, // O position -> Y
+                0x0013 => 0x0033, // P position -> ;
+                0x0004 => 0x0004, // A
+                0x0016 => 0x0015, // S position -> R
+                0x0007 => 0x0016, // D position -> S
+                0x0009 => 0x0017, // F position -> T
+                0x000A => 0x0007, // G position -> D
+                0x000B => 0x000B, // H
+                0x000D => 0x0011, // J position -> N
+                0x000E => 0x0008, // K position -> E
+                0x000F => 0x000C, // L position -> I
+                0x0033 => 0x0012, // ; position -> O
+                0x001D => 0x001D, // Z
+                0x001B => 0x001B, // X
+                0x0006 => 0x0006, // C
+                0x0019 => 0x0019, // V
+                0x0005 => 0x0005, // B
+                0x0011 => 0x000E, // N position -> K
+                0x0010 => 0x0010, // M
+                _ => value,
+            },
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -400,6 +496,7 @@ impl Default for KeycodePicker {
         Self {
             open: false,
             selected_tab: KeycodeTab::Basic,
+            basic_layout: BasicPickerLayout::Qwerty,
             search_query: String::new(),
             result: None,
             custom_keycodes: vec![],
@@ -1844,10 +1941,72 @@ impl KeycodePicker {
             if x_offset > 0.0 {
                 ui.add_space(x_offset);
             }
-            ui.label(
-                RichText::new("Basic keys — standard keyboard layout")
-                    .size(11.0)
-                    .color(Color32::from_gray(150)),
+            ui.allocate_ui_with_layout(
+                Vec2::new(width, 32.0),
+                egui::Layout::left_to_right(egui::Align::Center),
+                |ui| {
+                    ui.label(
+                        RichText::new("Basic keys — standard keyboard layout")
+                            .size(11.0)
+                            .color(Color32::from_gray(150)),
+                    );
+                    let dropdown_width = 126.0;
+                    let spacer = (ui.available_width() - dropdown_width).max(0.0);
+                    if spacer > 0.0 {
+                        ui.add_space(spacer);
+                    }
+                    let dropdown_id = ui.make_persistent_id("basic_layout_dropdown");
+                    let dropdown_resp = crate::ui_style::modern_dropdown_button(
+                        ui,
+                        dropdown_id,
+                        self.basic_layout.label(),
+                        ui.visuals().text_color(),
+                        dropdown_width,
+                    );
+                    egui::popup_below_widget(
+                        ui,
+                        dropdown_id,
+                        &dropdown_resp,
+                        egui::PopupCloseBehavior::CloseOnClickOutside,
+                        |ui| {
+                            ui.set_min_width(dropdown_width);
+                            ui.spacing_mut().item_spacing = Vec2::new(0.0, 2.0);
+                            for layout in BasicPickerLayout::ALL {
+                                let selected = self.basic_layout == layout;
+                                let (option_rect, option_resp) = ui.allocate_exact_size(
+                                    Vec2::new(dropdown_width, 28.0),
+                                    egui::Sense::click(),
+                                );
+                                if option_resp.hovered() {
+                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                }
+                                let fill = if selected {
+                                    if ui.visuals().dark_mode {
+                                        Color32::from_rgb(58, 58, 61)
+                                    } else {
+                                        Color32::from_rgb(236, 236, 238)
+                                    }
+                                } else if option_resp.hovered() {
+                                    crate::ui_style::hover_fill(ui.visuals().dark_mode)
+                                } else {
+                                    Color32::TRANSPARENT
+                                };
+                                ui.painter().rect_filled(option_rect, 7.0, fill);
+                                ui.painter().text(
+                                    option_rect.center(),
+                                    egui::Align2::CENTER_CENTER,
+                                    layout.label(),
+                                    egui::FontId::proportional(12.0),
+                                    if selected { ui.visuals().text_color() } else { Color32::from_gray(150) },
+                                );
+                                if option_resp.clicked() {
+                                    self.basic_layout = layout;
+                                    ui.memory_mut(|m| m.close_popup());
+                                }
+                            }
+                        },
+                    );
+                },
             );
         });
         ui.add_space(4.0);
@@ -1946,7 +2105,8 @@ impl KeycodePicker {
             ui.allocate_exact_size(Vec2::new(available_width, height), egui::Sense::hover());
         let origin = egui::pos2(rect.min.x + x_offset, rect.min.y);
         for &(row, col, span, fallback_label, value) in keys {
-            let display_label = match value {
+            let assigned_value = self.basic_layout.map_value(value);
+            let display_label = match assigned_value {
                 0x0035 => "~\n`".to_string(),
                 0x001E => "!\n1".to_string(),
                 0x001F => "@\n2".to_string(),
@@ -1960,8 +2120,8 @@ impl KeycodePicker {
                 0x0027 => ")\n0".to_string(),
                 0x002D => "_\n-".to_string(),
                 0x002E => "+\n=".to_string(),
-                _ => crate::keycode::find_keycode(value)
-                    .map(|_| keycode_label_with_names(value, &[], &self.layer_names))
+                _ => crate::keycode::find_keycode(assigned_value)
+                    .map(|_| keycode_label_with_names(assigned_value, &[], &self.layer_names))
                     .unwrap_or_else(|| fallback_label.to_string()),
             };
             self.basic_key_button_at(
@@ -1974,7 +2134,7 @@ impl KeycodePicker {
                 col,
                 span,
                 &display_label,
-                value,
+                assigned_value,
             );
         }
     }
