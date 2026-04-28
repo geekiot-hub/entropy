@@ -2368,7 +2368,7 @@ impl KeycodePicker {
             ("Ctrl+Alt/key".into(), 0x2500, None, "Ctrl+Alt".into()),
             ("Shift+Alt/key".into(), 0x2600, None, "Shift+Alt (LSA)".into()),
             ("Meh/key".into(), 0x2700, None, "Meh (Ctrl+Shift+Alt)".into()),
-            ("Hypr/key".into(), 0x2F00, None, format!("Hyper (Ctrl+Shift+Alt+{})", gui_mod_name())),
+            ("Hyper/key".into(), 0x2F00, None, format!("Hyper (Ctrl+Shift+Alt+{})", gui_mod_name())),
         ];
         if self.firmware == FirmwareProtocol::Zmk {
             mt.retain(|(_, left, right, _)| {
