@@ -4410,10 +4410,10 @@ Repeat"
                 ("macOS", "Copy", 0x0800 | 0x0006, "Command + C"),
                 ("macOS", "Paste", 0x0800 | 0x0019, "Command + V"),
                 ("macOS", "Find", 0x0800 | 0x0009, "Command + F"),
-                ("macOS", "Prev Word", 0x0400 | 0x0050, "Option + Left Arrow"),
-                ("macOS", "Next Word", 0x0400 | 0x004F, "Option + Right Arrow"),
-                ("macOS", "Prev App", 0x0A00 | 0x002B, "Shift + Command + Tab"),
-                ("macOS", "Next App", 0x0800 | 0x002B, "Command + Tab"),
+                ("macOS", "Prev\nWord", 0x0400 | 0x0050, "Option + Left Arrow"),
+                ("macOS", "Next\nWord", 0x0400 | 0x004F, "Option + Right Arrow"),
+                ("macOS", "Prev\nApp", 0x0A00 | 0x002B, "Shift + Command + Tab"),
+                ("macOS", "Next\nApp", 0x0800 | 0x002B, "Command + Tab"),
             ]);
         }
         #[cfg(target_os = "windows")]
@@ -4425,10 +4425,10 @@ Repeat"
                 ("Windows", "Copy", 0x0100 | 0x0006, "Ctrl + C"),
                 ("Windows", "Paste", 0x0100 | 0x0019, "Ctrl + V"),
                 ("Windows", "Find", 0x0100 | 0x0009, "Ctrl + F"),
-                ("Windows", "Prev Word", 0x0100 | 0x0050, "Ctrl + Left Arrow"),
-                ("Windows", "Next Word", 0x0100 | 0x004F, "Ctrl + Right Arrow"),
-                ("Windows", "Prev App", 0x0600 | 0x002B, "Shift + Alt + Tab"),
-                ("Windows", "Next App", 0x0400 | 0x002B, "Alt + Tab"),
+                ("Windows", "Prev\nWord", 0x0100 | 0x0050, "Ctrl + Left Arrow"),
+                ("Windows", "Next\nWord", 0x0100 | 0x004F, "Ctrl + Right Arrow"),
+                ("Windows", "Prev\nApp", 0x0600 | 0x002B, "Shift + Alt + Tab"),
+                ("Windows", "Next\nApp", 0x0400 | 0x002B, "Alt + Tab"),
             ]);
         }
         #[cfg(not(any(target_os = "macos", target_os = "windows")))]
@@ -4440,10 +4440,10 @@ Repeat"
                 ("Linux", "Copy", 0x0100 | 0x0006, "Ctrl + C"),
                 ("Linux", "Paste", 0x0100 | 0x0019, "Ctrl + V"),
                 ("Linux", "Find", 0x0100 | 0x0009, "Ctrl + F"),
-                ("Linux", "Prev Word", 0x0100 | 0x0050, "Ctrl + Left Arrow"),
-                ("Linux", "Next Word", 0x0100 | 0x004F, "Ctrl + Right Arrow"),
-                ("Linux", "Prev App", 0x0600 | 0x002B, "Shift + Alt + Tab"),
-                ("Linux", "Next App", 0x0400 | 0x002B, "Alt + Tab"),
+                ("Linux", "Prev\nWord", 0x0100 | 0x0050, "Ctrl + Left Arrow"),
+                ("Linux", "Next\nWord", 0x0100 | 0x004F, "Ctrl + Right Arrow"),
+                ("Linux", "Prev\nApp", 0x0600 | 0x002B, "Shift + Alt + Tab"),
+                ("Linux", "Next\nApp", 0x0400 | 0x002B, "Alt + Tab"),
             ]);
         }
         ui.horizontal_wrapped(|ui| {
@@ -4454,18 +4454,31 @@ Repeat"
                 let resp = ui.add_sized(Vec2::new(56.0, 42.0), egui::Button::new(""));
                 let visuals = ui.style().interact(&resp);
                 let painter = ui.painter();
-                let text_font = if text.chars().count() > 8 { 9.4 } else { 10.5 };
-                let text_galley = painter.layout_no_wrap(
-                    text.to_owned(),
-                    egui::FontId::proportional(text_font),
-                    visuals.fg_stroke.color,
-                );
-                let text_size = text_galley.size();
-                let text_pos = egui::pos2(
-                    resp.rect.center().x - text_size.x / 2.0,
-                    resp.rect.center().y - text_size.y / 2.0,
-                );
-                painter.galley(text_pos, text_galley, visuals.fg_stroke.color);
+                let lines: Vec<&str> = text.split('\n').collect();
+                let text_font = if lines.iter().any(|line| line.chars().count() > 8) {
+                    9.4
+                } else {
+                    10.5
+                };
+                let galleys: Vec<_> = lines
+                    .iter()
+                    .map(|line| {
+                        painter.layout_no_wrap(
+                            (*line).to_owned(),
+                            egui::FontId::proportional(text_font),
+                            visuals.fg_stroke.color,
+                        )
+                    })
+                    .collect();
+                let line_spacing = 1.0;
+                let total_height: f32 = galleys.iter().map(|galley| galley.size().y).sum::<f32>()
+                    + line_spacing * (galleys.len().saturating_sub(1) as f32);
+                let mut y = resp.rect.center().y - total_height / 2.0;
+                for galley in galleys {
+                    let pos = egui::pos2(resp.rect.center().x - galley.size().x / 2.0, y);
+                    y += galley.size().y + line_spacing;
+                    painter.galley(pos, galley, visuals.fg_stroke.color);
+                }
                 if resp.clicked() {
                     self.assign_keycode_value(value);
                 }
