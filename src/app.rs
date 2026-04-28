@@ -3948,13 +3948,130 @@ impl EntropyApp {
                 );
 
                 ui.add_space(10.0);
+                let apply_enabled = self.layout.is_some()
+                    && self.app_settings.smart_hrm_mode != SmartHrmMode::Off;
+                let apply_resp = crate::ui_style::modern_button(
+                    ui,
+                    "Apply to current layer",
+                    Vec2::new(170.0, 34.0),
+                    apply_enabled,
+                );
+                apply_resp.clone().on_hover_text(
+                    "Assign standard Smart HRM Mod-Tap keys to A/S/D/F and J/K/L/; on the current layer",
+                );
+                if apply_resp.clicked() && apply_enabled {
+                    self.apply_smart_hrm_to_current_layer();
+                }
+
+                ui.add_space(10.0);
                 ui.label(
-                    RichText::new("MVP: this page stores the Smart HRM profile. Next step is generating ZMK/QMK hold-tap behavior from it.")
+                    RichText::new("MVP: profile storage plus current-layer generator. Later this can emit full firmware hold-trigger/timing behavior.")
                         .size(11.0)
                         .color(app_muted_text(dark)),
                 );
             });
         });
+    }
+
+    fn smart_hrm_targets() -> &'static [(u16, u16, u32, u32)] {
+        &[
+            (0x0004, 0x2100, 0x0007_00E0, 0x0007_0004), // A -> Ctrl
+            (0x0016, 0x2400, 0x0007_00E2, 0x0007_0016), // S -> Alt
+            (0x0007, 0x2200, 0x0007_00E1, 0x0007_0007), // D -> Shift
+            (0x0009, 0x2800, 0x0007_00E3, 0x0007_0009), // F -> GUI
+            (0x000D, 0x3800, 0x0007_00E7, 0x0007_000D), // J -> GUI
+            (0x000E, 0x3200, 0x0007_00E5, 0x0007_000E), // K -> Shift
+            (0x000F, 0x3400, 0x0007_00E6, 0x0007_000F), // L -> Alt
+            (0x0033, 0x3100, 0x0007_00E4, 0x0007_0033), // ; -> Ctrl
+        ]
+    }
+
+    fn zmk_binding_is_plain_tap(
+        binding: &ZmkBinding,
+        behaviors: &[crate::zmk::BehaviorInfo],
+        tap_usage: u32,
+    ) -> bool {
+        let Some(name) = zmk_binding_behavior_name(binding, behaviors) else {
+            return false;
+        };
+        zmk_behavior_kind(name) == "key_press"
+            && (binding.param1 == tap_usage || binding.param1 == (tap_usage & 0xFFFF))
+    }
+
+    fn apply_smart_hrm_to_current_layer(&mut self) {
+        let Some(layout) = self.layout.as_ref() else {
+            self.status_msg = "No keyboard layout loaded".into();
+            return;
+        };
+        let layer = self.selected_layer;
+        let applied: usize;
+
+        if self.firmware == FirmwareProtocol::Zmk {
+            let Some(mod_tap_id) = layout
+                .zmk_behaviors
+                .iter()
+                .find(|behavior| zmk_behavior_kind(&behavior.display_name) == "mod_tap")
+                .map(|behavior| behavior.id)
+            else {
+                self.status_msg = "ZMK firmware does not expose Mod-Tap behavior".into();
+                return;
+            };
+            let behaviors = layout.zmk_behaviors.clone();
+            let assignments: Vec<(usize, ZmkBinding)> = layout
+                .keys
+                .iter()
+                .enumerate()
+                .filter_map(|(ki, _)| {
+                    let current = layout.get_zmk_binding(layer, ki);
+                    Self::smart_hrm_targets()
+                        .iter()
+                        .find(|(_, _, _, tap_usage)| {
+                            Self::zmk_binding_is_plain_tap(&current, &behaviors, *tap_usage)
+                        })
+                        .map(|(_, _, mod_usage, tap_usage)| {
+                            (
+                                ki,
+                                ZmkBinding {
+                                    behavior_id: mod_tap_id as i32,
+                                    param1: *mod_usage,
+                                    param2: *tap_usage,
+                                },
+                            )
+                        })
+                })
+                .collect();
+            if assignments.is_empty() {
+                self.status_msg = "No plain home-row keys found on current layer".into();
+                return;
+            }
+            applied = assignments.len();
+            for (ki, binding) in assignments {
+                self.assign_zmk_binding(layer, ki, binding);
+            }
+        } else {
+            let assignments: Vec<(usize, u16)> = layout
+                .keys
+                .iter()
+                .enumerate()
+                .filter_map(|(ki, _)| {
+                    let current = layout.get_keycode(layer, ki);
+                    Self::smart_hrm_targets()
+                        .iter()
+                        .find(|(tap, _, _, _)| current == *tap)
+                        .map(|(tap, mt_base, _, _)| (ki, mt_base | tap))
+                })
+                .collect();
+            if assignments.is_empty() {
+                self.status_msg = "No plain home-row keys found on current layer".into();
+                return;
+            }
+            applied = assignments.len();
+            for (ki, keycode) in assignments {
+                self.assign_keycode(layer, ki, keycode);
+            }
+        }
+
+        self.status_msg = format!("Smart HRM applied to {applied} keys");
     }
 
     fn draw_smart_hrm_numeric_row(
