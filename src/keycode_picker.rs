@@ -1536,11 +1536,7 @@ impl KeycodePicker {
                                     ui.add_space(88.0);
                                     self.show_vial_tab_content(ui);
                                 } else {
-                                    let centered_width = if self.selected_tab == KeycodeTab::Symbols {
-                                        Self::symbols_content_width(ui)
-                                    } else {
-                                        840.0_f32.min(ui.available_width())
-                                    };
+                                    let centered_width = self.tab_content_width(ui);
                                     let x_offset =
                                         ((ui.available_width() - centered_width).max(0.0) * 0.5)
                                             .floor();
@@ -4008,11 +4004,28 @@ impl KeycodePicker {
         Vec2::new(54.0, 54.0)
     }
 
-    fn symbols_content_width(ui: &egui::Ui) -> f32 {
+    fn key_grid_width(cols: usize, spacing: f32) -> f32 {
         let key_size = Self::picker_key_size();
-        let cols = 13.0;
+        key_size.x * cols as f32 + spacing * cols.saturating_sub(1) as f32
+    }
+
+    fn slot_grid_width(cols: usize, spacing: f32) -> f32 {
+        48.0 * cols as f32 + spacing * cols.saturating_sub(1) as f32
+    }
+
+    fn tab_content_width(&self, ui: &egui::Ui) -> f32 {
         let spacing = ui.spacing().item_spacing.x;
-        (key_size.x * cols + spacing * (cols - 1.0)).min(ui.available_width())
+        let width = match self.selected_tab {
+            KeycodeTab::Symbols | KeycodeTab::Special | KeycodeTab::Rgb | KeycodeTab::Custom => {
+                Self::key_grid_width(13, spacing)
+            }
+            KeycodeTab::Modifiers => Self::key_grid_width(10, 6.0),
+            KeycodeTab::Macro | KeycodeTab::TapDance => Self::slot_grid_width(16, 4.0),
+            KeycodeTab::Bluetooth => Self::key_grid_width(5, spacing),
+            KeycodeTab::ZmkAdvanced => 840.0,
+            _ => 840.0,
+        };
+        width.min(ui.available_width())
     }
 
     fn paint_compact_picker_label(ui: &egui::Ui, resp: &egui::Response, label: &str) {
