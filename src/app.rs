@@ -52,6 +52,45 @@ fn app_settings_path() -> std::path::PathBuf {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+enum SmartHrmMode {
+    Off,
+    Safe,
+    Balanced,
+    Fast,
+}
+
+impl SmartHrmMode {
+    const ALL: [Self; 4] = [Self::Off, Self::Safe, Self::Balanced, Self::Fast];
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::Off => "Off",
+            Self::Safe => "Safe",
+            Self::Balanced => "Balanced",
+            Self::Fast => "Fast",
+        }
+    }
+
+    fn description(self) -> &'static str {
+        match self {
+            Self::Off => "Do not generate Smart HRM behavior",
+            Self::Safe => "Minimize false holds, with a little more patience",
+            Self::Balanced => "Recommended default for positional home-row mods",
+            Self::Fast => "Lower latency, with a higher risk of accidental holds",
+        }
+    }
+
+    fn defaults(self) -> (u16, bool, bool, bool) {
+        match self {
+            Self::Off => (170, true, true, true),
+            Self::Safe => (190, true, true, true),
+            Self::Balanced => (170, true, true, true),
+            Self::Fast => (145, true, true, true),
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 enum AppAccentColor {
     Rose,
     Violet,
@@ -100,8 +139,36 @@ struct AppSettings {
     minimize_to_tray_on_close: bool,
     #[serde(default = "default_show_shifted_number_symbols")]
     show_shifted_number_symbols: bool,
+    #[serde(default = "default_smart_hrm_mode")]
+    smart_hrm_mode: SmartHrmMode,
+    #[serde(default = "default_smart_hrm_base_tapping_term")]
+    smart_hrm_base_tapping_term: u16,
+    #[serde(default = "default_smart_hrm_prior_idle")]
+    smart_hrm_prior_idle_ms: u16,
+    #[serde(default = "default_true")]
+    smart_hrm_positional: bool,
+    #[serde(default = "default_true")]
+    smart_hrm_shortcut_whitelist: bool,
+    #[serde(default = "default_true")]
+    smart_hrm_same_hand_tap_bias: bool,
     #[serde(default = "default_app_accent_color")]
     accent_color: AppAccentColor,
+}
+
+fn default_smart_hrm_mode() -> SmartHrmMode {
+    SmartHrmMode::Off
+}
+
+fn default_smart_hrm_base_tapping_term() -> u16 {
+    170
+}
+
+fn default_smart_hrm_prior_idle() -> u16 {
+    120
+}
+
+fn default_true() -> bool {
+    true
 }
 
 fn default_show_shifted_number_symbols() -> bool {
@@ -117,6 +184,12 @@ impl Default for AppSettings {
         Self {
             minimize_to_tray_on_close: false,
             show_shifted_number_symbols: default_show_shifted_number_symbols(),
+            smart_hrm_mode: default_smart_hrm_mode(),
+            smart_hrm_base_tapping_term: default_smart_hrm_base_tapping_term(),
+            smart_hrm_prior_idle_ms: default_smart_hrm_prior_idle(),
+            smart_hrm_positional: true,
+            smart_hrm_shortcut_whitelist: true,
+            smart_hrm_same_hand_tap_bias: true,
             accent_color: default_app_accent_color(),
         }
     }
@@ -1909,6 +1982,7 @@ enum SettingsTab {
     KeyOverrides,
     AltRepeat,
     MouseKeys,
+    SmartHrm,
 }
 
 pub struct EntropyApp {
@@ -3698,6 +3772,9 @@ impl EntropyApp {
             SettingsTab::MouseKeys => {
                 self.draw_mouse_keys_settings_page(ui, content_rect);
             }
+            SettingsTab::SmartHrm => {
+                self.draw_smart_hrm_settings_page(ui, content_rect);
+            }
         }
 
         if self.settings_tab != SettingsTab::MatrixTester {
@@ -3717,6 +3794,227 @@ impl EntropyApp {
             "Right-click or Esc to return to layout",
             FontId::proportional(11.0),
             hint_color,
+        );
+    }
+
+    fn draw_smart_hrm_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
+        let dark = ui.visuals().dark_mode;
+        let content_width = 470.0_f32;
+        let row_height = 54.0_f32;
+        ui.allocate_ui_at_rect(content_rect, |ui| {
+            ui.vertical_centered(|ui| {
+                ui.add_space(18.0);
+                ui.label(RichText::new("Smart HRM").size(18.0).strong());
+                ui.add_space(6.0);
+                ui.label(
+                    RichText::new("Generate positional home-row-mod behavior with typing-safe defaults")
+                        .size(13.0)
+                        .color(app_muted_text(dark)),
+                );
+                ui.add_space(24.0);
+
+                let mut mode = self.app_settings.smart_hrm_mode;
+                crate::ui_style::settings_list_row_with_tooltip(
+                    ui,
+                    content_width,
+                    row_height,
+                    "Profile",
+                    true,
+                    Some("Choose how aggressively Smart HRM resolves tap-vs-hold ambiguity"),
+                    252.0,
+                    |ui| {
+                        ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing.x = 6.0;
+                            for candidate in SmartHrmMode::ALL {
+                                let selected = candidate == mode;
+                                let (rect, resp) = ui.allocate_exact_size(
+                                    Vec2::new(58.0, 30.0),
+                                    egui::Sense::click(),
+                                );
+                                if resp.hovered() {
+                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                }
+                                if resp.clicked() {
+                                    mode = candidate;
+                                }
+                                let fill = if selected {
+                                    crate::ui_style::hover_fill(dark)
+                                } else {
+                                    crate::ui_style::surface_fill(dark)
+                                };
+                                let stroke = if selected {
+                                    Stroke::new(1.0, app_accent())
+                                } else {
+                                    crate::ui_style::modal_outline_stroke(dark)
+                                };
+                                ui.painter().rect(rect, 9.0, fill, stroke, egui::StrokeKind::Inside);
+                                ui.painter().text(
+                                    rect.center(),
+                                    egui::Align2::CENTER_CENTER,
+                                    candidate.label(),
+                                    FontId::proportional(12.0),
+                                    if selected { app_accent() } else { ui.visuals().text_color() },
+                                );
+                                resp.on_hover_text(candidate.description());
+                            }
+                        });
+                    },
+                );
+                if mode != self.app_settings.smart_hrm_mode {
+                    self.app_settings.smart_hrm_mode = mode;
+                    let (base, positional, same_hand, whitelist) = mode.defaults();
+                    self.app_settings.smart_hrm_base_tapping_term = base;
+                    self.app_settings.smart_hrm_positional = positional;
+                    self.app_settings.smart_hrm_same_hand_tap_bias = same_hand;
+                    self.app_settings.smart_hrm_shortcut_whitelist = whitelist;
+                    save_app_settings(&self.app_settings);
+                }
+
+                let mut positional = self.app_settings.smart_hrm_positional;
+                crate::ui_style::settings_list_row_with_tooltip(
+                    ui,
+                    content_width,
+                    row_height,
+                    "Positional holds",
+                    true,
+                    Some("Prefer hold only when the next key is on the opposite hand or outside the typing cluster"),
+                    70.0,
+                    |ui| {
+                        let _ = crate::ui_style::settings_switch(ui, &mut positional);
+                    },
+                );
+                if positional != self.app_settings.smart_hrm_positional {
+                    self.app_settings.smart_hrm_positional = positional;
+                    save_app_settings(&self.app_settings);
+                }
+
+                let mut same_hand = self.app_settings.smart_hrm_same_hand_tap_bias;
+                crate::ui_style::settings_list_row_with_tooltip(
+                    ui,
+                    content_width,
+                    row_height,
+                    "Same-hand tap bias",
+                    true,
+                    Some("Same-hand home-row rolls are treated as typing and biased toward tap"),
+                    70.0,
+                    |ui| {
+                        let _ = crate::ui_style::settings_switch(ui, &mut same_hand);
+                    },
+                );
+                if same_hand != self.app_settings.smart_hrm_same_hand_tap_bias {
+                    self.app_settings.smart_hrm_same_hand_tap_bias = same_hand;
+                    save_app_settings(&self.app_settings);
+                }
+
+                let mut whitelist = self.app_settings.smart_hrm_shortcut_whitelist;
+                crate::ui_style::settings_list_row_with_tooltip(
+                    ui,
+                    content_width,
+                    row_height,
+                    "Shortcut whitelist",
+                    true,
+                    Some("Resolve common shortcuts like Ctrl+C/Ctrl+V immediately when the pattern is clear"),
+                    70.0,
+                    |ui| {
+                        let _ = crate::ui_style::settings_switch(ui, &mut whitelist);
+                    },
+                );
+                if whitelist != self.app_settings.smart_hrm_shortcut_whitelist {
+                    self.app_settings.smart_hrm_shortcut_whitelist = whitelist;
+                    save_app_settings(&self.app_settings);
+                }
+
+                self.draw_smart_hrm_numeric_row(
+                    ui,
+                    content_width,
+                    row_height,
+                    "Base tapping term",
+                    "Default tap-vs-hold window in milliseconds before per-key tuning",
+                    "smart_hrm_base_term",
+                    80,
+                    260,
+                    true,
+                );
+                self.draw_smart_hrm_numeric_row(
+                    ui,
+                    content_width,
+                    row_height,
+                    "Prior idle",
+                    "Require a short pause before allowing hold resolution during fast typing",
+                    "smart_hrm_prior_idle",
+                    0,
+                    250,
+                    false,
+                );
+
+                ui.add_space(10.0);
+                ui.label(
+                    RichText::new("MVP: this page stores the Smart HRM profile. Next step is generating ZMK/QMK hold-tap behavior from it.")
+                        .size(11.0)
+                        .color(app_muted_text(dark)),
+                );
+            });
+        });
+    }
+
+    fn draw_smart_hrm_numeric_row(
+        &mut self,
+        ui: &mut egui::Ui,
+        content_width: f32,
+        row_height: f32,
+        label: &str,
+        tooltip: &str,
+        id_salt: &'static str,
+        min: u16,
+        max: u16,
+        base_term: bool,
+    ) {
+        let current = if base_term {
+            self.app_settings.smart_hrm_base_tapping_term
+        } else {
+            self.app_settings.smart_hrm_prior_idle_ms
+        };
+        crate::ui_style::settings_list_row_with_tooltip(
+            ui,
+            content_width,
+            row_height,
+            label,
+            true,
+            Some(tooltip),
+            82.0,
+            |ui| {
+                let edit_id = egui::Id::new(id_salt);
+                let mut text = ui
+                    .ctx()
+                    .data_mut(|d| d.get_temp::<String>(edit_id).unwrap_or_else(|| current.to_string()));
+                if text.parse::<u16>().ok() != Some(current)
+                    && !ui.memory(|m| m.has_focus(edit_id))
+                {
+                    text = current.to_string();
+                }
+                let resp = crate::ui_style::modern_text_field(
+                    ui,
+                    edit_id,
+                    &mut text,
+                    82.0,
+                    "",
+                    3,
+                    egui::Align::RIGHT,
+                );
+                resp.clone().on_hover_text("Value is in milliseconds");
+                if resp.changed() {
+                    let filtered: String = text.chars().filter(|c| c.is_ascii_digit()).collect();
+                    let parsed = filtered.parse::<u16>().unwrap_or(min).clamp(min, max);
+                    if base_term {
+                        self.app_settings.smart_hrm_base_tapping_term = parsed;
+                    } else {
+                        self.app_settings.smart_hrm_prior_idle_ms = parsed;
+                    }
+                    save_app_settings(&self.app_settings);
+                    text = filtered;
+                }
+                ui.ctx().data_mut(|d| d.insert_temp(edit_id, text));
+            },
         );
     }
 
@@ -12089,9 +12387,11 @@ impl EntropyApp {
                 let combo_supported = !self.combo_entries.is_empty();
                 let key_override_supported = !self.key_override_entries.is_empty();
                 let auto_shift_supported = self.auto_shift_timeout.is_some();
+                let smart_hrm_supported = true;
                 let advanced_item_count = combo_supported as usize
                     + auto_shift_supported as usize
-                    + key_override_supported as usize;
+                    + key_override_supported as usize
+                    + smart_hrm_supported as usize;
                 let dropdown_rect = egui::Rect::from_min_size(
                     egui::pos2(
                         advanced_rect.center().x - 76.0,
@@ -12113,8 +12413,13 @@ impl EntropyApp {
                 if show_dropdown {
                     let dark = ui.visuals().dark_mode;
                     let item_width = dropdown_rect.width() - 16.0;
-                    let (combo_hovered, auto_shift_hovered, key_override_hovered, advanced_clicked) =
-                        egui::Area::new(egui::Id::new("advanced_dropdown_area"))
+                    let (
+                        combo_hovered,
+                        auto_shift_hovered,
+                        key_override_hovered,
+                        smart_hrm_hovered,
+                        advanced_clicked,
+                    ) = egui::Area::new(egui::Id::new("advanced_dropdown_area"))
                             .order(egui::Order::Foreground)
                             .fixed_pos(dropdown_rect.min)
                             .show(ui.ctx(), |ui| {
@@ -12151,6 +12456,16 @@ impl EntropyApp {
                                                     && self.settings_tab == SettingsTab::KeyOverrides,
                                             )
                                         });
+                                        let smart_hrm_resp = smart_hrm_supported.then(|| {
+                                            top_dropdown_item(
+                                                ui,
+                                                item_width,
+                                                "Smart HRM",
+                                                true,
+                                                self.main_menu_tab == MainMenuTab::Advanced
+                                                    && self.settings_tab == SettingsTab::SmartHrm,
+                                            )
+                                        });
                                         if combo_resp.as_ref().map(|r| r.clicked()).unwrap_or(false) {
                                             self.close_top_dropdowns(ui.ctx());
                                             self.settings_tab = SettingsTab::Combo;
@@ -12169,13 +12484,20 @@ impl EntropyApp {
                                             self.settings_tab = SettingsTab::KeyOverrides;
                                             self.main_menu_tab = MainMenuTab::Advanced;
                                         }
+                                        if smart_hrm_resp.as_ref().map(|r| r.clicked()).unwrap_or(false) {
+                                            self.close_top_dropdowns(ui.ctx());
+                                            self.settings_tab = SettingsTab::SmartHrm;
+                                            self.main_menu_tab = MainMenuTab::Advanced;
+                                        }
                                         (
                                             combo_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                             auto_shift_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                             key_override_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
+                                            smart_hrm_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                             combo_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
                                                 || auto_shift_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
-                                                || key_override_resp.as_ref().map(|r| r.clicked()).unwrap_or(false),
+                                                || key_override_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
+                                                || smart_hrm_resp.as_ref().map(|r| r.clicked()).unwrap_or(false),
                                         )
                                     })
                                     .inner
@@ -12189,6 +12511,7 @@ impl EntropyApp {
                                     || combo_hovered
                                     || auto_shift_hovered
                                     || key_override_hovered
+                                    || smart_hrm_hovered
                                     || pointer_over_bridge),
                         )
                     });
