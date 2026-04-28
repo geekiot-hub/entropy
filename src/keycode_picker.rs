@@ -4213,7 +4213,7 @@ Repeat"
                     "Reset",
                     0,
                     0,
-                    62.0,
+                    56.0,
                 );
                 self.zmk_special_behavior_button(
                     ui,
@@ -4222,7 +4222,7 @@ Repeat"
                     "Studio Unlock",
                     0,
                     0,
-                    62.0,
+                    56.0,
                 );
                 self.zmk_special_behavior_button(
                     ui,
@@ -4231,7 +4231,7 @@ Repeat"
                     "External Power",
                     1,
                     0,
-                    62.0,
+                    56.0,
                 );
                 self.zmk_special_behavior_button(
                     ui,
@@ -4240,7 +4240,7 @@ Repeat"
                     "External Power",
                     0,
                     0,
-                    62.0,
+                    56.0,
                 );
             }
         });
@@ -4532,7 +4532,7 @@ Repeat"
                 let mut parts = label.splitn(2, '\n');
                 let top = parts.next().unwrap_or("");
                 let bottom = parts.next().unwrap_or("");
-                let mut resp = ui.add_sized(Vec2::new(76.0, 44.0), egui::Button::new(""));
+                let mut resp = ui.add_sized(Vec2::new(56.0, 42.0), egui::Button::new(""));
                 let rect = resp.rect;
                 let painter = ui.painter();
                 let main_color = if resp.hovered() {
@@ -4617,7 +4617,7 @@ Repeat"
                 if !self.picker_value_supported(*value) {
                     continue;
                 }
-                let mut resp = ui.add_sized(Vec2::new(72.0, 44.0), egui::Button::new(""));
+                let mut resp = ui.add_sized(Vec2::new(56.0, 42.0), egui::Button::new(""));
                 let rect = resp.rect;
                 let painter = ui.painter();
                 let main_color = if resp.hovered() {
@@ -4687,7 +4687,7 @@ Repeat"
                 Color32::from_gray(145)
             };
             for (top, bottom, value, tip) in international_keys {
-                let mut resp = ui.add_sized(Vec2::new(72.0, 44.0), egui::Button::new(""));
+                let mut resp = ui.add_sized(Vec2::new(56.0, 42.0), egui::Button::new(""));
                 let rect = resp.rect;
                 let painter = ui.painter();
                 let main_color = if resp.hovered() {
