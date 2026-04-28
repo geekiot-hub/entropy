@@ -1536,7 +1536,11 @@ impl KeycodePicker {
                                     ui.add_space(88.0);
                                     self.show_vial_tab_content(ui);
                                 } else {
-                                    let centered_width = 840.0_f32.min(ui.available_width());
+                                    let centered_width = if self.selected_tab == KeycodeTab::Symbols {
+                                        Self::symbols_content_width(ui)
+                                    } else {
+                                        840.0_f32.min(ui.available_width())
+                                    };
                                     let x_offset =
                                         ((ui.available_width() - centered_width).max(0.0) * 0.5)
                                             .floor();
@@ -4002,6 +4006,13 @@ impl KeycodePicker {
 
     fn picker_key_size() -> Vec2 {
         Vec2::new(54.0, 54.0)
+    }
+
+    fn symbols_content_width(ui: &egui::Ui) -> f32 {
+        let key_size = Self::picker_key_size();
+        let cols = 13.0;
+        let spacing = ui.spacing().item_spacing.x;
+        (key_size.x * cols + spacing * (cols - 1.0)).min(ui.available_width())
     }
 
     fn paint_compact_picker_label(ui: &egui::Ui, resp: &egui::Response, label: &str) {
