@@ -703,6 +703,37 @@ fn layout_physical_encoder_rect(encoder: &PhysicalEncoder, geometry: LayoutGeome
     )
 }
 
+fn paint_layout_keycap(
+    painter: &egui::Painter,
+    rect: egui::Rect,
+    rotation: f32,
+    fill: Color32,
+    stroke: Stroke,
+) {
+    if rotation == 0.0 {
+        painter.rect(rect, 6.0, fill, stroke, egui::StrokeKind::Inside);
+        return;
+    }
+
+    let angle = rotation.to_radians();
+    let center = rect.center();
+    let rotate = |pos: egui::Pos2| {
+        let dx = pos.x - center.x;
+        let dy = pos.y - center.y;
+        egui::pos2(
+            center.x + dx * angle.cos() - dy * angle.sin(),
+            center.y + dx * angle.sin() + dy * angle.cos(),
+        )
+    };
+    let points = vec![
+        rotate(rect.left_top()),
+        rotate(rect.right_top()),
+        rotate(rect.right_bottom()),
+        rotate(rect.left_bottom()),
+    ];
+    painter.add(egui::Shape::convex_polygon(points, fill, stroke));
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 use std::sync::mpsc;
 
@@ -2329,9 +2360,9 @@ impl EntropyApp {
                                 if let Some(rk) = ref_map.get(&(key.row, key.col)) {
                                     key.x = rk.x;
                                     key.y = rk.y;
-                                    key.rotation = 0.0;
-                                    key.rotation_x = 0.0;
-                                    key.rotation_y = 0.0;
+                                    key.rotation = rk.rotation;
+                                    key.rotation_x = rk.rotation_x;
+                                    key.rotation_y = rk.rotation_y;
                                     patched += 1;
                                 }
                             }
@@ -4255,13 +4286,7 @@ impl EntropyApp {
             } else {
                 app_border_color(dark)
             };
-            painter.rect(
-                rect,
-                6.0,
-                fill,
-                Stroke::new(1.0, stroke),
-                egui::StrokeKind::Inside,
-            );
+            paint_layout_keycap(&painter, rect, key.rotation, fill, Stroke::new(1.0, stroke));
         }
     }
 
@@ -6129,12 +6154,12 @@ impl eframe::App for EntropyApp {
                             } else {
                                 inactive_key_border
                             };
-                            ui.painter().rect(
+                            paint_layout_keycap(
+                                ui.painter(),
                                 rect,
-                                5.0,
+                                key.rotation,
                                 bg,
                                 Stroke::new(1.0, border),
-                                egui::StrokeKind::Inside,
                             );
                         }
                     }
@@ -13551,12 +13576,12 @@ impl EntropyApp {
                         }
                     });
                     let fill = if is_selected || is_hovered { bg } else { no_bg };
-                    painter.rect(
+                    paint_layout_keycap(
+                        painter,
                         draw_rect,
-                        6.0,
+                        key.rotation,
                         fill,
                         Stroke::new(1.0, no_border),
-                        egui::StrokeKind::Inside,
                     );
                 } else {
                     let border = layer_led_outline.unwrap_or_else(|| {
@@ -13566,12 +13591,12 @@ impl EntropyApp {
                             Color32::from_rgb(230, 230, 233)
                         }
                     });
-                    painter.rect(
+                    paint_layout_keycap(
+                        painter,
                         draw_rect,
-                        6.0,
+                        key.rotation,
                         bg,
                         Stroke::new(1.0, border),
-                        egui::StrokeKind::Inside,
                     );
                     if is_trans {
                         if !is_hovering {
@@ -13607,9 +13632,10 @@ impl EntropyApp {
                 let kc = layout.get_keycode(layer, *ki);
 
                 if kc == 0x0001 {
-                    painter.rect(
+                    paint_layout_keycap(
+                        painter,
                         draw_rect,
-                        6.0,
+                        key.rotation,
                         bg,
                         Stroke::new(
                             1.0,
@@ -13621,7 +13647,6 @@ impl EntropyApp {
                                 }
                             }),
                         ),
-                        egui::StrokeKind::Inside,
                     );
                     if !is_hovering {
                         let fallback_kc = (0..layer)
@@ -13656,12 +13681,12 @@ impl EntropyApp {
                         }
                     });
                     let fill = if is_selected || is_hovered { bg } else { no_bg };
-                    painter.rect(
+                    paint_layout_keycap(
+                        painter,
                         draw_rect,
-                        6.0,
+                        key.rotation,
                         fill,
                         Stroke::new(1.0, no_border),
-                        egui::StrokeKind::Inside,
                     );
                 } else {
                     let border = layer_led_outline.unwrap_or_else(|| {
@@ -13671,12 +13696,12 @@ impl EntropyApp {
                             Color32::from_rgb(230, 230, 233)
                         }
                     });
-                    painter.rect(
+                    paint_layout_keycap(
+                        painter,
                         draw_rect,
-                        6.0,
+                        key.rotation,
                         bg,
                         Stroke::new(1.0, border),
-                        egui::StrokeKind::Inside,
                     );
                     let label = keycode_label_with_macro_names(
                         kc,
