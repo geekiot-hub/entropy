@@ -162,6 +162,31 @@ fn parse_layer_names_from_json(json: &serde_json::Value) -> Vec<String> {
     vec![]
 }
 
+fn normalize_near_grid_vertical_gaps(keys: &mut [PhysicalKey]) {
+    let original = keys.to_vec();
+    for key in keys.iter_mut() {
+        if key.rotation != 0.0 || key.y < 3.0 {
+            continue;
+        }
+        let Some(above) = original
+            .iter()
+            .filter(|candidate| {
+                candidate.rotation == 0.0
+                    && (candidate.x - key.x).abs() < 0.01
+                    && candidate.y < key.y
+            })
+            .max_by(|a, b| a.y.total_cmp(&b.y))
+        else {
+            continue;
+        };
+
+        let gap = key.y - above.y;
+        if (0.90..=1.10).contains(&gap) && (gap - 1.0).abs() > 0.02 {
+            key.y = above.y + 1.0;
+        }
+    }
+}
+
 fn parse_layout_options_from_json(json: &serde_json::Value) -> Vec<LayoutOption> {
     let Some(labels) = json
         .get("layouts")
@@ -382,6 +407,8 @@ impl KeyboardLayout {
                 }
             }
         }
+
+        normalize_near_grid_vertical_gaps(&mut keys);
 
         let layer_names = parse_layer_names_from_json(json);
         let layout_options = parse_layout_options_from_json(json);
