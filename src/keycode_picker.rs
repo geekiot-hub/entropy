@@ -4451,12 +4451,13 @@ Repeat"
                 if !self.picker_value_supported(value) {
                     continue;
                 }
-                let resp = ui.add_sized(Vec2::new(78.0, 44.0), egui::Button::new(""));
+                let resp = ui.add_sized(Vec2::new(56.0, 42.0), egui::Button::new(""));
                 let visuals = ui.style().interact(&resp);
                 let painter = ui.painter();
+                let text_font = if text.chars().count() > 8 { 9.4 } else { 10.5 };
                 let text_galley = painter.layout_no_wrap(
                     text.to_owned(),
-                    egui::FontId::proportional(10.5),
+                    egui::FontId::proportional(text_font),
                     visuals.fg_stroke.color,
                 );
                 let text_size = text_galley.size();
