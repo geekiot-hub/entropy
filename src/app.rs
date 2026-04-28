@@ -98,8 +98,14 @@ impl AppAccentColor {
 struct AppSettings {
     #[serde(default)]
     minimize_to_tray_on_close: bool,
+    #[serde(default = "default_show_shifted_number_symbols")]
+    show_shifted_number_symbols: bool,
     #[serde(default = "default_app_accent_color")]
     accent_color: AppAccentColor,
+}
+
+fn default_show_shifted_number_symbols() -> bool {
+    true
 }
 
 fn default_app_accent_color() -> AppAccentColor {
@@ -110,6 +116,7 @@ impl Default for AppSettings {
     fn default() -> Self {
         Self {
             minimize_to_tray_on_close: false,
+            show_shifted_number_symbols: default_show_shifted_number_symbols(),
             accent_color: default_app_accent_color(),
         }
     }
@@ -3749,6 +3756,24 @@ impl EntropyApp {
                             self.tray_icon = None;
                         }
                     }
+                    save_app_settings(&self.app_settings);
+                }
+
+                let mut show_shifted_symbols = self.app_settings.show_shifted_number_symbols;
+                crate::ui_style::settings_list_row_with_tooltip(
+                    ui,
+                    content_width,
+                    54.0,
+                    "Shifted number symbols",
+                    true,
+                    Some("Show shifted symbols above number-row keys, like ! over 1 and @ over 2"),
+                    70.0,
+                    |ui| {
+                        let _ = crate::ui_style::settings_switch(ui, &mut show_shifted_symbols);
+                    },
+                );
+                if show_shifted_symbols != self.app_settings.show_shifted_number_symbols {
+                    self.app_settings.show_shifted_number_symbols = show_shifted_symbols;
                     save_app_settings(&self.app_settings);
                 }
 
@@ -13611,11 +13636,17 @@ impl EntropyApp {
                                 })
                                 .map(|fb| zmk_binding_label(&fb, &layout.zmk_behaviors, &self.layer_names))
                                 .unwrap_or_default();
+                            let label = number_row_shifted_label(
+                                label,
+                                self.app_settings.show_shifted_number_symbols,
+                            );
                             draw_key_label_dimmed(&painter, draw_rect, &label, dark, key.rotation.to_radians());
                         }
                     } else {
-                        let label =
-                            zmk_binding_label(&binding, &layout.zmk_behaviors, &self.layer_names);
+                        let label = number_row_shifted_label(
+                            zmk_binding_label(&binding, &layout.zmk_behaviors, &self.layer_names),
+                            self.app_settings.show_shifted_number_symbols,
+                        );
                         draw_key_label(&painter, draw_rect, &label, dark, key.rotation.to_radians());
                     }
                 }
@@ -13656,6 +13687,10 @@ impl EntropyApp {
                                 &self.keycode_picker.tap_dance_names,
                             )
                         };
+                        let label = number_row_shifted_label(
+                            label,
+                            self.app_settings.show_shifted_number_symbols,
+                        );
                         draw_key_label_dimmed(&painter, draw_rect, &label, dark, key.rotation.to_radians());
                     }
                 } else if kc == 0x0000 {
@@ -13694,12 +13729,15 @@ impl EntropyApp {
                         bg,
                         Stroke::new(1.0, border),
                     );
-                    let label = keycode_label_with_macro_names(
-                        kc,
-                        &layout.custom_keycodes,
-                        &self.layer_names,
-                        &self.keycode_picker.macro_names,
-                        &self.keycode_picker.tap_dance_names,
+                    let label = number_row_shifted_label(
+                        keycode_label_with_macro_names(
+                            kc,
+                            &layout.custom_keycodes,
+                            &self.layer_names,
+                            &self.keycode_picker.macro_names,
+                            &self.keycode_picker.tap_dance_names,
+                        ),
+                        self.app_settings.show_shifted_number_symbols,
                     );
                     draw_key_label(&painter, draw_rect, &label, dark, key.rotation.to_radians());
                 }
@@ -14239,6 +14277,26 @@ fn draw_key_label_dimmed(
             dim,
             rotation,
         );
+    }
+}
+
+fn number_row_shifted_label(label: String, enabled: bool) -> String {
+    if !enabled {
+        return label;
+    }
+
+    match label.as_str() {
+        "1" => "!\n1".to_string(),
+        "2" => "@\n2".to_string(),
+        "3" => "#\n3".to_string(),
+        "4" => "$\n4".to_string(),
+        "5" => "%\n5".to_string(),
+        "6" => "^\n6".to_string(),
+        "7" => "&\n7".to_string(),
+        "8" => "*\n8".to_string(),
+        "9" => "(\n9".to_string(),
+        "0" => ")\n0".to_string(),
+        _ => label,
     }
 }
 
