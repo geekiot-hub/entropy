@@ -356,6 +356,31 @@ fn zmk_mouse_scroll_label(value: u16) -> &'static str {
     }
 }
 
+fn mouse_picker_label(value: u16) -> &'static str {
+    match value {
+        0x00CD => "Move\nUp",
+        0x00CE => "Move\nDown",
+        0x00CF => "Move\nLeft",
+        0x00D0 => "Move\nRight",
+        0x00D1 => "Button\nLeft",
+        0x00D2 => "Button\nRight",
+        0x00D3 => "Button\nMiddle",
+        0x00D4 => "Button\n4",
+        0x00D5 => "Button\n5",
+        0x00D6 => "Button\n6",
+        0x00D7 => "Button\n7",
+        0x00D8 => "Button\n8",
+        0x00D9 => "Scroll\nUp",
+        0x00DA => "Scroll\nDown",
+        0x00DB => "Scroll\nLeft",
+        0x00DC => "Scroll\nRight",
+        0x00DD => "Accel\n0",
+        0x00DE => "Accel\n1",
+        0x00DF => "Accel\n2",
+        _ => "Mouse",
+    }
+}
+
 fn zmk_space_cadet_parts(value: u16) -> Option<(u32, u16)> {
     match value {
         0x7C18 => Some((0x0007_00E0, 0x0200 | 0x0026)),
@@ -3974,6 +3999,57 @@ impl KeycodePicker {
         self.firmware != FirmwareProtocol::Zmk || self.zmk_keycode_supported(value)
     }
 
+    fn paint_compact_picker_label(ui: &egui::Ui, resp: &egui::Response, label: &str) {
+        let visuals = ui.style().interact(resp);
+        let painter = ui.painter();
+        let lines: Vec<&str> = label.split('\n').collect();
+        if lines.len() == 2 {
+            let top_color = if ui.visuals().dark_mode {
+                Color32::from_gray(105)
+            } else {
+                Color32::from_gray(145)
+            };
+            let top_font = if lines[0].chars().count() > 6 { 8.7 } else { 9.3 };
+            let bottom_font = if lines[1].chars().count() > 6 { 9.4 } else { 10.6 };
+            let top_galley = painter.layout_no_wrap(
+                lines[0].to_owned(),
+                egui::FontId::proportional(top_font),
+                top_color,
+            );
+            let bottom_galley = painter.layout_no_wrap(
+                lines[1].to_owned(),
+                egui::FontId::proportional(bottom_font),
+                visuals.fg_stroke.color,
+            );
+            let line_spacing = 1.0;
+            let top_size = top_galley.size();
+            let bottom_size = bottom_galley.size();
+            let total_height = top_size.y + line_spacing + bottom_size.y;
+            let top_pos = egui::pos2(
+                resp.rect.center().x - top_size.x / 2.0,
+                resp.rect.center().y - total_height / 2.0,
+            );
+            painter.galley(top_pos, top_galley, top_color);
+            let bottom_pos = egui::pos2(
+                resp.rect.center().x - bottom_size.x / 2.0,
+                top_pos.y + top_size.y + line_spacing,
+            );
+            painter.galley(bottom_pos, bottom_galley, visuals.fg_stroke.color);
+        } else {
+            let font_size = if label.chars().count() > 8 { 9.4 } else { 10.5 };
+            let galley = painter.layout_no_wrap(
+                label.to_owned(),
+                egui::FontId::proportional(font_size),
+                visuals.fg_stroke.color,
+            );
+            let pos = egui::pos2(
+                resp.rect.center().x - galley.size().x / 2.0,
+                resp.rect.center().y - galley.size().y / 2.0,
+            );
+            painter.galley(pos, galley, visuals.fg_stroke.color);
+        }
+    }
+
     fn zmk_special_behavior_button(
         &mut self,
         ui: &mut egui::Ui,
@@ -3990,28 +4066,7 @@ impl KeycodePicker {
         let resp = ui
             .add_sized(Vec2::new(width, 42.0), egui::Button::new(""))
             .on_hover_cursor(egui::CursorIcon::PointingHand);
-        let visuals = ui.style().interact(&resp);
-        let galleys: Vec<_> = label
-            .split('\n')
-            .map(|line| {
-                ui.painter().layout_no_wrap(
-                    line.to_owned(),
-                    egui::FontId::proportional(10.5),
-                    visuals.fg_stroke.color,
-                )
-            })
-            .collect();
-        let line_spacing = 1.0;
-        let total_height: f32 = galleys.iter().map(|galley| galley.size().y).sum::<f32>()
-            + line_spacing * (galleys.len().saturating_sub(1) as f32);
-        let mut y = resp.rect.center().y - total_height / 2.0;
-        for galley in galleys {
-            let x = resp.rect.center().x - galley.size().x / 2.0;
-            let pos = egui::pos2(x, y);
-            let height = galley.size().y;
-            ui.painter().galley(pos, galley, visuals.fg_stroke.color);
-            y += height + line_spacing;
-        }
+        Self::paint_compact_picker_label(ui, &resp, label);
         if resp.clicked() {
             self.zmk_assign(id, param1, param2);
         }
@@ -4021,8 +4076,8 @@ impl KeycodePicker {
     fn show_vial_special(&mut self, ui: &mut egui::Ui) {
         let special_keys: Vec<(String, u16, String)> = vec![
             (
-                "✕
-None"
+                "No
+Key"
                     .into(),
                 0x0000,
                 if self.firmware == FirmwareProtocol::Zmk {
@@ -4032,8 +4087,7 @@ None"
                 },
             ),
             (
-                "▽
-Inherit"
+                "Inherit"
                     .into(),
                 0x0001,
                 if self.firmware == FirmwareProtocol::Zmk {
@@ -4043,8 +4097,8 @@ Inherit"
                 },
             ),
             (
-                "Esc
-~"
+                "Grave
+Esc"
                 .into(),
                 0x7C16,
                 format!(
@@ -4053,8 +4107,8 @@ Inherit"
                 ),
             ),
             (
-                "⚡
-Boot"
+                "Boot
+Loader"
                     .into(),
                 0x7C00,
                 if self.firmware == FirmwareProtocol::Zmk {
@@ -4064,8 +4118,8 @@ Boot"
                 },
             ),
             (
-                "🐛
-Debug"
+                "Debug
+Toggle"
                     .into(),
                 0x7C02,
                 if self.firmware == FirmwareProtocol::Zmk {
@@ -4075,7 +4129,7 @@ Debug"
                 },
             ),
             (
-                "🔒
+                "Key
 Lock"
                     .into(),
                 0x7800,
@@ -4143,28 +4197,7 @@ Repeat"
                 let resp = ui
                     .add_sized(Vec2::new(56.0, 42.0), egui::Button::new(""))
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
-                let visuals = ui.style().interact(&resp);
-                let galleys: Vec<_> = label
-                    .split('\n')
-                    .map(|line| {
-                        ui.painter().layout_no_wrap(
-                            line.to_owned(),
-                            egui::FontId::proportional(10.5),
-                            visuals.fg_stroke.color,
-                        )
-                    })
-                    .collect();
-                let line_spacing = 1.0;
-                let total_height: f32 = galleys.iter().map(|galley| galley.size().y).sum::<f32>()
-                    + line_spacing * (galleys.len().saturating_sub(1) as f32);
-                let mut y = resp.rect.center().y - total_height / 2.0;
-                for galley in galleys {
-                    let x = resp.rect.center().x - galley.size().x / 2.0;
-                    let pos = egui::pos2(x, y);
-                    let height = galley.size().y;
-                    ui.painter().galley(pos, galley, visuals.fg_stroke.color);
-                    y += height + line_spacing;
-                }
+                Self::paint_compact_picker_label(ui, &resp, label);
                 if resp.clicked() {
                     self.assign_keycode_value(*value);
                 }
@@ -4230,81 +4263,11 @@ Repeat"
             ui.add_space(4.0);
             ui.horizontal_wrapped(|ui| {
                 for value in &mouse_values {
-                    let Some(kc) = crate::keycode::find_keycode(*value) else {
-                        continue;
-                    };
                     let resp = ui
                         .add_sized(Vec2::new(56.0, 42.0), egui::Button::new(""))
                         .on_hover_cursor(egui::CursorIcon::PointingHand);
-                    let visuals = ui.style().interact(&resp);
-                    let icon_color = visuals.fg_stroke.color.gamma_multiply(0.6);
-                    if let Some(suffix) = kc.label.strip_prefix("🖱") {
-                        let mouse_galley = ui.painter().layout_no_wrap(
-                            "🖱".to_owned(),
-                            egui::FontId::proportional(15.5),
-                            icon_color,
-                        );
-                        let suffix_galley = ui.painter().layout_no_wrap(
-                            suffix.to_owned(),
-                            egui::FontId::proportional(10.5),
-                            visuals.fg_stroke.color,
-                        );
-                        let spacing = if suffix.is_empty() { 0.0 } else { 1.0 };
-                        let mouse_width = mouse_galley.size().x;
-                        let mouse_height = mouse_galley.size().y;
-                        let suffix_width = suffix_galley.size().x;
-                        let suffix_height = suffix_galley.size().y;
-                        let total_width = mouse_width + spacing + suffix_width;
-                        let start_x = resp.rect.center().x - total_width / 2.0;
-                        let mouse_pos =
-                            egui::pos2(start_x, resp.rect.center().y - mouse_height / 2.0);
-                        ui.painter().galley(mouse_pos, mouse_galley, icon_color);
-                        if !suffix.is_empty() {
-                            let suffix_pos = egui::pos2(
-                                start_x + mouse_width + spacing,
-                                resp.rect.center().y - suffix_height / 2.0,
-                            );
-                            ui.painter()
-                                .galley(suffix_pos, suffix_galley, visuals.fg_stroke.color);
-                        }
-                    } else if let Some((icon, text)) = kc.label.split_once(' ') {
-                        let icon_galley = ui.painter().layout_no_wrap(
-                            icon.to_owned(),
-                            egui::FontId::proportional(11.0),
-                            icon_color,
-                        );
-                        let text_galley = ui.painter().layout_no_wrap(
-                            text.to_owned(),
-                            egui::FontId::proportional(10.5),
-                            visuals.fg_stroke.color,
-                        );
-                        let spacing = 2.0;
-                        let icon_width = icon_galley.size().x;
-                        let icon_height = icon_galley.size().y;
-                        let text_height = text_galley.size().y;
-                        let total_width = icon_width + spacing + text_galley.size().x;
-                        let start_x = resp.rect.center().x - total_width / 2.0;
-                        let icon_pos =
-                            egui::pos2(start_x, resp.rect.center().y - icon_height / 2.0);
-                        ui.painter().galley(icon_pos, icon_galley, icon_color);
-                        let text_pos = egui::pos2(
-                            start_x + icon_width + spacing,
-                            resp.rect.center().y - text_height / 2.0,
-                        );
-                        ui.painter()
-                            .galley(text_pos, text_galley, visuals.fg_stroke.color);
-                    } else {
-                        let galley = ui.painter().layout_no_wrap(
-                            kc.label.to_owned(),
-                            egui::FontId::proportional(10.5),
-                            visuals.fg_stroke.color,
-                        );
-                        let pos = egui::pos2(
-                            resp.rect.center().x - galley.size().x / 2.0,
-                            resp.rect.center().y - galley.size().y / 2.0,
-                        );
-                        ui.painter().galley(pos, galley, visuals.fg_stroke.color);
-                    }
+                    let label = mouse_picker_label(*value);
+                    Self::paint_compact_picker_label(ui, &resp, label);
                     if resp.clicked() {
                         self.assign_keycode_value(*value);
                     }
@@ -4452,53 +4415,7 @@ Repeat"
                     continue;
                 }
                 let resp = ui.add_sized(Vec2::new(56.0, 42.0), egui::Button::new(""));
-                let visuals = ui.style().interact(&resp);
-                let painter = ui.painter();
-                let lines: Vec<&str> = text.split('\n').collect();
-                if lines.len() == 2 {
-                    let top_color = if ui.visuals().dark_mode {
-                        Color32::from_gray(105)
-                    } else {
-                        Color32::from_gray(145)
-                    };
-                    let top_galley = painter.layout_no_wrap(
-                        lines[0].to_owned(),
-                        egui::FontId::proportional(9.3),
-                        top_color,
-                    );
-                    let bottom_galley = painter.layout_no_wrap(
-                        lines[1].to_owned(),
-                        egui::FontId::proportional(10.6),
-                        visuals.fg_stroke.color,
-                    );
-                    let line_spacing = 1.0;
-                    let top_size = top_galley.size();
-                    let bottom_size = bottom_galley.size();
-                    let total_height = top_size.y + line_spacing + bottom_size.y;
-                    let top_pos = egui::pos2(
-                        resp.rect.center().x - top_size.x / 2.0,
-                        resp.rect.center().y - total_height / 2.0,
-                    );
-                    painter.galley(top_pos, top_galley, top_color);
-                    let bottom_pos = egui::pos2(
-                        resp.rect.center().x - bottom_size.x / 2.0,
-                        top_pos.y + top_size.y + line_spacing,
-                    );
-                    painter.galley(bottom_pos, bottom_galley, visuals.fg_stroke.color);
-                } else {
-                    let text_font = if text.chars().count() > 8 { 9.4 } else { 10.5 };
-                    let text_galley = painter.layout_no_wrap(
-                        text.to_owned(),
-                        egui::FontId::proportional(text_font),
-                        visuals.fg_stroke.color,
-                    );
-                    let text_size = text_galley.size();
-                    let text_pos = egui::pos2(
-                        resp.rect.center().x - text_size.x / 2.0,
-                        resp.rect.center().y - text_size.y / 2.0,
-                    );
-                    painter.galley(text_pos, text_galley, visuals.fg_stroke.color);
-                }
+                Self::paint_compact_picker_label(ui, &resp, text);
                 if resp.clicked() {
                     self.assign_keycode_value(value);
                 }
