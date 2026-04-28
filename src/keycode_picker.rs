@@ -151,21 +151,27 @@ pub struct KeycodePicker {
 pub enum BasicPickerLayout {
     Qwerty,
     Dvorak,
-    Colemak,
+    ColemakDh,
+    Workman,
+    Norman,
 }
 
 impl BasicPickerLayout {
-    const ALL: [BasicPickerLayout; 3] = [
+    const ALL: [BasicPickerLayout; 5] = [
         BasicPickerLayout::Qwerty,
         BasicPickerLayout::Dvorak,
-        BasicPickerLayout::Colemak,
+        BasicPickerLayout::ColemakDh,
+        BasicPickerLayout::Workman,
+        BasicPickerLayout::Norman,
     ];
 
     fn label(self) -> &'static str {
         match self {
             BasicPickerLayout::Qwerty => "QWERTY",
             BasicPickerLayout::Dvorak => "Dvorak",
-            BasicPickerLayout::Colemak => "Colemak",
+            BasicPickerLayout::ColemakDh => "Colemak-DH",
+            BasicPickerLayout::Workman => "Workman",
+            BasicPickerLayout::Norman => "Norman",
         }
     }
 
@@ -208,12 +214,12 @@ impl BasicPickerLayout {
                 0x0038 => 0x001D, // / position -> Z
                 _ => value,
             },
-            BasicPickerLayout::Colemak => match value {
+            BasicPickerLayout::ColemakDh => match value {
                 0x0014 => 0x0014, // Q
                 0x001A => 0x001A, // W
                 0x0008 => 0x0009, // E position -> F
                 0x0015 => 0x0013, // R position -> P
-                0x0017 => 0x000A, // T position -> G
+                0x0017 => 0x0005, // T position -> B
                 0x001C => 0x000D, // Y position -> J
                 0x0018 => 0x000F, // U position -> L
                 0x000C => 0x0018, // I position -> U
@@ -223,8 +229,8 @@ impl BasicPickerLayout {
                 0x0016 => 0x0015, // S position -> R
                 0x0007 => 0x0016, // D position -> S
                 0x0009 => 0x0017, // F position -> T
-                0x000A => 0x0007, // G position -> D
-                0x000B => 0x000B, // H
+                0x000A => 0x000A, // G
+                0x000B => 0x0010, // H position -> M
                 0x000D => 0x0011, // J position -> N
                 0x000E => 0x0008, // K position -> E
                 0x000F => 0x000C, // L position -> I
@@ -232,9 +238,69 @@ impl BasicPickerLayout {
                 0x001D => 0x001D, // Z
                 0x001B => 0x001B, // X
                 0x0006 => 0x0006, // C
+                0x0019 => 0x0007, // V position -> D
+                0x0005 => 0x0019, // B position -> V
+                0x0011 => 0x000E, // N position -> K
+                0x0010 => 0x000B, // M position -> H
+                _ => value,
+            },
+            BasicPickerLayout::Workman => match value {
+                0x0014 => 0x0014, // Q
+                0x001A => 0x0007, // W position -> D
+                0x0008 => 0x0015, // E position -> R
+                0x0015 => 0x001A, // R position -> W
+                0x0017 => 0x0005, // T position -> B
+                0x001C => 0x000D, // Y position -> J
+                0x0018 => 0x0009, // U position -> F
+                0x000C => 0x0018, // I position -> U
+                0x0012 => 0x0013, // O position -> P
+                0x0013 => 0x0033, // P position -> ;
+                0x0004 => 0x0004, // A
+                0x0016 => 0x0016, // S
+                0x0007 => 0x000B, // D position -> H
+                0x0009 => 0x0017, // F position -> T
+                0x000A => 0x000A, // G
+                0x000B => 0x001C, // H position -> Y
+                0x000D => 0x0011, // J position -> N
+                0x000E => 0x0008, // K position -> E
+                0x000F => 0x0012, // L position -> O
+                0x0033 => 0x000C, // ; position -> I
+                0x001D => 0x001D, // Z
+                0x001B => 0x001B, // X
+                0x0006 => 0x0010, // C position -> M
+                0x0019 => 0x0006, // V position -> C
+                0x0005 => 0x0019, // B position -> V
+                0x0011 => 0x000E, // N position -> K
+                0x0010 => 0x000F, // M position -> L
+                _ => value,
+            },
+            BasicPickerLayout::Norman => match value {
+                0x0014 => 0x0014, // Q
+                0x001A => 0x001A, // W
+                0x0008 => 0x0007, // E position -> D
+                0x0015 => 0x0009, // R position -> F
+                0x0017 => 0x000E, // T position -> K
+                0x001C => 0x000D, // Y position -> J
+                0x0018 => 0x0018, // U
+                0x000C => 0x0015, // I position -> R
+                0x0012 => 0x000F, // O position -> L
+                0x0013 => 0x0033, // P position -> ;
+                0x0004 => 0x0004, // A
+                0x0016 => 0x0016, // S
+                0x0007 => 0x0008, // D position -> E
+                0x0009 => 0x0017, // F position -> T
+                0x000A => 0x000A, // G
+                0x000B => 0x001C, // H position -> Y
+                0x000D => 0x0011, // J position -> N
+                0x000E => 0x000C, // K position -> I
+                0x000F => 0x0012, // L position -> O
+                0x0033 => 0x000B, // ; position -> H
+                0x001D => 0x001D, // Z
+                0x001B => 0x001B, // X
+                0x0006 => 0x0006, // C
                 0x0019 => 0x0019, // V
                 0x0005 => 0x0005, // B
-                0x0011 => 0x000E, // N position -> K
+                0x0011 => 0x0013, // N position -> P
                 0x0010 => 0x0010, // M
                 _ => value,
             },
