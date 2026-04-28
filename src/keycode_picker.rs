@@ -769,9 +769,12 @@ fn picker_button(
     resp
 }
 
+fn picker_tab_width(label: &str) -> f32 {
+    (label.chars().count() as f32 * 7.0 + 24.0).clamp(52.0, 132.0)
+}
+
 fn picker_tab_button(ui: &mut egui::Ui, label: &str, active: bool) -> egui::Response {
-    let width = (label.chars().count() as f32 * 7.0 + 24.0).clamp(52.0, 132.0);
-    picker_button(ui, label, Vec2::new(width, 30.0), true, active)
+    picker_button(ui, label, Vec2::new(picker_tab_width(label), 30.0), true, active)
 }
 
 fn picker_slot_button(
@@ -1470,7 +1473,9 @@ impl KeycodePicker {
         )
         .show(ctx, |ui| {
             apply_picker_button_visuals(ui);
-            crate::ui_style::modal_intro(ui, "Press a key on your keyboard, or pick below");
+            ui.vertical_centered(|ui| {
+                crate::ui_style::modal_intro(ui, "Press a key on your keyboard, or pick below");
+            });
             ui.add_space(4.0);
 
             if !self.vial_tab_supported(self.selected_tab) {
@@ -1478,17 +1483,29 @@ impl KeycodePicker {
             }
 
             // Tab bar
-            ui.horizontal_wrapped(|ui| {
-                ui.spacing_mut().item_spacing = egui::vec2(6.0, 6.0);
-                let tabs = if self.firmware == FirmwareProtocol::Zmk {
-                    KeycodeTab::ZMK_TABS
-                } else {
-                    KeycodeTab::VIAL_TABS
-                };
-                for tab in tabs {
-                    if !self.vial_tab_supported(*tab) {
-                        continue;
-                    }
+            let tabs = if self.firmware == FirmwareProtocol::Zmk {
+                KeycodeTab::ZMK_TABS
+            } else {
+                KeycodeTab::VIAL_TABS
+            };
+            let visible_tabs: Vec<KeycodeTab> = tabs
+                .iter()
+                .copied()
+                .filter(|tab| self.vial_tab_supported(*tab))
+                .collect();
+            let tab_spacing = 6.0;
+            let tab_bar_width: f32 = visible_tabs
+                .iter()
+                .map(|tab| picker_tab_width(tab.label()))
+                .sum::<f32>()
+                + tab_spacing * visible_tabs.len().saturating_sub(1) as f32;
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing = egui::vec2(tab_spacing, 6.0);
+                let x_offset = ((ui.available_width() - tab_bar_width).max(0.0) * 0.5).floor();
+                if x_offset > 0.0 {
+                    ui.add_space(x_offset);
+                }
+                for tab in &visible_tabs {
                     let active = self.selected_tab == *tab;
                     if picker_tab_button(ui, tab.label(), active).clicked() {
                         self.selected_tab = *tab;
