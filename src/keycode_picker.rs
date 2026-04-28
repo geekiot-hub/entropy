@@ -1533,7 +1533,7 @@ impl KeycodePicker {
                                 apply_picker_button_visuals(ui);
 
                                 if self.selected_tab == KeycodeTab::Basic {
-                                    ui.add_space(88.0);
+                                    ui.add_space(28.0);
                                     self.show_vial_tab_content(ui);
                                 } else {
                                     let centered_width = self.tab_content_width(ui);
@@ -1829,8 +1829,8 @@ impl KeycodePicker {
     }
 
     fn show_vial_basic(&mut self, ui: &mut egui::Ui) {
-        const COLS: usize = 19;
-        const ROWS: usize = 6;
+        const COLS: usize = 15;
+        const ROWS: usize = 8;
 
         let cell_w = 44.0;
         let cell_h = 44.0;
@@ -1866,9 +1866,6 @@ impl KeycodePicker {
             (0, 12, 1, "F10", 0x0043),
             (0, 13, 1, "F11", 0x0044),
             (0, 14, 1, "F12", 0x0045),
-            (0, 16, 1, "Print\nScreen", 0x0046),
-            (0, 17, 1, "Scroll\nLock", 0x0047),
-            (0, 18, 1, "Pause", 0x0048),
             (1, 0, 1, "`", 0x0035),
             (1, 1, 1, "1", 0x001E),
             (1, 2, 1, "2", 0x001F),
@@ -1929,16 +1926,19 @@ impl KeycodePicker {
             (5, 11, 1, "Alt", 0x00E6),
             (5, 12, 1, "Menu", 0x0065),
             (5, 13, 2, "Ctrl", 0x00E4),
-            (1, 16, 1, "Insert", 0x0049),
-            (1, 17, 1, "Home", 0x004A),
-            (1, 18, 1, "Page\nUp", 0x004B),
-            (2, 16, 1, "Delete", 0x004C),
-            (2, 17, 1, "End", 0x004D),
-            (2, 18, 1, "Page\nDown", 0x004E),
-            (4, 17, 1, "↑", 0x0052),
-            (5, 16, 1, "←", 0x0050),
-            (5, 17, 1, "↓", 0x0051),
-            (5, 18, 1, "→", 0x004F),
+            (6, 4, 1, "Print\nScreen", 0x0046),
+            (6, 5, 1, "Scroll\nLock", 0x0047),
+            (6, 6, 1, "Pause", 0x0048),
+            (6, 7, 1, "Insert", 0x0049),
+            (6, 8, 1, "Home", 0x004A),
+            (6, 9, 1, "Page\nUp", 0x004B),
+            (7, 4, 1, "Delete", 0x004C),
+            (7, 5, 1, "End", 0x004D),
+            (7, 6, 1, "Page\nDown", 0x004E),
+            (7, 7, 1, "←", 0x0050),
+            (7, 8, 1, "↑", 0x0052),
+            (7, 9, 1, "↓", 0x0051),
+            (7, 10, 1, "→", 0x004F),
         ];
 
         let (rect, _) =
