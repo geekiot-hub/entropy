@@ -245,7 +245,7 @@ pub const KEYCODES: &[Keycode] = &[
     Keycode { value: 0x002A, name: "KC_BSPACE", label: "⟵",    category: KeycodeCategory::Basic },
     Keycode { value: 0x002B, name: "KC_TAB",    label: "Tab",  category: KeycodeCategory::Basic },
     Keycode { value: 0x002C, name: "KC_SPACE",  label: "Space",category: KeycodeCategory::Basic },
-    Keycode { value: 0x0039, name: "KC_CAPSLOCK",label: "Caps", category: KeycodeCategory::Basic },
+    Keycode { value: 0x0039, name: "KC_CAPSLOCK",label: "Caps\nLock", category: KeycodeCategory::Basic },
     Keycode { value: 0x0065, name: "KC_APPLICATION", label: "Menu", category: KeycodeCategory::Basic },
     Keycode { value: 0x0074, name: "KC_EXEC",        label: "Exec",   category: KeycodeCategory::Basic },
     Keycode { value: 0x0075, name: "KC_HELP",        label: "Help",   category: KeycodeCategory::Basic },
