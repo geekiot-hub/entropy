@@ -2179,7 +2179,7 @@ impl KeycodePicker {
     }
 
     fn show_vial_layers(&mut self, ui: &mut egui::Ui) {
-        ui.spacing_mut().item_spacing = Vec2::new(6.0, 8.0);
+        ui.spacing_mut().item_spacing.x = 6.0;
         let ops: &[(u16, &str, &str)] = &[
             (
                 0x5220,
@@ -2255,7 +2255,7 @@ impl KeycodePicker {
     }
 
     fn show_vial_modifiers(&mut self, ui: &mut egui::Ui) {
-        ui.spacing_mut().item_spacing = Vec2::new(6.0, 8.0);
+        ui.spacing_mut().item_spacing.x = 6.0;
         let gui = gui_label(false);
         let lgui = gui_label(false);
 
@@ -4833,7 +4833,7 @@ Repeat"
 
 
     fn show_zmk_layers(&mut self, ui: &mut egui::Ui) {
-        ui.spacing_mut().item_spacing = Vec2::new(6.0, 8.0);
+        ui.spacing_mut().item_spacing.x = 6.0;
         let ops: &[(&str, &str, &str, bool)] = &[
             (
                 "Momentary Layer",
