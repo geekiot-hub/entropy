@@ -324,9 +324,15 @@ impl ZmkConnection {
         }
     }
 
-    /// Fetch all behavior IDs and their details.
-    pub fn fetch_all_behaviors(&mut self) -> Result<()> {
-        let ids = self.list_all_behaviors()?;
+    /// Fetch behavior details for IDs reported by the behavior subsystem plus IDs observed elsewhere.
+    pub fn fetch_behaviors_with_extra_ids<I>(&mut self, extra_ids: I) -> Result<()>
+    where
+        I: IntoIterator<Item = u32>,
+    {
+        let mut ids = self.list_all_behaviors()?;
+        ids.extend(extra_ids);
+        ids.sort_unstable();
+        ids.dedup();
         log::info!("ZMK behaviors: {} total", ids.len());
 
         self.behaviors.clear();
