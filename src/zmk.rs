@@ -623,6 +623,20 @@ fn zmk_mod_mask_to_vial_base(mask: u32) -> Option<u16> {
     }
 }
 
+fn zmk_plain_modifier_param_to_vial_value(param: u32) -> Option<u16> {
+    match param {
+        0x0007_00E0 | 0x01 => Some(0x00E0),
+        0x0007_00E1 | 0x02 => Some(0x00E1),
+        0x0007_00E2 | 0x04 => Some(0x00E2),
+        0x0007_00E3 | 0x08 => Some(0x00E3),
+        0x0007_00E4 | 0x10 => Some(0x00E4),
+        0x0007_00E5 | 0x20 => Some(0x00E5),
+        0x0007_00E6 | 0x40 => Some(0x00E6),
+        0x0007_00E7 | 0x80 => Some(0x00E7),
+        _ => None,
+    }
+}
+
 fn zmk_modifier_usage_to_vial_osm(usage: u32) -> Option<u16> {
     match usage {
         0x0007_00E0 | 0x01 => Some(0x52A1),
@@ -753,7 +767,8 @@ fn zmk_equivalent_vial_keycode(kind: &str, p1: u32, p2: u32) -> Option<u16> {
         "bootloader" => Some(0x7C00),
         "caps_word" => Some(0x7C73),
         "key_repeat" => Some(0x7C79),
-        "key_press" => zmk_hid_usage_to_vial_value(p1),
+        "key_press" => zmk_plain_modifier_param_to_vial_value(p1)
+            .or_else(|| zmk_hid_usage_to_vial_value(p1)),
         "mouse_key_press" => zmk_mouse_button_param_to_vial_value(p1),
         "momentary_layer" if p1 < 32 => Some(0x5220 | p1 as u16),
         "toggle_layer" if p1 < 32 => Some(0x5260 | p1 as u16),

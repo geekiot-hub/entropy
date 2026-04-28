@@ -839,6 +839,14 @@ fn toggle_zmk_modifier_usage(usage: u32) -> Option<u32> {
         0x0007_00E6 => Some(0x0007_00E2),
         0x0007_00E3 => Some(0x0007_00E7),
         0x0007_00E7 => Some(0x0007_00E3),
+        0x01 => Some(0x10),
+        0x10 => Some(0x01),
+        0x02 => Some(0x20),
+        0x20 => Some(0x02),
+        0x04 => Some(0x40),
+        0x40 => Some(0x04),
+        0x08 => Some(0x80),
+        0x80 => Some(0x08),
         _ => None,
     }
 }
