@@ -4076,8 +4076,8 @@ impl KeycodePicker {
     fn show_vial_special(&mut self, ui: &mut egui::Ui) {
         let special_keys: Vec<(String, u16, String)> = vec![
             (
-                "No
-Key"
+                "✕
+None"
                     .into(),
                 0x0000,
                 if self.firmware == FirmwareProtocol::Zmk {
@@ -4087,7 +4087,8 @@ Key"
                 },
             ),
             (
-                "Inherit"
+                "▽
+Inherit"
                     .into(),
                 0x0001,
                 if self.firmware == FirmwareProtocol::Zmk {
@@ -4097,8 +4098,8 @@ Key"
                 },
             ),
             (
-                "Grave
-Esc"
+                "Esc
+~"
                 .into(),
                 0x7C16,
                 format!(
@@ -4107,8 +4108,8 @@ Esc"
                 ),
             ),
             (
-                "Boot
-Loader"
+                "⚡
+Boot"
                     .into(),
                 0x7C00,
                 if self.firmware == FirmwareProtocol::Zmk {
@@ -4118,8 +4119,8 @@ Loader"
                 },
             ),
             (
-                "Debug
-Toggle"
+                "🐛
+Debug"
                     .into(),
                 0x7C02,
                 if self.firmware == FirmwareProtocol::Zmk {
@@ -4129,7 +4130,7 @@ Toggle"
                 },
             ),
             (
-                "Key
+                "🔒
 Lock"
                     .into(),
                 0x7800,
