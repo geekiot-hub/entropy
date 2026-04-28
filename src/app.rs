@@ -96,14 +96,6 @@ impl SmartHrmMode {
             Self::Fast => "hold-preferred",
         }
     }
-
-    fn qmk_flavor_hint(self) -> &'static str {
-        match self {
-            Self::Off | Self::Safe => "PERMISSIVE_HOLD disabled, conservative tapping term",
-            Self::Balanced => "balanced tapping term with positional hold checks",
-            Self::Fast => "short tapping term, consider permissive hold only after testing",
-        }
-    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -3974,44 +3966,11 @@ impl EntropyApp {
                     apply_enabled,
                 );
                 apply_resp.clone().on_hover_text(
-                    "Assign standard Smart HRM Mod-Tap keys to A/S/D/F and J/K/L/; on the current layer",
+                    "Assign software Smart HRM transport keys to A/S/D/F and J/K/L/; Entropy resolves tap-vs-hold at runtime",
                 );
                 if apply_resp.clicked() && apply_enabled {
                     self.apply_smart_hrm_to_current_layer();
                 }
-
-                ui.add_space(8.0);
-                let zmk_template = Self::smart_hrm_zmk_template(&self.app_settings);
-                let qmk_template = Self::smart_hrm_qmk_template(&self.app_settings);
-                ui.horizontal(|ui| {
-                    let zmk_resp = crate::ui_style::modern_button(
-                        ui,
-                        "Copy ZMK behavior",
-                        Vec2::new(148.0, 32.0),
-                        true,
-                    );
-                    zmk_resp.clone().on_hover_text(
-                        "Copy a firmware-side hold-tap behavior template using the current Smart HRM profile",
-                    );
-                    if zmk_resp.clicked() {
-                        ui.ctx().copy_text(zmk_template.clone());
-                        self.status_msg = "Smart HRM ZMK template copied".into();
-                    }
-
-                    let qmk_resp = crate::ui_style::modern_button(
-                        ui,
-                        "Copy QMK notes",
-                        Vec2::new(124.0, 32.0),
-                        true,
-                    );
-                    qmk_resp.clone().on_hover_text(
-                        "Copy QMK/Vial firmware notes for the current Smart HRM profile",
-                    );
-                    if qmk_resp.clicked() {
-                        ui.ctx().copy_text(qmk_template.clone());
-                        self.status_msg = "Smart HRM QMK notes copied".into();
-                    }
-                });
 
                 ui.add_space(8.0);
                 ui.label(
@@ -4025,7 +3984,7 @@ impl EntropyApp {
 
     fn smart_hrm_profile_summary(settings: &AppSettings) -> String {
         format!(
-            "Generated profile: {}, flavor {}, tapping term {} ms, prior idle {} ms",
+            "Software engine: {}, flavor {}, tapping term {} ms, prior idle {} ms",
             settings.smart_hrm_mode.label(),
             settings.smart_hrm_mode.zmk_flavor(),
             settings.smart_hrm_base_tapping_term,
@@ -4033,72 +3992,16 @@ impl EntropyApp {
         )
     }
 
-    fn smart_hrm_zmk_template(settings: &AppSettings) -> String {
-        let positional = if settings.smart_hrm_positional {
-            "    hold-trigger-key-positions = <OPPOSITE_HAND_POSITIONS>;\n    hold-trigger-on-release;\n"
-        } else {
-            ""
-        };
-        let same_hand = if settings.smart_hrm_same_hand_tap_bias {
-            "// Same-hand rolls stay tap-biased by excluding same-hand positions from hold-trigger-key-positions.\n"
-        } else {
-            ""
-        };
-        let whitelist = if settings.smart_hrm_shortcut_whitelist {
-            "// Shortcut whitelist belongs in generated combo/macros or per-key exceptions; keep normal HRM conservative.\n"
-        } else {
-            ""
-        };
-        format!(
-            "// Entropy Smart HRM profile: {mode}\n{same_hand}{whitelist}/ {{\n  behaviors {{\n    smart_hrm: smart_hrm {{\n      compatible = \"zmk,behavior-hold-tap\";\n      #binding-cells = <2>;\n      flavor = \"{flavor}\";\n      tapping-term-ms = <{term}>;\n      quick-tap-ms = <0>;\n      require-prior-idle-ms = <{idle}>;\n{positional}      bindings = <&kp>, <&kp>;\n    }};\n  }};\n}};\n\n// Example bindings after adding the behavior to firmware:\n// &smart_hrm LCTRL A  &smart_hrm LALT S  &smart_hrm LSHFT D  &smart_hrm LGUI F\n// &smart_hrm RGUI J   &smart_hrm RSHFT K &smart_hrm RALT L   &smart_hrm RCTRL SEMI\n",
-            mode = settings.smart_hrm_mode.label(),
-            same_hand = same_hand,
-            whitelist = whitelist,
-            flavor = settings.smart_hrm_mode.zmk_flavor(),
-            term = settings.smart_hrm_base_tapping_term,
-            idle = settings.smart_hrm_prior_idle_ms,
-            positional = positional,
-        )
-    }
-
-    fn smart_hrm_qmk_template(settings: &AppSettings) -> String {
-        let positional = if settings.smart_hrm_positional {
-            "// Implement positional HRM in get_hold_on_other_key_press(...) or achordion-style logic.\n"
-        } else {
-            "// Positional HRM disabled in this Entropy profile.\n"
-        };
-        let same_hand = if settings.smart_hrm_same_hand_tap_bias {
-            "// Same-hand rolls should return tap-preferred / false for hold-on-other-key-press.\n"
-        } else {
-            ""
-        };
-        let whitelist = if settings.smart_hrm_shortcut_whitelist {
-            "// Add explicit shortcut exceptions for common Ctrl/Cmd chords after validating typing behavior.\n"
-        } else {
-            ""
-        };
-        format!(
-            "// Entropy Smart HRM profile: {mode}\n// Base tapping term: {term} ms; use TAPPING_TERM or get_tapping_term(...)\n// Quick tap term: 0 ms for stricter HRM behavior\n// Prior idle target: {idle} ms; implement via custom process_record/hold-tap logic if needed\n// Flavor hint: {flavor}\n{positional}{same_hand}{whitelist}\n// Suggested home row mapping:\n// LCTL_T(KC_A), LALT_T(KC_S), LSFT_T(KC_D), LGUI_T(KC_F)\n// RGUI_T(KC_J), RSFT_T(KC_K), RALT_T(KC_L), RCTL_T(KC_SCLN)\n",
-            mode = settings.smart_hrm_mode.label(),
-            term = settings.smart_hrm_base_tapping_term,
-            idle = settings.smart_hrm_prior_idle_ms,
-            flavor = settings.smart_hrm_mode.qmk_flavor_hint(),
-            positional = positional,
-            same_hand = same_hand,
-            whitelist = whitelist,
-        )
-    }
-
     fn smart_hrm_targets() -> &'static [(u16, u16, u32, u32)] {
         &[
-            (0x0004, 0x2100, 0x0007_00E0, 0x0007_0004), // A -> Ctrl
-            (0x0016, 0x2400, 0x0007_00E2, 0x0007_0016), // S -> Alt
-            (0x0007, 0x2200, 0x0007_00E1, 0x0007_0007), // D -> Shift
-            (0x0009, 0x2800, 0x0007_00E3, 0x0007_0009), // F -> GUI
-            (0x000D, 0x3800, 0x0007_00E7, 0x0007_000D), // J -> GUI
-            (0x000E, 0x3200, 0x0007_00E5, 0x0007_000E), // K -> Shift
-            (0x000F, 0x3400, 0x0007_00E6, 0x0007_000F), // L -> Alt
-            (0x0033, 0x3100, 0x0007_00E4, 0x0007_0033), // ; -> Ctrl
+            (0x0004, 0x056F, 0x0500, 0x0007_006F), // A -> Ctrl, Ctrl+Alt+F20 transport
+            (0x0016, 0x0570, 0x0500, 0x0007_0070), // S -> Alt, Ctrl+Alt+F21 transport
+            (0x0007, 0x0571, 0x0500, 0x0007_0071), // D -> Shift, Ctrl+Alt+F22 transport
+            (0x0009, 0x0572, 0x0500, 0x0007_0072), // F -> GUI, Ctrl+Alt+F23 transport
+            (0x000D, 0x0573, 0x0500, 0x0007_0073), // J -> GUI, Ctrl+Alt+F24 transport
+            (0x000E, 0x076F, 0x0700, 0x0007_006F), // K -> Shift, Ctrl+Alt+Shift+F20 transport
+            (0x000F, 0x0770, 0x0700, 0x0007_0070), // L -> Alt, Ctrl+Alt+Shift+F21 transport
+            (0x0033, 0x0771, 0x0700, 0x0007_0071), // ; -> Ctrl, Ctrl+Alt+Shift+F22 transport
         ]
     }
 
@@ -4123,13 +4026,13 @@ impl EntropyApp {
         let applied: usize;
 
         if self.firmware == FirmwareProtocol::Zmk {
-            let Some(mod_tap_id) = layout
+            let Some(key_press_id) = layout
                 .zmk_behaviors
                 .iter()
-                .find(|behavior| zmk_behavior_kind(&behavior.display_name) == "mod_tap")
+                .find(|behavior| zmk_behavior_kind(&behavior.display_name) == "key_press")
                 .map(|behavior| behavior.id)
             else {
-                self.status_msg = "ZMK firmware does not expose Mod-Tap behavior".into();
+                self.status_msg = "ZMK firmware does not expose Key Press behavior".into();
                 return;
             };
             let behaviors = layout.zmk_behaviors.clone();
@@ -4141,16 +4044,18 @@ impl EntropyApp {
                     let current = layout.get_zmk_binding(layer, ki);
                     Self::smart_hrm_targets()
                         .iter()
-                        .find(|(_, _, _, tap_usage)| {
-                            Self::zmk_binding_is_plain_tap(&current, &behaviors, *tap_usage)
+                        .find(|(tap, _, _, _)| {
+                            let tap_usage = 0x0007_0000 | (*tap as u32);
+                            Self::zmk_binding_is_plain_tap(&current, &behaviors, tap_usage)
                         })
-                        .map(|(_, _, mod_usage, tap_usage)| {
+                        .map(|(_, _, transport_mods, transport_usage)| {
+                            let mod_mask = (*transport_mods as u32) >> 8;
                             (
                                 ki,
                                 ZmkBinding {
-                                    behavior_id: mod_tap_id as i32,
-                                    param1: *mod_usage,
-                                    param2: *tap_usage,
+                                    behavior_id: key_press_id as i32,
+                                    param1: *transport_usage | (mod_mask << 24),
+                                    param2: 0,
                                 },
                             )
                         })
@@ -4174,7 +4079,7 @@ impl EntropyApp {
                     Self::smart_hrm_targets()
                         .iter()
                         .find(|(tap, _, _, _)| current == *tap)
-                        .map(|(tap, mt_base, _, _)| (ki, mt_base | tap))
+                        .map(|(_, transport, _, _)| (ki, *transport))
                 })
                 .collect();
             if assignments.is_empty() {
@@ -4187,7 +4092,7 @@ impl EntropyApp {
             }
         }
 
-        self.status_msg = format!("Smart HRM applied to {applied} keys");
+        self.status_msg = format!("Software Smart HRM assigned to {applied} keys");
     }
 
     fn draw_smart_hrm_numeric_row(

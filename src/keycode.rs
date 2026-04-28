@@ -485,6 +485,34 @@ fn smart_symbol_label(value: u16) -> Option<String> {
     crate::smart_input::smart_symbol_for_keycode(value).map(|smart| smart.symbol.to_string())
 }
 
+fn smart_hrm_transport_label(value: u16) -> Option<&'static str> {
+    match value {
+        0x056F => Some("HRM\nA"),
+        0x0570 => Some("HRM\nS"),
+        0x0571 => Some("HRM\nD"),
+        0x0572 => Some("HRM\nF"),
+        0x0573 => Some("HRM\nJ"),
+        0x076F => Some("HRM\nK"),
+        0x0770 => Some("HRM\nL"),
+        0x0771 => Some("HRM\n;"),
+        _ => None,
+    }
+}
+
+fn smart_hrm_transport_tooltip(value: u16) -> Option<&'static str> {
+    match value {
+        0x056F => Some("Software Smart HRM transport: tap A, hold Ctrl"),
+        0x0570 => Some("Software Smart HRM transport: tap S, hold Alt"),
+        0x0571 => Some("Software Smart HRM transport: tap D, hold Shift"),
+        0x0572 => Some("Software Smart HRM transport: tap F, hold GUI"),
+        0x0573 => Some("Software Smart HRM transport: tap J, hold GUI"),
+        0x076F => Some("Software Smart HRM transport: tap K, hold Shift"),
+        0x0770 => Some("Software Smart HRM transport: tap L, hold Alt"),
+        0x0771 => Some("Software Smart HRM transport: tap ;, hold Ctrl"),
+        _ => None,
+    }
+}
+
 fn smart_symbol_tooltip(value: u16) -> Option<String> {
     crate::smart_input::smart_symbol_for_keycode(value).map(|smart| {
         format!(
@@ -594,6 +622,9 @@ pub fn keycode_label_with_names(value: u16, custom: &[CustomKeycode], layer_name
 
     if let Some(label) = magic_keycode_label(value) {
         return label;
+    }
+    if let Some(label) = smart_hrm_transport_label(value) {
+        return label.to_string();
     }
     if let Some(label) = smart_symbol_label(value) {
         return label;
@@ -772,6 +803,9 @@ pub fn keycode_tooltip(value: u16, custom: &[CustomKeycode], layer_names: &[Stri
     }
     if let Some(tip) = magic_keycode_tooltip(value) {
         return tip;
+    }
+    if let Some(tip) = smart_hrm_transport_tooltip(value) {
+        return tip.to_string();
     }
     if let Some(tip) = smart_symbol_tooltip(value) {
         return tip;
