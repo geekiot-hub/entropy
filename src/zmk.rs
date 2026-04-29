@@ -572,6 +572,9 @@ impl ZmkConnection {
 
 pub(crate) fn zmk_behavior_kind(name: &str) -> &'static str {
     let normalized = name.trim().to_ascii_lowercase();
+    if normalized.contains("macro") {
+        return "macro";
+    }
     match normalized.as_str() {
         "none" | "no key" | "no-key" | "no operation" | "no op" => "none",
         "transparent" | "trans" | "trns" => "transparent",
@@ -601,6 +604,18 @@ pub(crate) fn zmk_behavior_kind(name: &str) -> &'static str {
         "mouse_scroll" | "mouse scroll" | "mouse-scroll" | "msc" => "mouse_scroll",
         _ => "unknown",
     }
+}
+
+fn zmk_macro_label(name: &str) -> String {
+    let trimmed = name.trim();
+    if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("macro") {
+        return "Macro".to_string();
+    }
+    if trimmed.to_ascii_lowercase().starts_with("macro ") {
+        return trimmed.replacen(' ', "\n", 1);
+    }
+    let short: String = trimmed.chars().take(10).collect();
+    format!("Macro\n{short}")
 }
 
 fn zmk_mod_mask_to_vial_base(mask: u32) -> Option<u16> {
@@ -986,6 +1001,8 @@ pub fn zmk_binding_label(binding: &ZmkBinding, behaviors: &[BehaviorInfo], layer
         "rgb_underglow" | "backlight" => zmk_lighting_label(kind, p1)
             .unwrap_or(name)
             .to_string(),
+        // Firmware-defined macro
+        "macro" => zmk_macro_label(name),
         // Mouse
         "mouse_key_press"  => format!("Ms\n{}", key(p1)),
         "mouse_move"       => zmk_axis_label(p1, "move").unwrap_or("MsMove").to_string(),
@@ -1068,6 +1085,7 @@ pub fn zmk_binding_tooltip(binding: &ZmkBinding, behaviors: &[BehaviorInfo], lay
             1 => "Output: Bluetooth".to_string(),
             _ => "Output selection".to_string(),
         },
+        "macro"            => format!("Macro: {name}"),
         "mouse_key_press"  => zmk_mouse_button_param_to_vial_value(p1)
             .map(|value| crate::keycode::keycode_tooltip(value, &[], layer_names))
             .unwrap_or_else(|| format!("Mouse button: {}", key_name(p1))),
