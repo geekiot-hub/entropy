@@ -1,4 +1,4 @@
-/// Keycode picker modal — supports both Vial (QMK keycodes) and ZMK (behaviors).
+/// Keycode picker modal for Vial/QMK keycodes.
 
 fn inactive_picker_entry_text(dark: bool) -> egui::Color32 {
     if dark {
@@ -8,13 +8,11 @@ fn inactive_picker_entry_text(dark: bool) -> egui::Color32 {
     }
 }
 
-use crate::firmware::FirmwareProtocol;
 use crate::keycode::{
     gui_label, gui_mod_name, gui_sym, key_label_font_sizes, keycode_label_with_names,
     keycode_tooltip, modifier_label_from_bits, KeycodeCategory, KEYCODES,
 };
 use crate::popup_state::{PopupKey, PopupState};
-use crate::zmk::{zmk_behavior_kind, BehaviorInfo, ZmkBinding};
 use egui::{Color32, Key, RichText, Vec2};
 
 fn plain_modifier_tooltip(mod_name: &str) -> String {
@@ -33,9 +31,7 @@ fn mod_combo_tooltip(mod_name: &str, has_right_side: bool) -> String {
             "Hold {mod_name} together with another key\nLeft click starts a Left {mod_name}+key binding\nRight click starts a Right {mod_name}+key binding\nThen choose the key part"
         )
     } else {
-        format!(
-            "Hold {mod_name} together with another key\nClick to choose the key part"
-        )
+        format!("Hold {mod_name} together with another key\nClick to choose the key part")
     }
 }
 
@@ -59,14 +55,6 @@ fn one_shot_modifier_tooltip(mod_name: &str, has_right_side: bool) -> String {
     } else {
         format!("Applies {mod_name} to the next keypress only")
     }
-}
-
-fn zmk_sticky_modifier_tooltip(mod_name: &str) -> String {
-    format!("Applies {mod_name} to the next keypress only")
-}
-
-fn zmk_mod_tap_tooltip(mod_name: &str) -> String {
-    format!("Dual-role key: hold for {mod_name}, tap for a key you choose next")
 }
 
 #[derive(Clone, Debug, Default)]
@@ -108,16 +96,6 @@ pub struct KeycodePicker {
     pub layer_count: usize,
     pub layer_has_content: Vec<bool>,
     pub listening: bool,
-    // ZMK
-    pub firmware: FirmwareProtocol,
-    pub zmk_behaviors: Vec<BehaviorInfo>,
-    pub zmk_result: Option<ZmkBinding>,
-    pub zmk_selected_behavior: Option<usize>,
-    pub zmk_layer_count: usize,
-    pub zmk_layer_action_pending: Option<(u32, bool)>,
-    pub zmk_layer_retarget_pending: Option<ZmkBinding>,
-    pub zmk_layer_tap_pending: Option<u32>,
-    pub zmk_mod_tap_pending: Option<u32>,
     // Vial Quantum tab pending state
     pub vial_quantum_pending_mod: Option<u16>,
     pub vial_quantum_pending_mt: Option<u16>,
@@ -320,13 +298,11 @@ pub enum KeycodeTab {
     Mouse,
     Numpad,
     Special,
-    Bluetooth,
     Rgb,
     Macro,
     TapDance,
     Quantum,
     Custom,
-    ZmkAdvanced,
 }
 
 impl KeycodeTab {
@@ -341,16 +317,6 @@ impl KeycodeTab {
         KeycodeTab::Custom,
     ];
 
-    pub const ZMK_TABS: &'static [KeycodeTab] = &[
-        KeycodeTab::Basic,
-        KeycodeTab::Symbols,
-        KeycodeTab::Modifiers,
-        KeycodeTab::Special,
-        KeycodeTab::Rgb,
-        KeycodeTab::Bluetooth,
-        KeycodeTab::ZmkAdvanced,
-    ];
-
     pub fn label(self) -> &'static str {
         match self {
             KeycodeTab::Basic => "Basic",
@@ -363,13 +329,11 @@ impl KeycodeTab {
             KeycodeTab::Mouse => "Mouse",
             KeycodeTab::Numpad => "Numpad",
             KeycodeTab::Special => "Special",
-            KeycodeTab::Bluetooth => "Bluetooth",
             KeycodeTab::Rgb => "RGB",
             KeycodeTab::Macro => "Macros",
             KeycodeTab::TapDance => "Tap Dance",
             KeycodeTab::Quantum => "Quantum",
             KeycodeTab::Custom => "Custom",
-            KeycodeTab::ZmkAdvanced => "Advanced",
         }
     }
 
@@ -406,118 +370,6 @@ fn is_symbol(value: u16) -> bool {
     )
 }
 
-fn zmk_tab_matches(tab: KeycodeTab, kc: &crate::keycode::Keycode) -> bool {
-    match tab {
-        KeycodeTab::Basic => {
-            matches!(kc.category, KeycodeCategory::Basic) && !is_symbol(kc.value)
-        }
-        KeycodeTab::Symbols => {
-            matches!(kc.category, KeycodeCategory::Basic) && is_symbol(kc.value)
-        }
-        KeycodeTab::Function => matches!(kc.category, KeycodeCategory::Function),
-        KeycodeTab::Navigation => matches!(kc.category, KeycodeCategory::Navigation),
-        KeycodeTab::Modifiers => matches!(kc.category, KeycodeCategory::Modifier),
-        KeycodeTab::Media => matches!(kc.category, KeycodeCategory::Media),
-        KeycodeTab::Mouse => matches!(kc.category, KeycodeCategory::Mouse),
-        KeycodeTab::Special => matches!(kc.category, KeycodeCategory::Special),
-        _ => false,
-    }
-}
-
-fn zmk_hid_usage_for_qmk_value(value: u16) -> Option<u32> {
-    let consumer = |usage: u32| Some(0x000C_0000u32 | usage);
-    let system = |usage: u32| Some(0x0001_0000u32 | usage);
-    match value {
-        // Prefer Consumer AC usages for edit actions; keyboard-page edit usages are poorly supported by hosts.
-        0x007A => consumer(0x021A), // Undo
-        0x007B => consumer(0x021C), // Cut
-        0x007C => consumer(0x021B), // Copy
-        0x007D => consumer(0x021D), // Paste
-        0x007E => consumer(0x021F), // Find
-        0x0004..=0x00A4 | 0x00E0..=0x00E7 => Some(0x0007_0000u32 | value as u32),
-        // System control page.
-        0x00A5 => system(0x0081), // Power
-        0x00A6 => system(0x0082), // Sleep
-        0x00A7 => system(0x0083), // Wake
-        // Consumer page: media, audio, brightness, app/browser controls.
-        0x00A8 => consumer(0x00E2), // Mute
-        0x00A9 => consumer(0x00E9), // Volume Up
-        0x00AA => consumer(0x00EA), // Volume Down
-        0x00AB => consumer(0x00B5), // Next Track
-        0x00AC => consumer(0x00B6), // Previous Track
-        0x00AD => consumer(0x00B7), // Stop
-        0x00AE => consumer(0x00CD), // Play/Pause
-        0x00AF => consumer(0x0183), // Media Select
-        0x00B0 => consumer(0x00B8), // Eject
-        0x00B1 => consumer(0x018A), // Mail
-        0x00B2 => consumer(0x0192), // Calculator
-        0x00B3 => consumer(0x0194), // Files / local browser
-        0x00B4 => consumer(0x0221), // Search
-        0x00B5 => consumer(0x0223), // Browser Home
-        0x00B6 => consumer(0x0224), // Browser Back
-        0x00B7 => consumer(0x0225), // Browser Forward
-        0x00B8 => consumer(0x0226), // Browser Stop
-        0x00B9 => consumer(0x0227), // Browser Refresh
-        0x00BA => consumer(0x022A), // Browser Favorites / Bookmarks
-        0x00BB => consumer(0x00B3), // Fast Forward
-        0x00BC => consumer(0x00B4), // Rewind
-        0x00BD => consumer(0x006F), // Brightness Up
-        0x00BE => consumer(0x0070), // Brightness Down
-        _ => None,
-    }
-}
-
-fn zmk_mouse_button_usage_for_qmk_value(value: u16) -> Option<u32> {
-    match value {
-        0x00D1..=0x00D5 => Some(1u32 << (value as u32 - 0x00D1)),
-        _ => None,
-    }
-}
-
-fn zmk_mouse_move_param_for_qmk_value(value: u16) -> Option<u32> {
-    const MOVE_DEFAULT: u32 = 1500;
-    let neg = (!MOVE_DEFAULT + 1) & 0xFFFF;
-    match value {
-        0x00CD => Some(neg),
-        0x00CE => Some(MOVE_DEFAULT),
-        0x00CF => Some(neg << 16),
-        0x00D0 => Some(MOVE_DEFAULT << 16),
-        _ => None,
-    }
-}
-
-fn zmk_mouse_scroll_param_for_qmk_value(value: u16) -> Option<u32> {
-    const SCROLL_DEFAULT: u32 = 30;
-    let neg = (!SCROLL_DEFAULT + 1) & 0xFFFF;
-    match value {
-        0x00D9 => Some(SCROLL_DEFAULT),
-        0x00DA => Some(neg),
-        0x00DB => Some(neg << 16),
-        0x00DC => Some(SCROLL_DEFAULT << 16),
-        _ => None,
-    }
-}
-
-fn zmk_mouse_move_label(value: u16) -> &'static str {
-    match value {
-        0x00CD => "Mouse move up",
-        0x00CE => "Mouse move down",
-        0x00CF => "Mouse move left",
-        0x00D0 => "Mouse move right",
-        _ => "Mouse move",
-    }
-}
-
-fn zmk_mouse_scroll_label(value: u16) -> &'static str {
-    match value {
-        0x00D9 => "Mouse wheel scroll up",
-        0x00DA => "Mouse wheel scroll down",
-        0x00DB => "Mouse wheel scroll left",
-        0x00DC => "Mouse wheel scroll right",
-        _ => "Mouse scroll",
-    }
-}
-
 fn picker_mod_key_label(base: u16) -> String {
     format!("{}/key", modifier_label_from_bits(base >> 8))
 }
@@ -544,19 +396,6 @@ fn picker_action_label(label: &str) -> String {
     }
 }
 
-fn zmk_space_cadet_parts(value: u16) -> Option<(u32, u16)> {
-    match value {
-        0x7C18 => Some((0x0007_00E0, 0x0200 | 0x0026)),
-        0x7C19 => Some((0x0007_00E4, 0x0200 | 0x0027)),
-        0x7C1A => Some((0x0007_00E1, 0x0200 | 0x0026)),
-        0x7C1B => Some((0x0007_00E5, 0x0200 | 0x0027)),
-        0x7C1C => Some((0x0007_00E2, 0x0200 | 0x0026)),
-        0x7C1D => Some((0x0007_00E6, 0x0200 | 0x0027)),
-        0x7C1E => Some((0x0007_00E5, 0x0028)),
-        _ => None,
-    }
-}
-
 impl Default for KeycodePicker {
     fn default() -> Self {
         Self {
@@ -580,15 +419,6 @@ impl Default for KeycodePicker {
             layer_count: 4,
             layer_has_content: vec![true; 16],
             listening: false,
-            firmware: FirmwareProtocol::Vial,
-            zmk_behaviors: vec![],
-            zmk_result: None,
-            zmk_selected_behavior: None,
-            zmk_layer_count: 4,
-            zmk_layer_action_pending: None,
-            zmk_layer_retarget_pending: None,
-            zmk_layer_tap_pending: None,
-            zmk_mod_tap_pending: None,
             vial_quantum_pending_mod: None,
             vial_quantum_pending_mt: None,
             vial_layer_pending: None,
@@ -707,71 +537,6 @@ pub fn egui_key_to_qmk(key: Key, mods: egui::Modifiers) -> Option<u16> {
     } else {
         Some(base)
     }
-}
-
-/// Convert egui key to ZMK HID usage (keyboard page 0x07)
-fn egui_key_to_zmk_usage(key: Key) -> Option<u32> {
-    let hid: u16 = match key {
-        Key::A => 0x04,
-        Key::B => 0x05,
-        Key::C => 0x06,
-        Key::D => 0x07,
-        Key::E => 0x08,
-        Key::F => 0x09,
-        Key::G => 0x0A,
-        Key::H => 0x0B,
-        Key::I => 0x0C,
-        Key::J => 0x0D,
-        Key::K => 0x0E,
-        Key::L => 0x0F,
-        Key::M => 0x10,
-        Key::N => 0x11,
-        Key::O => 0x12,
-        Key::P => 0x13,
-        Key::Q => 0x14,
-        Key::R => 0x15,
-        Key::S => 0x16,
-        Key::T => 0x17,
-        Key::U => 0x18,
-        Key::V => 0x19,
-        Key::W => 0x1A,
-        Key::X => 0x1B,
-        Key::Y => 0x1C,
-        Key::Z => 0x1D,
-        Key::Num1 => 0x1E,
-        Key::Num2 => 0x1F,
-        Key::Num3 => 0x20,
-        Key::Num4 => 0x21,
-        Key::Num5 => 0x22,
-        Key::Num6 => 0x23,
-        Key::Num7 => 0x24,
-        Key::Num8 => 0x25,
-        Key::Num9 => 0x26,
-        Key::Num0 => 0x27,
-        Key::Enter => 0x28,
-        Key::Escape => 0x29,
-        Key::Backspace => 0x2A,
-        Key::Tab => 0x2B,
-        Key::Space => 0x2C,
-        Key::F1 => 0x3A,
-        Key::F2 => 0x3B,
-        Key::F3 => 0x3C,
-        Key::F4 => 0x3D,
-        Key::F5 => 0x3E,
-        Key::F6 => 0x3F,
-        Key::F7 => 0x40,
-        Key::F8 => 0x41,
-        Key::F9 => 0x42,
-        Key::F10 => 0x43,
-        Key::F11 => 0x44,
-        Key::F12 => 0x45,
-        Key::ArrowRight => 0x4F,
-        Key::ArrowLeft => 0x50,
-        Key::ArrowDown => 0x51,
-        Key::ArrowUp => 0x52,
-        _ => return None,
-    };
-    Some(0x0007_0000u32 | hid as u32)
 }
 
 fn apply_picker_button_visuals(ui: &mut egui::Ui) {
@@ -937,7 +702,13 @@ fn picker_tab_width(label: &str) -> f32 {
 }
 
 fn picker_tab_button(ui: &mut egui::Ui, label: &str, active: bool) -> egui::Response {
-    picker_button(ui, label, Vec2::new(picker_tab_width(label), 30.0), true, active)
+    picker_button(
+        ui,
+        label,
+        Vec2::new(picker_tab_width(label), 30.0),
+        true,
+        active,
+    )
 }
 
 fn picker_slot_button(
@@ -1089,281 +860,25 @@ fn show_grouped_popup_choice_buttons(
 }
 
 impl KeycodePicker {
-    fn zmk_find_behavior<'a>(&'a self, name: &str) -> Option<&'a BehaviorInfo> {
-        let requested_kind = zmk_behavior_kind(name);
-        self.zmk_behaviors.iter().find(|b| {
-            b.display_name == name || zmk_behavior_kind(&b.display_name) == requested_kind
-        })
-    }
-
-    fn zmk_assign(&mut self, behavior_id: u32, param1: u32, param2: u32) {
-        self.zmk_result = Some(ZmkBinding {
-            behavior_id: behavior_id as i32,
-            param1,
-            param2,
-        });
-        self.open = false;
-    }
-
-    fn zmk_behavior_id(&self, name: &str) -> Option<u32> {
-        self.zmk_find_behavior(name).map(|b| b.id)
-    }
-
-    fn zmk_assign_keycode_value(&mut self, value: u16) -> bool {
-        if value == 0x0000 {
-            if let Some(id) = self.zmk_behavior_id("None") {
-                self.zmk_assign(id, 0, 0);
-                return true;
-            }
-        }
-        if value == 0x0001 {
-            if let Some(id) = self.zmk_behavior_id("Transparent") {
-                self.zmk_assign(id, 0, 0);
-                return true;
-            }
-        }
-
-        let special = match value {
-            0x7C00 => Some("Bootloader"),
-            0x7C16 => Some("Grave/Escape"),
-            0x7C73 => Some("Caps Word"),
-            0x7C79 => Some("Key Repeat"),
-            _ => None,
-        };
-        if let Some(name) = special {
-            if let Some(id) = self.zmk_behavior_id(name) {
-                self.zmk_assign(id, 0, 0);
-                return true;
-            }
-        }
-
-        if let Some((modifier, tap_value)) = zmk_space_cadet_parts(value) {
-            if let (Some(id), Some(tap_usage)) = (
-                self.zmk_behavior_id("Mod-Tap"),
-                self.zmk_key_press_usage_from_vial_value(tap_value),
-            ) {
-                self.zmk_assign(id, modifier, tap_usage);
-                return true;
-            }
-        }
-
-        if let Some(modifier) = Self::zmk_modifier_usage_from_vial_osm(value) {
-            if let Some(id) = self.zmk_behavior_id("Sticky Key") {
-                self.zmk_assign(id, modifier, 0);
-                return true;
-            }
-        }
-
-        if let Some(param) = zmk_mouse_move_param_for_qmk_value(value) {
-            if let Some(id) = self.zmk_behavior_id("Mouse Move") {
-                self.zmk_assign(id, param, 0);
-                return true;
-            }
-        }
-
-        if let Some(param) = zmk_mouse_scroll_param_for_qmk_value(value) {
-            if let Some(id) = self.zmk_behavior_id("Mouse Scroll") {
-                self.zmk_assign(id, param, 0);
-                return true;
-            }
-        }
-
-        if let Some(mouse_usage) = zmk_mouse_button_usage_for_qmk_value(value) {
-            if let Some(id) = self.zmk_behavior_id("Mouse Key Press") {
-                self.zmk_assign(id, mouse_usage, 0);
-                return true;
-            }
-        }
-
-        if let Some(usage) = self.zmk_key_press_usage_from_vial_value(value) {
-            if let Some(id) = self.zmk_behavior_id("Key Press") {
-                self.zmk_assign(id, usage, 0);
-                return true;
-            }
-        }
-
-        false
-    }
-
-    fn zmk_keycode_supported(&self, value: u16) -> bool {
-        match value {
-            0x0000 => self.zmk_behavior_id("None").is_some(),
-            0x0001 => self.zmk_behavior_id("Transparent").is_some(),
-            0x7C00 => self.zmk_behavior_id("Bootloader").is_some(),
-            0x7C16 => self.zmk_behavior_id("Grave/Escape").is_some(),
-            0x7C73 => self.zmk_behavior_id("Caps Word").is_some(),
-            0x7C79 => self.zmk_behavior_id("Key Repeat").is_some(),
-            value if zmk_space_cadet_parts(value).is_some() => self.zmk_behavior_id("Mod-Tap").is_some(),
-            value if Self::zmk_modifier_usage_from_vial_osm(value).is_some() => {
-                self.zmk_behavior_id("Sticky Key").is_some()
-            }
-            _ => {
-                self.zmk_key_press_usage_from_vial_value(value).is_some()
-                    || (zmk_mouse_button_usage_for_qmk_value(value).is_some()
-                        && self.zmk_behavior_id("Mouse Key Press").is_some())
-                    || (zmk_mouse_move_param_for_qmk_value(value).is_some()
-                        && self.zmk_behavior_id("Mouse Move").is_some())
-                    || (zmk_mouse_scroll_param_for_qmk_value(value).is_some()
-                        && self.zmk_behavior_id("Mouse Scroll").is_some())
-            }
-        }
-    }
-
-    fn picker_keycode_tooltip(&self, value: u16, custom_pairs: &[crate::keyboard::CustomKeycode]) -> String {
-        if self.firmware == FirmwareProtocol::Zmk {
-            return self.zmk_keycode_tooltip(value);
-        }
+    fn picker_keycode_tooltip(
+        &self,
+        value: u16,
+        custom_pairs: &[crate::keyboard::CustomKeycode],
+    ) -> String {
         keycode_tooltip(value, custom_pairs, &self.layer_names)
     }
 
-    fn zmk_keycode_tooltip(&self, value: u16) -> String {
-        if let Some(smart) = crate::smart_input::smart_symbol_for_keycode(value) {
-            return format!(
-                "Universal symbol: {} — types {} consistently regardless of the active keyboard language",
-                smart.name, smart.symbol
-            );
-        }
-        match value {
-            0x0000 => "No key — disables this key completely".into(),
-            0x0001 => "Transparent — inherits the key from the layer below".into(),
-            0x7C00 => "Bootloader — put keyboard into flash mode".into(),
-            0x7C16 => format!(
-                "Grave/Escape — sends Esc normally, ` when Shift or {} is held",
-                gui_mod_name()
-            ),
-            0x7C73 => "Caps Word — capitalizes until end of current word".into(),
-            0x7C79 => "Repeat — repeats the last pressed key".into(),
-            value if zmk_space_cadet_parts(value).is_some() => {
-                keycode_tooltip(value, &[], &self.layer_names)
-            }
-            value if Self::zmk_modifier_usage_from_vial_osm(value).is_some() => {
-                let label = keycode_label_with_names(value, &[], &self.layer_names).replace('\n', " ");
-                format!("One-Shot modifier — {label}")
-            }
-            _ => {
-                let label = keycode_label_with_names(value, &[], &self.layer_names).replace('\n', " / ");
-                if self.zmk_key_press_usage_from_vial_value(value).is_some() {
-                    format!("Key press: {label}")
-                } else if zmk_mouse_move_param_for_qmk_value(value).is_some() {
-                    zmk_mouse_move_label(value).to_string()
-                } else if zmk_mouse_scroll_param_for_qmk_value(value).is_some() {
-                    zmk_mouse_scroll_label(value).to_string()
-                } else if zmk_mouse_button_usage_for_qmk_value(value).is_some() {
-                    format!("Mouse button: {label}")
-                } else {
-                    label
-                }
-            }
-        }
-    }
-
     fn assign_keycode_value(&mut self, value: u16) {
-        match self.firmware {
-            FirmwareProtocol::Vial => {
-                self.result = Some(value);
-                self.open = false;
-            }
-            FirmwareProtocol::Zmk => {
-                self.zmk_assign_keycode_value(value);
-            }
-        }
-    }
-
-    fn zmk_key_press_usage_from_vial_value(&self, value: u16) -> Option<u32> {
-        let key_press_id = self.zmk_behavior_id("Key Press")?;
-        let _ = key_press_id;
-        if let Some(usage) = zmk_hid_usage_for_qmk_value(value) {
-            return Some(usage);
-        }
-        let base = value & 0x00FF;
-        let mod_base = value & 0x0F00;
-        if mod_base != 0 {
-            if let (Some(mod_mask), Some(usage)) = (
-                Self::zmk_modifier_mask_from_vial_base(mod_base),
-                zmk_hid_usage_for_qmk_value(base),
-            ) {
-                return Some(usage | (mod_mask << 24));
-            }
-        }
-        None
-    }
-
-    fn zmk_modifier_mask_from_vial_base(base: u16) -> Option<u32> {
-        match base >> 8 {
-            0x01 => Some(0x01), // LCtrl
-            0x02 => Some(0x02), // LShift
-            0x04 => Some(0x04), // LAlt
-            0x08 => Some(0x08), // LGUI
-            0x11 => Some(0x10), // RCtrl
-            0x12 => Some(0x20), // RShift
-            0x14 => Some(0x40), // RAlt
-            0x18 => Some(0x80), // RGUI
-            0x03 => Some(0x03), // LCtrl+LShift
-            0x05 => Some(0x05), // LCtrl+LAlt
-            0x06 => Some(0x06), // LShift+LAlt
-            0x07 => Some(0x07), // Meh
-            0x0A => Some(0x0A), // LGUI+LShift
-            0x0F => Some(0x0F), // Hyper
-            _ => None,
-        }
-    }
-
-    fn zmk_modifier_usage_from_vial_mt_base(base: u16) -> Option<u32> {
-        match base {
-            0x2100 => Some(0x0007_00E0), // LCtrl
-            0x2200 => Some(0x0007_00E1), // LShift
-            0x2400 => Some(0x0007_00E2), // LAlt
-            0x2800 => Some(0x0007_00E3), // LGUI
-            0x3100 => Some(0x0007_00E4), // RCtrl
-            0x3200 => Some(0x0007_00E5), // RShift
-            0x3400 => Some(0x0007_00E6), // RAlt
-            0x3800 => Some(0x0007_00E7), // RGUI
-            _ => None,
-        }
-    }
-
-    fn zmk_modifier_usage_from_vial_osm(value: u16) -> Option<u32> {
-        match value {
-            0x52A1 => Some(0x0007_00E0), // LCtrl
-            0x52A2 => Some(0x0007_00E1), // LShift
-            0x52A4 => Some(0x0007_00E2), // LAlt
-            0x52A8 => Some(0x0007_00E3), // LGUI
-            0x52B1 => Some(0x0007_00E4), // RCtrl
-            0x52B2 => Some(0x0007_00E5), // RShift
-            0x52B4 => Some(0x0007_00E6), // RAlt
-            0x52B8 => Some(0x0007_00E7), // RGUI
-            _ => None,
-        }
+        self.result = Some(value);
+        self.open = false;
     }
 
     fn finish_quantum_pending_key(&mut self, base: u16, key_value: u16, is_mt: bool) {
-        match self.firmware {
-            FirmwareProtocol::Vial => {
-                self.result = Some(base | key_value);
-                self.vial_quantum_pending_mod = None;
-                self.vial_quantum_pending_mt = None;
-                self.open = false;
-            }
-            FirmwareProtocol::Zmk => {
-                if is_mt {
-                    if let (Some(id), Some(modifier), Some(tap_usage)) = (
-                        self.zmk_behavior_id("Mod-Tap"),
-                        Self::zmk_modifier_usage_from_vial_mt_base(base),
-                        zmk_hid_usage_for_qmk_value(key_value),
-                    ) {
-                        self.zmk_assign(id, modifier, tap_usage);
-                    }
-                } else if let (Some(id), Some(mod_mask), Some(usage)) = (
-                    self.zmk_behavior_id("Key Press"),
-                    Self::zmk_modifier_mask_from_vial_base(base),
-                    zmk_hid_usage_for_qmk_value(key_value),
-                ) {
-                    self.zmk_assign(id, usage | (mod_mask << 24), 0);
-                }
-                self.vial_quantum_pending_mod = None;
-                self.vial_quantum_pending_mt = None;
-            }
-        }
+        let _ = is_mt;
+        self.result = Some(base | key_value);
+        self.vial_quantum_pending_mod = None;
+        self.vial_quantum_pending_mt = None;
+        self.open = false;
     }
 
     fn finalize_vial_special_tab_close(&mut self) {
@@ -1387,15 +902,9 @@ impl KeycodePicker {
 
     pub fn show(&mut self, ctx: &egui::Context) {
         let macro_key_pick_open = self.macro_key_pick.is_some();
-        let layer_pick_open = self.vial_layer_pending.is_some()
-            || self.zmk_layer_action_pending.is_some()
-            || self.zmk_layer_retarget_pending.is_some();
-        let pending_key_pick_open = self.vial_quantum_pending_mod.is_some()
-            || self.vial_quantum_pending_mt.is_some()
-            || self.zmk_layer_action_pending.is_some()
-            || self.zmk_layer_retarget_pending.is_some()
-            || self.zmk_layer_tap_pending.is_some()
-            || self.zmk_mod_tap_pending.is_some();
+        let layer_pick_open = self.vial_layer_pending.is_some();
+        let pending_key_pick_open =
+            self.vial_quantum_pending_mod.is_some() || self.vial_quantum_pending_mt.is_some();
         let tap_dance_editor_open = self.tap_dance_editor_open.is_some();
         let td_key_pick_open = self.td_key_pick.is_some();
 
@@ -1420,7 +929,7 @@ impl KeycodePicker {
         let has_pending = self.vial_quantum_pending_mod.is_some()
             || self.vial_quantum_pending_mt.is_some()
             || self.vial_layer_pending.is_some();
-        if has_pending && self.firmware == FirmwareProtocol::Vial {
+        if has_pending {
             self.show_pending_picker(ctx);
             return;
         }
@@ -1557,10 +1066,7 @@ impl KeycodePicker {
             return;
         }
 
-        match self.firmware {
-            FirmwareProtocol::Vial => self.show_vial(ctx),
-            FirmwareProtocol::Zmk => self.show_zmk(ctx),
-        }
+        self.show_vial(ctx);
     }
 
     // ─────────────────────────── VIAL PICKER ────────────────────────────────
@@ -1646,11 +1152,7 @@ impl KeycodePicker {
             }
 
             // Tab bar
-            let tabs = if self.firmware == FirmwareProtocol::Zmk {
-                KeycodeTab::ZMK_TABS
-            } else {
-                KeycodeTab::VIAL_TABS
-            };
+            let tabs = KeycodeTab::VIAL_TABS;
             let visible_tabs: Vec<KeycodeTab> = tabs
                 .iter()
                 .copied()
@@ -1675,8 +1177,6 @@ impl KeycodePicker {
                         self.vial_quantum_pending_mod = None;
                         self.vial_quantum_pending_mt = None;
                         self.vial_layer_pending = None;
-                        self.zmk_layer_action_pending = None;
-                        self.zmk_layer_retarget_pending = None;
                     }
                 }
             });
@@ -2063,7 +1563,11 @@ impl KeycodePicker {
                                     egui::Align2::CENTER_CENTER,
                                     layout.label(),
                                     egui::FontId::proportional(12.0),
-                                    if selected { ui.visuals().text_color() } else { Color32::from_gray(150) },
+                                    if selected {
+                                        ui.visuals().text_color()
+                                    } else {
+                                        Color32::from_gray(150)
+                                    },
                                 );
                                 if option_resp.clicked() {
                                     self.basic_layout = layout;
@@ -2156,7 +1660,6 @@ impl KeycodePicker {
             (0, 13, 1, "Print\nScreen", 0x0046),
             (0, 14, 1, "Scroll\nLock", 0x0047),
             (0, 15, 1, "Pause", 0x0048),
-
             (2, 15, 1, "Home", 0x004A),
             (3, 15, 1, "End", 0x004D),
             (4, 15, 1, "Page\nUp", 0x004B),
@@ -2206,21 +1709,6 @@ impl KeycodePicker {
     }
 
     fn vial_tab_supported(&self, tab: KeycodeTab) -> bool {
-        if self.firmware == FirmwareProtocol::Zmk {
-            return match tab {
-                KeycodeTab::Basic
-                | KeycodeTab::Symbols
-                | KeycodeTab::Modifiers
-                | KeycodeTab::Special
-                | KeycodeTab::Bluetooth
-                | KeycodeTab::ZmkAdvanced => true,
-                KeycodeTab::Rgb => {
-                    self.zmk_behavior_id("RGB Underglow").is_some()
-                        || self.zmk_behavior_id("Backlight").is_some()
-                }
-                _ => false,
-            };
-        }
         match tab {
             KeycodeTab::Rgb => self.supports_rgb,
             KeycodeTab::Macro => self.supports_macro,
@@ -2231,9 +1719,6 @@ impl KeycodePicker {
     }
 
     fn vial_keycode_supported(&self, kc: &crate::keycode::Keycode) -> bool {
-        if self.firmware == FirmwareProtocol::Zmk {
-            return self.zmk_keycode_supported(kc.value);
-        }
         match kc.name {
             "QK_CAPS_WORD_TOGGLE" => self.supports_caps_word,
             "QK_REPEAT_KEY" | "QK_ALT_REPEAT_KEY" => self.supports_repeat_key,
@@ -2253,12 +1738,10 @@ impl KeycodePicker {
             KeycodeTab::Layers => self.show_vial_layers(ui),
             KeycodeTab::Modifiers => self.show_vial_modifiers(ui),
             KeycodeTab::Quantum => self.show_vial_quantum(ui),
-            KeycodeTab::Rgb if self.firmware == FirmwareProtocol::Zmk => self.show_zmk_rgb(ui),
             KeycodeTab::Rgb => self.show_vial_rgb(ui),
             KeycodeTab::Macro => self.show_vial_macros(ui),
             KeycodeTab::TapDance => self.show_vial_tap_dance(ui),
             KeycodeTab::Special => self.show_vial_special(ui),
-            KeycodeTab::Bluetooth => self.show_zmk_bluetooth_tab(ui),
             KeycodeTab::Custom => self.show_vial_custom(ui),
             _ => self.show_vial_generic(ui),
         }
@@ -2442,11 +1925,7 @@ impl KeycodePicker {
 
     fn show_vial_layers(&mut self, ui: &mut egui::Ui) {
         let ops: &[(u16, &str, &str)] = &[
-            (
-                0x5220,
-                "Layer\nMO",
-                "Hold to activate, release to return",
-            ),
+            (0x5220, "Layer\nMO", "Hold to activate, release to return"),
             (0x5260, "Layer\nTG", "Tap to toggle on/off"),
             (0x5280, "Layer\nOSL", "Active for next keypress only"),
             (0x52C0, "Layer\nTT", "Hold = MO, tap = toggle"),
@@ -2460,34 +1939,6 @@ impl KeycodePicker {
                 .color(Color32::from_gray(150)),
         );
         ui.add_space(4.0);
-        if self.firmware == FirmwareProtocol::Zmk {
-            let zmk_ops: &[(&str, &str, &str, bool)] = &[
-                ("Momentary Layer", "Layer\nMO", "Hold to activate, release to return", false),
-                ("Toggle Layer", "Layer\nTG", "Tap to toggle on/off", false),
-                ("Sticky Layer", "Layer\nOSL", "Active for next keypress only", false),
-                ("To Layer", "Layer\nTO", "Switch and stay on this layer", false),
-                ("Layer-Tap", "Layer\nLT", "Hold = activate layer, tap = key", true),
-            ];
-            ui.horizontal_wrapped(|ui| {
-                for (behavior_name, label, hint, needs_tap_key) in zmk_ops {
-                    let Some(id) = self.zmk_behavior_id(behavior_name) else {
-                        continue;
-                    };
-                    let resp = ui
-                        .add(
-                            egui::Button::new("")
-                                .min_size(Self::picker_key_size()),
-                        )
-                        .on_hover_cursor(egui::CursorIcon::PointingHand);
-                    Self::paint_compact_picker_label(ui, &resp, label);
-                    if resp.clicked() {
-                        self.zmk_layer_action_pending = Some((id, *needs_tap_key));
-                    }
-                    resp.on_hover_text(*hint);
-                }
-            });
-            return;
-        }
         ui.horizontal_wrapped(|ui| {
             for (base, label, hint) in ops {
                 let resp = ui
@@ -2500,10 +1951,7 @@ impl KeycodePicker {
                 resp.on_hover_text(*hint);
             }
             let lt_resp = ui
-                .add(
-                    egui::Button::new("")
-                        .min_size(Self::picker_key_size()),
-                )
+                .add(egui::Button::new("").min_size(Self::picker_key_size()))
                 .on_hover_cursor(egui::CursorIcon::PointingHand);
             Self::paint_compact_picker_label(ui, &lt_resp, "Layer\nLT");
             if lt_resp.clicked() {
@@ -2547,7 +1995,6 @@ impl KeycodePicker {
             }
         });
 
-
         ui.add_space(10.0);
         self.show_vial_layers(ui);
 
@@ -2559,16 +2006,66 @@ impl KeycodePicker {
         );
         ui.add_space(4.0);
         let mk: Vec<(String, u16, Option<u16>, String)> = vec![
-            (picker_mod_key_label(0x0100), 0x0100, Some(0x1100), "Ctrl".into()),
-            (picker_mod_key_label(0x0200), 0x0200, Some(0x1200), "Shift".into()),
-            (picker_mod_key_label(0x0400), 0x0400, Some(0x1400), "Alt".into()),
-            (picker_mod_key_label(0x0800), 0x0800, Some(0x1800), lgui.to_string()),
-            (picker_mod_key_label(0x0300), 0x0300, None, "Ctrl+Shift".into()),
-            (picker_mod_key_label(0x0500), 0x0500, None, "Ctrl+Alt".into()),
-            (picker_mod_key_label(0x0600), 0x0600, None, "Shift+Alt (LSA)".into()),
-            (picker_mod_key_label(0x0700), 0x0700, None, "Ctrl+Shift+Alt".into()),
-            (picker_mod_key_label(0x0A00), 0x0A00, None, format!("{}+Shift", lgui)),
-            (picker_mod_key_label(0x0F00), 0x0F00, None, format!("Ctrl+Shift+Alt+{}", gui_mod_name())),
+            (
+                picker_mod_key_label(0x0100),
+                0x0100,
+                Some(0x1100),
+                "Ctrl".into(),
+            ),
+            (
+                picker_mod_key_label(0x0200),
+                0x0200,
+                Some(0x1200),
+                "Shift".into(),
+            ),
+            (
+                picker_mod_key_label(0x0400),
+                0x0400,
+                Some(0x1400),
+                "Alt".into(),
+            ),
+            (
+                picker_mod_key_label(0x0800),
+                0x0800,
+                Some(0x1800),
+                lgui.to_string(),
+            ),
+            (
+                picker_mod_key_label(0x0300),
+                0x0300,
+                None,
+                "Ctrl+Shift".into(),
+            ),
+            (
+                picker_mod_key_label(0x0500),
+                0x0500,
+                None,
+                "Ctrl+Alt".into(),
+            ),
+            (
+                picker_mod_key_label(0x0600),
+                0x0600,
+                None,
+                "Shift+Alt (LSA)".into(),
+            ),
+            (
+                picker_mod_key_label(0x0700),
+                0x0700,
+                None,
+                "Ctrl+Shift+Alt".into(),
+            ),
+            (
+                picker_mod_key_label(0x0A00),
+                0x0A00,
+                None,
+                format!("{}+Shift", lgui),
+            ),
+            (
+                picker_mod_key_label(0x0F00),
+                0x0F00,
+                None,
+                format!("Ctrl+Shift+Alt+{}", gui_mod_name()),
+            ),
         ];
         ui.horizontal_wrapped(|ui| {
             for (label, left_value, right_value, mod_name) in &mk {
@@ -2598,22 +2095,61 @@ impl KeycodePicker {
         );
         ui.add_space(4.0);
         let mut mt: Vec<(String, u16, Option<u16>, String)> = vec![
-            (picker_mod_tap_label(0x2100), 0x2100, Some(0x3100), "Ctrl".into()),
-            (picker_mod_tap_label(0x2200), 0x2200, Some(0x3200), "Shift".into()),
-            (picker_mod_tap_label(0x2400), 0x2400, Some(0x3400), "Alt".into()),
-            (picker_mod_tap_label(0x2800), 0x2800, Some(0x3800), lgui.to_string()),
-            (picker_mod_tap_label(0x2300), 0x2300, None, "Ctrl+Shift".into()),
-            (picker_mod_tap_label(0x2500), 0x2500, None, "Ctrl+Alt".into()),
-            (picker_mod_tap_label(0x2600), 0x2600, None, "Shift+Alt (LSA)".into()),
-            (picker_mod_tap_label(0x2700), 0x2700, None, "Meh (Ctrl+Shift+Alt)".into()),
-            (picker_mod_tap_label(0x2F00), 0x2F00, None, format!("Hyper (Ctrl+Shift+Alt+{})", gui_mod_name())),
+            (
+                picker_mod_tap_label(0x2100),
+                0x2100,
+                Some(0x3100),
+                "Ctrl".into(),
+            ),
+            (
+                picker_mod_tap_label(0x2200),
+                0x2200,
+                Some(0x3200),
+                "Shift".into(),
+            ),
+            (
+                picker_mod_tap_label(0x2400),
+                0x2400,
+                Some(0x3400),
+                "Alt".into(),
+            ),
+            (
+                picker_mod_tap_label(0x2800),
+                0x2800,
+                Some(0x3800),
+                lgui.to_string(),
+            ),
+            (
+                picker_mod_tap_label(0x2300),
+                0x2300,
+                None,
+                "Ctrl+Shift".into(),
+            ),
+            (
+                picker_mod_tap_label(0x2500),
+                0x2500,
+                None,
+                "Ctrl+Alt".into(),
+            ),
+            (
+                picker_mod_tap_label(0x2600),
+                0x2600,
+                None,
+                "Shift+Alt (LSA)".into(),
+            ),
+            (
+                picker_mod_tap_label(0x2700),
+                0x2700,
+                None,
+                "Meh (Ctrl+Shift+Alt)".into(),
+            ),
+            (
+                picker_mod_tap_label(0x2F00),
+                0x2F00,
+                None,
+                format!("Hyper (Ctrl+Shift+Alt+{})", gui_mod_name()),
+            ),
         ];
-        if self.firmware == FirmwareProtocol::Zmk {
-            mt.retain(|(_, left, right, _)| {
-                Self::zmk_modifier_usage_from_vial_mt_base(*left).is_some()
-                    || right.and_then(Self::zmk_modifier_usage_from_vial_mt_base).is_some()
-            });
-        }
         ui.horizontal_wrapped(|ui| {
             for (label, left_value, right_value, mod_name) in &mt {
                 let resp = ui
@@ -2645,16 +2181,25 @@ impl KeycodePicker {
             ("OSM\nCtrl".into(), 0x52A1, Some(0x52B1), "Ctrl".into()),
             ("OSM\nShift".into(), 0x52A2, Some(0x52B2), "Shift".into()),
             ("OSM\nAlt".into(), 0x52A4, Some(0x52B4), "Alt".into()),
-            (format!("OSM\n{lgui}"), 0x52A8, Some(0x52B8), lgui.to_string()),
-            ("OSM\nMeh".into(), 0x52A7, None, "Meh (Ctrl+Shift+Alt)".into()),
-            ("OSM\nHyper".into(), 0x52AF, None, format!("Hyper (Ctrl+Shift+Alt+{})", gui_mod_name())),
+            (
+                format!("OSM\n{lgui}"),
+                0x52A8,
+                Some(0x52B8),
+                lgui.to_string(),
+            ),
+            (
+                "OSM\nMeh".into(),
+                0x52A7,
+                None,
+                "Meh (Ctrl+Shift+Alt)".into(),
+            ),
+            (
+                "OSM\nHyper".into(),
+                0x52AF,
+                None,
+                format!("Hyper (Ctrl+Shift+Alt+{})", gui_mod_name()),
+            ),
         ];
-        if self.firmware == FirmwareProtocol::Zmk {
-            osm.retain(|(_, left, right, _)| {
-                Self::zmk_modifier_usage_from_vial_osm(*left).is_some()
-                    || right.and_then(Self::zmk_modifier_usage_from_vial_osm).is_some()
-            });
-        }
         ui.horizontal_wrapped(|ui| {
             for (label, left_value, right_value, mod_name) in &osm {
                 let resp = ui
@@ -2673,118 +2218,6 @@ impl KeycodePicker {
                     resp.on_hover_text(one_shot_modifier_tooltip(mod_name, false));
                 }
             }
-        });
-    }
-
-    fn show_zmk_bluetooth_tab(&mut self, ui: &mut egui::Ui) {
-        if self.firmware != FirmwareProtocol::Zmk {
-            self.show_vial_generic(ui);
-            return;
-        }
-
-        let has_bt = self.zmk_behavior_id("Bluetooth").is_some();
-        let has_output = self.zmk_behavior_id("Output Selection").is_some();
-        if !has_bt && !has_output {
-            ui.label(
-                RichText::new("Bluetooth/output behaviors are not exposed by this firmware")
-                    .size(11.0)
-                    .color(Color32::from_gray(150)),
-            );
-            return;
-        }
-
-        ui.label(
-            RichText::new("Profiles")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
-        );
-        ui.add_space(4.0);
-        ui.horizontal_wrapped(|ui| {
-            for n in 0..=4u32 {
-                self.zmk_special_behavior_button(
-                    ui,
-                    &format!("Profile\n{n}"),
-                    &format!("Select Bluetooth profile {n}"),
-                    "Bluetooth",
-                    4,
-                    n,
-                    62.0,
-                );
-            }
-        });
-
-        ui.add_space(10.0);
-        ui.label(
-            RichText::new("Actions")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
-        );
-        ui.add_space(4.0);
-        ui.horizontal_wrapped(|ui| {
-            self.zmk_special_behavior_button(
-                ui,
-                "Previous",
-                "Switch to previous Bluetooth profile",
-                "Bluetooth",
-                3,
-                0,
-                68.0,
-            );
-            self.zmk_special_behavior_button(
-                ui,
-                "Next",
-                "Switch to next Bluetooth profile",
-                "Bluetooth",
-                2,
-                0,
-                56.0,
-            );
-            self.zmk_special_behavior_button(
-                ui,
-                "Forget\nCurrent",
-                "Forget the current Bluetooth profile",
-                "Bluetooth",
-                0,
-                0,
-                76.0,
-            );
-            self.zmk_special_behavior_button(
-                ui,
-                "Forget\nAll",
-                "Forget all Bluetooth profiles",
-                "Bluetooth",
-                1,
-                0,
-                66.0,
-            );
-        });
-
-        ui.add_space(10.0);
-        ui.label(
-            RichText::new("Output")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
-        );
-        ui.add_space(4.0);
-        ui.horizontal_wrapped(|ui| {
-            self.zmk_special_behavior_button(
-                ui,
-                "USB",
-                "Send keystrokes via USB",
-                "Output Selection",
-                0,
-                0,
-                56.0,
-            );
-            self.zmk_special_behavior_button(
-                ui,
-                "Bluetooth",
-                "Send keystrokes via Bluetooth",
-                "Output Selection",
-                1,
-                0,
-                78.0,
-            );
         });
     }
 
@@ -2884,18 +2317,53 @@ impl KeycodePicker {
         );
         ui.add_space(4.0);
         let mod_bases: Vec<(String, u16, String)> = vec![
-            ("Ctrl+key".into(), 0x0100, "Hold Left Ctrl together with the key you choose next".into()),
-            ("Shift+key".into(), 0x0200, "Hold Left Shift together with the key you choose next".into()),
-            ("Alt+key".into(), 0x0400, "Hold Left Alt together with the key you choose next".into()),
-            (format!("{}+key", gui), 0x0800, format!("Hold Left {lgui} together with the key you choose next")),
-            ("C+S+key".into(), 0x0300, "Hold Ctrl+Shift together with the key you choose next".into()),
-            ("C+A+key".into(), 0x0500, "Hold Ctrl+Alt together with the key you choose next".into()),
-            ("S+A+key".into(), 0x0600, "Hold Shift+Alt together with the key you choose next".into()),
-            ("Meh+key".into(), 0x0700, "Hold Ctrl+Shift+Alt together with the key you choose next".into()),
+            (
+                "Ctrl+key".into(),
+                0x0100,
+                "Hold Left Ctrl together with the key you choose next".into(),
+            ),
+            (
+                "Shift+key".into(),
+                0x0200,
+                "Hold Left Shift together with the key you choose next".into(),
+            ),
+            (
+                "Alt+key".into(),
+                0x0400,
+                "Hold Left Alt together with the key you choose next".into(),
+            ),
+            (
+                format!("{}+key", gui),
+                0x0800,
+                format!("Hold Left {lgui} together with the key you choose next"),
+            ),
+            (
+                "C+S+key".into(),
+                0x0300,
+                "Hold Ctrl+Shift together with the key you choose next".into(),
+            ),
+            (
+                "C+A+key".into(),
+                0x0500,
+                "Hold Ctrl+Alt together with the key you choose next".into(),
+            ),
+            (
+                "S+A+key".into(),
+                0x0600,
+                "Hold Shift+Alt together with the key you choose next".into(),
+            ),
+            (
+                "Meh+key".into(),
+                0x0700,
+                "Hold Ctrl+Shift+Alt together with the key you choose next".into(),
+            ),
             (
                 "Hyper+key".into(),
                 0x0F00,
-                format!("Hold Ctrl+Shift+Alt+{} together with the key you choose next", gui_mod_name()),
+                format!(
+                    "Hold Ctrl+Shift+Alt+{} together with the key you choose next",
+                    gui_mod_name()
+                ),
             ),
         ];
         ui.horizontal_wrapped(|ui| {
@@ -2921,16 +2389,36 @@ impl KeycodePicker {
         );
         ui.add_space(4.0);
         let mt_bases: Vec<(String, u16, String)> = vec![
-            ("MT Ctrl".into(), 0x2100, "Dual-role key: hold for Left Ctrl, tap for the key you choose next".into()),
-            ("MT Shift".into(), 0x2200, "Dual-role key: hold for Left Shift, tap for the key you choose next".into()),
-            ("MT Alt".into(), 0x2400, "Dual-role key: hold for Left Alt, tap for the key you choose next".into()),
+            (
+                "MT Ctrl".into(),
+                0x2100,
+                "Dual-role key: hold for Left Ctrl, tap for the key you choose next".into(),
+            ),
+            (
+                "MT Shift".into(),
+                0x2200,
+                "Dual-role key: hold for Left Shift, tap for the key you choose next".into(),
+            ),
+            (
+                "MT Alt".into(),
+                0x2400,
+                "Dual-role key: hold for Left Alt, tap for the key you choose next".into(),
+            ),
             (
                 format!("MT {}", lgui),
                 0x2800,
                 format!("Dual-role key: hold for Left {lgui}, tap for the key you choose next"),
             ),
-            ("MT Meh".into(), 0x2700, "Dual-role key: hold for Meh, tap for the key you choose next".into()),
-            ("MT Hyper".into(), 0x2F00, "Dual-role key: hold for Hyper, tap for the key you choose next".into()),
+            (
+                "MT Meh".into(),
+                0x2700,
+                "Dual-role key: hold for Meh, tap for the key you choose next".into(),
+            ),
+            (
+                "MT Hyper".into(),
+                0x2F00,
+                "Dual-role key: hold for Hyper, tap for the key you choose next".into(),
+            ),
         ];
         ui.horizontal_wrapped(|ui| {
             for (label, base, tip) in &mt_bases {
@@ -3058,11 +2546,9 @@ impl KeycodePicker {
                             crate::ui_style::accent(),
                             "Types text characters one by one",
                         ),
-                        MacroAction::Tap(_) => (
-                            "Tap",
-                            crate::ui_style::accent(),
-                            "Press and release a key",
-                        ),
+                        MacroAction::Tap(_) => {
+                            ("Tap", crate::ui_style::accent(), "Press and release a key")
+                        }
                         MacroAction::Down(_) => (
                             "Down",
                             Color32::from_rgb(200, 150, 50),
@@ -3643,7 +3129,9 @@ impl KeycodePicker {
                         egui::Label::new(RichText::new("Tapping Term").size(15.0).strong())
                             .sense(egui::Sense::hover()),
                     )
-                    .on_hover_text("Time in milliseconds to distinguish tap from hold (default: 200)");
+                    .on_hover_text(
+                        "Time in milliseconds to distinguish tap from hold (default: 200)",
+                    );
                     let mut term_str = self.tap_dance_entries[n].tapping_term.to_string();
                     ui.horizontal(|ui| {
                         if crate::ui_style::modern_text_field(
@@ -4007,79 +3495,6 @@ impl KeycodePicker {
         self.macro_inline_selected = Some(selected);
     }
 
-    fn zmk_lighting_button(
-        &mut self,
-        ui: &mut egui::Ui,
-        label: &str,
-        tooltip: &str,
-        behavior_name: &str,
-        param1: u32,
-        param2: u32,
-    ) {
-        let Some(id) = self.zmk_behavior_id(behavior_name) else {
-            return;
-        };
-        let resp = ui
-            .add_sized(Self::picker_key_size(), egui::Button::new(""))
-            .on_hover_cursor(egui::CursorIcon::PointingHand);
-        let display_label = picker_action_label(label);
-        Self::paint_compact_picker_label(ui, &resp, &display_label);
-        if resp.clicked() {
-            self.zmk_assign(id, param1, param2);
-        }
-        resp.on_hover_text(tooltip);
-    }
-
-    fn show_zmk_rgb(&mut self, ui: &mut egui::Ui) {
-        ui.label(
-            RichText::new("Backlight")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
-        );
-        ui.add_space(4.0);
-        ui.horizontal_wrapped(|ui| {
-            let bl_actions: &[(&str, &str, u32, u32)] = &[
-                ("Toggle", "Toggle backlight", 2, 0),
-                ("Cycle", "Cycle backlight brightness", 5, 0),
-                ("On", "Turn backlight on", 0, 0),
-                ("Off", "Turn backlight off", 1, 0),
-                ("Brightness -", "Decrease backlight brightness", 4, 0),
-                ("Brightness +", "Increase backlight brightness", 3, 0),
-            ];
-            for (label, tip, p1, p2) in bl_actions {
-                self.zmk_lighting_button(ui, label, tip, "Backlight", *p1, *p2);
-            }
-        });
-
-        ui.add_space(10.0);
-        ui.label(
-            RichText::new("RGB Underglow")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
-        );
-        ui.add_space(4.0);
-        ui.horizontal_wrapped(|ui| {
-            let rgb_actions: &[(&str, &str, u32, u32)] = &[
-                ("Toggle", "Toggle RGB underglow", 0, 0),
-                ("On", "Turn RGB underglow on", 1, 0),
-                ("Off", "Turn RGB underglow off", 2, 0),
-                ("Hue -", "Decrease RGB hue", 4, 0),
-                ("Hue +", "Increase RGB hue", 3, 0),
-                ("Saturation -", "Decrease RGB saturation", 6, 0),
-                ("Saturation +", "Increase RGB saturation", 5, 0),
-                ("Brightness -", "Decrease RGB brightness", 8, 0),
-                ("Brightness +", "Increase RGB brightness", 7, 0),
-                ("Speed -", "Decrease RGB animation speed", 10, 0),
-                ("Speed +", "Increase RGB animation speed", 9, 0),
-                ("Effect -", "Previous RGB effect", 12, 0),
-                ("Effect +", "Next RGB effect", 11, 0),
-            ];
-            for (label, tip, p1, p2) in rgb_actions {
-                self.zmk_lighting_button(ui, label, tip, "RGB Underglow", *p1, *p2);
-            }
-        });
-    }
-
     fn show_vial_rgb(&mut self, ui: &mut egui::Ui) {
         // Backlight
         ui.label(
@@ -4240,7 +3655,8 @@ impl KeycodePicker {
     }
 
     fn picker_value_supported(&self, value: u16) -> bool {
-        self.firmware != FirmwareProtocol::Zmk || self.zmk_keycode_supported(value)
+        let _ = value;
+        true
     }
 
     fn picker_key_size() -> Vec2 {
@@ -4264,8 +3680,6 @@ impl KeycodePicker {
             }
             KeycodeTab::Modifiers => Self::key_grid_width(13, spacing),
             KeycodeTab::Macro | KeycodeTab::TapDance => Self::slot_grid_width(16, 4.0),
-            KeycodeTab::Bluetooth => Self::key_grid_width(5, spacing),
-            KeycodeTab::ZmkAdvanced => 840.0,
             _ => 840.0,
         };
         width.min(ui.available_width())
@@ -4329,30 +3743,6 @@ impl KeycodePicker {
         }
     }
 
-    fn zmk_special_behavior_button(
-        &mut self,
-        ui: &mut egui::Ui,
-        label: &str,
-        tooltip: &str,
-        behavior_name: &str,
-        param1: u32,
-        param2: u32,
-        width: f32,
-    ) {
-        let Some(id) = self.zmk_behavior_id(behavior_name) else {
-            return;
-        };
-        let _ = width;
-        let resp = ui
-            .add_sized(Self::picker_key_size(), egui::Button::new(""))
-            .on_hover_cursor(egui::CursorIcon::PointingHand);
-        Self::paint_compact_picker_label(ui, &resp, label);
-        if resp.clicked() {
-            self.zmk_assign(id, param1, param2);
-        }
-        resp.on_hover_text(tooltip);
-    }
-
     fn show_vial_special(&mut self, ui: &mut egui::Ui) {
         let special_keys: Vec<(String, u16, String)> = vec![
             (
@@ -4360,22 +3750,14 @@ impl KeycodePicker {
 None"
                     .into(),
                 0x0000,
-                if self.firmware == FirmwareProtocol::Zmk {
-                    "No key — disables this key completely, it sends nothing when pressed".into()
-                } else {
-                    "KC_NO — disables this key completely, it sends nothing when pressed".into()
-                },
+                "KC_NO — disables this key completely, it sends nothing when pressed".into(),
             ),
             (
                 "▽
 Inherit"
                     .into(),
                 0x0001,
-                if self.firmware == FirmwareProtocol::Zmk {
-                    "Transparent — inherits the key from the layer below".into()
-                } else {
-                    "KC_TRNS — inherits the key from the layer below".into()
-                },
+                "KC_TRNS — inherits the key from the layer below".into(),
             ),
             (
                 "Esc
@@ -4392,33 +3774,21 @@ Inherit"
 Boot"
                     .into(),
                 0x7C00,
-                if self.firmware == FirmwareProtocol::Zmk {
-                    "Bootloader — put keyboard into flash mode".into()
-                } else {
-                    "QK_BOOT — put keyboard into flash mode".into()
-                },
+                "QK_BOOT — put keyboard into flash mode".into(),
             ),
             (
                 "🐛
 Debug"
                     .into(),
                 0x7C02,
-                if self.firmware == FirmwareProtocol::Zmk {
-                    "Debug toggle — toggle debug mode".into()
-                } else {
-                    "DB_TOGG — toggle debug mode".into()
-                },
+                "DB_TOGG — toggle debug mode".into(),
             ),
             (
                 "🔒
 Lock"
                     .into(),
                 0x7800,
-                if self.firmware == FirmwareProtocol::Zmk {
-                    "Lock — hold to lock remaining keys until pressed again".into()
-                } else {
-                    "QK_LOCK — hold to lock remaining keys until pressed again".into()
-                },
+                "QK_LOCK — hold to lock remaining keys until pressed again".into(),
             ),
             (
                 "Auto
@@ -4454,11 +3824,8 @@ Repeat"
                 "Alt repeats the last pressed key".into(),
             ),
         ];
-        let special_title = if self.firmware == FirmwareProtocol::Zmk {
-            "Special keys"
-        } else {
-            "Special QMK keys"
-        };
+
+        let special_title = "Special QMK keys";
         ui.label(
             RichText::new(special_title)
                 .size(11.0)
@@ -4470,7 +3837,10 @@ Repeat"
                 if !self.picker_value_supported(*value) {
                     continue;
                 }
-                if let Some(kc) = crate::keycode::KEYCODES.iter().find(|kc| kc.value == *value) {
+                if let Some(kc) = crate::keycode::KEYCODES
+                    .iter()
+                    .find(|kc| kc.value == *value)
+                {
                     if !self.vial_keycode_supported(kc) {
                         continue;
                     }
@@ -4484,45 +3854,6 @@ Repeat"
                 }
                 resp.on_hover_text(tip.as_str());
             }
-
-            if self.firmware == FirmwareProtocol::Zmk {
-                self.zmk_special_behavior_button(
-                    ui,
-                    "Restart",
-                    "Restart the keyboard",
-                    "Reset",
-                    0,
-                    0,
-                    56.0,
-                );
-                self.zmk_special_behavior_button(
-                    ui,
-                    "Unlock",
-                    "Allow live keymap editing",
-                    "Studio Unlock",
-                    0,
-                    0,
-                    56.0,
-                );
-                self.zmk_special_behavior_button(
-                    ui,
-                    "Power\nOn",
-                    "Turn external power on",
-                    "External Power",
-                    1,
-                    0,
-                    56.0,
-                );
-                self.zmk_special_behavior_button(
-                    ui,
-                    "Power\nOff",
-                    "Turn external power off",
-                    "External Power",
-                    0,
-                    0,
-                    56.0,
-                );
-            }
         });
 
         let mouse_values: Vec<u16> = crate::keycode::KEYCODES
@@ -4531,9 +3862,11 @@ Repeat"
             .map(|kc| kc.value)
             .filter(|value| self.picker_value_supported(*value))
             .collect();
-        if self.firmware != FirmwareProtocol::Zmk && !self.supports_mouse_keys {
+
+        if !self.supports_mouse_keys {
             return;
         }
+
         if !mouse_values.is_empty() {
             ui.add_space(10.0);
             ui.label(
@@ -4628,9 +3961,24 @@ Repeat"
                 ("macOS", "Copy", 0x0800 | 0x0006, "Command + C"),
                 ("macOS", "Paste", 0x0800 | 0x0019, "Command + V"),
                 ("macOS", "Find", 0x0800 | 0x0009, "Command + F"),
-                ("macOS", "Prev\nWord", 0x0400 | 0x0050, "Option + Left Arrow"),
-                ("macOS", "Next\nWord", 0x0400 | 0x004F, "Option + Right Arrow"),
-                ("macOS", "Prev\nApp", 0x0A00 | 0x002B, "Shift + Command + Tab"),
+                (
+                    "macOS",
+                    "Prev\nWord",
+                    0x0400 | 0x0050,
+                    "Option + Left Arrow",
+                ),
+                (
+                    "macOS",
+                    "Next\nWord",
+                    0x0400 | 0x004F,
+                    "Option + Right Arrow",
+                ),
+                (
+                    "macOS",
+                    "Prev\nApp",
+                    0x0A00 | 0x002B,
+                    "Shift + Command + Tab",
+                ),
                 ("macOS", "Next\nApp", 0x0800 | 0x002B, "Command + Tab"),
             ]);
         }
@@ -4643,8 +3991,18 @@ Repeat"
                 ("Windows", "Copy", 0x0100 | 0x0006, "Ctrl + C"),
                 ("Windows", "Paste", 0x0100 | 0x0019, "Ctrl + V"),
                 ("Windows", "Find", 0x0100 | 0x0009, "Ctrl + F"),
-                ("Windows", "Prev\nWord", 0x0100 | 0x0050, "Ctrl + Left Arrow"),
-                ("Windows", "Next\nWord", 0x0100 | 0x004F, "Ctrl + Right Arrow"),
+                (
+                    "Windows",
+                    "Prev\nWord",
+                    0x0100 | 0x0050,
+                    "Ctrl + Left Arrow",
+                ),
+                (
+                    "Windows",
+                    "Next\nWord",
+                    0x0100 | 0x004F,
+                    "Ctrl + Right Arrow",
+                ),
                 ("Windows", "Prev\nApp", 0x0600 | 0x002B, "Shift + Alt + Tab"),
                 ("Windows", "Next\nApp", 0x0400 | 0x002B, "Alt + Tab"),
             ]);
@@ -4782,45 +4140,45 @@ Repeat"
                     Color32::from_gray(145)
                 };
                 for value in &visible_magic_keys {
-                let label = crate::keycode::keycode_label(*value);
-                let mut parts = label.splitn(2, '\n');
-                let top = parts.next().unwrap_or("");
-                let bottom = parts.next().unwrap_or("");
-                let mut resp = ui.add_sized(Self::picker_key_size(), egui::Button::new(""));
-                let rect = resp.rect;
-                let painter = ui.painter();
-                let main_color = if resp.hovered() {
-                    ui.visuals().widgets.hovered.fg_stroke.color
-                } else {
-                    ui.visuals().widgets.inactive.fg_stroke.color
-                };
-                let top_font = if top.chars().count() > 10 { 8.6 } else { 9.2 };
-                let bottom_font = if bottom.chars().count() > 8 {
-                    9.4
-                } else {
-                    10.2
-                };
-                if !top.is_empty() {
+                    let label = crate::keycode::keycode_label(*value);
+                    let mut parts = label.splitn(2, '\n');
+                    let top = parts.next().unwrap_or("");
+                    let bottom = parts.next().unwrap_or("");
+                    let mut resp = ui.add_sized(Self::picker_key_size(), egui::Button::new(""));
+                    let rect = resp.rect;
+                    let painter = ui.painter();
+                    let main_color = if resp.hovered() {
+                        ui.visuals().widgets.hovered.fg_stroke.color
+                    } else {
+                        ui.visuals().widgets.inactive.fg_stroke.color
+                    };
+                    let top_font = if top.chars().count() > 10 { 8.6 } else { 9.2 };
+                    let bottom_font = if bottom.chars().count() > 8 {
+                        9.4
+                    } else {
+                        10.2
+                    };
+                    if !top.is_empty() {
+                        painter.text(
+                            egui::pos2(rect.center().x, rect.center().y - 6.5),
+                            egui::Align2::CENTER_CENTER,
+                            top,
+                            egui::FontId::proportional(top_font),
+                            magic_top_color,
+                        );
+                    }
                     painter.text(
-                        egui::pos2(rect.center().x, rect.center().y - 6.5),
+                        egui::pos2(rect.center().x, rect.center().y + 6.5),
                         egui::Align2::CENTER_CENTER,
-                        top,
-                        egui::FontId::proportional(top_font),
-                        magic_top_color,
+                        if bottom.is_empty() { top } else { bottom },
+                        egui::FontId::proportional(bottom_font),
+                        main_color,
                     );
-                }
-                painter.text(
-                    egui::pos2(rect.center().x, rect.center().y + 6.5),
-                    egui::Align2::CENTER_CENTER,
-                    if bottom.is_empty() { top } else { bottom },
-                    egui::FontId::proportional(bottom_font),
-                    main_color,
-                );
-                if resp.clicked() {
-                    self.assign_keycode_value(*value);
-                }
-                resp = resp.on_hover_text(self.picker_keycode_tooltip(*value, &[]));
-                let _ = resp;
+                    if resp.clicked() {
+                        self.assign_keycode_value(*value);
+                    }
+                    resp = resp.on_hover_text(self.picker_keycode_tooltip(*value, &[]));
+                    let _ = resp;
                 }
             });
         }
@@ -4974,1059 +4332,6 @@ Repeat"
                 }
                 resp = resp.on_hover_text(*tip);
                 let _ = resp;
-            }
-        });
-    }
-
-    fn show_zmk(&mut self, ctx: &egui::Context) {
-        if self.zmk_layer_action_pending.is_some() || self.zmk_layer_retarget_pending.is_some() {
-            self.show_zmk_layer_picker(ctx);
-            return;
-        }
-        if let Some(behavior_id) = self.zmk_selected_behavior {
-            self.show_zmk_behavior_key_picker(ctx, behavior_id as u32);
-            return;
-        }
-        if self.zmk_layer_tap_pending.is_some() || self.zmk_mod_tap_pending.is_some() {
-            self.show_zmk_tap_key_picker(ctx);
-            return;
-        }
-        if self.vial_quantum_pending_mod.is_some() || self.vial_quantum_pending_mt.is_some() {
-            self.show_pending_picker(ctx);
-            return;
-        }
-        self.show_vial(ctx);
-    }
-
-
-    fn show_zmk_tab_content(&mut self, ui: &mut egui::Ui) {
-        match self.selected_tab {
-            KeycodeTab::Basic => self.show_vial_basic(ui),
-            KeycodeTab::Symbols => self.show_zmk_symbols(ui),
-            KeycodeTab::Modifiers => self.show_zmk_modifiers(ui),
-            KeycodeTab::Special => self.show_zmk_special(ui),
-            KeycodeTab::ZmkAdvanced => self.show_zmk_advanced(ui),
-            _ => self.show_zmk_generic(ui),
-        }
-    }
-
-    fn show_zmk_generic(&mut self, ui: &mut egui::Ui) {
-        ui.horizontal_wrapped(|ui| {
-            for kc in KEYCODES.iter() {
-                if !zmk_tab_matches(self.selected_tab, kc) || !self.zmk_keycode_supported(kc.value) {
-                    continue;
-                }
-                let tip = self.picker_keycode_tooltip(kc.value, &[]);
-                let label = keycode_label_with_names(kc.value, &[], &self.layer_names);
-                let resp = ui
-                    .add_sized(Self::picker_key_size(), egui::Button::new(""))
-                    .on_hover_cursor(egui::CursorIcon::PointingHand);
-                Self::paint_compact_picker_label(ui, &resp, &label);
-                if resp.clicked() {
-                    self.zmk_assign_keycode_value(kc.value);
-                }
-                resp.on_hover_text(tip);
-            }
-        });
-    }
-
-    fn show_zmk_symbols(&mut self, ui: &mut egui::Ui) {
-        let main_symbol_order = [
-            '.', ',', ';', ':', '!', '?', '/', '`', '~', '\'', '"', '(', ')', '[', ']', '{', '}',
-            '<', '>', '+', '*', '=', '#', '@', '$', '%', '^', '&', '|', '\\', '_',
-        ];
-        let extra_symbol_order = [
-            '₽', '€', '«', '»', '‘', '’', '„', '“', '”', '—', '–', '•', '×', '±', '≠', '≈', '✓',
-            '§', '°', '‰', '′', '″', '™', '№',
-        ];
-
-        self.show_zmk_smart_symbol_section(
-            ui,
-            "Universal symbols — same output in any language",
-            &main_symbol_order,
-        );
-
-        ui.add_space(10.0);
-        ui.label(
-            RichText::new("Layout symbols — follow the active keyboard language")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
-        );
-        ui.add_space(4.0);
-        ui.horizontal_wrapped(|ui| {
-            for kc in KEYCODES.iter() {
-                if !KeycodeTab::Symbols.vial_matches(kc) || !self.zmk_keycode_supported(kc.value) {
-                    continue;
-                }
-                let tip = self.picker_keycode_tooltip(kc.value, &[]);
-                let label = keycode_label_with_names(kc.value, &[], &self.layer_names);
-                let resp = ui
-                    .add(
-                        egui::Button::new(RichText::new(label).size(11.0))
-                            .min_size(Self::picker_key_size()),
-                    )
-                    .on_hover_cursor(egui::CursorIcon::PointingHand);
-                if resp.clicked() {
-                    self.zmk_assign_keycode_value(kc.value);
-                }
-                resp.on_hover_text(tip);
-            }
-        });
-
-        ui.add_space(10.0);
-        self.show_zmk_smart_symbol_section(
-            ui,
-            "Extra universal symbols — typography and math",
-            &extra_symbol_order,
-        );
-    }
-
-    fn show_zmk_smart_symbol_section(&mut self, ui: &mut egui::Ui, title: &str, order: &[char]) {
-        ui.label(
-            RichText::new(title)
-                .size(11.0)
-                .color(Color32::from_gray(150)),
-        );
-        if let Some(hint) = crate::smart_input::universal_output_setup_hint() {
-            ui.add_space(3.0);
-            ui.label(
-                RichText::new(hint)
-                    .size(10.0)
-                    .color(Color32::from_gray(120)),
-            );
-        }
-        ui.add_space(4.0);
-        ui.horizontal_wrapped(|ui| {
-            for wanted in order {
-                let Some(smart) = crate::smart_input::SMART_SYMBOLS
-                    .iter()
-                    .copied()
-                    .find(|smart| smart.symbol == *wanted)
-                else {
-                    continue;
-                };
-                if !self.zmk_keycode_supported(smart.trigger_keycode) {
-                    continue;
-                }
-                let label = smart.symbol.to_string();
-                let tip = format!(
-                    "Universal symbol: {} — types {} consistently regardless of the active keyboard language",
-                    smart.name, smart.symbol
-                );
-                let resp = ui
-                    .add_sized(Self::picker_key_size(), egui::Button::new(""))
-                    .on_hover_cursor(egui::CursorIcon::PointingHand);
-                Self::paint_compact_picker_label(ui, &resp, &label);
-                if resp.clicked() {
-                    self.zmk_assign_keycode_value(smart.trigger_keycode);
-                }
-                resp.on_hover_text(tip);
-            }
-        });
-    }
-
-
-    fn show_zmk_layers(&mut self, ui: &mut egui::Ui) {
-        let ops: &[(&str, &str, &str, bool)] = &[
-            (
-                "Momentary Layer",
-                "Layer\nMO",
-                "Hold to activate, release to return",
-                false,
-            ),
-            ("Toggle Layer", "Layer\nTG", "Tap to toggle on/off", false),
-            (
-                "Sticky Layer",
-                "Layer\nOSL",
-                "Active for next keypress only",
-                false,
-            ),
-            ("To Layer", "Layer\nTO", "Switch and stay on this layer", false),
-            ("Layer-Tap", "Layer\nLT", "Hold = activate layer, tap = key", true),
-        ];
-
-        ui.label(
-            RichText::new("Layers: choose a layer action, then pick the target layer")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
-        );
-        ui.add_space(4.0);
-        ui.horizontal_wrapped(|ui| {
-            for (behavior_name, label, hint, needs_tap_key) in ops {
-                let Some(id) = self.zmk_behavior_id(behavior_name) else {
-                    continue;
-                };
-                let resp = ui
-                    .add_sized(Self::picker_key_size(), egui::Button::new(""))
-                    .on_hover_cursor(egui::CursorIcon::PointingHand);
-                Self::paint_compact_picker_label(ui, &resp, label);
-                if resp.clicked() {
-                    self.zmk_layer_action_pending = Some((id, *needs_tap_key));
-                }
-                resp.on_hover_text(*hint);
-            }
-        });
-    }
-
-    fn show_zmk_layer_picker(&mut self, ctx: &egui::Context) {
-        ctx.input(|i| {
-            for event in &i.events {
-                if let egui::Event::Key { key, pressed: true, .. } = event {
-                    if *key == egui::Key::Escape {
-                        self.zmk_layer_action_pending = None;
-                        self.zmk_layer_retarget_pending = None;
-                        self.open = false;
-                        return;
-                    }
-                }
-            }
-        });
-
-        let action_pending = self.zmk_layer_action_pending;
-        let retarget_pending = self.zmk_layer_retarget_pending.clone();
-        if action_pending.is_none() && retarget_pending.is_none() {
-            return;
-        }
-
-        let mut still_open = true;
-        crate::ui_style::centered_modal_window(
-            ctx,
-            "Pick layer",
-            self.popup_state.id(PopupKey::PickLayerWindow),
-            &mut still_open,
-            Vec2::new(300.0, 120.0),
-        )
-        .show(ctx, |ui| {
-            apply_picker_button_visuals(ui);
-            crate::ui_style::modal_intro(ui, "Choose which layer (Esc to cancel)");
-            ui.add_space(crate::ui_style::modal_space_sm());
-            ui.horizontal_wrapped(|ui| {
-                for n in 0u32..self.zmk_layer_count.max(4) as u32 {
-                    let raw = self
-                        .layer_names
-                        .get(n as usize)
-                        .cloned()
-                        .unwrap_or(n.to_string());
-                    let label = if !raw.is_empty() && raw != n.to_string() {
-                        format!("{}: {}", n, raw)
-                    } else {
-                        format!("Layer {}", n)
-                    };
-                    let resp = picker_button(
-                        ui,
-                        &label,
-                        crate::ui_style::modal_small_button_size(84.0),
-                        true,
-                        false,
-                    )
-                    .on_hover_text(label.clone());
-                    if resp.clicked() {
-                        if let Some(mut binding) = self.zmk_layer_retarget_pending.take() {
-                            binding.param1 = n;
-                            self.zmk_result = Some(binding);
-                            self.zmk_layer_action_pending = None;
-                            self.open = false;
-                        } else if let Some((behavior_id, needs_tap_key)) = self.zmk_layer_action_pending.take() {
-                            if needs_tap_key {
-                                self.zmk_layer_tap_pending = Some(n);
-                            } else {
-                                self.zmk_assign(behavior_id, n, 0);
-                            }
-                        }
-                    }
-                }
-            });
-        });
-        if !still_open {
-            self.zmk_layer_action_pending = None;
-            self.zmk_layer_retarget_pending = None;
-            self.open = false;
-        }
-    }
-
-
-    fn show_zmk_modifiers(&mut self, ui: &mut egui::Ui) {
-        let lgui = gui_label(false);
-        let rgui = gui_label(true);
-
-        let key_press_id = self.zmk_find_behavior("Key Press").map(|b| b.id);
-        let sticky_id = self.zmk_find_behavior("Sticky Key").map(|b| b.id);
-        let mod_tap_id = self.zmk_find_behavior("Mod-Tap").map(|b| b.id);
-
-        // Modifier HID usages
-        let mods: &[(&str, u32, &str)] = &[
-            ("Ctrl", 0x000700E0, "Use Left Ctrl by itself as a held modifier"),
-            ("Shift", 0x000700E1, "Use Left Shift by itself as a held modifier"),
-            ("Alt", 0x000700E2, "Use Left Alt by itself as a held modifier"),
-            ("Ctrl", 0x000700E4, "Use Right Ctrl by itself as a held modifier"),
-            ("Shift", 0x000700E5, "Use Right Shift by itself as a held modifier"),
-            ("Alt", 0x000700E6, "Use Right Alt / AltGr by itself as a held modifier"),
-        ];
-
-        ui.label(
-            RichText::new("Hold modifiers (Key Press)")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
-        );
-        ui.add_space(4.0);
-        let lgui_usage = 0x000700E3u32;
-        let rgui_usage = 0x000700E7u32;
-        ui.horizontal_wrapped(|ui| {
-            for (label, usage, tip) in mods {
-                if let Some(id) = key_press_id {
-                    let resp = ui.add(
-                        egui::Button::new(RichText::new(*label).size(11.0))
-                            .min_size(Self::picker_key_size()),
-                    );
-                    if resp.clicked() {
-                        self.zmk_assign(id, *usage, 0);
-                    }
-                    resp.on_hover_text(*tip);
-                }
-            }
-            if let Some(id) = key_press_id {
-                let resp = ui.add(
-                    egui::Button::new(RichText::new(lgui).size(11.0))
-                        .min_size(Self::picker_key_size()),
-                );
-                if resp.clicked() {
-                    self.zmk_assign(id, lgui_usage, 0);
-                }
-                resp.on_hover_text(one_sided_modifier_tooltip(lgui, "Left"));
-                let resp = ui.add(
-                    egui::Button::new(RichText::new(rgui).size(11.0))
-                        .min_size(Self::picker_key_size()),
-                );
-                if resp.clicked() {
-                    self.zmk_assign(id, rgui_usage, 0);
-                }
-                resp.on_hover_text(one_sided_modifier_tooltip(rgui, "Right"));
-            }
-        });
-
-        ui.separator();
-        ui.label(
-            RichText::new("One-Shot / Sticky Key — active for next keypress only")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
-        );
-        ui.add_space(4.0);
-        ui.horizontal_wrapped(|ui| {
-            let sk_mods: &[(&str, u32, &str)] = &[
-                ("SK\nLCtrl", 0x000700E0, "Applies Left Ctrl to the next keypress only"),
-                (
-                    "SK\nLShift",
-                    0x000700E1,
-                    "Applies Left Shift to the next keypress only",
-                ),
-                ("SK\nLAlt", 0x000700E2, "Applies Left Alt to the next keypress only"),
-                ("SK\nRCtrl", 0x000700E4, "Applies Right Ctrl to the next keypress only"),
-                ("SK\nRShift", 0x000700E5, "Applies Right Shift to the next keypress only"),
-                ("SK\nRAlt", 0x000700E6, "Applies Right Alt / AltGr to the next keypress only"),
-            ];
-            for (label, usage, tip) in sk_mods {
-                if let Some(id) = sticky_id {
-                    let parts: Vec<&str> = label.splitn(2, '\n').collect();
-                    let btn_label = if parts.len() == 2 {
-                        format!("{} {}", parts[0], parts[1])
-                    } else {
-                        label.to_string()
-                    };
-                    let resp = ui.add(
-                        egui::Button::new(RichText::new(&btn_label).size(10.5))
-                            .min_size(Self::picker_key_size()),
-                    );
-                    if resp.clicked() {
-                        self.zmk_assign(id, *usage, 0);
-                    }
-                    resp.on_hover_text(*tip);
-                }
-            }
-            if let Some(id) = sticky_id {
-                let resp = ui.add(
-                    egui::Button::new(RichText::new(format!("SK {}", lgui)).size(10.5))
-                        .min_size(Self::picker_key_size()),
-                );
-                if resp.clicked() {
-                    self.zmk_assign(id, lgui_usage, 0);
-                }
-                resp.on_hover_text(zmk_sticky_modifier_tooltip(&format!("Left {lgui}")));
-                let resp = ui.add(
-                    egui::Button::new(RichText::new(format!("SK {}", rgui)).size(10.5))
-                        .min_size(Self::picker_key_size()),
-                );
-                if resp.clicked() {
-                    self.zmk_assign(id, rgui_usage, 0);
-                }
-                resp.on_hover_text(zmk_sticky_modifier_tooltip(&format!("Right {rgui}")));
-            }
-        });
-
-        if mod_tap_id.is_some() {
-            ui.separator();
-            ui.label(
-                RichText::new("Mod-Tap — hold modifier, tap chosen key")
-                    .size(11.0)
-                    .color(Color32::from_gray(150)),
-            );
-            ui.add_space(4.0);
-            ui.horizontal_wrapped(|ui| {
-                let mt_mods: &[(&str, u32, &str)] = &[
-                    ("MT Ctrl", 0x000700E0, "Dual-role key: hold for Left Ctrl, tap for a key you choose next"),
-                    ("MT Shift", 0x000700E1, "Dual-role key: hold for Left Shift, tap for a key you choose next"),
-                    ("MT Alt", 0x000700E2, "Dual-role key: hold for Left Alt, tap for a key you choose next"),
-                    ("MT RCtrl", 0x000700E4, "Dual-role key: hold for Right Ctrl, tap for a key you choose next"),
-                    ("MT RShift", 0x000700E5, "Dual-role key: hold for Right Shift, tap for a key you choose next"),
-                    ("MT RAlt", 0x000700E6, "Dual-role key: hold for Right Alt / AltGr, tap for a key you choose next"),
-                ];
-                for (label, usage, tip) in mt_mods {
-                    let resp = ui.add(
-                        egui::Button::new(RichText::new(*label).size(10.5))
-                            .min_size(Self::picker_key_size()),
-                    );
-                    if resp.clicked() {
-                        self.zmk_mod_tap_pending = Some(*usage);
-                    }
-                    resp.on_hover_text(*tip);
-                }
-                let resp = ui.add(
-                    egui::Button::new(RichText::new(format!("MT {}", lgui)).size(10.5))
-                        .min_size(Self::picker_key_size()),
-                );
-                if resp.clicked() {
-                    self.zmk_mod_tap_pending = Some(lgui_usage);
-                }
-                resp.on_hover_text(zmk_mod_tap_tooltip(&format!("Left {lgui}")));
-                let resp = ui.add(
-                    egui::Button::new(RichText::new(format!("MT {}", rgui)).size(10.5))
-                        .min_size(Self::picker_key_size()),
-                );
-                if resp.clicked() {
-                    self.zmk_mod_tap_pending = Some(rgui_usage);
-                }
-                resp.on_hover_text(zmk_mod_tap_tooltip(&format!("Right {rgui}")));
-            });
-        }
-    }
-
-
-    fn show_zmk_behavior_key_picker(&mut self, ctx: &egui::Context, behavior_id: u32) {
-        let behavior_name = self
-            .zmk_behaviors
-            .iter()
-            .find(|b| b.id == behavior_id)
-            .map(|b| b.display_name.clone())
-            .unwrap_or_else(|| "Behavior".to_string());
-
-        let captured = ctx.input(|i| {
-            for event in &i.events {
-                if let egui::Event::Key {
-                    key,
-                    pressed: true,
-                    modifiers,
-                    ..
-                } = event
-                {
-                    if *key == Key::Escape {
-                        return Some(None);
-                    }
-                    if modifiers.is_none() {
-                        if let Some(usage) = egui_key_to_zmk_usage(*key) {
-                            return Some(Some(usage));
-                        }
-                    }
-                }
-            }
-            None
-        });
-
-        if let Some(choice) = captured {
-            match choice {
-                Some(usage) => self.zmk_assign(behavior_id, usage, 0),
-                None => {
-                    self.zmk_selected_behavior = None;
-                    self.open = false;
-                }
-            }
-            return;
-        }
-
-        let mut pick_open = true;
-        crate::ui_style::centered_modal_window(
-            ctx,
-            &format!("{behavior_name} key"),
-            self.popup_state.id(PopupKey::PendingKeyPickWindow),
-            &mut pick_open,
-            Vec2::new(KEY_PICKER_POPUP_WIDTH, KEY_PICKER_POPUP_HEIGHT),
-        )
-        .show(ctx, |ui| {
-            apply_picker_button_visuals(ui);
-            crate::ui_style::modal_intro(ui, &format!("Choose key for {behavior_name}"));
-            crate::ui_style::modal_hint(ui, "Escape cancels");
-            ui.add_space(crate::ui_style::modal_space_xs());
-
-            let key_choices: Vec<&'static crate::keycode::Keycode> = KEYCODES
-                .iter()
-                .filter(|kc| zmk_hid_usage_for_qmk_value(kc.value).is_some())
-                .collect();
-            egui::ScrollArea::vertical()
-                .max_height(KEY_PICKER_SCROLL_HEIGHT)
-                .auto_shrink([false, false])
-                .show(ui, |ui| {
-                    if let Some(value) =
-                        show_grouped_popup_key_buttons(ui, key_choices, &self.layer_names, true)
-                    {
-                        if let Some(usage) = zmk_hid_usage_for_qmk_value(value) {
-                            self.zmk_assign(behavior_id, usage, 0);
-                        }
-                    }
-                });
-        });
-
-        if !pick_open {
-            self.zmk_selected_behavior = None;
-            self.open = false;
-        }
-    }
-
-    fn show_zmk_tap_key_picker(&mut self, ctx: &egui::Context) {
-        let layer_pending = self.zmk_layer_tap_pending;
-        let title = if layer_pending.is_some() {
-            "Layer-Tap key"
-        } else {
-            "Mod-Tap key"
-        };
-
-        let captured = ctx.input(|i| {
-            for event in &i.events {
-                if let egui::Event::Key {
-                    key,
-                    pressed: true,
-                    modifiers,
-                    ..
-                } = event
-                {
-                    if *key == Key::Escape {
-                        return Some(None);
-                    }
-                    if modifiers.is_none() {
-                        if let Some(usage) = egui_key_to_zmk_usage(*key) {
-                            return Some(Some(usage));
-                        }
-                    }
-                }
-            }
-            None
-        });
-
-        if let Some(choice) = captured {
-            match choice {
-                Some(usage) => self.finish_zmk_hold_tap(usage),
-                None => {
-                    self.clear_zmk_hold_tap_pending();
-                    self.open = false;
-                }
-            }
-            return;
-        }
-
-        let mut pick_open = true;
-        crate::ui_style::centered_modal_window(
-            ctx,
-            title,
-            self.popup_state.id(PopupKey::PendingKeyPickWindow),
-            &mut pick_open,
-            Vec2::new(KEY_PICKER_POPUP_WIDTH, KEY_PICKER_POPUP_HEIGHT),
-        )
-        .show(ctx, |ui| {
-            apply_picker_button_visuals(ui);
-            if let Some(layer) = layer_pending {
-                crate::ui_style::modal_intro(
-                    ui,
-                    &format!("Choose the tap key for LT({layer})"),
-                );
-                crate::ui_style::modal_hint(ui, "Hold will activate the layer; tap will send this key");
-            } else {
-                crate::ui_style::modal_intro(ui, "Choose the tap key for Mod-Tap");
-                crate::ui_style::modal_hint(ui, "Hold will send the modifier; tap will send this key");
-            }
-            ui.add_space(crate::ui_style::modal_space_xs());
-
-            let key_choices: Vec<&'static crate::keycode::Keycode> = KEYCODES
-                .iter()
-                .filter(|kc| {
-                    matches!(
-                        kc.category,
-                        KeycodeCategory::Basic
-                            | KeycodeCategory::Function
-                            | KeycodeCategory::Navigation
-                            | KeycodeCategory::Media
-                    )
-                })
-                .filter(|kc| zmk_hid_usage_for_qmk_value(kc.value).is_some())
-                .collect();
-            egui::ScrollArea::vertical()
-                .max_height(KEY_PICKER_SCROLL_HEIGHT)
-                .auto_shrink([false, false])
-                .show(ui, |ui| {
-                    if let Some(value) =
-                        show_grouped_popup_key_buttons(ui, key_choices, &self.layer_names, true)
-                    {
-                        if let Some(usage) = zmk_hid_usage_for_qmk_value(value) {
-                            self.finish_zmk_hold_tap(usage);
-                        }
-                    }
-                });
-        });
-
-        if !pick_open {
-            self.clear_zmk_hold_tap_pending();
-            self.open = false;
-        }
-    }
-
-    fn finish_zmk_hold_tap(&mut self, tap_usage: u32) {
-        if let Some(layer) = self.zmk_layer_tap_pending.take() {
-            if let Some(id) = self.zmk_find_behavior("Layer-Tap").map(|b| b.id) {
-                self.zmk_assign(id, layer, tap_usage);
-            }
-            self.zmk_mod_tap_pending = None;
-            return;
-        }
-        if let Some(modifier) = self.zmk_mod_tap_pending.take() {
-            if let Some(id) = self.zmk_find_behavior("Mod-Tap").map(|b| b.id) {
-                self.zmk_assign(id, modifier, tap_usage);
-            }
-            self.zmk_layer_tap_pending = None;
-        }
-    }
-
-    fn clear_zmk_hold_tap_pending(&mut self) {
-        self.zmk_layer_tap_pending = None;
-        self.zmk_mod_tap_pending = None;
-    }
-
-
-    fn show_zmk_mouse(&mut self, ui: &mut egui::Ui) {
-        let mouse_press_id = self.zmk_find_behavior("Mouse Key Press").map(|b| b.id);
-
-        if let Some(id) = mouse_press_id {
-            ui.label(
-                RichText::new("Mouse buttons")
-                    .size(11.0)
-                    .color(Color32::from_gray(150)),
-            );
-            ui.add_space(4.0);
-            let buttons: &[(&str, u32, &str)] = &[
-                ("Left", 0x0009_0001, "Left mouse button"),
-                ("Right", 0x0009_0002, "Right mouse button"),
-                ("Middle", 0x0009_0003, "Middle mouse button"),
-                ("Back", 0x0009_0004, "Mouse back button"),
-                ("Forward", 0x0009_0005, "Mouse forward button"),
-            ];
-            ui.horizontal_wrapped(|ui| {
-                for (label, usage, tip) in buttons {
-                    let resp = ui.add(
-                        egui::Button::new(RichText::new(*label).size(11.0))
-                            .min_size(Self::picker_key_size()),
-                    );
-                    if resp.clicked() {
-                        self.zmk_assign(id, *usage, 0);
-                    }
-                    resp.on_hover_text(*tip);
-                }
-            });
-        } else {
-            ui.label(
-                RichText::new("Mouse button behavior not found on this device")
-                    .size(11.0)
-                    .color(Color32::from_gray(150)),
-            );
-        }
-    }
-
-    fn show_zmk_keycode_buttons_by_category(&mut self, ui: &mut egui::Ui, category: KeycodeCategory) {
-        ui.horizontal_wrapped(|ui| {
-            for kc in KEYCODES.iter().filter(|kc| kc.category == category) {
-                if !self.zmk_keycode_supported(kc.value) {
-                    continue;
-                }
-                let label = keycode_label_with_names(kc.value, &[], &self.layer_names);
-                let resp = ui
-                    .add(
-                        egui::Button::new(RichText::new(label).size(11.0))
-                            .min_size(Self::picker_key_size()),
-                    )
-                    .on_hover_cursor(egui::CursorIcon::PointingHand);
-                if resp.clicked() {
-                    self.zmk_assign_keycode_value(kc.value);
-                }
-                resp.on_hover_text(self.picker_keycode_tooltip(kc.value, &[]));
-            }
-        });
-    }
-
-    fn show_zmk_numpad_buttons(&mut self, ui: &mut egui::Ui) {
-        ui.horizontal_wrapped(|ui| {
-            let num_text_color = if ui.visuals().dark_mode {
-                Color32::from_gray(105)
-            } else {
-                Color32::from_gray(145)
-            };
-            for kc in KEYCODES
-                .iter()
-                .filter(|kc| matches!(kc.category, KeycodeCategory::Numpad))
-            {
-                if !self.zmk_keycode_supported(kc.value) {
-                    continue;
-                }
-                let display = match kc.name {
-                    "KC_NUMLOCK" => "Lock",
-                    "KC_KP_SLASH" => "÷",
-                    "KC_KP_ASTERISK" => "×",
-                    "KC_KP_MINUS" => "−",
-                    "KC_KP_PLUS" => "+",
-                    "KC_KP_ENTER" => "Enter",
-                    "KC_KP_1" => "1",
-                    "KC_KP_2" => "2",
-                    "KC_KP_3" => "3",
-                    "KC_KP_4" => "4",
-                    "KC_KP_5" => "5",
-                    "KC_KP_6" => "6",
-                    "KC_KP_7" => "7",
-                    "KC_KP_8" => "8",
-                    "KC_KP_9" => "9",
-                    "KC_KP_0" => "0",
-                    "KC_KP_DOT" => ".",
-                    "KC_KP_COMMA" => ",",
-                    "KC_KP_EQUAL" => "=",
-                    _ => kc
-                        .label
-                        .strip_prefix("Num ")
-                        .or_else(|| kc.label.strip_prefix("Numpad "))
-                        .or_else(|| kc.label.strip_prefix("Num"))
-                        .unwrap_or(kc.label),
-                };
-                let font_size = if display.len() > 2 { 10.5 } else { 13.0 };
-                let resp = ui.add_sized(Self::picker_key_size(), egui::Button::new(""));
-                let rect = resp.rect;
-                let painter = ui.painter();
-                let main_color = if resp.hovered() {
-                    ui.visuals().widgets.hovered.fg_stroke.color
-                } else {
-                    ui.visuals().widgets.inactive.fg_stroke.color
-                };
-                painter.text(
-                    egui::pos2(rect.center().x, rect.center().y - 6.0),
-                    egui::Align2::CENTER_CENTER,
-                    "Num",
-                    egui::FontId::proportional(9.5),
-                    num_text_color,
-                );
-                painter.text(
-                    egui::pos2(rect.center().x, rect.center().y + 6.0),
-                    egui::Align2::CENTER_CENTER,
-                    display,
-                    egui::FontId::proportional(font_size),
-                    main_color,
-                );
-                if resp.clicked() {
-                    self.zmk_assign_keycode_value(kc.value);
-                }
-                resp.on_hover_text(self.picker_keycode_tooltip(kc.value, &[]));
-            }
-        });
-    }
-
-    fn show_zmk_special(&mut self, ui: &mut egui::Ui) {
-        // TRNS / None
-        let transparent_id = self.zmk_find_behavior("Transparent").map(|b| b.id);
-        let none_id = self.zmk_find_behavior("None").map(|b| b.id);
-        let boot_id = self.zmk_find_behavior("Bootloader").map(|b| b.id);
-        let reset_id = self.zmk_find_behavior("Reset").map(|b| b.id);
-        let caps_word_id = self.zmk_find_behavior("Caps Word").map(|b| b.id);
-        let gesc_id = self.zmk_find_behavior("Grave/Escape").map(|b| b.id);
-        let unlock_id = self.zmk_find_behavior("Studio Unlock").map(|b| b.id);
-        let bt_id = self.zmk_find_behavior("Bluetooth").map(|b| b.id);
-        let out_id = self.zmk_find_behavior("Output Selection").map(|b| b.id);
-
-        ui.label(
-            RichText::new("Basic")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
-        );
-        ui.add_space(4.0);
-        ui.horizontal_wrapped(|ui| {
-            if let Some(id) = transparent_id {
-                let resp = ui.add(
-                    egui::Button::new(RichText::new("▽ Inherit").size(11.0))
-                        .min_size(Self::picker_key_size()),
-                );
-                if resp.clicked() {
-                    self.zmk_assign(id, 0, 0);
-                }
-                resp.on_hover_text("Inherit the key from the layer below");
-            }
-            if let Some(id) = none_id {
-                let resp = ui.add(
-                    egui::Button::new(RichText::new("✕ None").size(11.0))
-                        .min_size(Self::picker_key_size()),
-                );
-                if resp.clicked() {
-                    self.zmk_assign(id, 0, 0);
-                }
-                resp.on_hover_text("No operation — key does nothing");
-            }
-            if let Some(id) = caps_word_id {
-                let resp = ui.add(
-                    egui::Button::new(RichText::new("CapsWrd").size(11.0))
-                        .min_size(Self::picker_key_size()),
-                );
-                if resp.clicked() {
-                    self.zmk_assign(id, 0, 0);
-                }
-                resp.on_hover_text("Caps Word — capitalise next word, then auto-disable");
-            }
-            if let Some(id) = gesc_id {
-                let resp = ui.add(
-                    egui::Button::new(RichText::new("~\nEsc").size(10.5))
-                        .min_size(Self::picker_key_size()),
-                );
-                if resp.clicked() {
-                    self.zmk_assign(id, 0, 0);
-                }
-                resp.on_hover_text("Grave/Escape — ` when Shift held, Esc otherwise");
-            }
-            if let Some(id) = unlock_id {
-                let resp = ui.add(
-                    egui::Button::new(RichText::new("Unlock\nStudio").size(10.0))
-                        .min_size(Self::picker_key_size()),
-                );
-                if resp.clicked() {
-                    self.zmk_assign(id, 0, 0);
-                }
-                resp.on_hover_text("Unlock editing — allow live keymap changes");
-            }
-        });
-
-        ui.add_space(10.0);
-        ui.label(
-            RichText::new("Media, Apps, System")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
-        );
-        ui.add_space(4.0);
-        self.show_zmk_keycode_buttons_by_category(ui, KeycodeCategory::Media);
-
-        ui.add_space(10.0);
-        ui.label(
-            RichText::new("Mouse")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
-        );
-        ui.add_space(4.0);
-        self.show_zmk_keycode_buttons_by_category(ui, KeycodeCategory::Mouse);
-
-        ui.add_space(10.0);
-        ui.label(
-            RichText::new("Extra function keys")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
-        );
-        ui.add_space(4.0);
-        ui.horizontal_wrapped(|ui| {
-            for value in 0x0068u16..=0x0073u16 {
-                let Some(kc) = KEYCODES.iter().find(|kc| kc.value == value) else {
-                    continue;
-                };
-                if !self.zmk_keycode_supported(kc.value) {
-                    continue;
-                }
-                let resp = ui
-                    .add(
-                        egui::Button::new(RichText::new(kc.label).size(11.0))
-                            .min_size(Self::picker_key_size()),
-                    )
-                    .on_hover_cursor(egui::CursorIcon::PointingHand);
-                if resp.clicked() {
-                    self.zmk_assign_keycode_value(kc.value);
-                }
-                resp.on_hover_text(format!("Function key {}", kc.label));
-            }
-        });
-
-        ui.add_space(10.0);
-        ui.label(
-            RichText::new("Numpad")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
-        );
-        ui.add_space(4.0);
-        self.show_zmk_numpad_buttons(ui);
-
-        ui.separator();
-        ui.label(
-            RichText::new("Firmware")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
-        );
-        ui.add_space(4.0);
-        ui.horizontal_wrapped(|ui| {
-            if let Some(id) = boot_id {
-                let resp = ui.add(
-                    egui::Button::new(RichText::new("⚡\nBoot").size(10.5))
-                        .min_size(Self::picker_key_size()),
-                );
-                if resp.clicked() {
-                    self.zmk_assign(id, 0, 0);
-                }
-                resp.on_hover_text("Bootloader — put keyboard into flash mode");
-            }
-            if let Some(id) = reset_id {
-                let resp = ui.add(
-                    egui::Button::new(RichText::new("Reset").size(11.0))
-                        .min_size(Self::picker_key_size()),
-                );
-                if resp.clicked() {
-                    self.zmk_assign(id, 0, 0);
-                }
-                resp.on_hover_text("Reset firmware");
-            }
-        });
-
-        if let Some(id) = bt_id {
-            ui.separator();
-            ui.label(
-                RichText::new("Bluetooth")
-                    .size(11.0)
-                    .color(Color32::from_gray(150)),
-            );
-            ui.add_space(4.0);
-            let bt_actions: &[(&str, u32, u32, &str)] = &[
-                ("BT\nCLR", 0, 0, "Clear current BT profile pairing"),
-                ("BT\nCLR ALL", 1, 0, "Clear ALL BT profiles"),
-                ("BT\nNext", 2, 0, "Switch to next BT profile"),
-                ("BT\nPrev", 3, 0, "Switch to previous BT profile"),
-                ("BT\nSEL 0", 4, 0, "Select BT profile 0"),
-                ("BT\nSEL 1", 4, 1, "Select BT profile 1"),
-                ("BT\nSEL 2", 4, 2, "Select BT profile 2"),
-                ("BT\nSEL 3", 4, 3, "Select BT profile 3"),
-                ("BT\nSEL 4", 4, 4, "Select BT profile 4"),
-            ];
-            ui.horizontal_wrapped(|ui| {
-                for (label, p1, p2, tip) in bt_actions {
-                    let parts: Vec<&str> = label.splitn(2, '\n').collect();
-                    let btn_label = if parts.len() == 2 {
-                        format!("{} {}", parts[0], parts[1])
-                    } else {
-                        label.to_string()
-                    };
-                    let resp = ui.add(
-                        egui::Button::new(RichText::new(&btn_label).size(10.5))
-                            .min_size(Self::picker_key_size()),
-                    );
-                    if resp.clicked() {
-                        self.zmk_assign(id, *p1, *p2);
-                    }
-                    resp.on_hover_text(*tip);
-                }
-            });
-        }
-
-        if let Some(id) = out_id {
-            ui.separator();
-            ui.label(
-                RichText::new("Output")
-                    .size(11.0)
-                    .color(Color32::from_gray(150)),
-            );
-            ui.add_space(4.0);
-            ui.horizontal_wrapped(|ui| {
-                let resp = ui.add(
-                    egui::Button::new(RichText::new("Out\nUSB").size(10.5))
-                        .min_size(Self::picker_key_size()),
-                );
-                if resp.clicked() {
-                    self.zmk_assign(id, 0, 0);
-                }
-                resp.on_hover_text("Output: USB");
-                let resp = ui.add(
-                    egui::Button::new(RichText::new("Out\nBLE").size(10.5))
-                        .min_size(Self::picker_key_size()),
-                );
-                if resp.clicked() {
-                    self.zmk_assign(id, 1, 0);
-                }
-                resp.on_hover_text("Output: Bluetooth");
-            });
-        }
-    }
-
-    fn show_zmk_advanced(&mut self, ui: &mut egui::Ui) {
-        // All behaviors not shown in other tabs
-        let covered: &[&str] = &[
-            "Key Press",
-            "Sticky Key",
-            "Momentary Layer",
-            "Toggle Layer",
-            "To Layer",
-            "Sticky Layer",
-            "Layer-Tap",
-            "Mod-Tap",
-            "Transparent",
-            "None",
-            "Bootloader",
-            "Reset",
-            "Caps Word",
-            "Grave/Escape",
-            "Studio Unlock",
-            "Bluetooth",
-            "Output Selection",
-            "Mouse Key Press",
-            "Mouse Move",
-            "Mouse Scroll",
-            "External Power",
-            "RGB Underglow",
-            "Backlight",
-        ];
-
-        let behaviors: Vec<(u32, String)> = self
-            .zmk_behaviors
-            .iter()
-            .filter(|b| !covered.contains(&b.display_name.as_str()))
-            .map(|b| (b.id, b.display_name.clone()))
-            .collect();
-
-        if behaviors.is_empty() {
-            ui.label(
-                RichText::new("No additional behaviors found on this device")
-                    .size(11.0)
-                    .color(Color32::from_gray(150)),
-            );
-            return;
-        }
-
-        ui.label(
-            RichText::new("Other behaviors available on this device:")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
-        );
-        ui.add_space(4.0);
-        ui.horizontal_wrapped(|ui| {
-            for (id, name) in &behaviors {
-                let resp = ui.add(
-                    egui::Button::new(RichText::new(name).size(11.0))
-                        .min_size(Self::picker_key_size()),
-                );
-                if resp.clicked() {
-                    self.zmk_result = Some(ZmkBinding {
-                        behavior_id: *id as i32,
-                        param1: 0,
-                        param2: 0,
-                    });
-                    self.open = false;
-                }
-                resp.on_hover_text(format!("Behavior: {} (id={})", name, id));
             }
         });
     }

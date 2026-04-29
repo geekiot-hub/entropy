@@ -3,21 +3,16 @@
 mod app;
 mod device;
 mod firmware;
+#[cfg(not(target_arch = "wasm32"))]
+mod hid;
 mod keyboard;
 mod keycode;
 mod keycode_picker;
-mod layouts;
 mod popup_state;
 #[cfg(not(target_arch = "wasm32"))]
 mod qmk_hid_host;
 mod smart_input;
 mod ui_style;
-#[cfg(not(target_arch = "wasm32"))]
-mod hid;
-#[cfg(not(target_arch = "wasm32"))]
-mod zmk;
-#[cfg(not(target_arch = "wasm32"))]
-mod zmk_proto;
 
 use app::EntropyApp;
 
@@ -120,36 +115,34 @@ fn main() -> eframe::Result<()> {
             let mut fonts = egui::FontDefinitions::default();
             fonts.font_data.insert(
                 "roboto".to_owned(),
-                egui::FontData::from_static(
-                    include_bytes!("../assets/Roboto-Regular.ttf")
-                ).into(),
+                egui::FontData::from_static(include_bytes!("../assets/Roboto-Regular.ttf")).into(),
             );
             fonts.font_data.insert(
                 "dejavu".to_owned(),
-                egui::FontData::from_static(
-                    include_bytes!("../assets/DejaVuSans.ttf")
-                ).into(),
+                egui::FontData::from_static(include_bytes!("../assets/DejaVuSans.ttf")).into(),
             );
             fonts.font_data.insert(
                 "noto_symbols".to_owned(),
-                egui::FontData::from_static(
-                    include_bytes!("../assets/NotoSansSymbols2-Regular.ttf")
-                ).into(),
+                egui::FontData::from_static(include_bytes!(
+                    "../assets/NotoSansSymbols2-Regular.ttf"
+                ))
+                .into(),
             );
             fonts.font_data.insert(
                 "noto_emoji".to_owned(),
-                egui::FontData::from_static(
-                    include_bytes!("../assets/NotoEmoji-subset.ttf")
-                ).into(),
+                egui::FontData::from_static(include_bytes!("../assets/NotoEmoji-subset.ttf"))
+                    .into(),
             );
-            let prop = fonts.families
+            let prop = fonts
+                .families
                 .entry(egui::FontFamily::Proportional)
                 .or_default();
             prop.insert(0, "roboto".to_owned());
             prop.push("dejavu".to_owned());
             prop.push("noto_symbols".to_owned());
             prop.push("noto_emoji".to_owned());
-            let mono = fonts.families
+            let mono = fonts
+                .families
                 .entry(egui::FontFamily::Monospace)
                 .or_default();
             mono.push("dejavu".to_owned());

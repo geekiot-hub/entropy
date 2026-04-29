@@ -2,7 +2,6 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::firmware::FirmwareProtocol;
-use crate::zmk::{BehaviorInfo, ZmkBinding};
 
 /// A physical key on the keyboard with position and matrix mapping.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -82,18 +81,6 @@ pub struct KeyboardLayout {
     /// Firmware type
     #[serde(default = "default_firmware")]
     pub firmware: FirmwareProtocol,
-    /// ZMK: bindings per layer (used when firmware == Zmk)
-    #[serde(skip)]
-    pub zmk_bindings: Vec<Vec<ZmkBinding>>,
-    /// ZMK: available behaviors fetched from device
-    #[serde(skip)]
-    pub zmk_behaviors: Vec<BehaviorInfo>,
-    /// ZMK: layer IDs as reported by the device
-    #[serde(skip)]
-    pub zmk_layer_ids: Vec<u32>,
-    /// ZMK: layer names from device
-    #[serde(skip)]
-    pub zmk_layer_names: Vec<String>,
 }
 
 fn default_firmware() -> FirmwareProtocol {
@@ -472,32 +459,6 @@ impl KeyboardLayout {
             supports_rgb,
             lighting_mode,
             firmware: FirmwareProtocol::Vial,
-            zmk_bindings: vec![],
-            zmk_behaviors: vec![],
-            zmk_layer_ids: vec![],
-            zmk_layer_names: vec![],
         })
-    }
-
-    /// Returns ZMK binding for (layer, key_idx), or ZmkBinding::none() if missing.
-    pub fn get_zmk_binding(&self, layer: usize, key_idx: usize) -> ZmkBinding {
-        self.zmk_bindings
-            .get(layer)
-            .and_then(|l| l.get(key_idx))
-            .cloned()
-            .unwrap_or_else(ZmkBinding::none)
-    }
-
-    /// Sets ZMK binding for (layer, key_idx).
-    pub fn set_zmk_binding(&mut self, layer: usize, key_idx: usize, binding: ZmkBinding) {
-        while self.zmk_bindings.len() <= layer {
-            self.zmk_bindings
-                .push(vec![ZmkBinding::none(); self.keys.len()]);
-        }
-        if let Some(layer_data) = self.zmk_bindings.get_mut(layer) {
-            if let Some(slot) = layer_data.get_mut(key_idx) {
-                *slot = binding;
-            }
-        }
     }
 }
