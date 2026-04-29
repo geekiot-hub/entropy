@@ -12227,7 +12227,9 @@ impl EntropyApp {
                 let show_magic_item = self.magic_settings.supported;
                 let show_tap_hold_item = self.tap_hold_settings.supported;
                 let show_one_shot_item = self.one_shot_settings.supported;
-                let settings_item_count = 3
+                let show_matrix_item = self.firmware == FirmwareProtocol::Vial;
+                let settings_item_count = 2
+                    + show_matrix_item as usize
                     + show_rgb_item as usize
                     + show_layer_leds_item as usize
                     + show_encoders_item as usize
@@ -12291,14 +12293,16 @@ impl EntropyApp {
                                         self.main_menu_tab == MainMenuTab::Settings
                                             && self.settings_tab == SettingsTab::AppSettings,
                                     );
-                                    let matrix_resp = top_dropdown_item(
-                                        ui,
-                                        item_width,
-                                        "Matrix Tester",
-                                        true,
-                                        self.main_menu_tab == MainMenuTab::Settings
-                                            && self.settings_tab == SettingsTab::MatrixTester,
-                                    );
+                                    let matrix_resp = show_matrix_item.then(|| {
+                                        top_dropdown_item(
+                                            ui,
+                                            item_width,
+                                            "Matrix Tester",
+                                            true,
+                                            self.main_menu_tab == MainMenuTab::Settings
+                                                && self.settings_tab == SettingsTab::MatrixTester,
+                                        )
+                                    });
                                     let universal_symbols_resp = top_dropdown_item(
                                         ui,
                                         item_width,
@@ -12403,7 +12407,7 @@ impl EntropyApp {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.open_app_settings_page();
                                     }
-                                    if matrix_resp.clicked() {
+                                    if matrix_resp.as_ref().map(|r| r.clicked()).unwrap_or(false) {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.settings_tab = SettingsTab::MatrixTester;
                                         if self.main_menu_tab != MainMenuTab::Settings {
@@ -12464,7 +12468,7 @@ impl EntropyApp {
                                     }
                                     (
                                         app_resp.hovered(),
-                                        matrix_resp.hovered(),
+                                        matrix_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         universal_symbols_resp.hovered(),
                                         rgb_resp.as_ref().map(|resp| resp.hovered()).unwrap_or(false),
                                         layer_leds_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
@@ -12476,7 +12480,7 @@ impl EntropyApp {
                                         tap_hold_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         one_shot_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         app_resp.clicked()
-                                            || matrix_resp.clicked()
+                                            || matrix_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
                                             || universal_symbols_resp.clicked()
                                             || rgb_resp
                                                 .as_ref()
