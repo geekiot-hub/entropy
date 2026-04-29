@@ -580,6 +580,8 @@ use egui::{Color32, FontId, RichText, Sense, Stroke, Vec2};
 const LAYOUT_BASE_UNIT: f32 = 54.0_f32 * 1.15;
 const LAYOUT_KEY_PADDING: f32 = 2.5_f32;
 const LAYOUT_FIT_MARGIN: f32 = 40.0_f32;
+const LAYOUT_ENCODER_RADIUS_FACTOR: f32 = 0.47_f32;
+const LAYOUT_ENCODER_FILL_EXTRA: f32 = 1.0_f32;
 const LAYOUT_TOP_RESERVED_H: f32 = 32.0_f32 + 4.0_f32 + 68.0_f32;
 const LAYOUT_BOTTOM_RESERVED_H: f32 = 76.0_f32;
 
@@ -13820,7 +13822,7 @@ impl EntropyApp {
 
         for (_encoder_idx, rect, ccw, cw) in &encoder_groups {
             let center = rect.center();
-            let radius = rect.width().min(rect.height()) * 0.58;
+            let radius = rect.width().min(rect.height()) * LAYOUT_ENCODER_RADIUS_FACTOR;
             let circle_bounds =
                 egui::Rect::from_center_size(center, egui::vec2(radius * 2.0, radius * 2.0));
             let press_slot = encoder_press_rects
@@ -13957,7 +13959,7 @@ impl EntropyApp {
                 .unwrap_or(false);
             let middle_hovered = middle_resp.as_ref().map(|r| r.hovered()).unwrap_or(false);
             let visuals = &ui.visuals().widgets;
-            let fill_radius = radius + 1.5;
+            let fill_radius = radius + LAYOUT_ENCODER_FILL_EXTRA;
             let top_fill = if top_selected {
                 visuals.active.bg_fill
             } else if top_resp.hovered() {
