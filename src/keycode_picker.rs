@@ -347,7 +347,6 @@ impl KeycodeTab {
         KeycodeTab::Modifiers,
         KeycodeTab::Special,
         KeycodeTab::Rgb,
-        KeycodeTab::Macro,
         KeycodeTab::Bluetooth,
         KeycodeTab::ZmkAdvanced,
     ];
@@ -2215,7 +2214,6 @@ impl KeycodePicker {
                 | KeycodeTab::Special
                 | KeycodeTab::Bluetooth
                 | KeycodeTab::ZmkAdvanced => true,
-                KeycodeTab::Macro => self.zmk_has_macros(),
                 KeycodeTab::Rgb => {
                     self.zmk_behavior_id("RGB Underglow").is_some()
                         || self.zmk_behavior_id("Backlight").is_some()
@@ -2257,7 +2255,6 @@ impl KeycodePicker {
             KeycodeTab::Quantum => self.show_vial_quantum(ui),
             KeycodeTab::Rgb if self.firmware == FirmwareProtocol::Zmk => self.show_zmk_rgb(ui),
             KeycodeTab::Rgb => self.show_vial_rgb(ui),
-            KeycodeTab::Macro if self.firmware == FirmwareProtocol::Zmk => self.show_zmk_macros(ui),
             KeycodeTab::Macro => self.show_vial_macros(ui),
             KeycodeTab::TapDance => self.show_vial_tap_dance(ui),
             KeycodeTab::Special => self.show_vial_special(ui),
@@ -5008,7 +5005,6 @@ Repeat"
             KeycodeTab::Symbols => self.show_zmk_symbols(ui),
             KeycodeTab::Modifiers => self.show_zmk_modifiers(ui),
             KeycodeTab::Special => self.show_zmk_special(ui),
-            KeycodeTab::Macro => self.show_zmk_macros(ui),
             KeycodeTab::ZmkAdvanced => self.show_zmk_advanced(ui),
             _ => self.show_zmk_generic(ui),
         }
@@ -5966,72 +5962,6 @@ Repeat"
         }
     }
 
-    fn zmk_macro_behaviors(&self) -> Vec<(u32, String)> {
-        self.zmk_behaviors
-            .iter()
-            .filter(|b| zmk_behavior_kind(&b.display_name) == "macro")
-            .map(|b| (b.id, b.display_name.clone()))
-            .collect()
-    }
-
-    fn zmk_has_macros(&self) -> bool {
-        self.zmk_behaviors
-            .iter()
-            .any(|b| zmk_behavior_kind(&b.display_name) == "macro")
-    }
-
-    fn zmk_macro_button_label(name: &str, index: usize) -> String {
-        let trimmed = name.trim();
-        if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("macro") {
-            format!("Macro\n{}", index + 1)
-        } else if trimmed.to_ascii_lowercase().starts_with("macro ") {
-            trimmed.replacen(' ', "\n", 1)
-        } else {
-            let short: String = trimmed.chars().take(10).collect();
-            format!("Macro\n{short}")
-        }
-    }
-
-    fn show_zmk_macros(&mut self, ui: &mut egui::Ui) {
-        let macros = self.zmk_macro_behaviors();
-        if macros.is_empty() {
-            ui.label(
-                RichText::new("No firmware macros found on this device")
-                    .size(11.0)
-                    .color(Color32::from_gray(150)),
-            );
-            return;
-        }
-
-        ui.label(
-            RichText::new("Firmware macros")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
-        );
-        ui.add_space(4.0);
-        ui.horizontal_wrapped(|ui| {
-            for (idx, (id, name)) in macros.iter().enumerate() {
-                let label = Self::zmk_macro_button_label(name, idx);
-                let resp = ui
-                    .add_sized(Self::picker_key_size(), egui::Button::new(""))
-                    .on_hover_cursor(egui::CursorIcon::PointingHand);
-                Self::paint_compact_picker_label(ui, &resp, &label);
-                if resp.clicked() {
-                    self.zmk_result = Some(ZmkBinding {
-                        behavior_id: *id as i32,
-                        param1: 0,
-                        param2: 0,
-                    });
-                    self.open = false;
-                }
-                resp.on_hover_text(format!(
-                    "Assign firmware macro: {}",
-                    if name.trim().is_empty() { "Macro" } else { name.trim() }
-                ));
-            }
-        });
-    }
-
     fn show_zmk_advanced(&mut self, ui: &mut egui::Ui) {
         // All behaviors not shown in other tabs
         let covered: &[&str] = &[
@@ -6058,16 +5988,12 @@ Repeat"
             "External Power",
             "RGB Underglow",
             "Backlight",
-            "Macro",
         ];
 
         let behaviors: Vec<(u32, String)> = self
             .zmk_behaviors
             .iter()
-            .filter(|b| {
-                !covered.contains(&b.display_name.as_str())
-                    && zmk_behavior_kind(&b.display_name) != "macro"
-            })
+            .filter(|b| !covered.contains(&b.display_name.as_str()))
             .map(|b| (b.id, b.display_name.clone()))
             .collect();
 
