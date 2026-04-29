@@ -6060,11 +6060,7 @@ impl eframe::App for EntropyApp {
                 .show(ctx, |ui| {
                     let screen = ui.ctx().screen_rect();
                     let dark = ui.visuals().dark_mode;
-                    let screen_bg = if dark {
-                        Color32::from_gray(12)
-                    } else {
-                        Color32::from_gray(246)
-                    };
+                    let screen_bg = app_panel_fill(dark);
                     let title_color = if dark {
                         Color32::WHITE
                     } else {
@@ -6081,14 +6077,14 @@ impl eframe::App for EntropyApp {
                         Color32::from_gray(220)
                     };
                     let inactive_key_bg = if dark {
-                        Color32::from_rgba_unmultiplied(48, 48, 52, 120)
+                        Color32::from_rgb(48, 48, 52)
                     } else {
-                        Color32::from_rgba_unmultiplied(226, 226, 232, 210)
+                        Color32::from_rgb(255, 255, 255)
                     };
                     let inactive_key_border = if dark {
-                        Color32::from_gray(60)
+                        Color32::from_rgb(54, 54, 58)
                     } else {
-                        Color32::from_gray(184)
+                        Color32::from_rgb(230, 230, 233)
                     };
                     ui.painter().rect_filled(screen, 0.0, screen_bg);
 
