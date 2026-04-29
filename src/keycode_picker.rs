@@ -5966,6 +5966,14 @@ Repeat"
         }
     }
 
+    fn zmk_behavior_paramless(behavior: &BehaviorInfo) -> bool {
+        behavior.metadata.is_empty()
+            || behavior
+                .metadata
+                .iter()
+                .all(|set| set.param1.is_empty() && set.param2.is_empty())
+    }
+
     fn zmk_covered_behavior_name(name: &str) -> bool {
         matches!(
             name,
@@ -5999,7 +6007,12 @@ Repeat"
     fn zmk_macro_behaviors(&self) -> Vec<(u32, String)> {
         self.zmk_behaviors
             .iter()
-            .filter(|b| zmk_behavior_kind(&b.display_name) == "macro")
+            .filter(|b| {
+                zmk_behavior_kind(&b.display_name) == "macro"
+                    || (zmk_behavior_kind(&b.display_name) == "unknown"
+                        && !Self::zmk_covered_behavior_name(&b.display_name)
+                        && Self::zmk_behavior_paramless(b))
+            })
             .map(|b| (b.id, b.display_name.clone()))
             .collect()
     }
@@ -6070,6 +6083,8 @@ Repeat"
             .filter(|b| {
                 !Self::zmk_covered_behavior_name(&b.display_name)
                     && zmk_behavior_kind(&b.display_name) != "macro"
+                    && !(zmk_behavior_kind(&b.display_name) == "unknown"
+                        && Self::zmk_behavior_paramless(b))
             })
             .map(|b| (b.id, b.display_name.clone()))
             .collect();
