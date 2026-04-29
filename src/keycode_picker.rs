@@ -2214,8 +2214,8 @@ impl KeycodePicker {
                 | KeycodeTab::Modifiers
                 | KeycodeTab::Special
                 | KeycodeTab::Bluetooth
+                | KeycodeTab::Macro
                 | KeycodeTab::ZmkAdvanced => true,
-                KeycodeTab::Macro => self.zmk_has_macros(),
                 KeycodeTab::Rgb => {
                     self.zmk_behavior_id("RGB Underglow").is_some()
                         || self.zmk_behavior_id("Backlight").is_some()
@@ -5966,18 +5966,55 @@ Repeat"
         }
     }
 
+    fn zmk_behavior_paramless(behavior: &BehaviorInfo) -> bool {
+        behavior.metadata.is_empty()
+            || behavior
+                .metadata
+                .iter()
+                .all(|set| set.param1.is_empty() && set.param2.is_empty())
+    }
+
+    fn zmk_covered_behavior_name(name: &str) -> bool {
+        matches!(
+            name,
+            "Key Press"
+                | "Sticky Key"
+                | "Momentary Layer"
+                | "Toggle Layer"
+                | "To Layer"
+                | "Sticky Layer"
+                | "Layer-Tap"
+                | "Mod-Tap"
+                | "Transparent"
+                | "None"
+                | "Bootloader"
+                | "Reset"
+                | "Caps Word"
+                | "Grave/Escape"
+                | "Studio Unlock"
+                | "Bluetooth"
+                | "Output Selection"
+                | "Mouse Key Press"
+                | "Mouse Move"
+                | "Mouse Scroll"
+                | "External Power"
+                | "RGB Underglow"
+                | "Backlight"
+                | "Macro"
+        )
+    }
+
     fn zmk_macro_behaviors(&self) -> Vec<(u32, String)> {
         self.zmk_behaviors
             .iter()
-            .filter(|b| zmk_behavior_kind(&b.display_name) == "macro")
+            .filter(|b| {
+                zmk_behavior_kind(&b.display_name) == "macro"
+                    || (zmk_behavior_kind(&b.display_name) == "unknown"
+                        && !Self::zmk_covered_behavior_name(&b.display_name)
+                        && Self::zmk_behavior_paramless(b))
+            })
             .map(|b| (b.id, b.display_name.clone()))
             .collect()
-    }
-
-    fn zmk_has_macros(&self) -> bool {
-        self.zmk_behaviors
-            .iter()
-            .any(|b| zmk_behavior_kind(&b.display_name) == "macro")
     }
 
     fn zmk_macro_button_label(name: &str, index: usize) -> String {
@@ -5999,6 +6036,12 @@ Repeat"
                 RichText::new("No firmware macros found on this device")
                     .size(11.0)
                     .color(Color32::from_gray(150)),
+            );
+            ui.add_space(4.0);
+            ui.label(
+                RichText::new("If this keyboard has macros, its firmware is not exposing them through ZMK Studio behavior details")
+                    .size(10.0)
+                    .color(Color32::from_gray(120)),
             );
             return;
         }
@@ -6034,39 +6077,14 @@ Repeat"
 
     fn show_zmk_advanced(&mut self, ui: &mut egui::Ui) {
         // All behaviors not shown in other tabs
-        let covered: &[&str] = &[
-            "Key Press",
-            "Sticky Key",
-            "Momentary Layer",
-            "Toggle Layer",
-            "To Layer",
-            "Sticky Layer",
-            "Layer-Tap",
-            "Mod-Tap",
-            "Transparent",
-            "None",
-            "Bootloader",
-            "Reset",
-            "Caps Word",
-            "Grave/Escape",
-            "Studio Unlock",
-            "Bluetooth",
-            "Output Selection",
-            "Mouse Key Press",
-            "Mouse Move",
-            "Mouse Scroll",
-            "External Power",
-            "RGB Underglow",
-            "Backlight",
-            "Macro",
-        ];
-
         let behaviors: Vec<(u32, String)> = self
             .zmk_behaviors
             .iter()
             .filter(|b| {
-                !covered.contains(&b.display_name.as_str())
+                !Self::zmk_covered_behavior_name(&b.display_name)
                     && zmk_behavior_kind(&b.display_name) != "macro"
+                    && !(zmk_behavior_kind(&b.display_name) == "unknown"
+                        && Self::zmk_behavior_paramless(b))
             })
             .map(|b| (b.id, b.display_name.clone()))
             .collect();
