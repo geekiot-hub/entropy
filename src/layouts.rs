@@ -86,16 +86,17 @@ pub fn build_layout_from_zmk(
                     1.0
                 };
                 let r = k.r as f32 / 100.0;
-                // ZMK dtsi: rx=0, ry=0 with rotation means "rotate around self" (no extra offset)
-                // Apply rotation to get display coordinates, then store with rotation=0
+                let rx = k.rx as f32 / 100.0;
+                let ry = k.ry as f32 / 100.0;
+                // ZMK dtsi: rx=0, ry=0 with rotation means "rotate around self" (no extra offset).
+                // Keep the existing position normalization for compatibility, but also preserve
+                // rotation so the renderer paints angled thumb keys instead of flattening them.
                 let (final_x, final_y) = if r != 0.0 {
                     let angle = r.to_radians();
-                    let rx = k.rx as f32 / 100.0;
-                    let ry = k.ry as f32 / 100.0;
-                    // anchor is (rx, ry) — if 0,0 then rotation is around origin which is wrong
-                    // treat 0,0 as "rotate around self" = no position change
+                    // anchor is (rx, ry) — if 0,0 then rotation is around origin which is wrong;
+                    // treat 0,0 as "rotate around self" = no position change.
                     if rx == 0.0 && ry == 0.0 {
-                        (x, y) // no rotation offset
+                        (x, y)
                     } else {
                         let dx = x - rx;
                         let dy = y - ry;
@@ -124,9 +125,9 @@ pub fn build_layout_from_zmk(
                     row,
                     col,
                     label: format!("{i}"),
-                    rotation: 0.0,
-                    rotation_x: 0.0,
-                    rotation_y: 0.0,
+                    rotation: r,
+                    rotation_x: rx,
+                    rotation_y: ry,
                 }
             })
             .collect::<Vec<_>>();
