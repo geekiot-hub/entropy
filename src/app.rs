@@ -627,10 +627,11 @@ fn layout_geometry(layout: &KeyboardLayout, viewport: egui::Rect) -> LayoutGeome
     let layout_w = span_x * unit;
     let layout_h = span_y * unit;
     let content_top = viewport.top() + LAYOUT_TOP_RESERVED_H;
+    let content_bottom = viewport.bottom() - LAYOUT_BOTTOM_RESERVED_H;
 
     LayoutGeometry {
         offset_x: viewport.center().x - layout_w / 2.0 - min_x * unit,
-        offset_y: content_top - min_y * unit,
+        offset_y: ((content_top + content_bottom) - layout_h) / 2.0 - min_y * unit,
         unit,
         padding: LAYOUT_KEY_PADDING,
         layout_h,
