@@ -147,21 +147,27 @@ fn clamp_ui_scale(scale: f32) -> f32 {
 }
 
 fn responsive_settings_visible_rows(
+    ctx: &egui::Context,
     available_height: f32,
     total_rows: usize,
     bottom_reserve: f32,
 ) -> usize {
     const BASE_ROWS: usize = 6;
     const MAX_ROWS: usize = 10;
-    const EXTRA_ROW_START_HEIGHT: f32 = 1_200.0;
-    const EXTRA_ROW_STEP_HEIGHT: f32 = 240.0;
+    const EXTRA_ROW_START_PHYSICAL_HEIGHT: f32 = 1_500.0;
+    const EXTRA_ROW_STEP_PHYSICAL_HEIGHT: f32 = 220.0;
 
     if total_rows == 0 {
         return 1;
     }
 
-    let usable_height = (available_height - bottom_reserve).max(0.0);
-    let extra_rows = ((usable_height - EXTRA_ROW_START_HEIGHT) / EXTRA_ROW_STEP_HEIGHT)
+    let native_scale = ctx
+        .native_pixels_per_point()
+        .unwrap_or_else(|| ctx.pixels_per_point() / ctx.zoom_factor().max(0.1))
+        .max(1.0);
+    let usable_physical_height = (available_height - bottom_reserve).max(0.0) * native_scale;
+    let extra_rows = ((usable_physical_height - EXTRA_ROW_START_PHYSICAL_HEIGHT)
+        / EXTRA_ROW_STEP_PHYSICAL_HEIGHT)
         .floor()
         .max(0.0) as usize;
     (BASE_ROWS + extra_rows).clamp(1, MAX_ROWS).min(total_rows)
@@ -3551,6 +3557,7 @@ impl EntropyApp {
                 const TOTAL_MOUSE_KEY_ROWS: usize = 9;
                 const MOUSE_KEY_ROW_HEIGHT: f32 = 54.0;
                 let visible_rows = responsive_settings_visible_rows(
+                    ui.ctx(),
                     ui.available_height(),
                     TOTAL_MOUSE_KEY_ROWS,
                     0.0,
@@ -4171,8 +4178,13 @@ impl EntropyApp {
                 }
 
                 let total_rows = display_option_indices.len();
-                let visible_rows =
-                    responsive_settings_visible_rows(ui.available_height(), total_rows, 0.0).max(1);
+                let visible_rows = responsive_settings_visible_rows(
+                    ui.ctx(),
+                    ui.available_height(),
+                    total_rows,
+                    0.0,
+                )
+                .max(1);
                 let list_height = ROW_HEIGHT * visible_rows as f32;
                 let content_height = ROW_HEIGHT * total_rows as f32;
                 let max_offset = (content_height - list_height).max(0.0);
@@ -4498,7 +4510,8 @@ impl EntropyApp {
         const ROW_CONTENT_WIDTH: f32 = 452.0;
         const FIELD_WIDTH: f32 = 86.0;
 
-        let visible_rows = responsive_settings_visible_rows(ui.available_height(), TOTAL_ROWS, 0.0);
+        let visible_rows =
+            responsive_settings_visible_rows(ui.ctx(), ui.available_height(), TOTAL_ROWS, 0.0);
         let list_height = ROW_HEIGHT * visible_rows as f32;
         let content_height = ROW_HEIGHT * TOTAL_ROWS as f32;
         let max_offset = (content_height - list_height).max(0.0);
@@ -7224,8 +7237,12 @@ impl EntropyApp {
             ui,
             crate::ui_style::ModalLayout::new(CONTENT_WIDTH).with_top_padding(4.0),
             |ui| {
-                let visible_rows =
-                    responsive_settings_visible_rows(ui.available_height(), TOTAL_ROWS, 86.0);
+                let visible_rows = responsive_settings_visible_rows(
+                    ui.ctx(),
+                    ui.available_height(),
+                    TOTAL_ROWS,
+                    86.0,
+                );
                 let list_height = ROW_HEIGHT * visible_rows as f32;
                 let content_height = ROW_HEIGHT * TOTAL_ROWS as f32;
                 let max_offset = (content_height - list_height).max(0.0);
@@ -7788,7 +7805,7 @@ impl EntropyApp {
                 const CONTENT_WIDTH: f32 = 470.0;
                 const ROW_CONTENT_WIDTH: f32 = 452.0;
                 const ROW_HEIGHT: f32 = 54.0;
-                let visible_rows = responsive_settings_visible_rows(ui.available_height(), TOTAL_ROWS, 0.0);
+                let visible_rows = responsive_settings_visible_rows(ui.ctx(), ui.available_height(), TOTAL_ROWS, 0.0);
                 let list_height = ROW_HEIGHT * visible_rows as f32;
                 let content_height = ROW_HEIGHT * TOTAL_ROWS as f32;
                 let max_offset = (content_height - list_height).max(0.0);
@@ -8404,7 +8421,7 @@ impl EntropyApp {
                 const CONTENT_WIDTH: f32 = 470.0;
                 const ROW_CONTENT_WIDTH: f32 = 452.0;
                 const ROW_HEIGHT: f32 = 54.0;
-                let visible_rows = responsive_settings_visible_rows(ui.available_height(), TOTAL_ROWS, 0.0);
+                let visible_rows = responsive_settings_visible_rows(ui.ctx(), ui.available_height(), TOTAL_ROWS, 0.0);
                 let list_height = ROW_HEIGHT * visible_rows as f32;
                 let content_height = ROW_HEIGHT * TOTAL_ROWS as f32;
                 let max_offset = (content_height - list_height).max(0.0);
@@ -8666,8 +8683,13 @@ impl EntropyApp {
                 const ROW_CONTENT_WIDTH: f32 = 452.0;
                 const ROW_HEIGHT: f32 = 54.0;
                 let total_rows = self.tap_hold_one_shot_row_count();
-                let visible_rows =
-                    responsive_settings_visible_rows(ui.available_height(), total_rows, 0.0).max(1);
+                let visible_rows = responsive_settings_visible_rows(
+                    ui.ctx(),
+                    ui.available_height(),
+                    total_rows,
+                    0.0,
+                )
+                .max(1);
                 let list_height = ROW_HEIGHT * visible_rows as f32;
                 let content_height = ROW_HEIGHT * total_rows as f32;
                 let max_offset = (content_height - list_height).max(0.0);
@@ -9796,7 +9818,7 @@ impl EntropyApp {
 
                 const ROW_HEIGHT: f32 = 54.0;
                 let total_rows = self.touchpad_settings.row_count();
-                let visible_rows = responsive_settings_visible_rows(ui.available_height(), total_rows, 0.0).max(1);
+                let visible_rows = responsive_settings_visible_rows(ui.ctx(), ui.available_height(), total_rows, 0.0).max(1);
                 let list_height = ROW_HEIGHT * visible_rows as f32;
                 let content_height = ROW_HEIGHT * total_rows as f32;
                 let max_offset = (content_height - list_height).max(0.0);
@@ -10389,8 +10411,12 @@ impl EntropyApp {
             crate::ui_style::ModalLayout::new(CONTENT_WIDTH).with_top_padding(4.0),
             |ui| {
                 ui.spacing_mut().item_spacing.y = 0.0;
-                let visible_rows =
-                    responsive_settings_visible_rows(ui.available_height(), ROW_COUNT, 86.0);
+                let visible_rows = responsive_settings_visible_rows(
+                    ui.ctx(),
+                    ui.available_height(),
+                    ROW_COUNT,
+                    86.0,
+                );
                 let list_height = ROW_HEIGHT * visible_rows as f32;
                 ui.allocate_ui_with_layout(
                     Vec2::new(CONTENT_WIDTH, list_height),
