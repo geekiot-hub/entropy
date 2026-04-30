@@ -1,4 +1,4 @@
-use crate::device::DeviceManager;
+use crate::device::{Device, DeviceManager};
 use crate::firmware::FirmwareProtocol;
 
 #[cfg(target_os = "windows")]
@@ -807,6 +807,12 @@ struct ConnectResult {
 enum ConnectState {
     Idle,
     Loading(mpsc::Receiver<Result<ConnectResult, String>>),
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+enum DeviceScanState {
+    Idle,
+    Scanning(mpsc::Receiver<Vec<Device>>),
 }
 
 fn toggle_handed_modifier(value: u16) -> Option<u16> {
@@ -1789,6 +1795,8 @@ pub struct EntropyApp {
     status_msg: String,
     #[cfg(not(target_arch = "wasm32"))]
     connect_state: ConnectState,
+    #[cfg(not(target_arch = "wasm32"))]
+    device_scan_state: DeviceScanState,
     /// Persistent open HID device for real-time writes (Vial)
     #[cfg(not(target_arch = "wasm32"))]
     hid_device: Option<crate::hid::HidDevice>,
@@ -1986,6 +1994,8 @@ impl EntropyApp {
             vial_unlock_total: 50,
             #[cfg(not(target_arch = "wasm32"))]
             connect_state: ConnectState::Idle,
+            #[cfg(not(target_arch = "wasm32"))]
+            device_scan_state: DeviceScanState::Idle,
         };
         // Auto-connect to first device if available
         #[cfg(not(target_arch = "wasm32"))]
@@ -2023,14 +2033,47 @@ impl EntropyApp {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn rescan_and_autoselect_device(&mut self) {
+    fn start_device_scan(&mut self) {
+        if !matches!(self.device_scan_state, DeviceScanState::Idle) {
+            return;
+        }
+
+        let (tx, rx) = mpsc::channel();
+        self.device_scan_state = DeviceScanState::Scanning(rx);
+        std::thread::spawn(move || {
+            let _ = tx.send(DeviceManager::scan_devices());
+        });
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn poll_device_scan(&mut self, ctx: &egui::Context) {
+        let devices = match &self.device_scan_state {
+            DeviceScanState::Idle => return,
+            DeviceScanState::Scanning(rx) => match rx.try_recv() {
+                Ok(devices) => Some(devices),
+                Err(mpsc::TryRecvError::Empty) => {
+                    ctx.request_repaint_after(std::time::Duration::from_millis(25));
+                    return;
+                }
+                Err(mpsc::TryRecvError::Disconnected) => Some(Vec::new()),
+            },
+        };
+
+        self.device_scan_state = DeviceScanState::Idle;
+        if let Some(devices) = devices {
+            self.apply_device_scan_result(devices);
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn apply_device_scan_result(&mut self, devices: Vec<Device>) {
         let previous_path = self
             .selected_device
             .and_then(|idx| self.device_manager.devices().get(idx))
             .map(|dev| dev.path.clone());
         let was_loading = matches!(self.connect_state, ConnectState::Loading(_));
 
-        self.device_manager.scan();
+        self.device_manager.replace_devices(devices);
 
         if self.device_manager.devices().is_empty() {
             if self.selected_device.is_some() || self.layout.is_some() || was_loading {
@@ -4978,6 +5021,9 @@ impl eframe::App for EntropyApp {
         #[cfg(not(target_arch = "wasm32"))]
         ctx.request_repaint_after(std::time::Duration::from_millis(250));
 
+        #[cfg(not(target_arch = "wasm32"))]
+        self.poll_device_scan(ctx);
+
         // Auto-scan for device connect/disconnect changes.
         self.secondary_click_handled = false;
         if let Some((layer, ki, kc)) = self.pending_handed_swap {
@@ -4992,12 +5038,13 @@ impl eframe::App for EntropyApp {
             }
         }
         let now = ctx.input(|i| i.time);
-        if (self.last_device_scan_at == 0.0 || now - self.last_device_scan_at >= 0.25)
+        if (self.last_device_scan_at == 0.0 || now - self.last_device_scan_at >= 1.0)
             && !self.vial_unlock_polling
         {
             self.scan_frame = self.scan_frame.wrapping_add(1);
             self.last_device_scan_at = now;
-            self.rescan_and_autoselect_device();
+            #[cfg(not(target_arch = "wasm32"))]
+            self.start_device_scan();
         }
 
         #[cfg(not(target_arch = "wasm32"))]
@@ -6152,12 +6199,7 @@ impl EntropyApp {
         self.last_single_instance_signal = signal;
         self.status_msg = "Entropy refreshed from a repeated launch".into();
         self.restore_from_tray(ctx);
-        self.rescan_and_autoselect_device();
-        if let Some(device_idx) = self.selected_device {
-            if !matches!(self.connect_state, ConnectState::Loading(_)) {
-                self.start_connect(device_idx);
-            }
-        }
+        self.start_device_scan();
         ctx.request_repaint();
     }
 
@@ -12431,8 +12473,7 @@ impl EntropyApp {
                     self.hover_layer = None;
                     self.secondary_click_handled = true;
                 }
-            } else {
-                let kc = layout.get_keycode(self.selected_layer, *ki);
+            } else if response.hovered() {
                 let tip = keycode_tooltip_with_macro_names(
                     kc,
                     &layout.custom_keycodes,

@@ -816,7 +816,9 @@ fn show_grouped_popup_key_buttons(
                 if resp.clicked() {
                     selected = Some(kc.value);
                 }
-                resp.on_hover_text(keycode_tooltip(kc.value, &[], layer_names));
+                if resp.hovered() {
+                    resp.on_hover_text(keycode_tooltip(kc.value, &[], layer_names));
+                }
             }
         });
         ui.add_space(8.0);
@@ -850,7 +852,9 @@ fn show_grouped_popup_choice_buttons(
                 if resp.clicked() {
                     selected = Some(value);
                 }
-                resp.on_hover_text(tooltip);
+                if resp.hovered() {
+                    resp.on_hover_text(tooltip);
+                }
             }
         });
         ui.add_space(8.0);
@@ -1407,7 +1411,6 @@ impl KeycodePicker {
         let y = origin.y + row as f32 * (cell_h + gap) + right_nav_extra_gap;
         let width = span as f32 * cell_w + span.saturating_sub(1) as f32 * gap;
         let rect = egui::Rect::from_min_size(egui::pos2(x, y), Vec2::new(width, cell_h));
-        let tip = keycode_tooltip(value, &[], &self.layer_names);
         let inactive_stroke = if ui.visuals().dark_mode {
             egui::Stroke::new(1.0, Color32::from_rgb(54, 54, 58))
         } else {
@@ -1488,7 +1491,9 @@ impl KeycodePicker {
         if resp.clicked() {
             self.assign_keycode_value(value);
         }
-        resp.on_hover_text(tip);
+        if resp.hovered() {
+            resp.on_hover_text(keycode_tooltip(value, &[], &self.layer_names));
+        }
     }
 
     fn show_vial_basic(&mut self, ui: &mut egui::Ui) {
@@ -1818,7 +1823,6 @@ impl KeycodePicker {
                 if !self.selected_tab.vial_matches(kc) || !self.vial_keycode_supported(kc) {
                     continue;
                 }
-                let tip = self.picker_keycode_tooltip(kc.value, &custom_pairs);
                 let label = keycode_label_with_names(kc.value, &custom_pairs, &self.layer_names);
                 let resp = ui
                     .add_sized(Self::picker_key_size(), egui::Button::new(""))
@@ -1827,7 +1831,9 @@ impl KeycodePicker {
                 if resp.clicked() {
                     self.assign_keycode_value(kc.value);
                 }
-                resp.on_hover_text(tip);
+                if resp.hovered() {
+                    resp.on_hover_text(self.picker_keycode_tooltip(kc.value, &custom_pairs));
+                }
             }
         });
 
@@ -1879,7 +1885,6 @@ impl KeycodePicker {
                 if !self.selected_tab.vial_matches(kc) || !self.vial_keycode_supported(kc) {
                     continue;
                 }
-                let tip = self.picker_keycode_tooltip(kc.value, &custom_pairs);
                 let label = keycode_label_with_names(kc.value, &custom_pairs, &self.layer_names);
                 let resp = ui
                     .add_sized(Self::picker_key_size(), egui::Button::new(""))
@@ -1888,7 +1893,9 @@ impl KeycodePicker {
                 if resp.clicked() {
                     self.assign_keycode_value(kc.value);
                 }
-                resp.on_hover_text(tip);
+                if resp.hovered() {
+                    resp.on_hover_text(self.picker_keycode_tooltip(kc.value, &custom_pairs));
+                }
             }
         });
     }
@@ -3885,7 +3892,9 @@ Repeat"
                     if resp.clicked() {
                         self.assign_keycode_value(*value);
                     }
-                    resp.on_hover_text(self.picker_keycode_tooltip(*value, &[]));
+                    if resp.hovered() {
+                        resp.on_hover_text(self.picker_keycode_tooltip(*value, &[]));
+                    }
                 }
             });
         }
@@ -3940,7 +3949,9 @@ Repeat"
                 if resp.clicked() {
                     self.assign_keycode_value(*value);
                 }
-                resp.on_hover_text(self.picker_keycode_tooltip(*value, &[]));
+                if resp.hovered() {
+                    resp.on_hover_text(self.picker_keycode_tooltip(*value, &[]));
+                }
             }
         });
 
@@ -4109,8 +4120,10 @@ Repeat"
                 if resp.clicked() {
                     self.assign_keycode_value(kc.value);
                 }
-                resp = resp.on_hover_text(self.picker_keycode_tooltip(kc.value, &[]));
-                let _ = resp;
+                if resp.hovered() {
+                    resp = resp.on_hover_text(self.picker_keycode_tooltip(kc.value, &[]));
+                    let _ = resp;
+                }
             }
         });
 
@@ -4177,8 +4190,10 @@ Repeat"
                     if resp.clicked() {
                         self.assign_keycode_value(*value);
                     }
-                    resp = resp.on_hover_text(self.picker_keycode_tooltip(*value, &[]));
-                    let _ = resp;
+                    if resp.hovered() {
+                        resp = resp.on_hover_text(self.picker_keycode_tooltip(*value, &[]));
+                        let _ = resp;
+                    }
                 }
             });
         }
