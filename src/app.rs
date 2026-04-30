@@ -8574,7 +8574,7 @@ impl EntropyApp {
         }
         if self.one_shot_settings.supported {
             if self.tap_hold_settings.supported {
-                rows.push(SettingsRow::Section("One Shot"));
+                rows.push(SettingsRow::Section("One Shot Keys"));
             }
             rows.extend([
                 SettingsRow::Setting {
@@ -8736,8 +8736,8 @@ impl EntropyApp {
             egui::Stroke::new(1.0, separator),
         );
         ui.painter().text(
-            egui::pos2(row_rect.left() + 2.0, row_rect.center().y),
-            egui::Align2::LEFT_CENTER,
+            row_rect.center(),
+            egui::Align2::CENTER_CENTER,
             title,
             egui::FontId::proportional(12.5),
             app_muted_text(dark),
