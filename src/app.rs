@@ -8458,6 +8458,7 @@ impl EntropyApp {
     fn tap_hold_one_shot_row_count(&self) -> usize {
         self.tap_hold_settings.supported as usize * 10
             + self.one_shot_settings.supported as usize * 2
+            + (self.tap_hold_settings.supported && self.one_shot_settings.supported) as usize
     }
 
     fn draw_tap_hold_editor_content(
@@ -8474,118 +8475,150 @@ impl EntropyApp {
             OneShot,
         }
 
-        let mut rows: Vec<(SettingsRowKind, u16, &str, &str, bool, u32)> = Vec::with_capacity(12);
+        enum SettingsRow {
+            Section(&'static str),
+            Setting {
+                kind: SettingsRowKind,
+                qsid: u16,
+                label: &'static str,
+                tooltip: &'static str,
+                is_bool: bool,
+                max: u32,
+            },
+        }
+
+        let mut rows: Vec<SettingsRow> = Vec::with_capacity(13);
         if self.tap_hold_settings.supported {
             rows.extend([
-                (
-                    SettingsRowKind::TapHold,
-                    7,
-                    "Tapping term",
-                    "Global tap-vs-hold decision window for dual-role keys",
-                    false,
-                    10000,
-                ),
-                (
-                    SettingsRowKind::TapHold,
-                    22,
-                    "Permissive hold",
-                    "Nested taps choose hold for Mod-Tap and Layer-Tap keys",
-                    true,
-                    1,
-                ),
-                (
-                    SettingsRowKind::TapHold,
-                    23,
-                    "Hold on other key",
-                    "Pressing another key immediately chooses hold for dual-role keys",
-                    true,
-                    1,
-                ),
-                (
-                    SettingsRowKind::TapHold,
-                    24,
-                    "Retro tapping",
-                    "A held-and-released-alone dual-role key still sends its tap action",
-                    true,
-                    1,
-                ),
-                (
-                    SettingsRowKind::TapHold,
-                    26,
-                    "Chordal hold",
-                    "Same-hand chords prefer tap to reduce home-row mod accidents",
-                    true,
-                    1,
-                ),
-                (
-                    SettingsRowKind::TapHold,
-                    25,
-                    "Quick tap term",
-                    "Tap-then-hold repeat window for dual-role key tap actions",
-                    false,
-                    10000,
-                ),
-                (
-                    SettingsRowKind::TapHold,
-                    18,
-                    "Tap code delay",
-                    "Delay between register and unregister in tap_code",
-                    false,
-                    1000,
-                ),
-                (
-                    SettingsRowKind::TapHold,
-                    19,
-                    "Tap hold caps delay",
-                    "Extra delay for LT/MT keys whose tap action is Caps Lock",
-                    false,
-                    1000,
-                ),
-                (
-                    SettingsRowKind::TapHold,
-                    20,
-                    "Tapping toggle",
-                    "Number of taps needed for TT layer toggle",
-                    false,
-                    100,
-                ),
-                (
-                    SettingsRowKind::TapHold,
-                    27,
-                    "Flow tap",
-                    "Fast typing timeout that forces MT/LT keys to tap",
-                    false,
-                    10000,
-                ),
+                SettingsRow::Setting {
+                    kind: SettingsRowKind::TapHold,
+                    qsid: 7,
+                    label: "Tapping term",
+                    tooltip: "Global tap-vs-hold decision window for dual-role keys",
+                    is_bool: false,
+                    max: 10000,
+                },
+                SettingsRow::Setting {
+                    kind: SettingsRowKind::TapHold,
+                    qsid: 22,
+                    label: "Permissive hold",
+                    tooltip: "Nested taps choose hold for Mod-Tap and Layer-Tap keys",
+                    is_bool: true,
+                    max: 1,
+                },
+                SettingsRow::Setting {
+                    kind: SettingsRowKind::TapHold,
+                    qsid: 23,
+                    label: "Hold on other key",
+                    tooltip: "Pressing another key immediately chooses hold for dual-role keys",
+                    is_bool: true,
+                    max: 1,
+                },
+                SettingsRow::Setting {
+                    kind: SettingsRowKind::TapHold,
+                    qsid: 24,
+                    label: "Retro tapping",
+                    tooltip: "A held-and-released-alone dual-role key still sends its tap action",
+                    is_bool: true,
+                    max: 1,
+                },
+                SettingsRow::Setting {
+                    kind: SettingsRowKind::TapHold,
+                    qsid: 26,
+                    label: "Chordal hold",
+                    tooltip: "Same-hand chords prefer tap to reduce home-row mod accidents",
+                    is_bool: true,
+                    max: 1,
+                },
+                SettingsRow::Setting {
+                    kind: SettingsRowKind::TapHold,
+                    qsid: 25,
+                    label: "Quick tap term",
+                    tooltip: "Tap-then-hold repeat window for dual-role key tap actions",
+                    is_bool: false,
+                    max: 10000,
+                },
+                SettingsRow::Setting {
+                    kind: SettingsRowKind::TapHold,
+                    qsid: 18,
+                    label: "Tap code delay",
+                    tooltip: "Delay between register and unregister in tap_code",
+                    is_bool: false,
+                    max: 1000,
+                },
+                SettingsRow::Setting {
+                    kind: SettingsRowKind::TapHold,
+                    qsid: 19,
+                    label: "Tap hold caps delay",
+                    tooltip: "Extra delay for LT/MT keys whose tap action is Caps Lock",
+                    is_bool: false,
+                    max: 1000,
+                },
+                SettingsRow::Setting {
+                    kind: SettingsRowKind::TapHold,
+                    qsid: 20,
+                    label: "Tapping toggle",
+                    tooltip: "Number of taps needed for TT layer toggle",
+                    is_bool: false,
+                    max: 100,
+                },
+                SettingsRow::Setting {
+                    kind: SettingsRowKind::TapHold,
+                    qsid: 27,
+                    label: "Flow tap",
+                    tooltip: "Fast typing timeout that forces MT/LT keys to tap",
+                    is_bool: false,
+                    max: 10000,
+                },
             ]);
         }
         if self.one_shot_settings.supported {
+            if self.tap_hold_settings.supported {
+                rows.push(SettingsRow::Section("One Shot"));
+            }
             rows.extend([
-                (
-                    SettingsRowKind::OneShot,
-                    5,
-                    "One-shot tap toggle",
-                    "Tap this many times to keep a one-shot key held until tapped again",
-                    false,
-                    50,
-                ),
-                (
-                    SettingsRowKind::OneShot,
-                    6,
-                    "One-shot timeout",
-                    "How long one-shot state waits before it is released",
-                    false,
-                    60000,
-                ),
+                SettingsRow::Setting {
+                    kind: SettingsRowKind::OneShot,
+                    qsid: 5,
+                    label: "One-shot tap toggle",
+                    tooltip: "Tap this many times to keep a one-shot key held until tapped again",
+                    is_bool: false,
+                    max: 50,
+                },
+                SettingsRow::Setting {
+                    kind: SettingsRowKind::OneShot,
+                    qsid: 6,
+                    label: "One-shot timeout",
+                    tooltip: "How long one-shot state waits before it is released",
+                    is_bool: false,
+                    max: 60000,
+                },
             ]);
         }
         const FIELD_WIDTH: f32 = 86.0;
 
         for row_idx in row_range {
-            let Some((kind, qsid, label, tooltip, is_bool, max)) = rows.get(row_idx).copied()
-            else {
+            let Some(row) = rows.get(row_idx) else {
                 continue;
             };
+            let SettingsRow::Setting {
+                kind,
+                qsid,
+                label,
+                tooltip,
+                is_bool,
+                max,
+            } = row
+            else {
+                if let SettingsRow::Section(title) = row {
+                    self.draw_tap_hold_section_divider(ui, content_width, row_height, title);
+                }
+                continue;
+            };
+            let kind = *kind;
+            let qsid = *qsid;
+            let is_bool = *is_bool;
+            let max = *max;
             if is_bool {
                 let mut value = self.tap_hold_bool_value(qsid);
                 crate::ui_style::settings_list_row_with_tooltip(
@@ -8684,6 +8717,31 @@ impl EntropyApp {
                 );
             }
         }
+    }
+
+    fn draw_tap_hold_section_divider(
+        &self,
+        ui: &mut egui::Ui,
+        content_width: f32,
+        row_height: f32,
+        title: &str,
+    ) {
+        let dark = ui.visuals().dark_mode;
+        let (row_rect, _) =
+            ui.allocate_exact_size(egui::vec2(content_width, row_height), egui::Sense::hover());
+        let separator =
+            crate::ui_style::border_color(dark).gamma_multiply(if dark { 0.72 } else { 0.9 });
+        ui.painter().line_segment(
+            [row_rect.left_bottom(), row_rect.right_bottom()],
+            egui::Stroke::new(1.0, separator),
+        );
+        ui.painter().text(
+            egui::pos2(row_rect.left() + 2.0, row_rect.center().y),
+            egui::Align2::LEFT_CENTER,
+            title,
+            egui::FontId::proportional(12.5),
+            app_muted_text(dark),
+        );
     }
 
     fn one_shot_numeric_value(&self, qsid: u16) -> u16 {
