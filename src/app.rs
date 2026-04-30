@@ -1762,7 +1762,6 @@ enum SettingsTab {
     Encoders,
     Magic,
     TapHold,
-    OneShotKeys,
     GraveEscape,
     LayoutOptions,
     Touchpad,
@@ -3119,9 +3118,6 @@ impl EntropyApp {
             }
             SettingsTab::Magic => {
                 self.draw_magic_settings_page(ui, content_rect);
-            }
-            SettingsTab::OneShotKeys => {
-                self.draw_one_shot_settings_page(ui, content_rect);
             }
             SettingsTab::GraveEscape => {
                 self.draw_grave_escape_settings_page(ui, content_rect);
@@ -5775,11 +5771,6 @@ impl EntropyApp {
         self.main_menu_tab = MainMenuTab::Settings;
     }
 
-    fn open_one_shot_settings_page(&mut self) {
-        self.settings_tab = SettingsTab::OneShotKeys;
-        self.main_menu_tab = MainMenuTab::Settings;
-    }
-
     fn open_grave_escape_settings_page(&mut self) {
         self.settings_tab = SettingsTab::GraveEscape;
         self.main_menu_tab = MainMenuTab::Settings;
@@ -8299,176 +8290,6 @@ impl EntropyApp {
         }
     }
 
-    fn draw_one_shot_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
-        let dark = ui.visuals().dark_mode;
-        let hid_ready = {
-            #[cfg(not(target_arch = "wasm32"))]
-            {
-                self.hid_device.is_some()
-            }
-            #[cfg(target_arch = "wasm32")]
-            {
-                false
-            }
-        };
-
-        ui.allocate_ui_at_rect(content_rect, |ui| {
-            ui.vertical_centered(|ui| {
-                ui.add_space(18.0);
-                ui.label(RichText::new("One Shot Keys").size(18.0).strong());
-                ui.add_space(6.0);
-                ui.label(
-                    RichText::new("Tune one-shot modifiers and one-shot layers")
-                        .size(13.0)
-                        .color(app_muted_text(dark)),
-                );
-                ui.add_space(24.0);
-
-                if !self.one_shot_settings.supported {
-                    crate::ui_style::modal_empty_state(
-                        ui,
-                        "One Shot Keys settings are not available on this firmware",
-                        Some("Enable QMK_SETTINGS in the keyboard rules.mk to use this page"),
-                    );
-                    return;
-                }
-
-                if !hid_ready {
-                    crate::ui_style::modal_empty_state(
-                        ui,
-                        "Connect a Vial keyboard to edit One Shot Keys settings",
-                        None,
-                    );
-                    return;
-                }
-
-                const CONTENT_WIDTH: f32 = 470.0;
-                const ROW_CONTENT_WIDTH: f32 = 452.0;
-                const ROW_HEIGHT: f32 = 54.0;
-                const FIELD_WIDTH: f32 = 86.0;
-
-                crate::ui_style::modal_content(
-                    ui,
-                    crate::ui_style::ModalLayout::new(CONTENT_WIDTH).with_top_padding(4.0),
-                    |ui| {
-                        ui.spacing_mut().item_spacing.y = 0.0;
-                        self.draw_one_shot_numeric_row(
-                            ui,
-                            ROW_CONTENT_WIDTH,
-                            ROW_HEIGHT,
-                            FIELD_WIDTH,
-                            5,
-                            "Tap toggle",
-                            "Tap this many times to keep a one-shot key held until tapped again",
-                            50,
-                            false,
-                        );
-                        self.draw_one_shot_numeric_row(
-                            ui,
-                            ROW_CONTENT_WIDTH,
-                            ROW_HEIGHT,
-                            FIELD_WIDTH,
-                            6,
-                            "Timeout",
-                            "How long one-shot state waits before it is released",
-                            60000,
-                            true,
-                        );
-                    },
-                );
-            });
-        });
-    }
-
-    fn draw_one_shot_numeric_row(
-        &mut self,
-        ui: &mut egui::Ui,
-        content_width: f32,
-        row_height: f32,
-        field_width: f32,
-        qsid: u16,
-        label: &str,
-        tooltip: &str,
-        max: u32,
-        is_time: bool,
-    ) {
-        let current = self.one_shot_numeric_value(qsid);
-        crate::ui_style::settings_list_row_with_tooltip(
-            ui,
-            content_width,
-            row_height,
-            label,
-            true,
-            Some(tooltip),
-            field_width,
-            |ui| {
-                let edit_id = egui::Id::new(("one_shot_edit", qsid));
-                let mut text = ui.ctx().data_mut(|d| {
-                    d.get_temp::<String>(edit_id)
-                        .unwrap_or_else(|| current.to_string())
-                });
-                if text.parse::<u16>().ok() != Some(current) && !ui.memory(|m| m.has_focus(edit_id))
-                {
-                    text = current.to_string();
-                }
-                let resp = crate::ui_style::modern_text_field(
-                    ui,
-                    edit_id,
-                    &mut text,
-                    field_width,
-                    "",
-                    if qsid == 6 { 5 } else { 2 },
-                    egui::Align::RIGHT,
-                );
-                if is_time {
-                    resp.clone().on_hover_text("Value is in milliseconds");
-                }
-                if resp.changed() {
-                    let filtered: String = text.chars().filter(|c| c.is_ascii_digit()).collect();
-                    let parsed = filtered.parse::<u32>().unwrap_or(0).min(max);
-                    let new_value = parsed as u16;
-                    if new_value != current {
-                        self.set_one_shot_numeric_value(qsid, new_value);
-                        self.write_one_shot_numeric_setting(qsid, new_value);
-                    }
-                    text = filtered;
-                }
-                ui.ctx().data_mut(|d| d.insert_temp(edit_id, text));
-            },
-        );
-    }
-
-    fn one_shot_numeric_value(&self, qsid: u16) -> u16 {
-        match qsid {
-            5 => self.one_shot_settings.tap_toggle as u16,
-            6 => self.one_shot_settings.timeout,
-            _ => 0,
-        }
-    }
-
-    fn set_one_shot_numeric_value(&mut self, qsid: u16, value: u16) {
-        match qsid {
-            5 => self.one_shot_settings.tap_toggle = value.min(u8::MAX as u16) as u8,
-            6 => self.one_shot_settings.timeout = value,
-            _ => {}
-        }
-    }
-
-    fn write_one_shot_numeric_setting(&mut self, qsid: u16, value: u16) {
-        let Some(hid) = &self.hid_device else {
-            return;
-        };
-        let result = if qsid == 5 {
-            hid.set_qmk_setting_u8(qsid, value.min(u8::MAX as u16) as u8)
-        } else {
-            hid.set_qmk_setting_u16(qsid, value)
-        };
-        if let Err(e) = result {
-            self.status_msg = format!("Failed to save One Shot Keys setting (qsid {qsid}): {}", e);
-            log::warn!("set_qmk_setting(one_shot qsid {qsid}) failed: {e}");
-        }
-    }
-
     fn draw_tap_hold_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
         let dark = ui.visuals().dark_mode;
         let hid_ready = {
@@ -8485,19 +8306,19 @@ impl EntropyApp {
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(18.0);
-                ui.label(RichText::new("Tap-Hold").size(18.0).strong());
+                ui.label(RichText::new("Tap-Hold & One Shot").size(18.0).strong());
                 ui.add_space(6.0);
                 ui.label(
-                    RichText::new("Tune dual-role Mod-Tap, Layer-Tap and Tap-Toggle behavior")
+                    RichText::new("Tune dual-role keys, one-shot modifiers and one-shot layers")
                         .size(13.0)
                         .color(app_muted_text(dark)),
                 );
                 ui.add_space(24.0);
 
-                if !self.tap_hold_settings.supported {
+                if !self.tap_hold_settings.supported && !self.one_shot_settings.supported {
                     crate::ui_style::modal_empty_state(
                         ui,
-                        "Tap-Hold settings are not available on this firmware",
+                        "Tap-Hold & One Shot settings are not available on this firmware",
                         Some("Enable QMK_SETTINGS in the keyboard rules.mk to use this page"),
                     );
                     return;
@@ -8506,19 +8327,19 @@ impl EntropyApp {
                 if !hid_ready {
                     crate::ui_style::modal_empty_state(
                         ui,
-                        "Connect a Vial keyboard to edit Tap-Hold settings",
+                        "Connect a Vial keyboard to edit Tap-Hold & One Shot settings",
                         None,
                     );
                     return;
                 }
 
                 const VISIBLE_ROWS: usize = 6;
-                const TOTAL_ROWS: usize = 10;
                 const CONTENT_WIDTH: f32 = 470.0;
                 const ROW_CONTENT_WIDTH: f32 = 452.0;
                 const ROW_HEIGHT: f32 = 54.0;
-                let list_height = ROW_HEIGHT * VISIBLE_ROWS as f32;
-                let content_height = ROW_HEIGHT * TOTAL_ROWS as f32;
+                let total_rows = self.tap_hold_one_shot_row_count();
+                let list_height = ROW_HEIGHT * VISIBLE_ROWS.min(total_rows.max(1)) as f32;
+                let content_height = ROW_HEIGHT * total_rows as f32;
                 let max_offset = (content_height - list_height).max(0.0);
                 let offset_id = ui.id().with("tap_hold_settings_smooth_offset");
                 let target_id = ui.id().with("tap_hold_settings_smooth_target");
@@ -8596,7 +8417,7 @@ impl EntropyApp {
 
                 let first_visible_row = (scroll_offset / ROW_HEIGHT).floor() as usize;
                 let row_y_offset = scroll_offset - first_visible_row as f32 * ROW_HEIGHT;
-                let last_visible_row = (first_visible_row + VISIBLE_ROWS + 1).min(TOTAL_ROWS);
+                let last_visible_row = (first_visible_row + VISIBLE_ROWS + 1).min(total_rows);
                 let visible_row_count = last_visible_row.saturating_sub(first_visible_row);
                 let content_rect = egui::Rect::from_min_size(
                     egui::pos2(viewport.left(), viewport.top() - row_y_offset),
@@ -8634,6 +8455,11 @@ impl EntropyApp {
         });
     }
 
+    fn tap_hold_one_shot_row_count(&self) -> usize {
+        self.tap_hold_settings.supported as usize * 10
+            + self.one_shot_settings.supported as usize * 2
+    }
+
     fn draw_tap_hold_editor_content(
         &mut self,
         ui: &mut egui::Ui,
@@ -8642,82 +8468,122 @@ impl EntropyApp {
         row_height: f32,
         suppress_tooltips: bool,
     ) {
-        let rows: [(u16, &str, &str, bool, u32); 10] = [
-            (
-                7,
-                "Tapping term",
-                "Global tap-vs-hold decision window for dual-role keys",
-                false,
-                10000,
-            ),
-            (
-                22,
-                "Permissive hold",
-                "Nested taps choose hold for Mod-Tap and Layer-Tap keys",
-                true,
-                1,
-            ),
-            (
-                23,
-                "Hold on other key",
-                "Pressing another key immediately chooses hold for dual-role keys",
-                true,
-                1,
-            ),
-            (
-                24,
-                "Retro tapping",
-                "A held-and-released-alone dual-role key still sends its tap action",
-                true,
-                1,
-            ),
-            (
-                26,
-                "Chordal hold",
-                "Same-hand chords prefer tap to reduce home-row mod accidents",
-                true,
-                1,
-            ),
-            (
-                25,
-                "Quick tap term",
-                "Tap-then-hold repeat window for dual-role key tap actions",
-                false,
-                10000,
-            ),
-            (
-                18,
-                "Tap code delay",
-                "Delay between register and unregister in tap_code",
-                false,
-                1000,
-            ),
-            (
-                19,
-                "Tap hold caps delay",
-                "Extra delay for LT/MT keys whose tap action is Caps Lock",
-                false,
-                1000,
-            ),
-            (
-                20,
-                "Tapping toggle",
-                "Number of taps needed for TT layer toggle",
-                false,
-                100,
-            ),
-            (
-                27,
-                "Flow tap",
-                "Fast typing timeout that forces MT/LT keys to tap",
-                false,
-                10000,
-            ),
-        ];
+        #[derive(Clone, Copy)]
+        enum SettingsRowKind {
+            TapHold,
+            OneShot,
+        }
+
+        let mut rows: Vec<(SettingsRowKind, u16, &str, &str, bool, u32)> = Vec::with_capacity(12);
+        if self.tap_hold_settings.supported {
+            rows.extend([
+                (
+                    SettingsRowKind::TapHold,
+                    7,
+                    "Tapping term",
+                    "Global tap-vs-hold decision window for dual-role keys",
+                    false,
+                    10000,
+                ),
+                (
+                    SettingsRowKind::TapHold,
+                    22,
+                    "Permissive hold",
+                    "Nested taps choose hold for Mod-Tap and Layer-Tap keys",
+                    true,
+                    1,
+                ),
+                (
+                    SettingsRowKind::TapHold,
+                    23,
+                    "Hold on other key",
+                    "Pressing another key immediately chooses hold for dual-role keys",
+                    true,
+                    1,
+                ),
+                (
+                    SettingsRowKind::TapHold,
+                    24,
+                    "Retro tapping",
+                    "A held-and-released-alone dual-role key still sends its tap action",
+                    true,
+                    1,
+                ),
+                (
+                    SettingsRowKind::TapHold,
+                    26,
+                    "Chordal hold",
+                    "Same-hand chords prefer tap to reduce home-row mod accidents",
+                    true,
+                    1,
+                ),
+                (
+                    SettingsRowKind::TapHold,
+                    25,
+                    "Quick tap term",
+                    "Tap-then-hold repeat window for dual-role key tap actions",
+                    false,
+                    10000,
+                ),
+                (
+                    SettingsRowKind::TapHold,
+                    18,
+                    "Tap code delay",
+                    "Delay between register and unregister in tap_code",
+                    false,
+                    1000,
+                ),
+                (
+                    SettingsRowKind::TapHold,
+                    19,
+                    "Tap hold caps delay",
+                    "Extra delay for LT/MT keys whose tap action is Caps Lock",
+                    false,
+                    1000,
+                ),
+                (
+                    SettingsRowKind::TapHold,
+                    20,
+                    "Tapping toggle",
+                    "Number of taps needed for TT layer toggle",
+                    false,
+                    100,
+                ),
+                (
+                    SettingsRowKind::TapHold,
+                    27,
+                    "Flow tap",
+                    "Fast typing timeout that forces MT/LT keys to tap",
+                    false,
+                    10000,
+                ),
+            ]);
+        }
+        if self.one_shot_settings.supported {
+            rows.extend([
+                (
+                    SettingsRowKind::OneShot,
+                    5,
+                    "One-shot tap toggle",
+                    "Tap this many times to keep a one-shot key held until tapped again",
+                    false,
+                    50,
+                ),
+                (
+                    SettingsRowKind::OneShot,
+                    6,
+                    "One-shot timeout",
+                    "How long one-shot state waits before it is released",
+                    false,
+                    60000,
+                ),
+            ]);
+        }
         const FIELD_WIDTH: f32 = 86.0;
 
         for row_idx in row_range {
-            let Some((qsid, label, tooltip, is_bool, max)) = rows.get(row_idx).copied() else {
+            let Some((kind, qsid, label, tooltip, is_bool, max)) = rows.get(row_idx).copied()
+            else {
                 continue;
             };
             if is_bool {
@@ -8743,7 +8609,10 @@ impl EntropyApp {
                     },
                 );
             } else {
-                let current = self.tap_hold_numeric_value(qsid);
+                let current = match kind {
+                    SettingsRowKind::TapHold => self.tap_hold_numeric_value(qsid),
+                    SettingsRowKind::OneShot => self.one_shot_numeric_value(qsid),
+                };
                 crate::ui_style::settings_list_row_with_tooltip(
                     ui,
                     content_width,
@@ -8757,7 +8626,13 @@ impl EntropyApp {
                     },
                     FIELD_WIDTH,
                     |ui| {
-                        let edit_id = egui::Id::new(("tap_hold_edit", qsid));
+                        let edit_id = egui::Id::new((
+                            match kind {
+                                SettingsRowKind::TapHold => "tap_hold_edit",
+                                SettingsRowKind::OneShot => "one_shot_edit",
+                            },
+                            qsid,
+                        ));
                         let mut text = ui.ctx().data_mut(|d| {
                             d.get_temp::<String>(edit_id)
                                 .unwrap_or_else(|| current.to_string())
@@ -8777,8 +8652,9 @@ impl EntropyApp {
                             egui::Align::RIGHT,
                         );
                         if !suppress_tooltips {
-                            match qsid {
-                                7 | 25 | 18 | 19 | 27 => {
+                            match (kind, qsid) {
+                                (SettingsRowKind::TapHold, 7 | 25 | 18 | 19 | 27)
+                                | (SettingsRowKind::OneShot, 6) => {
                                     resp.clone().on_hover_text("Value is in milliseconds");
                                 }
                                 _ => {}
@@ -8790,8 +8666,16 @@ impl EntropyApp {
                             let parsed = filtered.parse::<u32>().unwrap_or(0).min(max);
                             let new_value = parsed as u16;
                             if new_value != current {
-                                self.set_tap_hold_numeric_value(qsid, new_value);
-                                self.write_tap_hold_numeric_setting(qsid, new_value);
+                                match kind {
+                                    SettingsRowKind::TapHold => {
+                                        self.set_tap_hold_numeric_value(qsid, new_value);
+                                        self.write_tap_hold_numeric_setting(qsid, new_value);
+                                    }
+                                    SettingsRowKind::OneShot => {
+                                        self.set_one_shot_numeric_value(qsid, new_value);
+                                        self.write_one_shot_numeric_setting(qsid, new_value);
+                                    }
+                                }
                             }
                             text = filtered;
                         }
@@ -8799,6 +8683,37 @@ impl EntropyApp {
                     },
                 );
             }
+        }
+    }
+
+    fn one_shot_numeric_value(&self, qsid: u16) -> u16 {
+        match qsid {
+            5 => self.one_shot_settings.tap_toggle as u16,
+            6 => self.one_shot_settings.timeout,
+            _ => 0,
+        }
+    }
+
+    fn set_one_shot_numeric_value(&mut self, qsid: u16, value: u16) {
+        match qsid {
+            5 => self.one_shot_settings.tap_toggle = value.min(u8::MAX as u16) as u8,
+            6 => self.one_shot_settings.timeout = value,
+            _ => {}
+        }
+    }
+
+    fn write_one_shot_numeric_setting(&mut self, qsid: u16, value: u16) {
+        let Some(hid) = &self.hid_device else {
+            return;
+        };
+        let result = if qsid == 5 {
+            hid.set_qmk_setting_u8(qsid, value.min(u8::MAX as u16) as u8)
+        } else {
+            hid.set_qmk_setting_u16(qsid, value)
+        };
+        if let Err(e) = result {
+            self.status_msg = format!("Failed to save One Shot setting (qsid {qsid}): {}", e);
+            log::warn!("set_qmk_setting(one_shot qsid {qsid}) failed: {e}");
         }
     }
 
@@ -11368,8 +11283,8 @@ impl EntropyApp {
                 let show_touchpad_item = self.touchpad_settings.supported;
                 let show_live_features_item = self.live_features_available_for_selected_device();
                 let show_magic_item = self.magic_settings.supported;
-                let show_tap_hold_item = self.tap_hold_settings.supported;
-                let show_one_shot_item = self.one_shot_settings.supported;
+                let show_tap_hold_item =
+                    self.tap_hold_settings.supported || self.one_shot_settings.supported;
                 let show_matrix_item = self.firmware == FirmwareProtocol::Vial;
                 let settings_item_count = 2
                     + show_matrix_item as usize
@@ -11380,8 +11295,7 @@ impl EntropyApp {
                     + show_touchpad_item as usize
                     + show_live_features_item as usize
                     + show_magic_item as usize
-                    + show_tap_hold_item as usize
-                    + show_one_shot_item as usize;
+                    + show_tap_hold_item as usize;
                 // Keep hover bridge in sync with actual item height (30px) and frame padding.
                 // Underestimating this makes lower items close the dropdown on hover.
                 let dropdown_height = settings_item_count as f32 * 30.0 + 12.0;
@@ -11418,7 +11332,6 @@ impl EntropyApp {
                         live_features_hovered,
                         magic_hovered,
                         tap_hold_hovered,
-                        one_shot_hovered,
                         settings_clicked,
                     ) = egui::Area::new(egui::Id::new("settings_dropdown_area"))
                         .order(egui::Order::Foreground)
@@ -11531,20 +11444,10 @@ impl EntropyApp {
                                         top_dropdown_item(
                                             ui,
                                             item_width,
-                                            "Tap-Hold",
+                                            "Tap-Hold & One Shot",
                                             true,
                                             self.main_menu_tab == MainMenuTab::Settings
                                                 && self.settings_tab == SettingsTab::TapHold,
-                                        )
-                                    });
-                                    let one_shot_resp = show_one_shot_item.then(|| {
-                                        top_dropdown_item(
-                                            ui,
-                                            item_width,
-                                            "One Shot Keys",
-                                            true,
-                                            self.main_menu_tab == MainMenuTab::Settings
-                                                && self.settings_tab == SettingsTab::OneShotKeys,
                                         )
                                     });
                                     if app_resp.clicked() {
@@ -11621,11 +11524,6 @@ impl EntropyApp {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.open_tap_hold_settings_page();
                                     }
-                                    if one_shot_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
-                                    {
-                                        self.close_top_dropdowns(ui.ctx());
-                                        self.open_one_shot_settings_page();
-                                    }
                                     (
                                         app_resp.hovered(),
                                         matrix_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
@@ -11656,10 +11554,6 @@ impl EntropyApp {
                                             .unwrap_or(false),
                                         magic_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         tap_hold_resp
-                                            .as_ref()
-                                            .map(|r| r.hovered())
-                                            .unwrap_or(false),
-                                        one_shot_resp
                                             .as_ref()
                                             .map(|r| r.hovered())
                                             .unwrap_or(false),
@@ -11700,10 +11594,6 @@ impl EntropyApp {
                                             || tap_hold_resp
                                                 .as_ref()
                                                 .map(|r| r.clicked())
-                                                .unwrap_or(false)
-                                            || one_shot_resp
-                                                .as_ref()
-                                                .map(|r| r.clicked())
                                                 .unwrap_or(false),
                                     )
                                 })
@@ -11726,7 +11616,6 @@ impl EntropyApp {
                                     || live_features_hovered
                                     || magic_hovered
                                     || tap_hold_hovered
-                                    || one_shot_hovered
                                     || pointer_over_bridge),
                         )
                     });
