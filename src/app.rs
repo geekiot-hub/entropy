@@ -53,6 +53,17 @@ fn app_settings_path() -> std::path::PathBuf {
     dir.join("app_settings.json")
 }
 
+fn display_preset_restore_path(device_name: &str) -> std::path::PathBuf {
+    let dir = dirs::config_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join("entropy");
+    std::fs::create_dir_all(&dir).ok();
+    dir.join(format!(
+        "display_preset_restore_{}.txt",
+        device_id_slug(device_name)
+    ))
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 enum AppAccentColor {
     Rose,
@@ -2977,6 +2988,7 @@ impl EntropyApp {
                         match crate::hid::HidDevice::open(&dev.path) {
                             Ok(v) => {
                                 self.hid_device = Some(v);
+                                self.restore_entropy_display_preset_after_connect();
                             }
                             Err(e) => log::warn!("Could not open persistent HID: {e}"),
                         }
@@ -5874,6 +5886,125 @@ impl EntropyApp {
             .position(|choice| choice.eq_ignore_ascii_case("disabled"))
     }
 
+    fn is_display_preset_layout_option(option: &LayoutOption) -> bool {
+        !Self::is_encoder_layout_option(option)
+            && option
+                .choices
+                .iter()
+                .any(|choice| Self::display_preset_needs_entropy(choice))
+            && Self::static_display_preset_fallback_idx(option).is_some()
+    }
+
+    fn selected_layout_option_idx(option: &LayoutOption, values: &[u32], idx: usize) -> usize {
+        values
+            .get(idx)
+            .copied()
+            .unwrap_or(0)
+            .min(option.choices.len().saturating_sub(1) as u32) as usize
+    }
+
+    fn restore_display_preset_packed(
+        layout: &KeyboardLayout,
+        current_packed: u32,
+        restore_packed: u32,
+    ) -> Option<u32> {
+        let mut current_values =
+            Self::unpack_layout_option_values(&layout.layout_options, current_packed);
+        let restore_values =
+            Self::unpack_layout_option_values(&layout.layout_options, restore_packed);
+        let mut changed = false;
+
+        for (idx, option) in layout.layout_options.iter().enumerate() {
+            if !Self::is_display_preset_layout_option(option) {
+                continue;
+            }
+            let Some(disabled_idx) = Self::static_display_preset_fallback_idx(option) else {
+                continue;
+            };
+            let current_idx = Self::selected_layout_option_idx(option, &current_values, idx);
+            if current_idx != disabled_idx {
+                continue;
+            }
+            let restore_idx = Self::selected_layout_option_idx(option, &restore_values, idx);
+            let restore_needs_entropy = option
+                .choices
+                .get(restore_idx)
+                .map(|choice| Self::display_preset_needs_entropy(choice))
+                .unwrap_or(false);
+            if !restore_needs_entropy {
+                continue;
+            }
+            current_values[idx] = restore_idx as u32;
+            changed = true;
+        }
+
+        changed.then(|| Self::pack_layout_option_values(&layout.layout_options, &current_values))
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn save_display_preset_restore(&self, packed: u32) {
+        if self.current_device_name.is_empty() {
+            return;
+        }
+        if let Err(e) = std::fs::write(
+            display_preset_restore_path(&self.current_device_name),
+            packed.to_string(),
+        ) {
+            log::warn!("save display preset restore failed: {e}");
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn load_display_preset_restore(&self) -> Option<u32> {
+        if self.current_device_name.is_empty() {
+            return None;
+        }
+        std::fs::read_to_string(display_preset_restore_path(&self.current_device_name))
+            .ok()
+            .and_then(|text| text.trim().parse::<u32>().ok())
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn clear_display_preset_restore(&self) {
+        if self.current_device_name.is_empty() {
+            return;
+        }
+        let path = display_preset_restore_path(&self.current_device_name);
+        if let Err(e) = std::fs::remove_file(path) {
+            if e.kind() != std::io::ErrorKind::NotFound {
+                log::warn!("clear display preset restore failed: {e}");
+            }
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn restore_entropy_display_preset_after_connect(&mut self) {
+        let Some(layout) = self.layout.as_ref() else {
+            return;
+        };
+        let Some(current_packed) = self.layout_options_value else {
+            return;
+        };
+        let Some(restore_packed) = self.load_display_preset_restore() else {
+            return;
+        };
+        let Some(packed) =
+            Self::restore_display_preset_packed(layout, current_packed, restore_packed)
+        else {
+            return;
+        };
+
+        self.layout_options_value = Some(packed);
+        if let Some(hid) = &self.hid_device {
+            if let Err(e) = hid.set_layout_options(packed) {
+                log::warn!("restore display preset after connect failed: {e}");
+                self.layout_options_value = Some(current_packed);
+                return;
+            }
+        }
+        self.sync_qmk_hid_host_bridges();
+    }
+
     #[cfg(not(target_arch = "wasm32"))]
     fn device_uses_automatic_display_host_data(device: &crate::device::Device) -> bool {
         if device.firmware != FirmwareProtocol::Vial {
@@ -6029,7 +6160,9 @@ impl EntropyApp {
             return;
         }
 
+        let original_packed = self.layout_options_value.unwrap_or(0);
         let packed = Self::pack_layout_option_values(&layout.layout_options, &values);
+        self.save_display_preset_restore(original_packed);
         self.layout_options_value = Some(packed);
         self.qmk_hid_hosts.clear();
         if let Some(hid) = &self.hid_device {
@@ -6153,6 +6286,21 @@ impl EntropyApp {
         }
         let packed = Self::pack_layout_option_values(&options, &values);
         self.layout_options_value = Some(packed);
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(option) = options.get(option_idx) {
+            if Self::is_display_preset_layout_option(option) {
+                let selected_label = option
+                    .choices
+                    .get(value as usize)
+                    .map(|choice| choice.as_str())
+                    .unwrap_or("");
+                if Self::display_preset_needs_entropy(selected_label) {
+                    self.save_display_preset_restore(packed);
+                } else {
+                    self.clear_display_preset_restore();
+                }
+            }
+        }
         #[cfg(not(target_arch = "wasm32"))]
         if let Some(hid) = &self.hid_device {
             if let Err(e) = hid.set_layout_options(packed) {
@@ -12792,7 +12940,11 @@ impl EntropyApp {
             } else {
                 base_radius
             };
-            let font_scale = if encoder_hovered { ENCODER_HOVER_SCALE } else { 1.0 };
+            let font_scale = if encoder_hovered {
+                ENCODER_HOVER_SCALE
+            } else {
+                1.0
+            };
             if encoder_hovered {
                 hovered_encoder = true;
                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
@@ -12937,20 +13089,36 @@ impl EntropyApp {
             let bottom_label = encoder_label(ccw.map(|(_, kc)| kc).unwrap_or(0x0000));
             let top_font = if has_press_button {
                 egui::FontId::proportional(
-                    if top_label.chars().count() > 9 { 6.6 } else { 7.4 } * font_scale,
+                    if top_label.chars().count() > 9 {
+                        6.6
+                    } else {
+                        7.4
+                    } * font_scale,
                 )
             } else {
                 egui::FontId::proportional(
-                    if top_label.chars().count() > 9 { 8.5 } else { 9.5 } * font_scale,
+                    if top_label.chars().count() > 9 {
+                        8.5
+                    } else {
+                        9.5
+                    } * font_scale,
                 )
             };
             let bottom_font = if has_press_button {
                 egui::FontId::proportional(
-                    if bottom_label.chars().count() > 9 { 6.6 } else { 7.4 } * font_scale,
+                    if bottom_label.chars().count() > 9 {
+                        6.6
+                    } else {
+                        7.4
+                    } * font_scale,
                 )
             } else {
                 egui::FontId::proportional(
-                    if bottom_label.chars().count() > 9 { 8.5 } else { 9.5 } * font_scale,
+                    if bottom_label.chars().count() > 9 {
+                        8.5
+                    } else {
+                        9.5
+                    } * font_scale,
                 )
             };
             let top_label_y = center.y - radius * if has_press_button { 0.52 } else { 0.30 };
@@ -13061,7 +13229,11 @@ impl EntropyApp {
                 }
                 .replace('\n', " ");
                 let press_font = FontId::proportional(
-                    if press_label.chars().count() > 8 { 7.2 } else { 8.2 } * font_scale,
+                    if press_label.chars().count() > 8 {
+                        7.2
+                    } else {
+                        8.2
+                    } * font_scale,
                 );
                 painter.with_clip_rect(press_text_rect).text(
                     press_text_rect.center(),
