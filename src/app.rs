@@ -5184,14 +5184,21 @@ impl eframe::App for EntropyApp {
             }
 
             if is_loading {
-                ui.centered_and_justified(|ui| {
-                    ui.horizontal(|ui| {
-                        ui.spinner();
-                        ui.label(
-                            RichText::new("Loading keyboard…")
-                                .size(16.0)
-                                .color(Color32::GRAY),
-                        );
+                let rect = ui.max_rect();
+                let loading_rect = egui::Rect::from_center_size(
+                    rect.center(),
+                    egui::vec2(rect.width().min(260.0), 40.0),
+                );
+                ui.allocate_ui_at_rect(loading_rect, |ui| {
+                    ui.vertical_centered(|ui| {
+                        ui.horizontal(|ui| {
+                            ui.spinner();
+                            ui.label(
+                                RichText::new("Loading keyboard…")
+                                    .size(16.0)
+                                    .color(Color32::GRAY),
+                            );
+                        });
                     });
                 });
                 return;
