@@ -12736,7 +12736,7 @@ impl EntropyApp {
             }
         };
 
-        const ENCODER_HOVER_SCALE: f32 = 1.18;
+        const ENCODER_HOVER_SCALE: f32 = 1.35;
         for (_encoder_idx, rect, ccw, cw) in &encoder_groups {
             let center = rect.center();
             let base_radius = rect.width().min(rect.height()) * LAYOUT_ENCODER_RADIUS_FACTOR;
