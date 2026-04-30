@@ -6,6 +6,9 @@ static TRAY_QUIT_REQUESTED: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
 
 const MATRIX_TESTER_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(16);
+const UI_SCALE_MIN: f32 = 0.5;
+const UI_SCALE_MAX: f32 = 2.0;
+const UI_SCALE_STEP: f32 = 0.1;
 
 /// Sanitize a device name into a filesystem-safe slug.
 fn device_id_slug(device_name: &str) -> String {
@@ -115,6 +118,8 @@ struct AppSettings {
     show_shifted_number_symbols: bool,
     #[serde(default = "default_app_accent_color")]
     accent_color: AppAccentColor,
+    #[serde(default = "default_ui_scale")]
+    ui_scale: f32,
 }
 
 fn default_show_shifted_number_symbols() -> bool {
@@ -125,12 +130,29 @@ fn default_app_accent_color() -> AppAccentColor {
     AppAccentColor::Rose
 }
 
+fn default_ui_scale() -> f32 {
+    1.0
+}
+
+fn clamp_ui_scale(scale: f32) -> f32 {
+    let scale = if scale.is_finite() {
+        scale
+    } else {
+        default_ui_scale()
+    };
+    (scale / UI_SCALE_STEP)
+        .round()
+        .mul_add(UI_SCALE_STEP, 0.0)
+        .clamp(UI_SCALE_MIN, UI_SCALE_MAX)
+}
+
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
             minimize_to_tray_on_close: false,
             show_shifted_number_symbols: default_show_shifted_number_symbols(),
             accent_color: default_app_accent_color(),
+            ui_scale: default_ui_scale(),
         }
     }
 }
@@ -1908,8 +1930,10 @@ pub struct EntropyApp {
 }
 
 impl EntropyApp {
-    pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
-        let app_settings = load_app_settings();
+    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        let mut app_settings = load_app_settings();
+        app_settings.ui_scale = clamp_ui_scale(app_settings.ui_scale);
+        cc.egui_ctx.set_zoom_factor(app_settings.ui_scale);
         crate::ui_style::set_accent(app_settings.accent_color.color());
 
         let mut app = Self {
@@ -5003,6 +5027,63 @@ impl EntropyApp {
             }
         }
     }
+
+    fn ui_scale_percent(&self) -> i32 {
+        (clamp_ui_scale(self.app_settings.ui_scale) * 100.0).round() as i32
+    }
+
+    fn apply_ui_scale(&mut self, ctx: &egui::Context) {
+        let scale = clamp_ui_scale(self.app_settings.ui_scale);
+        if (scale - self.app_settings.ui_scale).abs() > f32::EPSILON {
+            self.app_settings.ui_scale = scale;
+            save_app_settings(&self.app_settings);
+        }
+        if (ctx.zoom_factor() - scale).abs() > 0.001 {
+            ctx.set_zoom_factor(scale);
+        }
+    }
+
+    fn set_ui_scale(&mut self, ctx: &egui::Context, scale: f32) {
+        let scale = clamp_ui_scale(scale);
+        if (scale - self.app_settings.ui_scale).abs() <= 0.001 {
+            return;
+        }
+        self.app_settings.ui_scale = scale;
+        save_app_settings(&self.app_settings);
+        ctx.set_zoom_factor(scale);
+        ctx.request_repaint();
+    }
+
+    fn step_ui_scale(&mut self, ctx: &egui::Context, steps: i32) {
+        self.set_ui_scale(
+            ctx,
+            self.app_settings.ui_scale + UI_SCALE_STEP * steps as f32,
+        );
+    }
+
+    fn handle_ui_scale_shortcuts(&mut self, ctx: &egui::Context) {
+        let action = ctx.input(|i| {
+            if !i.modifiers.ctrl {
+                return None;
+            }
+            if i.key_pressed(egui::Key::Plus) || i.key_pressed(egui::Key::Equals) {
+                Some(1)
+            } else if i.key_pressed(egui::Key::Minus) {
+                Some(-1)
+            } else if i.key_pressed(egui::Key::Num0) {
+                Some(0)
+            } else {
+                None
+            }
+        });
+
+        match action {
+            Some(1) => self.step_ui_scale(ctx, 1),
+            Some(-1) => self.step_ui_scale(ctx, -1),
+            Some(0) => self.set_ui_scale(ctx, default_ui_scale()),
+            _ => {}
+        }
+    }
 }
 
 impl eframe::App for EntropyApp {
@@ -5013,6 +5094,9 @@ impl eframe::App for EntropyApp {
     }
 
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        self.apply_ui_scale(ctx);
+        self.handle_ui_scale_shortcuts(ctx);
+
         #[cfg(target_os = "windows")]
         self.cache_windows_hwnd(frame);
         self.handle_close_to_tray(ctx);
@@ -11071,6 +11155,74 @@ impl EntropyApp {
         ui.allocate_space(Vec2::new(1.0, action_size.y));
     }
 
+    fn draw_ui_scale_controls(&mut self, ui: &mut egui::Ui, left_top: egui::Pos2) -> f32 {
+        let height = 28.0;
+        let minus_w = 24.0;
+        let label_w = 52.0;
+        let plus_w = 24.0;
+        let gap = 4.0;
+        let total_w = minus_w + label_w + plus_w + gap * 2.0;
+        let text_color = ui.visuals().widgets.inactive.fg_stroke.color;
+        let muted = app_muted_text(ui.visuals().dark_mode);
+        let hover_fill = app_hover_fill(ui.visuals().dark_mode);
+        let font = FontId::proportional(14.0);
+
+        let draw_control =
+            |ui: &mut egui::Ui, rect: egui::Rect, label: &str, enabled: bool| -> egui::Response {
+                let response = ui.allocate_rect(rect, Sense::CLICK);
+                if response.hovered() && enabled {
+                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                    ui.painter().rect_filled(rect, 7.0, hover_fill);
+                }
+                ui.painter().text(
+                    rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    label,
+                    font.clone(),
+                    if enabled { text_color } else { muted },
+                );
+                response
+            };
+
+        let minus_rect = egui::Rect::from_min_size(left_top, Vec2::new(minus_w, height));
+        let label_rect = egui::Rect::from_min_size(
+            egui::pos2(minus_rect.right() + gap, left_top.y),
+            Vec2::new(label_w, height),
+        );
+        let plus_rect = egui::Rect::from_min_size(
+            egui::pos2(label_rect.right() + gap, left_top.y),
+            Vec2::new(plus_w, height),
+        );
+
+        let can_decrease = self.app_settings.ui_scale > UI_SCALE_MIN + 0.001;
+        let can_increase = self.app_settings.ui_scale < UI_SCALE_MAX - 0.001;
+        if draw_control(ui, minus_rect, "−", can_decrease).clicked() && can_decrease {
+            self.step_ui_scale(ui.ctx(), -1);
+        }
+
+        let label_response = ui.allocate_rect(label_rect, Sense::CLICK);
+        if label_response.hovered() && self.ui_scale_percent() != 100 {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+            ui.painter().rect_filled(label_rect, 7.0, hover_fill);
+        }
+        if label_response.clicked() {
+            self.set_ui_scale(ui.ctx(), default_ui_scale());
+        }
+        ui.painter().text(
+            label_rect.center(),
+            egui::Align2::CENTER_CENTER,
+            format!("{}%", self.ui_scale_percent()),
+            FontId::proportional(13.0),
+            text_color,
+        );
+
+        if draw_control(ui, plus_rect, "+", can_increase).clicked() && can_increase {
+            self.step_ui_scale(ui.ctx(), 1);
+        }
+
+        total_w
+    }
+
     fn draw_layout(&mut self, ui: &mut egui::Ui, layout: &KeyboardLayout, ctx: &egui::Context) {
         let avail = ui.available_size();
         let viewport = egui::Rect::from_min_max(
@@ -11186,6 +11338,9 @@ impl EntropyApp {
                 );
             }
 
+            let zoom_left_top = egui::pos2(ui.min_rect().left() + 18.0, tabs_y);
+            let zoom_width = self.draw_ui_scale_controls(ui, zoom_left_top);
+
             let undo_enabled = !self.undo_stack.is_empty();
             let undo_label = "↶ Undo";
             let undo_font = FontId::proportional(14.0);
@@ -11199,7 +11354,7 @@ impl EntropyApp {
                 .x
             });
             let undo_rect = egui::Rect::from_min_size(
-                egui::pos2(ui.min_rect().left() + 24.0, tabs_y),
+                egui::pos2(zoom_left_top.x + zoom_width + 18.0, tabs_y),
                 Vec2::new(undo_text_w + 12.0, tab_size.y),
             );
             let undo_resp = ui.allocate_rect(undo_rect, Sense::CLICK);
