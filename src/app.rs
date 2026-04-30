@@ -660,7 +660,22 @@ struct LayoutGeometry {
     layout_h: f32,
 }
 
-fn layout_geometry(layout: &KeyboardLayout, viewport: egui::Rect, ui_scale: f32) -> LayoutGeometry {
+fn responsive_layout_max_scale(ctx: &egui::Context, viewport: egui::Rect) -> f32 {
+    let native_scale = ctx
+        .native_pixels_per_point()
+        .unwrap_or_else(|| ctx.pixels_per_point() / ctx.zoom_factor().max(0.1))
+        .max(1.0);
+    let physical_short_side = (viewport.width().min(viewport.height()) * native_scale).max(0.0);
+    let t = ((physical_short_side - 1_080.0) / (2_160.0 - 1_080.0)).clamp(0.0, 1.0);
+    1.0 + 0.35 * t
+}
+
+fn layout_geometry(
+    ctx: &egui::Context,
+    layout: &KeyboardLayout,
+    viewport: egui::Rect,
+    ui_scale: f32,
+) -> LayoutGeometry {
     let mut min_x: f32 = f32::MAX;
     let mut min_y: f32 = f32::MAX;
     let mut max_x: f32 = f32::MIN;
@@ -690,7 +705,8 @@ fn layout_geometry(layout: &KeyboardLayout, viewport: egui::Rect, ui_scale: f32)
     let fit_height = viewport.height() * ui_scale;
     let scale_x = (fit_width - LAYOUT_FIT_MARGIN) / (span_x * LAYOUT_BASE_UNIT).max(1.0);
     let scale_y = (fit_height - LAYOUT_FIT_MARGIN) / (span_y * LAYOUT_BASE_UNIT).max(1.0);
-    let scale = scale_x.min(scale_y).min(1.0);
+    let max_scale = responsive_layout_max_scale(ctx, viewport);
+    let scale = scale_x.min(scale_y).min(max_scale);
     let unit = LAYOUT_BASE_UNIT * scale;
     let layout_w = span_x * unit;
     let layout_h = span_y * unit;
@@ -3839,8 +3855,12 @@ impl EntropyApp {
                 ui.max_rect().bottom(),
             ),
         );
-        let geometry =
-            layout_geometry(layout, viewport, clamp_ui_scale(self.app_settings.ui_scale));
+        let geometry = layout_geometry(
+            ui.ctx(),
+            layout,
+            viewport,
+            clamp_ui_scale(self.app_settings.ui_scale),
+        );
 
         let hint_color = if dark {
             Color32::from_gray(100)
@@ -5570,6 +5590,7 @@ impl eframe::App for EntropyApp {
                         let (off_x, off_y, unit, padding) =
                             self.last_layout_geometry.unwrap_or_else(|| {
                                 let geometry = layout_geometry(
+                                    ui.ctx(),
                                     layout,
                                     screen,
                                     clamp_ui_scale(self.app_settings.ui_scale),
@@ -11290,8 +11311,12 @@ impl EntropyApp {
             ui.min_rect().min,
             egui::pos2(ui.min_rect().left() + avail.x, ui.max_rect().bottom()),
         );
-        let geometry =
-            layout_geometry(layout, viewport, clamp_ui_scale(self.app_settings.ui_scale));
+        let geometry = layout_geometry(
+            ui.ctx(),
+            layout,
+            viewport,
+            clamp_ui_scale(self.app_settings.ui_scale),
+        );
         let offset_x = geometry.offset_x;
         let offset_y = geometry.offset_y;
         let unit = geometry.unit;
