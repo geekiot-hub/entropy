@@ -12736,17 +12736,21 @@ impl EntropyApp {
             }
         };
 
+        const ENCODER_HOVER_SCALE: f32 = 1.18;
         for (_encoder_idx, rect, ccw, cw) in &encoder_groups {
             let center = rect.center();
-            let radius = rect.width().min(rect.height()) * LAYOUT_ENCODER_RADIUS_FACTOR;
-            let circle_bounds =
-                egui::Rect::from_center_size(center, egui::vec2(radius * 2.0, radius * 2.0));
+            let base_radius = rect.width().min(rect.height()) * LAYOUT_ENCODER_RADIUS_FACTOR;
+            let hover_radius = base_radius * ENCODER_HOVER_SCALE;
+            let circle_bounds = egui::Rect::from_center_size(
+                center,
+                egui::vec2(hover_radius * 2.0, hover_radius * 2.0),
+            );
             let press_slot = encoder_press_rects
                 .iter()
                 .find(|(_, press_rect)| press_rect.center().distance(center) < 1.0)
                 .map(|(press_ki, press_rect)| (*press_ki, *press_rect));
             let (top_rect, middle_rect, bottom_rect) = if let Some((_, press_rect)) = press_slot {
-                let divider_gap = radius * 0.06;
+                let divider_gap = base_radius * 0.06;
                 let top_divider_y = press_rect.top() - divider_gap;
                 let bottom_divider_y = press_rect.bottom() + divider_gap;
                 (
@@ -12780,10 +12784,16 @@ impl EntropyApp {
             let middle_resp =
                 middle_rect.map(|middle_rect| ui.allocate_rect(middle_rect, Sense::click()));
             let bottom_resp = ui.allocate_rect(bottom_rect, Sense::click());
-            if top_resp.hovered()
+            let encoder_hovered = top_resp.hovered()
                 || middle_resp.as_ref().map(|r| r.hovered()).unwrap_or(false)
-                || bottom_resp.hovered()
-            {
+                || bottom_resp.hovered();
+            let radius = if encoder_hovered {
+                hover_radius
+            } else {
+                base_radius
+            };
+            let font_scale = if encoder_hovered { ENCODER_HOVER_SCALE } else { 1.0 };
+            if encoder_hovered {
                 hovered_encoder = true;
                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
             }
@@ -12926,30 +12936,22 @@ impl EntropyApp {
             let top_label = encoder_label(cw.map(|(_, kc)| kc).unwrap_or(0x0000));
             let bottom_label = encoder_label(ccw.map(|(_, kc)| kc).unwrap_or(0x0000));
             let top_font = if has_press_button {
-                egui::FontId::proportional(if top_label.chars().count() > 9 {
-                    6.6
-                } else {
-                    7.4
-                })
+                egui::FontId::proportional(
+                    if top_label.chars().count() > 9 { 6.6 } else { 7.4 } * font_scale,
+                )
             } else {
-                egui::FontId::proportional(if top_label.chars().count() > 9 {
-                    8.5
-                } else {
-                    9.5
-                })
+                egui::FontId::proportional(
+                    if top_label.chars().count() > 9 { 8.5 } else { 9.5 } * font_scale,
+                )
             };
             let bottom_font = if has_press_button {
-                egui::FontId::proportional(if bottom_label.chars().count() > 9 {
-                    6.6
-                } else {
-                    7.4
-                })
+                egui::FontId::proportional(
+                    if bottom_label.chars().count() > 9 { 6.6 } else { 7.4 } * font_scale,
+                )
             } else {
-                egui::FontId::proportional(if bottom_label.chars().count() > 9 {
-                    8.5
-                } else {
-                    9.5
-                })
+                egui::FontId::proportional(
+                    if bottom_label.chars().count() > 9 { 8.5 } else { 9.5 } * font_scale,
+                )
             };
             let top_label_y = center.y - radius * if has_press_button { 0.52 } else { 0.30 };
             let bottom_label_y = center.y + radius * if has_press_button { 0.52 } else { 0.30 };
@@ -13058,11 +13060,9 @@ impl EntropyApp {
                     }
                 }
                 .replace('\n', " ");
-                let press_font = FontId::proportional(if press_label.chars().count() > 8 {
-                    7.2
-                } else {
-                    8.2
-                });
+                let press_font = FontId::proportional(
+                    if press_label.chars().count() > 8 { 7.2 } else { 8.2 } * font_scale,
+                );
                 painter.with_clip_rect(press_text_rect).text(
                     press_text_rect.center(),
                     egui::Align2::CENTER_CENTER,
