@@ -77,7 +77,9 @@ fn osm_mod_full_name(bits: u16) -> String {
 
 pub fn key_label_font_sizes(label: &str) -> (Option<f32>, f32) {
     if label.starts_with("Hold ") && label.contains('/') {
-        return (Some(8.5), 10.8);
+        let top = label.split_once('/').map(|(top, _)| top).unwrap_or(label);
+        let top_size = if top.chars().count() > 13 { 7.4 } else { 8.5 };
+        return (Some(top_size), 10.8);
     }
 
     let lines: Vec<&str> = label.split('\n').collect();
