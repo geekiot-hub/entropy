@@ -659,6 +659,11 @@ fn responsive_picker_key_size(ctx: &egui::Context) -> Vec2 {
     Vec2::splat(54.0 * responsive_picker_element_scale(ctx))
 }
 
+fn picker_scaled_size(ctx: &egui::Context, width: f32, height: f32) -> Vec2 {
+    let scale = responsive_picker_element_scale(ctx);
+    Vec2::new(width * scale, height * scale)
+}
+
 fn picker_paint_centered_label(
     ui: &egui::Ui,
     rect: egui::Rect,
@@ -764,7 +769,9 @@ fn picker_slot_button(
     active: bool,
     has_content: bool,
 ) -> egui::Response {
-    let (rect, resp) = ui.allocate_exact_size(Vec2::new(48.0, 30.0), egui::Sense::click());
+    let scale = responsive_picker_element_scale(ui.ctx());
+    let (rect, resp) =
+        ui.allocate_exact_size(Vec2::new(48.0 * scale, 30.0 * scale), egui::Sense::click());
     let dark = ui.visuals().dark_mode;
     let hovered = resp.hovered();
     let fill = if active {
@@ -793,17 +800,17 @@ fn picker_slot_button(
     };
     if display_name != id_text {
         ui.painter().text(
-            egui::pos2(rect.center().x, rect.top() + 9.0),
+            egui::pos2(rect.center().x, rect.top() + 9.0 * scale),
             egui::Align2::CENTER_CENTER,
             id_text,
-            egui::FontId::proportional(10.5),
+            egui::FontId::proportional(10.5 * scale),
             text_color,
         );
         ui.painter().text(
-            egui::pos2(rect.center().x, rect.bottom() - 8.5),
+            egui::pos2(rect.center().x, rect.bottom() - 8.5 * scale),
             egui::Align2::CENTER_CENTER,
             display_name,
-            egui::FontId::proportional(10.5),
+            egui::FontId::proportional(10.5 * scale),
             text_color,
         );
     } else {
@@ -811,7 +818,7 @@ fn picker_slot_button(
             rect.center(),
             egui::Align2::CENTER_CENTER,
             id_text,
-            egui::FontId::proportional(12.0),
+            egui::FontId::proportional(12.0 * scale),
             text_color,
         );
     }
@@ -1492,7 +1499,10 @@ impl KeycodePicker {
             );
         }
         let visuals = ui.style().interact(&resp);
+        let label_scale = (cell_h / 54.0).clamp(1.0, 1.22);
         let (top_size, bottom_size) = key_label_font_sizes(label);
+        let top_size = top_size.map(|size| size * label_scale);
+        let bottom_size = bottom_size * label_scale;
         if let Some((top, bottom)) = label.split_once('\n') {
             let top_color = visuals.fg_stroke.color.gamma_multiply(0.75);
             let top_galley = ui.painter().layout_no_wrap(
@@ -1508,7 +1518,7 @@ impl KeycodePicker {
             ui.painter().galley(
                 egui::pos2(
                     resp.rect.center().x - top_galley.size().x / 2.0,
-                    resp.rect.center().y - 7.0 - top_galley.size().y / 2.0,
+                    resp.rect.center().y - 7.0 * label_scale - top_galley.size().y / 2.0,
                 ),
                 top_galley,
                 top_color,
@@ -1516,7 +1526,7 @@ impl KeycodePicker {
             ui.painter().galley(
                 egui::pos2(
                     resp.rect.center().x - bottom_galley.size().x / 2.0,
-                    resp.rect.center().y + 6.0 - bottom_galley.size().y / 2.0,
+                    resp.rect.center().y + 6.0 * label_scale - bottom_galley.size().y / 2.0,
                 ),
                 bottom_galley,
                 visuals.fg_stroke.color,
@@ -1548,9 +1558,10 @@ impl KeycodePicker {
         const COLS: usize = 16;
         const ROWS: usize = 6;
 
-        let cell_w = 54.0;
-        let cell_h = 54.0;
-        let gap = 3.0;
+        let scale = responsive_picker_element_scale(ui.ctx());
+        let cell_w = 54.0 * scale;
+        let cell_h = 54.0 * scale;
+        let gap = 3.0 * scale;
         let width = COLS as f32 * cell_w + (COLS.saturating_sub(1)) as f32 * gap;
         let height = ROWS as f32 * cell_h + (ROWS.saturating_sub(1)) as f32 * gap;
         let available_width = ui.available_width();
@@ -1561,15 +1572,15 @@ impl KeycodePicker {
                 ui.add_space(x_offset);
             }
             ui.allocate_ui_with_layout(
-                Vec2::new(width, 32.0),
+                Vec2::new(width, 32.0 * scale),
                 egui::Layout::left_to_right(egui::Align::Center),
                 |ui| {
                     ui.label(
                         RichText::new("Basic keys — standard keyboard layout")
-                            .size(11.0)
+                            .size(11.0 * scale)
                             .color(Color32::from_gray(150)),
                     );
-                    let dropdown_width = 126.0;
+                    let dropdown_width = 126.0 * scale;
                     let spacer = (ui.available_width() - dropdown_width).max(0.0);
                     if spacer > 0.0 {
                         ui.add_space(spacer);
@@ -1593,7 +1604,7 @@ impl KeycodePicker {
                             for layout in BasicPickerLayout::ALL {
                                 let selected = self.basic_layout == layout;
                                 let (option_rect, option_resp) = ui.allocate_exact_size(
-                                    Vec2::new(dropdown_width, 28.0),
+                                    Vec2::new(dropdown_width, 28.0 * scale),
                                     egui::Sense::click(),
                                 );
                                 if option_resp.hovered() {
@@ -1615,7 +1626,7 @@ impl KeycodePicker {
                                     option_rect.center(),
                                     egui::Align2::CENTER_CENTER,
                                     layout.label(),
-                                    egui::FontId::proportional(12.0),
+                                    egui::FontId::proportional(12.0 * scale),
                                     if selected {
                                         ui.visuals().text_color()
                                     } else {
@@ -2507,9 +2518,10 @@ impl KeycodePicker {
         );
         ui.add_space(4.0);
         egui::Frame::NONE.show(ui, |ui| {
-            ui.set_max_height(86.0);
+            let slot_scroll_height = 86.0 * responsive_picker_element_scale(ui.ctx());
+            ui.set_max_height(slot_scroll_height);
             egui::ScrollArea::vertical()
-                .max_height(86.0)
+                .max_height(slot_scroll_height)
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
                     egui::Grid::new(grid_id)
@@ -2556,14 +2568,15 @@ impl KeycodePicker {
         let n = selected_macro as usize;
         self.ensure_macro_meta_len(n);
 
-        let macro_font_size = 14.0;
-        ui.add_space(4.0);
+        let scale = responsive_picker_element_scale(ui.ctx());
+        let macro_font_size = 14.0 * scale;
+        ui.add_space(4.0 * scale);
         if let Some(name) = self.macro_names.get_mut(n) {
             let resp = crate::ui_style::modern_text_field(
                 ui,
                 ui.make_persistent_id(("macro_name", grid_id, n)),
                 name,
-                124.0,
+                124.0 * scale,
                 "Macro name",
                 7,
                 egui::Align::Center,
@@ -2583,7 +2596,7 @@ impl KeycodePicker {
             let action_count = self.macro_actions[n].len();
             for (i, action) in self.macro_actions[n].iter_mut().enumerate() {
                 ui.horizontal(|ui| {
-                    let arrow_size = Vec2::new(28.0, 28.0);
+                    let arrow_size = picker_scaled_size(ui.ctx(), 28.0, 28.0);
                     let up_resp =
                         picker_button(ui, "↑", arrow_size, i > 0, false).on_hover_text("Move up");
                     let down_resp = picker_button(ui, "↓", arrow_size, i + 1 < action_count, false)
@@ -2618,7 +2631,7 @@ impl KeycodePicker {
                             ("Delay", Color32::from_gray(150), "Wait before next action")
                         }
                     };
-                    ui.allocate_ui(Vec2::new(55.0, 30.0), |ui| {
+                    ui.allocate_ui(picker_scaled_size(ui.ctx(), 55.0, 30.0), |ui| {
                         ui.add(
                             egui::Label::new(
                                 RichText::new(type_label)
@@ -2633,7 +2646,7 @@ impl KeycodePicker {
 
                     match action {
                         MacroAction::Text(text) => {
-                            let text_w = (avail_w - 220.0).max(150.0);
+                            let text_w = (avail_w - 220.0 * scale).max(150.0 * scale);
                             crate::ui_style::modern_text_field(
                                 ui,
                                 ui.make_persistent_id(("macro_text_action", grid_id, n, i)),
@@ -2651,9 +2664,15 @@ impl KeycodePicker {
                                 .find(|k| k.value == *kc as u16)
                                 .map(|k| k.label)
                                 .unwrap_or("?");
-                            if picker_button(ui, label, Vec2::new(100.0, 30.0), true, false)
-                                .on_hover_text("Click to change key — press and release this key")
-                                .clicked()
+                            if picker_button(
+                                ui,
+                                label,
+                                picker_scaled_size(ui.ctx(), 100.0, 30.0),
+                                true,
+                                false,
+                            )
+                            .on_hover_text("Click to change key — press and release this key")
+                            .clicked()
                             {
                                 self.macro_key_pick = Some((n, i));
                             }
@@ -2664,9 +2683,15 @@ impl KeycodePicker {
                                 .find(|k| k.value == *kc as u16)
                                 .map(|k| k.label)
                                 .unwrap_or("?");
-                            if picker_button(ui, label, Vec2::new(100.0, 30.0), true, false)
-                                .on_hover_text("Click to change key — holds down until Up")
-                                .clicked()
+                            if picker_button(
+                                ui,
+                                label,
+                                picker_scaled_size(ui.ctx(), 100.0, 30.0),
+                                true,
+                                false,
+                            )
+                            .on_hover_text("Click to change key — holds down until Up")
+                            .clicked()
                             {
                                 self.macro_key_pick = Some((n, i));
                             }
@@ -2677,9 +2702,15 @@ impl KeycodePicker {
                                 .find(|k| k.value == *kc as u16)
                                 .map(|k| k.label)
                                 .unwrap_or("?");
-                            if picker_button(ui, label, Vec2::new(100.0, 30.0), true, false)
-                                .on_hover_text("Click to change key — releases this key")
-                                .clicked()
+                            if picker_button(
+                                ui,
+                                label,
+                                picker_scaled_size(ui.ctx(), 100.0, 30.0),
+                                true,
+                                false,
+                            )
+                            .on_hover_text("Click to change key — releases this key")
+                            .clicked()
                             {
                                 self.macro_key_pick = Some((n, i));
                             }
@@ -2690,7 +2721,7 @@ impl KeycodePicker {
                                 ui,
                                 ui.make_persistent_id(("macro_delay", grid_id, n, i)),
                                 &mut ms_str,
-                                80.0,
+                                80.0 * scale,
                                 "",
                                 5,
                                 egui::Align::Center,
@@ -2706,9 +2737,15 @@ impl KeycodePicker {
                     }
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if picker_button(ui, "✕", Vec2::new(30.0, 30.0), true, false)
-                            .on_hover_text("Remove this action")
-                            .clicked()
+                        if picker_button(
+                            ui,
+                            "✕",
+                            picker_scaled_size(ui.ctx(), 30.0, 30.0),
+                            true,
+                            false,
+                        )
+                        .on_hover_text("Remove this action")
+                        .clicked()
                         {
                             remove_idx = Some(i);
                         }
@@ -2743,36 +2780,66 @@ impl KeycodePicker {
         ui.add_space(6.0);
         ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing = egui::vec2(6.0, 6.0);
-            if picker_button(ui, "+ Text", Vec2::new(72.0, 30.0), true, false)
-                .on_hover_text("Type characters")
-                .clicked()
+            if picker_button(
+                ui,
+                "+ Text",
+                picker_scaled_size(ui.ctx(), 72.0, 30.0),
+                true,
+                false,
+            )
+            .on_hover_text("Type characters")
+            .clicked()
             {
                 self.macro_actions[n].push(MacroAction::Text(String::new()));
             }
-            if picker_button(ui, "+ Tap", Vec2::new(66.0, 30.0), true, false)
-                .on_hover_text("Press and release a key")
-                .clicked()
+            if picker_button(
+                ui,
+                "+ Tap",
+                picker_scaled_size(ui.ctx(), 66.0, 30.0),
+                true,
+                false,
+            )
+            .on_hover_text("Press and release a key")
+            .clicked()
             {
                 self.macro_actions[n].push(MacroAction::Tap(0x04));
                 self.macro_key_pick = Some((n, self.macro_actions[n].len() - 1));
             }
-            if picker_button(ui, "+ Down", Vec2::new(80.0, 30.0), true, false)
-                .on_hover_text("Hold a key")
-                .clicked()
+            if picker_button(
+                ui,
+                "+ Down",
+                picker_scaled_size(ui.ctx(), 80.0, 30.0),
+                true,
+                false,
+            )
+            .on_hover_text("Hold a key")
+            .clicked()
             {
                 self.macro_actions[n].push(MacroAction::Down(0x04));
                 self.macro_key_pick = Some((n, self.macro_actions[n].len() - 1));
             }
-            if picker_button(ui, "+ Up", Vec2::new(64.0, 30.0), true, false)
-                .on_hover_text("Release a key")
-                .clicked()
+            if picker_button(
+                ui,
+                "+ Up",
+                picker_scaled_size(ui.ctx(), 64.0, 30.0),
+                true,
+                false,
+            )
+            .on_hover_text("Release a key")
+            .clicked()
             {
                 self.macro_actions[n].push(MacroAction::Up(0x04));
                 self.macro_key_pick = Some((n, self.macro_actions[n].len() - 1));
             }
-            if picker_button(ui, "+ Delay", Vec2::new(82.0, 30.0), true, false)
-                .on_hover_text("Pause in milliseconds")
-                .clicked()
+            if picker_button(
+                ui,
+                "+ Delay",
+                picker_scaled_size(ui.ctx(), 82.0, 30.0),
+                true,
+                false,
+            )
+            .on_hover_text("Pause in milliseconds")
+            .clicked()
             {
                 self.macro_actions[n].push(MacroAction::Delay(100));
             }
@@ -2789,7 +2856,7 @@ impl KeycodePicker {
             if picker_button(
                 ui,
                 "Clear all",
-                Vec2::new(86.0, 30.0),
+                picker_scaled_size(ui.ctx(), 86.0, 30.0),
                 can_clear_macro,
                 false,
             )
@@ -2809,7 +2876,7 @@ impl KeycodePicker {
             if picker_button(
                 ui,
                 "↩ Undo",
-                Vec2::new(78.0, 30.0),
+                picker_scaled_size(ui.ctx(), 78.0, 30.0),
                 !self.macro_undo_stack.is_empty(),
                 false,
             )
@@ -2852,9 +2919,10 @@ impl KeycodePicker {
         );
         ui.add_space(4.0);
         egui::Frame::NONE.show(ui, |ui| {
-            ui.set_max_height(86.0);
+            let slot_scroll_height = 86.0 * responsive_picker_element_scale(ui.ctx());
+            ui.set_max_height(slot_scroll_height);
             egui::ScrollArea::vertical()
-                .max_height(86.0)
+                .max_height(slot_scroll_height)
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
                     egui::Grid::new("tap_dance_grid_inline")
@@ -2898,15 +2966,16 @@ impl KeycodePicker {
 
         let n = self.tap_dance_editor_open.unwrap_or(0) as usize;
         self.ensure_tap_dance_name_len(n);
-        let td_font_size = 14.0;
-        ui.add_space(4.0);
+        let scale = responsive_picker_element_scale(ui.ctx());
+        let td_font_size = 14.0 * scale;
+        ui.add_space(4.0 * scale);
         let prev_name = self.tap_dance_names.get(n).cloned().unwrap_or_default();
         let mut edited_name = prev_name.clone();
         let resp = crate::ui_style::modern_text_field(
             ui,
             ui.make_persistent_id(("tap_dance_name", n)),
             &mut edited_name,
-            124.0,
+            124.0 * scale,
             "TD name",
             7,
             egui::Align::Center,
@@ -2977,7 +3046,7 @@ impl KeycodePicker {
                         ui,
                         ui.make_persistent_id(("tap_dance_term", n)),
                         &mut term_str,
-                        76.0,
+                        76.0 * scale,
                         "",
                         5,
                         egui::Align::Center,
@@ -3019,7 +3088,7 @@ impl KeycodePicker {
             if picker_button(
                 ui,
                 "Clear all",
-                Vec2::new(86.0, 30.0),
+                picker_scaled_size(ui.ctx(), 86.0, 30.0),
                 can_clear_tap_dance,
                 false,
             )
@@ -3043,9 +3112,15 @@ impl KeycodePicker {
                 .tap_dance_undo_stack
                 .iter()
                 .any(|(idx, _, _)| *idx == n);
-            if picker_button(ui, "↩ Undo", Vec2::new(78.0, 30.0), can_undo_current, false)
-                .on_hover_text("Undo last tap dance change")
-                .clicked()
+            if picker_button(
+                ui,
+                "↩ Undo",
+                picker_scaled_size(ui.ctx(), 78.0, 30.0),
+                can_undo_current,
+                false,
+            )
+            .on_hover_text("Undo last tap dance change")
+            .clicked()
             {
                 if let Some(pos) = self
                     .tap_dance_undo_stack
@@ -3084,7 +3159,7 @@ impl KeycodePicker {
             "Tap Dance Editor",
             self.popup_state.id(PopupKey::TapDanceEditorWindow),
             &mut still_open,
-            Vec2::new(600.0, 420.0),
+            responsive_window_size(ctx, Vec2::new(680.0, 480.0), Vec2::new(980.0, 720.0)),
         )
         .show(ctx, |ui| {
             // Tabs
@@ -3129,9 +3204,14 @@ impl KeycodePicker {
                 return;
             }
 
+            let scale = responsive_picker_element_scale(ui.ctx());
             let n = active_td as usize;
-            ui.label(RichText::new(format!("TD{}", n)).size(18.0).strong());
-            ui.add_space(8.0);
+            ui.label(
+                RichText::new(format!("TD{}", n))
+                    .size(18.0 * scale)
+                    .strong(),
+            );
+            ui.add_space(8.0 * scale);
 
             let fields = [
                 ("On Tap", "Key sent on single tap", 0u8),
@@ -3145,7 +3225,7 @@ impl KeycodePicker {
                 .show(ui, |ui| {
                     for (label, tooltip, field_id) in &fields {
                         ui.add(
-                            egui::Label::new(RichText::new(*label).size(15.0).strong())
+                            egui::Label::new(RichText::new(*label).size(15.0 * scale).strong())
                                 .sense(egui::Sense::hover()),
                         )
                         .on_hover_text(*tooltip);
@@ -3165,7 +3245,7 @@ impl KeycodePicker {
                         if ui
                             .add(
                                 egui::Button::new(RichText::new(&kc_label).size(16.0))
-                                    .min_size(crate::ui_style::modal_field_button_size(132.0)),
+                                    .min_size(picker_scaled_size(ui.ctx(), 132.0, 30.0)),
                             )
                             .on_hover_text(if kc == 0 {
                                 "Click to assign a key".to_string()
@@ -3181,7 +3261,7 @@ impl KeycodePicker {
 
                     // Tapping term
                     ui.add(
-                        egui::Label::new(RichText::new("Tapping Term").size(15.0).strong())
+                        egui::Label::new(RichText::new("Tapping Term").size(15.0 * scale).strong())
                             .sense(egui::Sense::hover()),
                     )
                     .on_hover_text(
@@ -3193,7 +3273,7 @@ impl KeycodePicker {
                             ui,
                             ui.make_persistent_id(("tap_dance_legacy_term", n)),
                             &mut term_str,
-                            80.0,
+                            80.0 * scale,
                             "",
                             5,
                             egui::Align::Center,
