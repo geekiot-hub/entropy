@@ -681,20 +681,20 @@ pub fn keycode_label_with_names(value: u16, custom: &[CustomKeycode], layer_name
         let kc_str = find_keycode(kc as u16).map(|k| k.label).unwrap_or("?");
         let gui = gui_sym();
         let mod_str: String = match mods {
-            0x01 => "Ctrl".into(),
-            0x02 => "Shift".into(),
+            0x01 => "Ctl".into(),
+            0x02 => "Sft".into(),
             0x04 => "Alt".into(),
             0x08 => gui.into(),
-            0x03 => "Ctrl+Shift".into(),
-            0x05 => "Ctrl+Alt".into(),
-            0x06 => "Shift+Alt".into(),
+            0x03 => "Ctl+Sft".into(),
+            0x05 => "Ctl+Alt".into(),
+            0x06 => "Sft+Alt".into(),
             0x07 => "Meh".into(),
-            0x09 => format!("Ctrl+{}", gui),
+            0x09 => format!("Ctl+{}", gui),
             0x0C => format!("Alt+{}", gui),
             0x0F => "Hyper".into(),
-            0x0A => format!("Shift+{}", gui),
-            0x11 => "RCtrl".into(),
-            0x12 => "RShift".into(),
+            0x0A => format!("Sft+{}", gui),
+            0x11 => "RCtl".into(),
+            0x12 => "RSft".into(),
             0x14 => "RAlt".into(),
             0x18 => format!("R{}", gui),
             _ => "Mod".into(),
@@ -719,16 +719,16 @@ pub fn keycode_label_with_names(value: u16, custom: &[CustomKeycode], layer_name
 
 pub fn modifier_label_from_bits(mods: u16) -> String {
     match mods {
-        0x01 | 0x11 => "Ctrl".to_string(),
-        0x02 | 0x12 => "Shift".to_string(),
+        0x01 | 0x11 => "Ctl".to_string(),
+        0x02 | 0x12 => "Sft".to_string(),
         0x04 | 0x14 => "Alt".to_string(),
         0x08 | 0x18 => gui_sym().to_string(),
-        0x03 | 0x13 => "Ctrl+Shift".to_string(),
-        0x05 | 0x15 => "Ctrl+Alt".to_string(),
-        0x06 | 0x16 => "Shift+Alt".to_string(),
+        0x03 | 0x13 => "Ctl+Sft".to_string(),
+        0x05 | 0x15 => "Ctl+Alt".to_string(),
+        0x06 | 0x16 => "Sft+Alt".to_string(),
         0x07 | 0x17 => "Meh".to_string(),
         0x0F | 0x1F => "Hyper".to_string(),
-        0x0A | 0x1A => format!("Shift+{}", gui_sym()),
+        0x0A | 0x1A => format!("Sft+{}", gui_sym()),
         _ => "Mod".to_string(),
     }
 }
