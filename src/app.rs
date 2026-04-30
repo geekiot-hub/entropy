@@ -632,7 +632,7 @@ struct LayoutGeometry {
     layout_h: f32,
 }
 
-fn layout_geometry(layout: &KeyboardLayout, viewport: egui::Rect) -> LayoutGeometry {
+fn layout_geometry(layout: &KeyboardLayout, viewport: egui::Rect, ui_scale: f32) -> LayoutGeometry {
     let mut min_x: f32 = f32::MAX;
     let mut min_y: f32 = f32::MAX;
     let mut max_x: f32 = f32::MIN;
@@ -658,8 +658,10 @@ fn layout_geometry(layout: &KeyboardLayout, viewport: egui::Rect) -> LayoutGeome
 
     let span_x = max_x - min_x;
     let span_y = max_y - min_y;
-    let scale_x = (viewport.width() - LAYOUT_FIT_MARGIN) / (span_x * LAYOUT_BASE_UNIT).max(1.0);
-    let scale_y = (viewport.height() - LAYOUT_FIT_MARGIN) / (span_y * LAYOUT_BASE_UNIT).max(1.0);
+    let fit_width = viewport.width() * ui_scale;
+    let fit_height = viewport.height() * ui_scale;
+    let scale_x = (fit_width - LAYOUT_FIT_MARGIN) / (span_x * LAYOUT_BASE_UNIT).max(1.0);
+    let scale_y = (fit_height - LAYOUT_FIT_MARGIN) / (span_y * LAYOUT_BASE_UNIT).max(1.0);
     let scale = scale_x.min(scale_y).min(1.0);
     let unit = LAYOUT_BASE_UNIT * scale;
     let layout_w = span_x * unit;
@@ -3804,7 +3806,8 @@ impl EntropyApp {
                 ui.max_rect().bottom(),
             ),
         );
-        let geometry = layout_geometry(layout, viewport);
+        let geometry =
+            layout_geometry(layout, viewport, clamp_ui_scale(self.app_settings.ui_scale));
 
         let hint_color = if dark {
             Color32::from_gray(100)
@@ -5527,7 +5530,11 @@ impl eframe::App for EntropyApp {
                     if let Some(layout) = &self.layout {
                         let (off_x, off_y, unit, padding) =
                             self.last_layout_geometry.unwrap_or_else(|| {
-                                let geometry = layout_geometry(layout, screen);
+                                let geometry = layout_geometry(
+                                    layout,
+                                    screen,
+                                    clamp_ui_scale(self.app_settings.ui_scale),
+                                );
                                 (
                                     geometry.offset_x,
                                     geometry.offset_y,
@@ -11229,7 +11236,8 @@ impl EntropyApp {
             ui.min_rect().min,
             egui::pos2(ui.min_rect().left() + avail.x, ui.max_rect().bottom()),
         );
-        let geometry = layout_geometry(layout, viewport);
+        let geometry =
+            layout_geometry(layout, viewport, clamp_ui_scale(self.app_settings.ui_scale));
         let offset_x = geometry.offset_x;
         let offset_y = geometry.offset_y;
         let unit = geometry.unit;
@@ -11338,8 +11346,9 @@ impl EntropyApp {
                 );
             }
 
-            let zoom_left_top = egui::pos2(ui.min_rect().left() + 18.0, tabs_y);
-            let zoom_width = self.draw_ui_scale_controls(ui, zoom_left_top);
+            let zoom_width = 108.0;
+            let zoom_left_top = egui::pos2(ui.min_rect().right() - 18.0 - zoom_width, tabs_y);
+            self.draw_ui_scale_controls(ui, zoom_left_top);
 
             let undo_enabled = !self.undo_stack.is_empty();
             let undo_label = "↶ Undo";
@@ -11354,7 +11363,7 @@ impl EntropyApp {
                 .x
             });
             let undo_rect = egui::Rect::from_min_size(
-                egui::pos2(zoom_left_top.x + zoom_width + 18.0, tabs_y),
+                egui::pos2(ui.min_rect().left() + 24.0, tabs_y),
                 Vec2::new(undo_text_w + 12.0, tab_size.y),
             );
             let undo_resp = ui.allocate_rect(undo_rect, Sense::CLICK);
