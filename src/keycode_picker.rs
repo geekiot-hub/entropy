@@ -613,6 +613,41 @@ fn popup_key_button_size(_label: &str) -> Vec2 {
 const KEY_PICKER_POPUP_WIDTH: f32 = 760.0;
 const KEY_PICKER_POPUP_HEIGHT: f32 = 560.0;
 const KEY_PICKER_SCROLL_HEIGHT: f32 = 430.0;
+const KEY_PICKER_MAIN_WIDTH: f32 = 920.0;
+const KEY_PICKER_MAIN_HEIGHT: f32 = 560.0;
+const KEY_PICKER_MAIN_CONTENT_HEIGHT: f32 = 455.0;
+
+fn responsive_window_size(ctx: &egui::Context, base: Vec2, max: Vec2) -> Vec2 {
+    let screen = ctx.screen_rect().size();
+    Vec2::new(
+        base.x.max((screen.x * 0.82).min(max.x)),
+        base.y.max((screen.y * 0.78).min(max.y)),
+    )
+}
+
+fn key_picker_main_size(ctx: &egui::Context) -> Vec2 {
+    responsive_window_size(
+        ctx,
+        Vec2::new(KEY_PICKER_MAIN_WIDTH, KEY_PICKER_MAIN_HEIGHT),
+        Vec2::new(1_260.0, 820.0),
+    )
+}
+
+fn key_picker_main_content_height(picker_size: Vec2) -> f32 {
+    (picker_size.y - 105.0).clamp(KEY_PICKER_MAIN_CONTENT_HEIGHT, 700.0)
+}
+
+fn key_picker_popup_size(ctx: &egui::Context) -> Vec2 {
+    responsive_window_size(
+        ctx,
+        Vec2::new(KEY_PICKER_POPUP_WIDTH, KEY_PICKER_POPUP_HEIGHT),
+        Vec2::new(1_050.0, 760.0),
+    )
+}
+
+fn key_picker_popup_scroll_height(popup_size: Vec2) -> f32 {
+    (popup_size.y - 130.0).clamp(KEY_PICKER_SCROLL_HEIGHT, 620.0)
+}
 
 fn picker_paint_centered_label(
     ui: &egui::Ui,
@@ -941,12 +976,13 @@ impl KeycodePicker {
         // Macro key picker (sub-window of macro editor)
         if let Some((macro_idx, action_idx)) = self.macro_key_pick {
             let mut pick_open = true;
+            let popup_size = key_picker_popup_size(ctx);
             crate::ui_style::centered_modal_window(
                 ctx,
                 "Pick key",
                 self.popup_state.id(PopupKey::MacroKeyPickWindow),
                 &mut pick_open,
-                Vec2::new(KEY_PICKER_POPUP_WIDTH, KEY_PICKER_POPUP_HEIGHT),
+                popup_size,
             )
             .show(ctx, |ui| {
                 apply_picker_button_visuals(ui);
@@ -1032,7 +1068,7 @@ impl KeycodePicker {
                     })
                     .collect();
                 egui::ScrollArea::vertical()
-                    .max_height(KEY_PICKER_SCROLL_HEIGHT)
+                    .max_height(key_picker_popup_scroll_height(popup_size))
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
                         if let Some(value) = show_grouped_popup_key_buttons(
@@ -1136,7 +1172,7 @@ impl KeycodePicker {
         }
 
         let mut still_open = true;
-        let picker_size = Vec2::new(920.0, 560.0);
+        let picker_size = key_picker_main_size(ctx);
         crate::ui_style::centered_modal_window(
             ctx,
             "Key Picker",
@@ -1186,7 +1222,7 @@ impl KeycodePicker {
             });
             ui.add_space(crate::ui_style::modal_space_sm());
 
-            let content_height = 455.0;
+            let content_height = key_picker_main_content_height(picker_size);
             ui.allocate_ui_with_layout(
                 Vec2::new(ui.available_width(), content_height),
                 egui::Layout::top_down(egui::Align::Min),
@@ -1341,12 +1377,13 @@ impl KeycodePicker {
                 "Pick key for modifier combo"
             };
             let mut still_open = true;
+            let popup_size = key_picker_popup_size(ctx);
             let resp_win = crate::ui_style::centered_modal_window(
                 ctx,
                 title,
                 self.popup_state.id(PopupKey::PendingKeyPickWindow),
                 &mut still_open,
-                Vec2::new(KEY_PICKER_POPUP_WIDTH, KEY_PICKER_POPUP_HEIGHT),
+                popup_size,
             )
             .show(ctx, |ui| {
                 apply_picker_button_visuals(ui);
@@ -1368,7 +1405,7 @@ impl KeycodePicker {
                     .filter(|kc| kc.value != 0 && kc.value < 0x0100)
                     .collect();
                 egui::ScrollArea::vertical()
-                    .max_height(KEY_PICKER_SCROLL_HEIGHT)
+                    .max_height(key_picker_popup_scroll_height(popup_size))
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
                         if let Some(value) = show_grouped_popup_key_buttons(
@@ -3267,12 +3304,13 @@ impl KeycodePicker {
                 .collect()
         };
         let mut still_open = true;
+        let popup_size = key_picker_popup_size(ctx);
         crate::ui_style::centered_modal_window(
             ctx,
             &format!("Pick key for {}", field_name),
             self.popup_state.id(PopupKey::TdKeyPickWindow),
             &mut still_open,
-            Vec2::new(KEY_PICKER_POPUP_WIDTH, KEY_PICKER_POPUP_HEIGHT),
+            popup_size,
         )
         .show(ctx, |ui| {
             apply_picker_button_visuals(ui);
@@ -3296,7 +3334,7 @@ impl KeycodePicker {
             }
             ui.add_space(4.0);
             egui::ScrollArea::vertical()
-                .max_height(KEY_PICKER_SCROLL_HEIGHT)
+                .max_height(key_picker_popup_scroll_height(popup_size))
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
                     if matches!(field, 1 | 3) {
