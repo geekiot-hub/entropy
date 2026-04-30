@@ -1135,7 +1135,7 @@ impl KeycodePicker {
         let picker_size = Vec2::new(920.0, 560.0);
         crate::ui_style::centered_modal_window(
             ctx,
-            "Key Editor",
+            "Key Picker",
             self.popup_state.id(PopupKey::PickerWindow),
             &mut still_open,
             picker_size,
