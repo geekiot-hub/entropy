@@ -153,9 +153,9 @@ fn responsive_settings_visible_rows(
     bottom_reserve: f32,
 ) -> usize {
     const BASE_ROWS: usize = 6;
-    const MAX_ROWS: usize = 10;
-    const EXTRA_ROW_START_PHYSICAL_HEIGHT: f32 = 1_500.0;
-    const EXTRA_ROW_STEP_PHYSICAL_HEIGHT: f32 = 220.0;
+    const MAX_ROWS: usize = 11;
+    const EXTRA_ROW_START_PHYSICAL_HEIGHT: f32 = 1_300.0;
+    const EXTRA_ROW_STEP_PHYSICAL_HEIGHT: f32 = 180.0;
 
     if total_rows == 0 {
         return 1;
