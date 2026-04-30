@@ -606,8 +606,8 @@ fn popup_key_button_label(kc: &crate::keycode::Keycode, friendly_mods: bool) -> 
     kc.label.to_string()
 }
 
-fn popup_key_button_size(_label: &str) -> Vec2 {
-    Vec2::new(54.0, 54.0)
+fn popup_key_button_size(ui: &egui::Ui, _label: &str) -> Vec2 {
+    responsive_picker_key_size(ui.ctx())
 }
 
 const KEY_PICKER_POPUP_WIDTH: f32 = 760.0;
@@ -647,6 +647,16 @@ fn key_picker_popup_size(ctx: &egui::Context) -> Vec2 {
 
 fn key_picker_popup_scroll_height(popup_size: Vec2) -> f32 {
     (popup_size.y - 130.0).clamp(KEY_PICKER_SCROLL_HEIGHT, 620.0)
+}
+
+fn responsive_picker_element_scale(ctx: &egui::Context) -> f32 {
+    let screen = ctx.screen_rect().size();
+    let t = ((screen.x.min(screen.y) - 900.0) / (1_450.0 - 900.0)).clamp(0.0, 1.0);
+    1.0 + 0.22 * t
+}
+
+fn responsive_picker_key_size(ctx: &egui::Context) -> Vec2 {
+    Vec2::splat(54.0 * responsive_picker_element_scale(ctx))
 }
 
 fn picker_paint_centered_label(
@@ -725,7 +735,8 @@ fn picker_button(
     } else {
         crate::ui_style::muted_text(dark)
     };
-    picker_paint_centered_label(ui, rect, label, 12.0, color);
+    let label_scale = (size.y / 54.0).clamp(1.0, 1.22);
+    picker_paint_centered_label(ui, rect, label, 12.0 * label_scale, color);
     if hovered {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
     }
@@ -846,7 +857,7 @@ fn show_grouped_popup_key_buttons(
         ui.horizontal_wrapped(|ui| {
             for kc in &group {
                 let label = popup_key_button_label(kc, friendly_mods);
-                let size = popup_key_button_size(&label);
+                let size = popup_key_button_size(ui, &label);
                 let resp = picker_button(ui, &label, size, true, false);
                 if resp.clicked() {
                     selected = Some(kc.value);
@@ -882,7 +893,7 @@ fn show_grouped_popup_choice_buttons(
         ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| {
             for (value, label, tooltip) in choices {
-                let size = popup_key_button_size(&label);
+                let size = popup_key_button_size(ui, &label);
                 let resp = picker_button(ui, &label, size, true, false);
                 if resp.clicked() {
                     selected = Some(value);
@@ -1838,7 +1849,7 @@ impl KeycodePicker {
                     smart.name, smart.symbol
                 );
                 let resp = ui
-                    .add_sized(Self::picker_key_size(), egui::Button::new(""))
+                    .add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""))
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
                 Self::paint_compact_picker_label(ui, &resp, &label);
                 if resp.clicked() {
@@ -1862,7 +1873,7 @@ impl KeycodePicker {
                 }
                 let label = keycode_label_with_names(kc.value, &custom_pairs, &self.layer_names);
                 let resp = ui
-                    .add_sized(Self::picker_key_size(), egui::Button::new(""))
+                    .add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""))
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
                 Self::paint_compact_picker_label(ui, &resp, &label);
                 if resp.clicked() {
@@ -1896,7 +1907,7 @@ impl KeycodePicker {
                     smart.name, smart.symbol
                 );
                 let resp = ui
-                    .add_sized(Self::picker_key_size(), egui::Button::new(""))
+                    .add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""))
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
                 Self::paint_compact_picker_label(ui, &resp, &label);
                 if resp.clicked() {
@@ -1924,7 +1935,7 @@ impl KeycodePicker {
                 }
                 let label = keycode_label_with_names(kc.value, &custom_pairs, &self.layer_names);
                 let resp = ui
-                    .add_sized(Self::picker_key_size(), egui::Button::new(""))
+                    .add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""))
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
                 Self::paint_compact_picker_label(ui, &resp, &label);
                 if resp.clicked() {
@@ -1956,7 +1967,7 @@ impl KeycodePicker {
                     title.as_str()
                 };
                 let resp = ui
-                    .add_sized(Self::picker_key_size(), egui::Button::new(""))
+                    .add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""))
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
                 Self::paint_compact_picker_label(ui, &resp, &label);
                 if resp.clicked() {
@@ -1986,7 +1997,7 @@ impl KeycodePicker {
         ui.horizontal_wrapped(|ui| {
             for (base, label, hint) in ops {
                 let resp = ui
-                    .add_sized(Self::picker_key_size(), egui::Button::new(""))
+                    .add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""))
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
                 Self::paint_compact_picker_label(ui, &resp, label);
                 if resp.clicked() {
@@ -1995,7 +2006,7 @@ impl KeycodePicker {
                 resp.on_hover_text(*hint);
             }
             let lt_resp = ui
-                .add(egui::Button::new("").min_size(Self::picker_key_size()))
+                .add(egui::Button::new("").min_size(Self::picker_key_size(ui.ctx())))
                 .on_hover_cursor(egui::CursorIcon::PointingHand);
             Self::paint_compact_picker_label(ui, &lt_resp, "Layer\nLT");
             if lt_resp.clicked() {
@@ -2026,7 +2037,7 @@ impl KeycodePicker {
         ui.horizontal_wrapped(|ui| {
             for (label, left_value, right_value, mod_name) in &plain {
                 let resp = ui
-                    .add_sized(Self::picker_key_size(), egui::Button::new(""))
+                    .add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""))
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
                 Self::paint_compact_picker_label(ui, &resp, label);
                 if resp.clicked_by(egui::PointerButton::Primary) {
@@ -2114,7 +2125,7 @@ impl KeycodePicker {
         ui.horizontal_wrapped(|ui| {
             for (label, left_value, right_value, mod_name) in &mk {
                 let resp = ui
-                    .add_sized(Self::picker_key_size(), egui::Button::new(""))
+                    .add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""))
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
                 Self::paint_compact_picker_label(ui, &resp, label);
                 if resp.clicked_by(egui::PointerButton::Primary) {
@@ -2197,7 +2208,7 @@ impl KeycodePicker {
         ui.horizontal_wrapped(|ui| {
             for (label, left_value, right_value, mod_name) in &mt {
                 let resp = ui
-                    .add_sized(Self::picker_key_size(), egui::Button::new(""))
+                    .add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""))
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
                 Self::paint_compact_picker_label(ui, &resp, label);
                 if resp.clicked_by(egui::PointerButton::Primary) {
@@ -2247,7 +2258,7 @@ impl KeycodePicker {
         ui.horizontal_wrapped(|ui| {
             for (label, left_value, right_value, mod_name) in &osm {
                 let resp = ui
-                    .add_sized(Self::picker_key_size(), egui::Button::new(""))
+                    .add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""))
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
                 Self::paint_compact_picker_label(ui, &resp, label);
                 if resp.clicked_by(egui::PointerButton::Primary) {
@@ -2299,7 +2310,7 @@ impl KeycodePicker {
                     let resp = ui
                         .add(
                             egui::Button::new(RichText::new(kc.label).size(11.0))
-                                .min_size(Self::picker_key_size()),
+                                .min_size(Self::picker_key_size(ui.ctx())),
                         )
                         .on_hover_cursor(egui::CursorIcon::PointingHand);
                     if resp.clicked() {
@@ -2338,7 +2349,7 @@ impl KeycodePicker {
                     let resp = ui
                         .add(
                             egui::Button::new(RichText::new(kc.label).size(11.0))
-                                .min_size(Self::picker_key_size()),
+                                .min_size(Self::picker_key_size(ui.ctx())),
                         )
                         .on_hover_cursor(egui::CursorIcon::PointingHand);
                     if resp.clicked() {
@@ -2415,7 +2426,7 @@ impl KeycodePicker {
                 let resp = ui
                     .add(
                         egui::Button::new(RichText::new(label.as_str()).size(10.5))
-                            .min_size(Self::picker_key_size()),
+                            .min_size(Self::picker_key_size(ui.ctx())),
                     )
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
                 if resp.clicked() {
@@ -2469,7 +2480,7 @@ impl KeycodePicker {
                 let resp = ui
                     .add(
                         egui::Button::new(RichText::new(label.as_str()).size(10.5))
-                            .min_size(Self::picker_key_size()),
+                            .min_size(Self::picker_key_size(ui.ctx())),
                     )
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
                 if resp.clicked() {
@@ -3560,7 +3571,7 @@ impl KeycodePicker {
         ui.horizontal_wrapped(|ui| {
             for (label, value, tip) in bl_keys {
                 let resp = ui
-                    .add_sized(Self::picker_key_size(), egui::Button::new(""))
+                    .add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""))
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
                 let display_label = picker_action_label(label);
                 Self::paint_compact_picker_label(ui, &resp, &display_label);
@@ -3597,7 +3608,7 @@ impl KeycodePicker {
         ui.horizontal_wrapped(|ui| {
             for (label, value, tip) in rgb_keys {
                 let resp = ui
-                    .add_sized(Self::picker_key_size(), egui::Button::new(""))
+                    .add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""))
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
                 let display_label = picker_action_label(label);
                 Self::paint_compact_picker_label(ui, &resp, &display_label);
@@ -3650,7 +3661,7 @@ impl KeycodePicker {
         ui.horizontal_wrapped(|ui| {
             for (label, value, tip) in rgbm_keys {
                 let resp = ui
-                    .add_sized(Self::picker_key_size(), egui::Button::new(""))
+                    .add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""))
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
                 let display_label = picker_action_label(label);
                 Self::paint_compact_picker_label(ui, &resp, &display_label);
@@ -3687,7 +3698,7 @@ impl KeycodePicker {
         ui.horizontal_wrapped(|ui| {
             for (label, value, tip) in rgbm_ctrl {
                 let resp = ui
-                    .add_sized(Self::picker_key_size(), egui::Button::new(""))
+                    .add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""))
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
                 let display_label = picker_action_label(label);
                 Self::paint_compact_picker_label(ui, &resp, &display_label);
@@ -3704,12 +3715,12 @@ impl KeycodePicker {
         true
     }
 
-    fn picker_key_size() -> Vec2 {
-        Vec2::new(54.0, 54.0)
+    fn picker_key_size(ctx: &egui::Context) -> Vec2 {
+        responsive_picker_key_size(ctx)
     }
 
-    fn key_grid_width(cols: usize, spacing: f32) -> f32 {
-        let key_size = Self::picker_key_size();
+    fn key_grid_width(ui: &egui::Ui, cols: usize, spacing: f32) -> f32 {
+        let key_size = Self::picker_key_size(ui.ctx());
         key_size.x * cols as f32 + spacing * cols.saturating_sub(1) as f32
     }
 
@@ -3721,9 +3732,9 @@ impl KeycodePicker {
         let spacing = ui.spacing().item_spacing.x;
         let width = match self.selected_tab {
             KeycodeTab::Symbols | KeycodeTab::Special | KeycodeTab::Rgb | KeycodeTab::Custom => {
-                Self::key_grid_width(13, spacing)
+                Self::key_grid_width(ui, 13, spacing)
             }
-            KeycodeTab::Modifiers => Self::key_grid_width(13, spacing),
+            KeycodeTab::Modifiers => Self::key_grid_width(ui, 13, spacing),
             KeycodeTab::Macro | KeycodeTab::TapDance => Self::slot_grid_width(16, 4.0),
             _ => 840.0,
         };
@@ -3744,7 +3755,10 @@ impl KeycodePicker {
         } else {
             (None, label)
         };
+        let label_scale = (resp.rect.height() / 54.0).clamp(1.0, 1.22);
         let (top_size, bottom_size) = key_label_font_sizes(label);
+        let top_size = top_size.map(|size| size * label_scale);
+        let bottom_size = bottom_size * label_scale;
         let top_color = if dark {
             Color32::from_rgb(130, 130, 145)
         } else {
@@ -3763,21 +3777,25 @@ impl KeycodePicker {
         if let Some(top_str) = top {
             let center = resp.rect.center();
             painter.text(
-                egui::pos2(center.x, center.y - 7.0),
+                egui::pos2(center.x, center.y - 7.0 * label_scale),
                 egui::Align2::CENTER_CENTER,
                 top_str,
                 egui::FontId::proportional(top_size.unwrap_or(9.0)),
                 top_color,
             );
             painter.text(
-                egui::pos2(center.x, center.y + 6.0),
+                egui::pos2(center.x, center.y + 6.0 * label_scale),
                 egui::Align2::CENTER_CENTER,
                 bottom,
                 egui::FontId::proportional(bottom_size),
                 main_color,
             );
         } else {
-            let font_size = if bottom == "↵" { 16.0 } else { bottom_size };
+            let font_size = if bottom == "↵" {
+                16.0 * label_scale
+            } else {
+                bottom_size
+            };
             painter.text(
                 resp.rect.center(),
                 egui::Align2::CENTER_CENTER,
@@ -3891,7 +3909,7 @@ Repeat"
                     }
                 }
                 let resp = ui
-                    .add_sized(Self::picker_key_size(), egui::Button::new(""))
+                    .add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""))
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
                 Self::paint_compact_picker_label(ui, &resp, label);
                 if resp.clicked() {
@@ -3923,7 +3941,7 @@ Repeat"
             ui.horizontal_wrapped(|ui| {
                 for value in &mouse_values {
                     let resp = ui
-                        .add_sized(Self::picker_key_size(), egui::Button::new(""))
+                        .add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""))
                         .on_hover_cursor(egui::CursorIcon::PointingHand);
                     let label = keycode_label_with_names(*value, &[], &self.layer_names);
                     Self::paint_compact_picker_label(ui, &resp, &label);
@@ -3980,7 +3998,7 @@ Repeat"
                     continue;
                 }
                 let resp = ui
-                    .add_sized(Self::picker_key_size(), egui::Button::new(""))
+                    .add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""))
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
                 let label = keycode_label_with_names(*value, &[], &self.layer_names);
                 Self::paint_compact_picker_label(ui, &resp, &label);
@@ -4076,7 +4094,7 @@ Repeat"
                 if !self.picker_value_supported(value) {
                     continue;
                 }
-                let resp = ui.add_sized(Self::picker_key_size(), egui::Button::new(""));
+                let resp = ui.add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""));
                 Self::paint_compact_picker_label(ui, &resp, text);
                 if resp.clicked() {
                     self.assign_keycode_value(value);
@@ -4133,7 +4151,7 @@ Repeat"
                         .unwrap_or(kc.label),
                 };
                 let font_size = if display.len() > 2 { 10.5 } else { 13.0 };
-                let mut resp = ui.add_sized(Self::picker_key_size(), egui::Button::new(""));
+                let mut resp = ui.add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""));
                 let rect = resp.rect;
                 let painter = ui.painter();
                 let main_color = if resp.hovered() {
@@ -4195,7 +4213,8 @@ Repeat"
                     let mut parts = label.splitn(2, '\n');
                     let top = parts.next().unwrap_or("");
                     let bottom = parts.next().unwrap_or("");
-                    let mut resp = ui.add_sized(Self::picker_key_size(), egui::Button::new(""));
+                    let mut resp =
+                        ui.add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""));
                     let rect = resp.rect;
                     let painter = ui.painter();
                     let main_color = if resp.hovered() {
@@ -4282,7 +4301,7 @@ Repeat"
                 if !self.picker_value_supported(*value) {
                     continue;
                 }
-                let mut resp = ui.add_sized(Self::picker_key_size(), egui::Button::new(""));
+                let mut resp = ui.add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""));
                 let rect = resp.rect;
                 let painter = ui.painter();
                 let main_color = if resp.hovered() {
@@ -4352,7 +4371,7 @@ Repeat"
                 Color32::from_gray(145)
             };
             for (top, bottom, value, tip) in international_keys {
-                let mut resp = ui.add_sized(Self::picker_key_size(), egui::Button::new(""));
+                let mut resp = ui.add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""));
                 let rect = resp.rect;
                 let painter = ui.painter();
                 let main_color = if resp.hovered() {
