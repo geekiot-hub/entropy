@@ -509,7 +509,12 @@ fn top_dropdown_item(
         } else {
             ui.visuals().text_color()
         };
-        ui.painter().text(
+        let text_clip = if selected {
+            egui::Rect::from_min_max(rect.min, egui::pos2(rect.right() - 24.0, rect.bottom()))
+        } else {
+            rect
+        };
+        ui.painter().with_clip_rect(text_clip).text(
             egui::pos2(rect.left() + 10.0, rect.center().y),
             egui::Align2::LEFT_CENTER,
             label,
@@ -11357,12 +11362,13 @@ impl EntropyApp {
                 // Keep hover bridge in sync with actual item height (30px) and frame padding.
                 // Underestimating this makes lower items close the dropdown on hover.
                 let dropdown_height = settings_item_count as f32 * 30.0 + 12.0;
+                let dropdown_width = 184.0;
                 let dropdown_rect = egui::Rect::from_min_size(
                     egui::pos2(
-                        settings_rect.center().x - 76.0,
+                        settings_rect.center().x - dropdown_width / 2.0,
                         settings_rect.bottom() + 6.0,
                     ),
-                    Vec2::new(152.0, dropdown_height),
+                    Vec2::new(dropdown_width, dropdown_height),
                 );
                 let hover_bridge_rect = settings_rect.union(dropdown_rect).expand(3.0);
                 let pointer_over_bridge = ui
