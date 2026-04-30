@@ -5185,22 +5185,32 @@ impl eframe::App for EntropyApp {
 
             if is_loading {
                 let rect = ui.max_rect();
-                let loading_rect = egui::Rect::from_center_size(
-                    rect.center(),
-                    egui::vec2(rect.width().min(260.0), 40.0),
-                );
-                ui.allocate_ui_at_rect(loading_rect, |ui| {
-                    ui.vertical_centered(|ui| {
-                        ui.horizontal(|ui| {
-                            ui.spinner();
-                            ui.label(
-                                RichText::new("Loading keyboard…")
-                                    .size(16.0)
-                                    .color(Color32::GRAY),
-                            );
-                        });
-                    });
+                let text = "Loading keyboard…";
+                let font_id = FontId::proportional(16.0);
+                let text_width = ui.fonts(|f| {
+                    f.layout_no_wrap(text.to_owned(), font_id.clone(), Color32::GRAY)
+                        .size()
+                        .x
                 });
+                let spinner_size = 18.0;
+                let gap = 8.0;
+                let row_width = spinner_size + gap + text_width;
+                let row_left = rect.center().x - row_width * 0.5;
+                let spinner_rect = egui::Rect::from_center_size(
+                    egui::pos2(row_left + spinner_size * 0.5, rect.center().y),
+                    egui::vec2(spinner_size, spinner_size),
+                );
+                egui::Spinner::new()
+                    .size(spinner_size)
+                    .color(Color32::GRAY)
+                    .paint_at(ui, spinner_rect);
+                ui.painter().text(
+                    egui::pos2(row_left + spinner_size + gap, rect.center().y),
+                    egui::Align2::LEFT_CENTER,
+                    text,
+                    font_id,
+                    Color32::GRAY,
+                );
                 return;
             }
 
