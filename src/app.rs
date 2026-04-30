@@ -165,7 +165,8 @@ fn responsive_settings_visible_rows(
         .native_pixels_per_point()
         .unwrap_or_else(|| ctx.pixels_per_point() / ctx.zoom_factor().max(0.1))
         .max(1.0);
-    let usable_physical_height = (available_height - bottom_reserve).max(0.0) * native_scale;
+    let logical_height = available_height.max(ctx.screen_rect().height());
+    let usable_physical_height = (logical_height - bottom_reserve).max(0.0) * native_scale;
     let extra_rows = ((usable_physical_height - EXTRA_ROW_START_PHYSICAL_HEIGHT)
         / EXTRA_ROW_STEP_PHYSICAL_HEIGHT)
         .floor()
