@@ -3302,7 +3302,11 @@ impl EntropyApp {
 
     fn draw_app_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
         let dark = ui.visuals().dark_mode;
-        let content_width = 470.0_f32;
+        let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ui.ctx());
+        let content_width = metrics.settings_content_width();
+        let row_height = metrics.settings_row_height();
+        let switch_width = metrics.value(46.0);
+        let switch_size = metrics.size(46.0, 24.0);
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(18.0);
@@ -3319,13 +3323,13 @@ impl EntropyApp {
                 crate::ui_style::settings_list_row_with_tooltip(
                     ui,
                     content_width,
-                    54.0,
+                    row_height,
                     "Close to tray",
                     true,
                     Some("Hide Entropy in the system tray instead of quitting when the window is closed"),
-                    70.0,
+                    switch_width,
                     |ui| {
-                        let _ = crate::ui_style::settings_switch(ui, &mut minimize_to_tray);
+                        let _ = crate::ui_style::settings_switch_sized(ui, &mut minimize_to_tray, switch_size);
                     },
                 );
                 if minimize_to_tray != self.app_settings.minimize_to_tray_on_close {
@@ -3343,13 +3347,13 @@ impl EntropyApp {
                 crate::ui_style::settings_list_row_with_tooltip(
                     ui,
                     content_width,
-                    54.0,
+                    row_height,
                     "Shifted number symbols",
                     true,
                     Some("Show shifted symbols above number-row keys, like ! over 1 and @ over 2"),
-                    70.0,
+                    switch_width,
                     |ui| {
-                        let _ = crate::ui_style::settings_switch(ui, &mut show_shifted_symbols);
+                        let _ = crate::ui_style::settings_switch_sized(ui, &mut show_shifted_symbols, switch_size);
                     },
                 );
                 if show_shifted_symbols != self.app_settings.show_shifted_number_symbols {
@@ -3361,11 +3365,11 @@ impl EntropyApp {
                 crate::ui_style::settings_list_row_with_tooltip(
                     ui,
                     content_width,
-                    54.0,
+                    row_height,
                     "Accent color",
                     true,
                     Some("Choose the color used for active states and highlights"),
-                    218.0,
+                    metrics.value(218.0),
                     |ui| {
                         ui.horizontal(|ui| {
                             ui.spacing_mut().item_spacing.x = 7.0;
@@ -3409,47 +3413,52 @@ impl EntropyApp {
 
     fn draw_universal_symbols_setup_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
         let dark = ui.visuals().dark_mode;
-        let content_width = 470.0_f32;
+        let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ui.ctx());
+        let content_width = metrics.settings_content_width();
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
-                ui.add_space(18.0);
+                ui.add_space(metrics.value(18.0));
                 ui.allocate_ui_with_layout(
                     Vec2::new(content_width, 0.0),
                     egui::Layout::top_down(egui::Align::Center),
                     |ui| {
                         ui.add_sized(
-                            Vec2::new(content_width, 24.0),
+                            Vec2::new(content_width, metrics.value(24.0)),
                             egui::Label::new(
-                                RichText::new("Universal Symbols Setup").size(18.0).strong(),
+                                RichText::new("Universal Symbols Setup")
+                                    .size(metrics.value(18.0))
+                                    .strong(),
                             )
                             .halign(egui::Align::Center),
                         );
-                        ui.add_space(6.0);
+                        ui.add_space(metrics.value(6.0));
                         ui.add_sized(
-                            Vec2::new(content_width, 18.0),
+                            Vec2::new(content_width, metrics.value(18.0)),
                             egui::Label::new(
                                 RichText::new(crate::smart_input::universal_output_status())
-                                    .size(12.5)
+                                    .size(metrics.value(12.5))
                                     .color(app_muted_text(dark)),
                             )
                             .wrap()
                             .halign(egui::Align::Center),
                         );
                         if let Some(hint) = crate::smart_input::universal_output_setup_hint() {
-                            ui.add_space(4.0);
+                            ui.add_space(metrics.value(4.0));
                             ui.add_sized(
-                                Vec2::new(content_width, 18.0),
+                                Vec2::new(content_width, metrics.value(18.0)),
                                 egui::Label::new(
-                                    RichText::new(hint).size(11.0).color(app_muted_text(dark)),
+                                    RichText::new(hint)
+                                        .size(metrics.value(11.0))
+                                        .color(app_muted_text(dark)),
                                 )
                                 .wrap()
                                 .halign(egui::Align::Center),
                             );
                         }
-                        ui.add_space(16.0);
+                        ui.add_space(metrics.value(16.0));
 
                         let steps = universal_symbols_setup_steps();
-                        let step_height = 24.0_f32;
+                        let step_height = metrics.value(24.0);
                         let block_height = steps.len() as f32 * step_height;
                         let block_rect = ui
                             .allocate_exact_size(
@@ -3464,7 +3473,7 @@ impl EntropyApp {
                         };
                         ui.painter().rect(
                             block_rect,
-                            14.0,
+                            metrics.value(14.0),
                             fill,
                             crate::ui_style::modal_outline_stroke(dark),
                             egui::StrokeKind::Inside,
@@ -3475,7 +3484,7 @@ impl EntropyApp {
                                 egui::pos2(block_rect.center().x, y),
                                 egui::Align2::CENTER_CENTER,
                                 *step,
-                                FontId::proportional(12.0),
+                                FontId::proportional(metrics.value(12.0)),
                                 if idx == 0 {
                                     app_accent()
                                 } else {
@@ -3484,22 +3493,28 @@ impl EntropyApp {
                             );
                         }
 
-                        ui.add_space(16.0);
-                        self.draw_universal_symbols_setup_actions(ui);
+                        ui.add_space(metrics.value(16.0));
+                        self.draw_universal_symbols_setup_actions(ui, metrics);
                     },
                 );
             });
         });
     }
 
-    fn draw_universal_symbols_setup_actions(&mut self, ui: &mut egui::Ui) {
+    fn draw_universal_symbols_setup_actions(
+        &mut self,
+        ui: &mut egui::Ui,
+        metrics: crate::ui_style::ResponsiveMetrics,
+    ) {
+        let _ = &metrics;
         ui.horizontal_centered(|ui| {
+            let _ = &mut *ui;
             #[cfg(target_os = "macos")]
             {
                 if crate::ui_style::modern_button(
                     ui,
                     "Open Privacy Settings",
-                    Vec2::new(184.0, 34.0),
+                    metrics.size(184.0, 34.0),
                     true,
                 )
                 .clicked()
@@ -3517,13 +3532,13 @@ impl EntropyApp {
 
             #[cfg(target_os = "linux")]
             {
-                if crate::ui_style::modern_button(ui, "Install IBus", Vec2::new(132.0, 34.0), true)
+                if crate::ui_style::modern_button(ui, "Install IBus", metrics.size(132.0, 34.0), true)
                     .clicked()
                 {
                     self.run_linux_universal_symbols_setup("linux/ibus/install-user.sh", "IBus");
                 }
-                ui.add_space(8.0);
-                if crate::ui_style::modern_button(ui, "Install Fcitx5", Vec2::new(142.0, 34.0), true)
+                ui.add_space(metrics.value(8.0));
+                if crate::ui_style::modern_button(ui, "Install Fcitx5", metrics.size(142.0, 34.0), true)
                     .clicked()
                 {
                     self.run_linux_universal_symbols_setup("linux/fcitx5/install-user.sh", "Fcitx5");
@@ -3553,7 +3568,9 @@ impl EntropyApp {
 
     fn draw_mouse_keys_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
         let dark = ui.visuals().dark_mode;
-        let content_width = 470.0_f32;
+        let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ui.ctx());
+        let content_width = metrics.settings_content_width();
+        let row_height = metrics.settings_row_height();
 
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
@@ -3577,15 +3594,15 @@ impl EntropyApp {
                 }
 
                 const TOTAL_MOUSE_KEY_ROWS: usize = 9;
-                const MOUSE_KEY_ROW_HEIGHT: f32 = 54.0;
+                let mouse_key_row_height = row_height;
                 let visible_rows = responsive_settings_visible_rows(
                     ui.ctx(),
                     ui.available_height(),
                     TOTAL_MOUSE_KEY_ROWS,
                     0.0,
                 );
-                let list_height = MOUSE_KEY_ROW_HEIGHT * visible_rows as f32;
-                let content_height = MOUSE_KEY_ROW_HEIGHT * TOTAL_MOUSE_KEY_ROWS as f32;
+                let list_height = mouse_key_row_height * visible_rows as f32;
+                let content_height = mouse_key_row_height * TOTAL_MOUSE_KEY_ROWS as f32;
                 let max_offset = (content_height - list_height).max(0.0);
                 let offset_id = ui.id().with("mouse_keys_settings_smooth_offset");
                 let target_id = ui.id().with("mouse_keys_settings_smooth_target");
@@ -3667,14 +3684,14 @@ impl EntropyApp {
                     d.insert_persisted(target_id, target_offset);
                 });
 
-                let first_visible_row = (scroll_offset / MOUSE_KEY_ROW_HEIGHT).floor() as usize;
-                let row_y_offset = scroll_offset - first_visible_row as f32 * MOUSE_KEY_ROW_HEIGHT;
+                let first_visible_row = (scroll_offset / mouse_key_row_height).floor() as usize;
+                let row_y_offset = scroll_offset - first_visible_row as f32 * mouse_key_row_height;
                 let last_visible_row =
                     (first_visible_row + visible_rows + 1).min(TOTAL_MOUSE_KEY_ROWS);
                 let visible_row_count = last_visible_row.saturating_sub(first_visible_row);
                 let content_rect = egui::Rect::from_min_size(
                     egui::pos2(viewport.left(), viewport.top() - row_y_offset),
-                    egui::vec2(content_width, MOUSE_KEY_ROW_HEIGHT * visible_row_count as f32),
+                    egui::vec2(content_width, mouse_key_row_height * visible_row_count as f32),
                 );
                 let suppress_tooltips = scroll_active || ui.input(|i| i.pointer.primary_down());
                 ui.allocate_ui_at_rect(content_rect, |ui| {
@@ -3684,6 +3701,9 @@ impl EntropyApp {
                     self.draw_mouse_keys_editor_content(
                         ui,
                         first_visible_row..last_visible_row,
+                        metrics.settings_row_content_width(),
+                        row_height,
+                        metrics.value(86.0),
                         suppress_tooltips,
                     );
                 });
@@ -3960,20 +3980,21 @@ impl EntropyApp {
     }
 
     fn draw_alt_repeat_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
-        const ALT_REPEAT_PAGE_WIDTH: f32 = 470.0;
-        const ALT_REPEAT_TITLE_Y_OFFSET: f32 = 30.0;
-        const ALT_REPEAT_DESC_GAP: f32 = 28.0;
-        const ALT_REPEAT_BLOCK_TOP_GAP: f32 = 22.0;
+        let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ui.ctx());
+        let alt_repeat_page_width = metrics.settings_content_width();
+        let alt_repeat_title_y_offset = metrics.value(30.0);
+        let alt_repeat_desc_gap = metrics.value(28.0);
+        let alt_repeat_block_top_gap = metrics.value(22.0);
 
         let dark = ui.visuals().dark_mode;
         let center_x = content_rect.center().x;
-        let title_y = content_rect.top() + ALT_REPEAT_TITLE_Y_OFFSET;
-        let desc_y = title_y + ALT_REPEAT_DESC_GAP;
-        let block_top = desc_y + ALT_REPEAT_BLOCK_TOP_GAP;
+        let title_y = content_rect.top() + alt_repeat_title_y_offset;
+        let desc_y = title_y + alt_repeat_desc_gap;
+        let block_top = desc_y + alt_repeat_block_top_gap;
         let block_rect = egui::Rect::from_min_max(
-            egui::pos2(center_x - ALT_REPEAT_PAGE_WIDTH / 2.0, block_top),
+            egui::pos2(center_x - alt_repeat_page_width / 2.0, block_top),
             egui::pos2(
-                center_x + ALT_REPEAT_PAGE_WIDTH / 2.0,
+                center_x + alt_repeat_page_width / 2.0,
                 content_rect.bottom(),
             ),
         );
@@ -3982,14 +4003,14 @@ impl EntropyApp {
             egui::pos2(center_x, title_y),
             egui::Align2::CENTER_CENTER,
             "Alt Repeat",
-            FontId::proportional(18.0),
+            FontId::proportional(metrics.value(18.0)),
             ui.visuals().text_color(),
         );
         ui.painter().text(
             egui::pos2(center_x, desc_y),
             egui::Align2::CENTER_CENTER,
             "Configure alternate repeat keys and modifier behavior",
-            FontId::proportional(13.0),
+            FontId::proportional(metrics.value(13.0)),
             app_muted_text(dark),
         );
 
@@ -4069,10 +4090,12 @@ impl EntropyApp {
         content_rect: egui::Rect,
         dark: bool,
     ) {
-        const ENCODERS_CONTENT_WIDTH: f32 = 470.0;
-        const ENCODERS_ROW_HEIGHT: f32 = 54.0;
-        const ENCODERS_TOP_PADDING: f32 = 4.0;
-        const SWITCH_WIDTH: f32 = 46.0;
+        let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ui.ctx());
+        let encoders_content_width = metrics.settings_content_width();
+        let encoders_row_height = metrics.settings_row_height();
+        let encoders_top_padding = metrics.value(4.0);
+        let switch_width = metrics.value(46.0);
+        let switch_size = metrics.size(46.0, 24.0);
 
         let (visible_count, device_name) = self
             .layout
@@ -4116,21 +4139,25 @@ impl EntropyApp {
 
                 crate::ui_style::modal_content(
                     ui,
-                    crate::ui_style::ModalLayout::new(ENCODERS_CONTENT_WIDTH)
-                        .with_top_padding(ENCODERS_TOP_PADDING),
+                    crate::ui_style::ModalLayout::new(encoders_content_width)
+                        .with_top_padding(encoders_top_padding),
                     |ui| {
                         for visual_idx in 0..visible_count {
                             let mut visible = self.encoder_visibility[visual_idx];
                             let label = format!("Encoder {}", visual_idx + 1);
                             crate::ui_style::settings_list_row(
                                 ui,
-                                ENCODERS_CONTENT_WIDTH,
-                                ENCODERS_ROW_HEIGHT,
+                                encoders_content_width,
+                                encoders_row_height,
                                 &label,
                                 true,
-                                SWITCH_WIDTH,
+                                switch_width,
                                 |ui| {
-                                    let resp = crate::ui_style::settings_switch(ui, &mut visible);
+                                    let resp = crate::ui_style::settings_switch_sized(
+                                        ui,
+                                        &mut visible,
+                                        switch_size,
+                                    );
                                     if resp.changed() {
                                         self.encoder_visibility[visual_idx] = visible;
                                         if !device_name.is_empty() {
@@ -4150,10 +4177,13 @@ impl EntropyApp {
     }
 
     fn draw_layout_options_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
-        const CONTENT_WIDTH: f32 = 470.0;
-        const ROW_CONTENT_WIDTH: f32 = 452.0;
-        const ROW_HEIGHT: f32 = 54.0;
-        const DROPDOWN_WIDTH: f32 = 220.0;
+        let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ui.ctx());
+        let content_width = metrics.settings_content_width();
+        let row_content_width = metrics.settings_row_content_width();
+        let row_height = metrics.settings_row_height();
+        let dropdown_width = metrics.value(220.0);
+        let switch_width = metrics.value(46.0);
+        let switch_size = metrics.size(46.0, 24.0);
 
         let dark = ui.visuals().dark_mode;
         let hid_ready = {
@@ -4215,8 +4245,8 @@ impl EntropyApp {
                     0.0,
                 )
                 .max(1);
-                let list_height = ROW_HEIGHT * visible_rows as f32;
-                let content_height = ROW_HEIGHT * total_rows as f32;
+                let list_height = row_height * visible_rows as f32;
+                let content_height = row_height * total_rows as f32;
                 let max_offset = (content_height - list_height).max(0.0);
                 let offset_id = ui.id().with("layout_options_smooth_offset");
                 let target_id = ui.id().with("layout_options_smooth_target");
@@ -4229,7 +4259,7 @@ impl EntropyApp {
                     .data_mut(|d| d.get_persisted::<f32>(target_id).unwrap_or(scroll_offset))
                     .clamp(0.0, max_offset);
                 let (viewport, viewport_resp) =
-                    ui.allocate_exact_size(egui::vec2(CONTENT_WIDTH, list_height), Sense::hover());
+                    ui.allocate_exact_size(egui::vec2(content_width, list_height), Sense::hover());
                 let track_width = 6.0;
                 let track_rect = egui::Rect::from_min_max(
                     egui::pos2(viewport.right() - track_width, viewport.top()),
@@ -4296,13 +4326,13 @@ impl EntropyApp {
                     &options,
                     self.layout_options_value.unwrap_or(0),
                 );
-                let first_visible_row = (scroll_offset / ROW_HEIGHT).floor() as usize;
-                let row_y_offset = scroll_offset - first_visible_row as f32 * ROW_HEIGHT;
+                let first_visible_row = (scroll_offset / row_height).floor() as usize;
+                let row_y_offset = scroll_offset - first_visible_row as f32 * row_height;
                 let last_visible_row = (first_visible_row + visible_rows + 1).min(total_rows);
                 let visible_row_count = last_visible_row.saturating_sub(first_visible_row);
                 let content_rect = egui::Rect::from_min_size(
                     egui::pos2(viewport.left(), viewport.top() - row_y_offset),
-                    egui::vec2(CONTENT_WIDTH, ROW_HEIGHT * visible_row_count as f32),
+                    egui::vec2(content_width, row_height * visible_row_count as f32),
                 );
 
                 ui.allocate_ui_at_rect(content_rect, |ui| {
@@ -4318,14 +4348,18 @@ impl EntropyApp {
                             let mut enabled = values.get(row_idx).copied().unwrap_or(0) != 0;
                             crate::ui_style::settings_list_row_with_tooltip(
                                 ui,
-                                ROW_CONTENT_WIDTH,
-                                ROW_HEIGHT,
+                                row_content_width,
+                                row_height,
                                 &option.label,
                                 true,
                                 Some("Toggle firmware layout/display option"),
-                                46.0,
+                                switch_width,
                                 |ui| {
-                                    let resp = crate::ui_style::settings_switch(ui, &mut enabled);
+                                    let resp = crate::ui_style::settings_switch_sized(
+                                        ui,
+                                        &mut enabled,
+                                        switch_size,
+                                    );
                                     if resp.changed() {
                                         self.set_layout_option_value(row_idx, u32::from(enabled));
                                     }
@@ -4348,22 +4382,25 @@ impl EntropyApp {
                             let tooltip = format!("Choose firmware preset for {}", option.label);
                             crate::ui_style::settings_list_row_with_tooltip(
                                 ui,
-                                ROW_CONTENT_WIDTH,
-                                ROW_HEIGHT,
+                                row_content_width,
+                                row_height,
                                 &option.label,
                                 true,
                                 Some(&tooltip),
-                                DROPDOWN_WIDTH,
+                                dropdown_width,
                                 |ui| {
                                     let dropdown_id =
                                         ui.make_persistent_id(("layout_option_dropdown", row_idx));
-                                    let dropdown_resp = crate::ui_style::modern_dropdown_button(
-                                        ui,
-                                        dropdown_id,
-                                        &selected_text,
-                                        ui.visuals().text_color(),
-                                        DROPDOWN_WIDTH,
-                                    );
+                                    let dropdown_resp =
+                                        crate::ui_style::modern_dropdown_button_sized(
+                                            ui,
+                                            dropdown_id,
+                                            &selected_text,
+                                            ui.visuals().text_color(),
+                                            dropdown_width,
+                                            metrics.settings_control_height(),
+                                            metrics.settings_control_font_size(),
+                                        );
 
                                     egui::popup_below_widget(
                                         ui,
@@ -4371,11 +4408,11 @@ impl EntropyApp {
                                         &dropdown_resp,
                                         egui::PopupCloseBehavior::CloseOnClickOutside,
                                         |ui| {
-                                            ui.set_min_width(DROPDOWN_WIDTH);
+                                            ui.set_min_width(dropdown_width);
                                             ui.spacing_mut().item_spacing = Vec2::new(0.0, 2.0);
                                             egui::ScrollArea::vertical()
                                                 .id_salt(("layout_option_dropdown_scroll", row_idx))
-                                                .max_height(142.0)
+                                                .max_height(metrics.value(142.0))
                                                 .auto_shrink([false, true])
                                                 .show(ui, |ui| {
                                                     for (choice_idx, label) in
@@ -4384,7 +4421,7 @@ impl EntropyApp {
                                                         let selected = choice_idx == selected_idx;
                                                         let (option_rect, option_resp) = ui
                                                             .allocate_exact_size(
-                                                                Vec2::new(DROPDOWN_WIDTH, 28.0),
+                                                                metrics.size(220.0, 28.0),
                                                                 Sense::click(),
                                                             );
                                                         if option_resp.hovered() {
@@ -4414,12 +4451,15 @@ impl EntropyApp {
                                                             );
                                                         ui.painter().text(
                                                             egui::pos2(
-                                                                option_rect.left() + 10.0,
+                                                                option_rect.left()
+                                                                    + metrics.value(10.0),
                                                                 option_rect.center().y,
                                                             ),
                                                             egui::Align2::LEFT_CENTER,
                                                             display_label,
-                                                            FontId::proportional(12.0),
+                                                            FontId::proportional(
+                                                                metrics.value(12.0),
+                                                            ),
                                                             if selected {
                                                                 ui.visuals().text_color()
                                                             } else {
@@ -4524,7 +4564,8 @@ impl EntropyApp {
                     ui.add_space(18.0);
                 }
 
-                self.draw_auto_shift_editor_content(ui, dark, 470.0);
+                let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ui.ctx());
+                self.draw_auto_shift_editor_content(ui, dark, metrics);
             });
         });
     }
@@ -4533,17 +4574,18 @@ impl EntropyApp {
         &mut self,
         ui: &mut egui::Ui,
         dark: bool,
-        content_width: f32,
+        metrics: crate::ui_style::ResponsiveMetrics,
     ) {
         const TOTAL_ROWS: usize = 8;
-        const ROW_HEIGHT: f32 = 54.0;
-        const ROW_CONTENT_WIDTH: f32 = 452.0;
-        const FIELD_WIDTH: f32 = 86.0;
+        let content_width = metrics.settings_content_width();
+        let row_height = metrics.settings_row_height();
+        let row_content_width = metrics.settings_row_content_width();
+        let field_width = metrics.value(86.0);
 
         let visible_rows =
             responsive_settings_visible_rows(ui.ctx(), ui.available_height(), TOTAL_ROWS, 0.0);
-        let list_height = ROW_HEIGHT * visible_rows as f32;
-        let content_height = ROW_HEIGHT * TOTAL_ROWS as f32;
+        let list_height = row_height * visible_rows as f32;
+        let content_height = row_height * TOTAL_ROWS as f32;
         let max_offset = (content_height - list_height).max(0.0);
         let offset_id = ui.id().with("auto_shift_settings_smooth_offset");
         let target_id = ui.id().with("auto_shift_settings_smooth_target");
@@ -4617,13 +4659,13 @@ impl EntropyApp {
             d.insert_persisted(target_id, target_offset);
         });
 
-        let first_visible_row = (scroll_offset / ROW_HEIGHT).floor() as usize;
-        let row_y_offset = scroll_offset - first_visible_row as f32 * ROW_HEIGHT;
+        let first_visible_row = (scroll_offset / row_height).floor() as usize;
+        let row_y_offset = scroll_offset - first_visible_row as f32 * row_height;
         let last_visible_row = (first_visible_row + visible_rows + 1).min(TOTAL_ROWS);
         let visible_row_count = last_visible_row.saturating_sub(first_visible_row);
         let content_rect = egui::Rect::from_min_size(
             egui::pos2(viewport.left(), viewport.top() - row_y_offset),
-            egui::vec2(content_width, ROW_HEIGHT * visible_row_count as f32),
+            egui::vec2(content_width, row_height * visible_row_count as f32),
         );
         let suppress_tooltips =
             (scroll_offset - target_offset).abs() > 0.35 || ui.input(|i| i.pointer.primary_down());
@@ -4635,9 +4677,9 @@ impl EntropyApp {
                 self.draw_auto_shift_row(
                     ui,
                     row_idx,
-                    ROW_CONTENT_WIDTH,
-                    ROW_HEIGHT,
-                    FIELD_WIDTH,
+                    row_content_width,
+                    row_height,
+                    field_width,
                     dark,
                     suppress_tooltips,
                 );
@@ -7207,12 +7249,14 @@ impl EntropyApp {
         let idx = self.selected_alt_repeat;
         let current = self.alt_repeat_entries[idx].clone();
         let mut edited = current.clone();
-        const CONTENT_WIDTH: f32 = 470.0;
-        const ROW_HEIGHT: f32 = 54.0;
+        let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ui.ctx());
+        let content_width = metrics.settings_content_width();
+        let row_height = metrics.settings_row_height();
         const TOTAL_ROWS: usize = 11;
-        const ROW_CONTENT_WIDTH: f32 = 452.0;
-        const CONTROL_WIDTH: f32 = 168.0;
-        const MOD_CONTROL_WIDTH: f32 = 210.0;
+        let row_content_width = metrics.settings_row_content_width();
+        let control_width = metrics.settings_control_width();
+        let mod_control_width = metrics.value(210.0);
+        let switch_size = metrics.size(46.0, 24.0);
         let custom = self
             .layout
             .as_ref()
@@ -7275,16 +7319,16 @@ impl EntropyApp {
 
         crate::ui_style::modal_content(
             ui,
-            crate::ui_style::ModalLayout::new(CONTENT_WIDTH).with_top_padding(4.0),
+            crate::ui_style::ModalLayout::new(content_width).with_top_padding(4.0),
             |ui| {
                 let visible_rows = responsive_settings_visible_rows(
                     ui.ctx(),
                     ui.available_height(),
                     TOTAL_ROWS,
-                    86.0,
+                    metrics.value(86.0),
                 );
-                let list_height = ROW_HEIGHT * visible_rows as f32;
-                let content_height = ROW_HEIGHT * TOTAL_ROWS as f32;
+                let list_height = row_height * visible_rows as f32;
+                let content_height = row_height * TOTAL_ROWS as f32;
                 let max_offset = (content_height - list_height).max(0.0);
                 let offset_id = ui.id().with("alt_repeat_settings_smooth_offset");
                 let target_id = ui.id().with("alt_repeat_settings_smooth_target");
@@ -7297,7 +7341,7 @@ impl EntropyApp {
                     .data_mut(|d| d.get_persisted::<f32>(target_id).unwrap_or(scroll_offset))
                     .clamp(0.0, max_offset);
                 let (viewport, viewport_resp) =
-                    ui.allocate_exact_size(egui::vec2(CONTENT_WIDTH, list_height), Sense::hover());
+                    ui.allocate_exact_size(egui::vec2(content_width, list_height), Sense::hover());
                 let track_width = 6.0;
                 let track_rect = egui::Rect::from_min_max(
                     egui::pos2(viewport.right() - track_width, viewport.top()),
@@ -7360,13 +7404,13 @@ impl EntropyApp {
                     d.insert_persisted(target_id, target_offset);
                 });
 
-                let first_visible_row = (scroll_offset / ROW_HEIGHT).floor() as usize;
-                let row_y_offset = scroll_offset - first_visible_row as f32 * ROW_HEIGHT;
+                let first_visible_row = (scroll_offset / row_height).floor() as usize;
+                let row_y_offset = scroll_offset - first_visible_row as f32 * row_height;
                 let last_visible_row = (first_visible_row + visible_rows + 1).min(TOTAL_ROWS);
                 let visible_row_count = last_visible_row.saturating_sub(first_visible_row);
                 let content_rect = egui::Rect::from_min_size(
                     egui::pos2(viewport.left(), viewport.top() - row_y_offset),
-                    egui::vec2(CONTENT_WIDTH, ROW_HEIGHT * visible_row_count as f32),
+                    egui::vec2(content_width, row_height * visible_row_count as f32),
                 );
                 ui.allocate_ui_at_rect(content_rect, |ui| {
                     ui.set_clip_rect(viewport);
@@ -7377,22 +7421,25 @@ impl EntropyApp {
                             0 => {
                                 crate::ui_style::settings_list_row_with_tooltip(
                                     ui,
-                                    ROW_CONTENT_WIDTH,
-                                    ROW_HEIGHT,
+                                    row_content_width,
+                                    row_height,
                                     "Entry",
                                     true,
                                     Some("Select Alt Repeat slot"),
-                                    CONTROL_WIDTH,
+                                    control_width,
                                     |ui| {
                                         let dropdown_id =
                                             ui.make_persistent_id("alt_repeat_entry_dropdown");
-                                        let dropdown_resp = crate::ui_style::modern_dropdown_button(
-                                            ui,
-                                            dropdown_id,
-                                            selected_text.as_str(),
-                                            selected_text_color,
-                                            CONTROL_WIDTH,
-                                        );
+                                        let dropdown_resp =
+                                            crate::ui_style::modern_dropdown_button_sized(
+                                                ui,
+                                                dropdown_id,
+                                                selected_text.as_str(),
+                                                selected_text_color,
+                                                control_width,
+                                                metrics.settings_control_height(),
+                                                metrics.settings_control_font_size(),
+                                            );
 
                                         ui.style_mut().visuals.window_stroke =
                                             crate::ui_style::modal_outline_stroke(dark);
@@ -7403,11 +7450,11 @@ impl EntropyApp {
                                             &dropdown_resp,
                                             egui::PopupCloseBehavior::CloseOnClickOutside,
                                             |ui| {
-                                                ui.set_min_width(CONTROL_WIDTH);
+                                                ui.set_min_width(control_width);
                                                 ui.spacing_mut().item_spacing = Vec2::new(0.0, 2.0);
                                                 egui::ScrollArea::vertical()
                                                     .id_salt("alt_repeat_entry_dropdown_scroll")
-                                                    .max_height(142.0)
+                                                    .max_height(metrics.value(142.0))
                                                     .auto_shrink([false, true])
                                                     .show(ui, |ui| {
                                                         for entry_idx in
@@ -7448,7 +7495,7 @@ impl EntropyApp {
                                                                 == self.selected_alt_repeat;
                                                             let (option_rect, option_resp) = ui
                                                                 .allocate_exact_size(
-                                                                    Vec2::new(CONTROL_WIDTH, 28.0),
+                                                                    metrics.size(168.0, 28.0),
                                                                     Sense::click(),
                                                                 );
                                                             if option_resp.hovered() {
@@ -7474,12 +7521,15 @@ impl EntropyApp {
                                                             );
                                                             ui.painter().text(
                                                                 egui::pos2(
-                                                                    option_rect.left() + 10.0,
+                                                                    option_rect.left()
+                                                                        + metrics.value(10.0),
                                                                     option_rect.center().y,
                                                                 ),
                                                                 egui::Align2::LEFT_CENTER,
                                                                 option_text,
-                                                                FontId::proportional(12.0),
+                                                                FontId::proportional(
+                                                                    metrics.value(12.0),
+                                                                ),
                                                                 if selected {
                                                                     ui.visuals().text_color()
                                                                 } else if empty {
@@ -7508,19 +7558,20 @@ impl EntropyApp {
                                 let mut name_changed = false;
                                 crate::ui_style::settings_list_row_with_tooltip(
                                     ui,
-                                    ROW_CONTENT_WIDTH,
-                                    ROW_HEIGHT,
+                                    row_content_width,
+                                    row_height,
                                     "Name",
                                     true,
                                     Some("Local name for this slot"),
-                                    CONTROL_WIDTH,
+                                    control_width,
                                     |ui| {
                                         if let Some(name) = self.alt_repeat_names.get_mut(idx) {
-                                            let resp = crate::ui_style::modern_text_field(
+                                            let resp = crate::ui_style::modern_text_field_sized(
                                                 ui,
                                                 egui::Id::new(("alt_repeat_name", idx)),
                                                 name,
-                                                CONTROL_WIDTH,
+                                                control_width,
+                                                metrics.settings_control_height(),
                                                 "Name",
                                                 12,
                                                 egui::Align::Center,
@@ -7541,17 +7592,18 @@ impl EntropyApp {
                             2 => {
                                 crate::ui_style::settings_list_row_with_tooltip(
                                     ui,
-                                    ROW_CONTENT_WIDTH,
-                                    ROW_HEIGHT,
+                                    row_content_width,
+                                    row_height,
                                     "Last key",
                                     true,
                                     Some("Key that triggers alternate repeat behavior"),
-                                    CONTROL_WIDTH,
+                                    control_width,
                                     |ui| {
-                                        let resp = crate::ui_style::modern_button(
+                                        let resp = crate::ui_style::modern_button_with_font(
                                             ui,
                                             last_key_label.as_str(),
-                                            Vec2::new(CONTROL_WIDTH, 32.0),
+                                            metrics.size(168.0, 32.0),
+                                            metrics.settings_control_font_size(),
                                             true,
                                         );
                                         if resp.clicked() {
@@ -7566,17 +7618,18 @@ impl EntropyApp {
                             3 => {
                                 crate::ui_style::settings_list_row_with_tooltip(
                                     ui,
-                                    ROW_CONTENT_WIDTH,
-                                    ROW_HEIGHT,
+                                    row_content_width,
+                                    row_height,
                                     "Alt key",
                                     true,
                                     Some("Key repeated when alternate repeat activates"),
-                                    CONTROL_WIDTH,
+                                    control_width,
                                     |ui| {
-                                        let resp = crate::ui_style::modern_button(
+                                        let resp = crate::ui_style::modern_button_with_font(
                                             ui,
                                             alt_key_label.as_str(),
-                                            Vec2::new(CONTROL_WIDTH, 32.0),
+                                            metrics.size(168.0, 32.0),
+                                            metrics.settings_control_font_size(),
                                             true,
                                         );
                                         if resp.clicked() {
@@ -7595,8 +7648,8 @@ impl EntropyApp {
                                 };
                                 crate::ui_style::settings_list_row_with_tooltip(
                                     ui,
-                                    ROW_CONTENT_WIDTH,
-                                    ROW_HEIGHT,
+                                    row_content_width,
+                                    row_height,
                                     row_label.as_str(),
                                     true,
                                     Some(match row_idx {
@@ -7605,17 +7658,19 @@ impl EntropyApp {
                                         6 => "Allowed Alt modifiers",
                                         _ => "Allowed OS modifiers",
                                     }),
-                                    MOD_CONTROL_WIDTH,
+                                    mod_control_width,
                                     |ui| {
                                         ui.with_layout(
                                             egui::Layout::right_to_left(egui::Align::Center),
                                             |ui| {
                                                 let mut right_checked =
                                                     (edited.allowed_mods & (1 << right_bit)) != 0;
-                                                let right_resp = crate::ui_style::settings_switch(
-                                                    ui,
-                                                    &mut right_checked,
-                                                );
+                                                let right_resp =
+                                                    crate::ui_style::settings_switch_sized(
+                                                        ui,
+                                                        &mut right_checked,
+                                                        switch_size,
+                                                    );
                                                 if right_resp.changed() {
                                                     if right_checked {
                                                         edited.allowed_mods |= 1 << right_bit;
@@ -7623,23 +7678,28 @@ impl EntropyApp {
                                                         edited.allowed_mods &= !(1 << right_bit);
                                                     }
                                                 }
-                                                let right_label_resp =
-                                                    ui.label(RichText::new("R").size(12.0).color(
-                                                        app_muted_text(ui.visuals().dark_mode),
-                                                    ));
+                                                let right_label_resp = ui.label(
+                                                    RichText::new("R")
+                                                        .size(metrics.value(12.0))
+                                                        .color(app_muted_text(
+                                                            ui.visuals().dark_mode,
+                                                        )),
+                                                );
                                                 if right_label_resp.hovered() {
                                                     ui.ctx()
                                                         .set_cursor_icon(egui::CursorIcon::Help);
                                                 }
                                                 right_label_resp
                                                     .on_hover_text("Right-side modifier");
-                                                ui.add_space(10.0);
+                                                ui.add_space(metrics.value(10.0));
                                                 let mut left_checked =
                                                     (edited.allowed_mods & (1 << left_bit)) != 0;
-                                                let left_resp = crate::ui_style::settings_switch(
-                                                    ui,
-                                                    &mut left_checked,
-                                                );
+                                                let left_resp =
+                                                    crate::ui_style::settings_switch_sized(
+                                                        ui,
+                                                        &mut left_checked,
+                                                        switch_size,
+                                                    );
                                                 if left_resp.changed() {
                                                     if left_checked {
                                                         edited.allowed_mods |= 1 << left_bit;
@@ -7647,10 +7707,13 @@ impl EntropyApp {
                                                         edited.allowed_mods &= !(1 << left_bit);
                                                     }
                                                 }
-                                                let left_label_resp =
-                                                    ui.label(RichText::new("L").size(12.0).color(
-                                                        app_muted_text(ui.visuals().dark_mode),
-                                                    ));
+                                                let left_label_resp = ui.label(
+                                                    RichText::new("L")
+                                                        .size(metrics.value(12.0))
+                                                        .color(app_muted_text(
+                                                            ui.visuals().dark_mode,
+                                                        )),
+                                                );
                                                 if left_label_resp.hovered() {
                                                     ui.ctx()
                                                         .set_cursor_icon(egui::CursorIcon::Help);
@@ -7664,16 +7727,17 @@ impl EntropyApp {
                             8 => {
                                 crate::ui_style::settings_list_row_with_tooltip(
                                     ui,
-                                    ROW_CONTENT_WIDTH,
-                                    ROW_HEIGHT,
+                                    row_content_width,
+                                    row_height,
                                     "Default alt key",
                                     true,
                                     Some("Use this alt key by default"),
-                                    46.0,
+                                    metrics.value(46.0),
                                     |ui| {
-                                        crate::ui_style::settings_switch(
+                                        crate::ui_style::settings_switch_sized(
                                             ui,
                                             &mut edited.options.default_to_this_alt_key,
+                                            switch_size,
                                         );
                                     },
                                 );
@@ -7681,16 +7745,17 @@ impl EntropyApp {
                             9 => {
                                 crate::ui_style::settings_list_row_with_tooltip(
                                     ui,
-                                    ROW_CONTENT_WIDTH,
-                                    ROW_HEIGHT,
+                                    row_content_width,
+                                    row_height,
                                     "Bidirectional",
                                     true,
                                     Some("Allow both keys to alternate each other"),
-                                    46.0,
+                                    metrics.value(46.0),
                                     |ui| {
-                                        crate::ui_style::settings_switch(
+                                        crate::ui_style::settings_switch_sized(
                                             ui,
                                             &mut edited.options.bidirectional,
+                                            switch_size,
                                         );
                                     },
                                 );
@@ -7698,16 +7763,17 @@ impl EntropyApp {
                             10 => {
                                 crate::ui_style::settings_list_row_with_tooltip(
                                     ui,
-                                    ROW_CONTENT_WIDTH,
-                                    ROW_HEIGHT,
+                                    row_content_width,
+                                    row_height,
                                     "Ignore handedness",
                                     true,
                                     Some("Treat left and right modifiers as equivalent"),
-                                    46.0,
+                                    metrics.value(46.0),
                                     |ui| {
-                                        crate::ui_style::settings_switch(
+                                        crate::ui_style::settings_switch_sized(
                                             ui,
                                             &mut edited.options.ignore_mod_handedness,
+                                            switch_size,
                                         );
                                     },
                                 );
@@ -7731,15 +7797,15 @@ impl EntropyApp {
                     );
                 }
 
-                let action_size = crate::ui_style::modal_action_button_size();
+                let action_size = metrics.size(104.0, 32.0);
                 let action_width = action_size.x * 2.0 + ui.spacing().item_spacing.x;
                 let actions_rect = egui::Rect::from_min_size(
                     egui::pos2(viewport.left(), viewport.bottom() + 24.0),
-                    egui::vec2(CONTENT_WIDTH, action_size.y),
+                    egui::vec2(content_width, action_size.y),
                 );
                 ui.allocate_ui_at_rect(actions_rect, |ui| {
                     ui.horizontal(|ui| {
-                        ui.add_space(((CONTENT_WIDTH - action_width) / 2.0).max(0.0));
+                        ui.add_space(((content_width - action_width) / 2.0).max(0.0));
                         let clear_enabled =
                             Self::alt_repeat_entry_exists(&self.alt_repeat_entries[idx])
                                 || self
@@ -7747,8 +7813,13 @@ impl EntropyApp {
                                     .get(idx)
                                     .map(|s| !s.trim().is_empty())
                                     .unwrap_or(false);
-                        let clear_resp =
-                            crate::ui_style::modern_button(ui, "Clear", action_size, clear_enabled);
+                        let clear_resp = crate::ui_style::modern_button_with_font(
+                            ui,
+                            "Clear",
+                            action_size,
+                            metrics.settings_control_font_size(),
+                            clear_enabled,
+                        );
                         if clear_resp.clicked() {
                             self.push_alt_repeat_undo();
                             self.alt_repeat_entries[idx] = AltRepeatKeyEntry::default();
@@ -7764,8 +7835,13 @@ impl EntropyApp {
                         }
 
                         let undo_enabled = !self.alt_repeat_undo_stack.is_empty();
-                        let undo_resp =
-                            crate::ui_style::modern_button(ui, "Undo", action_size, undo_enabled);
+                        let undo_resp = crate::ui_style::modern_button_with_font(
+                            ui,
+                            "Undo",
+                            action_size,
+                            metrics.settings_control_font_size(),
+                            undo_enabled,
+                        );
                         if undo_resp.clicked() {
                             if let Some((entries, names, selected)) =
                                 self.alt_repeat_undo_stack.pop()
@@ -7842,12 +7918,13 @@ impl EntropyApp {
                 }
 
                 const TOTAL_ROWS: usize = 18;
-                const CONTENT_WIDTH: f32 = 470.0;
-                const ROW_CONTENT_WIDTH: f32 = 452.0;
-                const ROW_HEIGHT: f32 = 54.0;
+                let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ui.ctx());
+                let content_width = metrics.settings_content_width();
+                let row_content_width = metrics.settings_row_content_width();
+                let row_height = metrics.settings_row_height();
                 let visible_rows = responsive_settings_visible_rows(ui.ctx(), ui.available_height(), TOTAL_ROWS, 0.0);
-                let list_height = ROW_HEIGHT * visible_rows as f32;
-                let content_height = ROW_HEIGHT * TOTAL_ROWS as f32;
+                let list_height = row_height * visible_rows as f32;
+                let content_height = row_height * TOTAL_ROWS as f32;
                 let max_offset = (content_height - list_height).max(0.0);
                 let offset_id = ui.id().with("layer_led_settings_smooth_offset");
                 let target_id = ui.id().with("layer_led_settings_smooth_target");
@@ -7860,7 +7937,7 @@ impl EntropyApp {
                     .data_mut(|d| d.get_persisted::<f32>(target_id).unwrap_or(scroll_offset))
                     .clamp(0.0, max_offset);
                 let (viewport, viewport_resp) = ui.allocate_exact_size(
-                    egui::vec2(CONTENT_WIDTH, list_height),
+                    egui::vec2(content_width, list_height),
                     Sense::hover(),
                 );
                 let track_width = 6.0;
@@ -7924,13 +8001,13 @@ impl EntropyApp {
                     d.insert_persisted(target_id, target_offset);
                 });
 
-                let first_visible_row = (scroll_offset / ROW_HEIGHT).floor() as usize;
-                let row_y_offset = scroll_offset - first_visible_row as f32 * ROW_HEIGHT;
+                let first_visible_row = (scroll_offset / row_height).floor() as usize;
+                let row_y_offset = scroll_offset - first_visible_row as f32 * row_height;
                 let last_visible_row = (first_visible_row + visible_rows + 1).min(TOTAL_ROWS);
                 let visible_row_count = last_visible_row.saturating_sub(first_visible_row);
                 let content_rect = egui::Rect::from_min_size(
                     egui::pos2(viewport.left(), viewport.top() - row_y_offset),
-                    egui::vec2(CONTENT_WIDTH, ROW_HEIGHT * visible_row_count as f32),
+                    egui::vec2(content_width, row_height * visible_row_count as f32),
                 );
                 let suppress_tooltips = (scroll_offset - target_offset).abs() > 0.35
                     || ui.input(|i| i.pointer.primary_down());
@@ -7941,8 +8018,8 @@ impl EntropyApp {
                     self.draw_layer_led_editor_content(
                         ui,
                         first_visible_row..last_visible_row,
-                        ROW_CONTENT_WIDTH,
-                        ROW_HEIGHT,
+                        row_content_width,
+                        row_height,
                         suppress_tooltips,
                     );
                 });
@@ -7972,11 +8049,13 @@ impl EntropyApp {
         row_height: f32,
         suppress_tooltips: bool,
     ) {
-        const SLIDER_WIDTH: f32 = 168.0;
-        const VALUE_WIDTH: f32 = 36.0;
-        const SLIDER_SIZE: [f32; 2] = [SLIDER_WIDTH, 18.0];
-        const SLIDER_CONTROL_WIDTH: f32 = SLIDER_WIDTH + VALUE_WIDTH;
-        const SWATCH_WIDTH: f32 = 64.0;
+        let scale = (row_height / 54.0).clamp(1.0, 1.12);
+        let slider_width = 168.0 * scale;
+        let value_width = 36.0 * scale;
+        let slider_size = [slider_width, 18.0 * scale];
+        let slider_control_width = slider_width + value_width;
+        let swatch_width = 64.0 * scale;
+        let swatch_size = Vec2::new(64.0 * scale, 34.0 * scale);
 
         for row_idx in row_range {
             match row_idx {
@@ -7997,7 +8076,7 @@ impl EntropyApp {
                         } else {
                             Some("Global LED brightness for layer color lighting")
                         },
-                        SLIDER_CONTROL_WIDTH,
+                        slider_control_width,
                         |ui| {
                             ui.spacing_mut().item_spacing.x = 0.0;
                             let dark = ui.visuals().dark_mode;
@@ -8011,10 +8090,10 @@ impl EntropyApp {
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
                                     ui.add_sized(
-                                        [VALUE_WIDTH, row_height],
+                                        [value_width, row_height],
                                         egui::Label::new(
                                             RichText::new(format!("{}%", value.round() as u8))
-                                                .size(12.0)
+                                                .size(12.0 * scale)
                                                 .color(if dark {
                                                     Color32::from_gray(230)
                                                 } else {
@@ -8023,12 +8102,12 @@ impl EntropyApp {
                                         )
                                         .halign(egui::Align::RIGHT),
                                     );
-                                    ui.spacing_mut().slider_width = SLIDER_WIDTH;
+                                    ui.spacing_mut().slider_width = slider_width;
                                     let slider = egui::Slider::new(&mut value, 0.0..=100.0)
                                         .step_by(1.0)
                                         .show_value(false)
                                         .trailing_fill(true);
-                                    let resp = ui.add_sized(SLIDER_SIZE, slider);
+                                    let resp = ui.add_sized(slider_size, slider);
                                     if resp.changed() {
                                         let new_value = ((value / 100.0) * brightness_max)
                                             .round()
@@ -8057,7 +8136,7 @@ impl EntropyApp {
                         } else {
                             Some("Minutes before LEDs turn off automatically, 0 disables timeout")
                         },
-                        SLIDER_CONTROL_WIDTH,
+                        slider_control_width,
                         |ui| {
                             ui.spacing_mut().item_spacing.x = 0.0;
                             let dark = ui.visuals().dark_mode;
@@ -8080,22 +8159,24 @@ impl EntropyApp {
                                         format!("{}m", value.round() as u8)
                                     };
                                     ui.add_sized(
-                                        [VALUE_WIDTH, row_height],
+                                        [value_width, row_height],
                                         egui::Label::new(
-                                            RichText::new(value_text).size(12.0).color(if dark {
-                                                Color32::from_gray(230)
-                                            } else {
-                                                Color32::from_gray(55)
-                                            }),
+                                            RichText::new(value_text).size(12.0 * scale).color(
+                                                if dark {
+                                                    Color32::from_gray(230)
+                                                } else {
+                                                    Color32::from_gray(55)
+                                                },
+                                            ),
                                         )
                                         .halign(egui::Align::RIGHT),
                                     );
-                                    ui.spacing_mut().slider_width = SLIDER_WIDTH;
+                                    ui.spacing_mut().slider_width = slider_width;
                                     let slider = egui::Slider::new(&mut value, 0.0..=255.0)
                                         .step_by(1.0)
                                         .show_value(false)
                                         .trailing_fill(true);
-                                    let resp = ui.add_sized(SLIDER_SIZE, slider);
+                                    let resp = ui.add_sized(slider_size, slider);
                                     if resp.changed() {
                                         let new_value = value.round().clamp(0.0, 255.0) as u8;
                                         if new_value != self.layer_led_settings.timeout_mins {
@@ -8134,7 +8215,7 @@ impl EntropyApp {
                         } else {
                             Some(tooltip.as_str())
                         },
-                        SWATCH_WIDTH,
+                        swatch_width,
                         |ui| {
                             let dark = ui.visuals().dark_mode;
                             let popup_id = ui.make_persistent_id(("layer_led_color_picker", layer));
@@ -8148,7 +8229,7 @@ impl EntropyApp {
                                 Color32::from_gray(185)
                             };
                             let (swatch_rect, swatch_resp) =
-                                ui.allocate_exact_size(Vec2::new(64.0, 34.0), Sense::click());
+                                ui.allocate_exact_size(swatch_size, Sense::click());
                             if swatch_resp.hovered() {
                                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                             }
@@ -8163,7 +8244,7 @@ impl EntropyApp {
                                 egui::StrokeKind::Inside,
                             );
                             ui.painter().rect(
-                                swatch_rect.shrink(5.0),
+                                swatch_rect.shrink(5.0 * scale),
                                 6.0,
                                 swatch_color,
                                 Stroke::new(1.0, swatch_border.gamma_multiply(0.85)),
@@ -8172,8 +8253,10 @@ impl EntropyApp {
                             if current == 0 {
                                 ui.painter().line_segment(
                                     [
-                                        swatch_rect.left_top() + egui::vec2(10.0, 10.0),
-                                        swatch_rect.right_bottom() - egui::vec2(10.0, 10.0),
+                                        swatch_rect.left_top()
+                                            + egui::vec2(10.0 * scale, 10.0 * scale),
+                                        swatch_rect.right_bottom()
+                                            - egui::vec2(10.0 * scale, 10.0 * scale),
                                     ],
                                     Stroke::new(1.2, app_muted_text(dark)),
                                 );
@@ -8191,12 +8274,12 @@ impl EntropyApp {
                                 &swatch_resp,
                                 egui::PopupCloseBehavior::CloseOnClickOutside,
                                 |ui| {
-                                    const CELL: f32 = 28.0;
-                                    const GAP: f32 = 6.0;
+                                    let cell = 28.0 * scale;
+                                    let gap = 6.0 * scale;
                                     const COLS: usize = 5;
-                                    let picker_width = CELL * COLS as f32 + GAP * (COLS - 1) as f32;
+                                    let picker_width = cell * COLS as f32 + gap * (COLS - 1) as f32;
                                     ui.set_min_width(picker_width);
-                                    ui.spacing_mut().item_spacing = Vec2::new(GAP, GAP);
+                                    ui.spacing_mut().item_spacing = Vec2::new(gap, gap);
                                     for row in 0..5 {
                                         ui.horizontal(|ui| {
                                             for col in 0..COLS {
@@ -8210,7 +8293,7 @@ impl EntropyApp {
                                                 let selected = color_idx_u8 == current;
                                                 let (cell_rect, cell_resp) = ui
                                                     .allocate_exact_size(
-                                                        Vec2::splat(CELL),
+                                                        Vec2::splat(cell),
                                                         Sense::click(),
                                                     );
                                                 if cell_resp.hovered() {
@@ -8236,7 +8319,7 @@ impl EntropyApp {
                                                     egui::StrokeKind::Inside,
                                                 );
                                                 ui.painter().rect(
-                                                    cell_rect.shrink(4.5),
+                                                    cell_rect.shrink(4.5 * scale),
                                                     5.0,
                                                     layer_led_palette_color(color_idx_u8),
                                                     Stroke::NONE,
@@ -8246,9 +8329,15 @@ impl EntropyApp {
                                                     ui.painter().line_segment(
                                                         [
                                                             cell_rect.left_top()
-                                                                + egui::vec2(8.0, 8.0),
+                                                                + egui::vec2(
+                                                                    8.0 * scale,
+                                                                    8.0 * scale,
+                                                                ),
                                                             cell_rect.right_bottom()
-                                                                - egui::vec2(8.0, 8.0),
+                                                                - egui::vec2(
+                                                                    8.0 * scale,
+                                                                    8.0 * scale,
+                                                                ),
                                                         ],
                                                         Stroke::new(1.1, app_muted_text(dark)),
                                                     );
@@ -8348,9 +8437,12 @@ impl EntropyApp {
                     return;
                 }
 
-                const CONTENT_WIDTH: f32 = 470.0;
-                const ROW_HEIGHT: f32 = 54.0;
-                const ROW_CONTENT_WIDTH: f32 = 452.0;
+                let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ui.ctx());
+                let content_width = metrics.settings_content_width();
+                let row_height = metrics.settings_row_height();
+                let row_content_width = metrics.settings_row_content_width();
+                let switch_width = metrics.value(46.0);
+                let switch_size = metrics.size(46.0, 24.0);
                 let gui_name = crate::keycode::gui_mod_name();
                 let rows: Vec<(u8, String, String)> = vec![
                     (
@@ -8377,20 +8469,20 @@ impl EntropyApp {
 
                 crate::ui_style::modal_content(
                     ui,
-                    crate::ui_style::ModalLayout::new(CONTENT_WIDTH).with_top_padding(0.0),
+                    crate::ui_style::ModalLayout::new(content_width).with_top_padding(0.0),
                     |ui| {
                         for (bit, label, tooltip) in rows {
                             let mut value = self.grave_escape_settings.bit(bit);
                             crate::ui_style::settings_list_row_with_tooltip(
                                 ui,
-                                ROW_CONTENT_WIDTH,
-                                ROW_HEIGHT,
+                                row_content_width,
+                                row_height,
                                 &label,
                                 true,
                                 Some(&tooltip),
-                                46.0,
+                                switch_width,
                                 |ui| {
-                                    let resp = crate::ui_style::settings_switch(ui, &mut value);
+                                    let resp = crate::ui_style::settings_switch_sized(ui, &mut value, switch_size);
                                     if resp.changed() {
                                         self.grave_escape_settings.set_bit(bit, value);
                                         self.write_grave_escape_settings();
@@ -8458,12 +8550,13 @@ impl EntropyApp {
                 }
 
                 const TOTAL_ROWS: usize = 10;
-                const CONTENT_WIDTH: f32 = 470.0;
-                const ROW_CONTENT_WIDTH: f32 = 452.0;
-                const ROW_HEIGHT: f32 = 54.0;
+                let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ui.ctx());
+                let content_width = metrics.settings_content_width();
+                let row_content_width = metrics.settings_row_content_width();
+                let row_height = metrics.settings_row_height();
                 let visible_rows = responsive_settings_visible_rows(ui.ctx(), ui.available_height(), TOTAL_ROWS, 0.0);
-                let list_height = ROW_HEIGHT * visible_rows as f32;
-                let content_height = ROW_HEIGHT * TOTAL_ROWS as f32;
+                let list_height = row_height * visible_rows as f32;
+                let content_height = row_height * TOTAL_ROWS as f32;
                 let max_offset = (content_height - list_height).max(0.0);
                 let offset_id = ui.id().with("magic_settings_smooth_offset");
                 let target_id = ui.id().with("magic_settings_smooth_target");
@@ -8476,7 +8569,7 @@ impl EntropyApp {
                     .data_mut(|d| d.get_persisted::<f32>(target_id).unwrap_or(scroll_offset))
                     .clamp(0.0, max_offset);
                 let (viewport, viewport_resp) =
-                    ui.allocate_exact_size(egui::vec2(CONTENT_WIDTH, list_height), Sense::hover());
+                    ui.allocate_exact_size(egui::vec2(content_width, list_height), Sense::hover());
                 let track_width = 6.0;
                 let track_rect = egui::Rect::from_min_max(
                     egui::pos2(viewport.right() - track_width, viewport.top()),
@@ -8539,13 +8632,13 @@ impl EntropyApp {
                     d.insert_persisted(target_id, target_offset);
                 });
 
-                let first_visible_row = (scroll_offset / ROW_HEIGHT).floor() as usize;
-                let row_y_offset = scroll_offset - first_visible_row as f32 * ROW_HEIGHT;
+                let first_visible_row = (scroll_offset / row_height).floor() as usize;
+                let row_y_offset = scroll_offset - first_visible_row as f32 * row_height;
                 let last_visible_row = (first_visible_row + visible_rows + 1).min(TOTAL_ROWS);
                 let visible_row_count = last_visible_row.saturating_sub(first_visible_row);
                 let content_rect = egui::Rect::from_min_size(
                     egui::pos2(viewport.left(), viewport.top() - row_y_offset),
-                    egui::vec2(CONTENT_WIDTH, ROW_HEIGHT * visible_row_count as f32),
+                    egui::vec2(content_width, row_height * visible_row_count as f32),
                 );
                 let suppress_tooltips = (scroll_offset - target_offset).abs() > 0.35
                     || ui.input(|i| i.pointer.primary_down());
@@ -8556,8 +8649,8 @@ impl EntropyApp {
                     self.draw_magic_editor_content(
                         ui,
                         first_visible_row..last_visible_row,
-                        ROW_CONTENT_WIDTH,
-                        ROW_HEIGHT,
+                        row_content_width,
+                        row_height,
                         suppress_tooltips,
                     );
                 });
@@ -8587,6 +8680,8 @@ impl EntropyApp {
         row_height: f32,
         suppress_tooltips: bool,
     ) {
+        let switch_width = (row_height / 54.0).clamp(1.0, 1.12) * 46.0;
+        let switch_size = egui::vec2(switch_width, (row_height / 54.0).clamp(1.0, 1.12) * 24.0);
         let gui = crate::keycode::gui_mod_name();
         for row_idx in row_range {
             let (bit, label, tooltip) = match row_idx {
@@ -8654,9 +8749,9 @@ impl EntropyApp {
                 } else {
                     Some(tooltip.as_str())
                 },
-                46.0,
+                switch_width,
                 |ui| {
-                    let resp = crate::ui_style::settings_switch(ui, &mut value);
+                    let resp = crate::ui_style::settings_switch_sized(ui, &mut value, switch_size);
                     if resp.changed() {
                         self.magic_settings.set_bit(bit, value);
                         self.write_magic_settings();
@@ -8719,9 +8814,10 @@ impl EntropyApp {
                     return;
                 }
 
-                const CONTENT_WIDTH: f32 = 470.0;
-                const ROW_CONTENT_WIDTH: f32 = 452.0;
-                const ROW_HEIGHT: f32 = 54.0;
+                let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ui.ctx());
+                let content_width = metrics.settings_content_width();
+                let row_content_width = metrics.settings_row_content_width();
+                let row_height = metrics.settings_row_height();
                 let total_rows = self.tap_hold_one_shot_row_count();
                 let visible_rows = responsive_settings_visible_rows(
                     ui.ctx(),
@@ -8730,8 +8826,8 @@ impl EntropyApp {
                     0.0,
                 )
                 .max(1);
-                let list_height = ROW_HEIGHT * visible_rows as f32;
-                let content_height = ROW_HEIGHT * total_rows as f32;
+                let list_height = row_height * visible_rows as f32;
+                let content_height = row_height * total_rows as f32;
                 let max_offset = (content_height - list_height).max(0.0);
                 let offset_id = ui.id().with("tap_hold_settings_smooth_offset");
                 let target_id = ui.id().with("tap_hold_settings_smooth_target");
@@ -8744,7 +8840,7 @@ impl EntropyApp {
                     .data_mut(|d| d.get_persisted::<f32>(target_id).unwrap_or(scroll_offset))
                     .clamp(0.0, max_offset);
                 let (viewport, viewport_resp) =
-                    ui.allocate_exact_size(egui::vec2(CONTENT_WIDTH, list_height), Sense::hover());
+                    ui.allocate_exact_size(egui::vec2(content_width, list_height), Sense::hover());
                 let track_width = 6.0;
                 let track_rect = egui::Rect::from_min_max(
                     egui::pos2(viewport.right() - track_width, viewport.top()),
@@ -8807,13 +8903,13 @@ impl EntropyApp {
                     d.insert_persisted(target_id, target_offset);
                 });
 
-                let first_visible_row = (scroll_offset / ROW_HEIGHT).floor() as usize;
-                let row_y_offset = scroll_offset - first_visible_row as f32 * ROW_HEIGHT;
+                let first_visible_row = (scroll_offset / row_height).floor() as usize;
+                let row_y_offset = scroll_offset - first_visible_row as f32 * row_height;
                 let last_visible_row = (first_visible_row + visible_rows + 1).min(total_rows);
                 let visible_row_count = last_visible_row.saturating_sub(first_visible_row);
                 let content_rect = egui::Rect::from_min_size(
                     egui::pos2(viewport.left(), viewport.top() - row_y_offset),
-                    egui::vec2(CONTENT_WIDTH, ROW_HEIGHT * visible_row_count as f32),
+                    egui::vec2(content_width, row_height * visible_row_count as f32),
                 );
                 let suppress_tooltips = (scroll_offset - target_offset).abs() > 0.35
                     || ui.input(|i| i.pointer.primary_down());
@@ -8824,8 +8920,8 @@ impl EntropyApp {
                     self.draw_tap_hold_editor_content(
                         ui,
                         first_visible_row..last_visible_row,
-                        ROW_CONTENT_WIDTH,
-                        ROW_HEIGHT,
+                        row_content_width,
+                        row_height,
                         suppress_tooltips,
                     );
                 });
@@ -8987,7 +9083,11 @@ impl EntropyApp {
                 },
             ]);
         }
-        const FIELD_WIDTH: f32 = 86.0;
+        let scale = (row_height / 54.0).clamp(1.0, 1.12);
+        let field_width = 86.0 * scale;
+        let switch_width = 46.0 * scale;
+        let switch_size = egui::vec2(46.0 * scale, 24.0 * scale);
+        let control_height = 32.0 * scale;
 
         for row_idx in row_range {
             let Some(row) = rows.get(row_idx) else {
@@ -9024,9 +9124,10 @@ impl EntropyApp {
                     } else {
                         Some(tooltip)
                     },
-                    46.0,
+                    switch_width,
                     |ui| {
-                        let resp = crate::ui_style::settings_switch(ui, &mut value);
+                        let resp =
+                            crate::ui_style::settings_switch_sized(ui, &mut value, switch_size);
                         if resp.changed() {
                             self.set_tap_hold_bool_value(qsid, value);
                             self.write_tap_hold_bool_setting(qsid, value);
@@ -9049,7 +9150,7 @@ impl EntropyApp {
                     } else {
                         Some(tooltip)
                     },
-                    FIELD_WIDTH,
+                    field_width,
                     |ui| {
                         let edit_id = egui::Id::new((
                             match kind {
@@ -9067,11 +9168,12 @@ impl EntropyApp {
                         {
                             text = current.to_string();
                         }
-                        let resp = crate::ui_style::modern_text_field(
+                        let resp = crate::ui_style::modern_text_field_sized(
                             ui,
                             edit_id,
                             &mut text,
-                            FIELD_WIDTH,
+                            field_width,
+                            control_height,
                             "",
                             5,
                             egui::Align::RIGHT,
@@ -9303,16 +9405,19 @@ impl EntropyApp {
         variants: &[String],
         width: f32,
     ) -> (egui::Response, Option<usize>) {
+        let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ui.ctx());
         let selected_text = variants
             .get(selected_idx)
             .map(|s| s.as_str())
             .unwrap_or("Unknown");
-        let dropdown_resp = crate::ui_style::modern_dropdown_button(
+        let dropdown_resp = crate::ui_style::modern_dropdown_button_sized(
             ui,
             dropdown_id,
             selected_text,
             ui.visuals().text_color(),
             width,
+            metrics.settings_control_height(),
+            metrics.settings_control_font_size(),
         );
         let mut picked = None;
         egui::popup_below_widget(
@@ -9325,13 +9430,15 @@ impl EntropyApp {
                 ui.spacing_mut().item_spacing = Vec2::new(0.0, 2.0);
                 egui::ScrollArea::vertical()
                     .id_salt(("touchpad_select_scroll", dropdown_id))
-                    .max_height(142.0)
+                    .max_height(metrics.value(142.0))
                     .auto_shrink([false, true])
                     .show(ui, |ui| {
                         for (idx, label) in variants.iter().enumerate() {
                             let selected = idx == selected_idx;
-                            let (option_rect, option_resp) =
-                                ui.allocate_exact_size(Vec2::new(width, 28.0), Sense::click());
+                            let (option_rect, option_resp) = ui.allocate_exact_size(
+                                Vec2::new(width, metrics.value(28.0)),
+                                Sense::click(),
+                            );
                             if option_resp.hovered() {
                                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                             }
@@ -9348,10 +9455,13 @@ impl EntropyApp {
                             };
                             ui.painter().rect_filled(option_rect, 7.0, option_fill);
                             ui.painter().text(
-                                egui::pos2(option_rect.left() + 10.0, option_rect.center().y),
+                                egui::pos2(
+                                    option_rect.left() + metrics.value(10.0),
+                                    option_rect.center().y,
+                                ),
                                 egui::Align2::LEFT_CENTER,
                                 label,
-                                FontId::proportional(12.0),
+                                FontId::proportional(metrics.value(12.0)),
                                 if selected {
                                     ui.visuals().text_color()
                                 } else {
@@ -9373,13 +9483,15 @@ impl EntropyApp {
         &mut self,
         ui: &mut egui::Ui,
         row_range: std::ops::Range<usize>,
+        metrics: crate::ui_style::ResponsiveMetrics,
         suppress_tooltips: bool,
     ) {
-        const CONTENT_WIDTH: f32 = 452.0;
-        const ROW_HEIGHT: f32 = 54.0;
-        const FIELD_WIDTH: f32 = 86.0;
-        const SWITCH_WIDTH: f32 = 46.0;
-        const DROPDOWN_WIDTH: f32 = 120.0;
+        let content_width = metrics.settings_row_content_width();
+        let row_height = metrics.settings_row_height();
+        let field_width = metrics.value(86.0);
+        let switch_width = metrics.value(46.0);
+        let switch_size = metrics.size(46.0, 24.0);
+        let dropdown_width = metrics.value(120.0);
         let dark = ui.visuals().dark_mode;
 
         for row_idx in row_range {
@@ -9390,8 +9502,8 @@ impl EntropyApp {
                         (self.touchpad_settings.dpi as usize).min(variants.len().saturating_sub(1));
                     crate::ui_style::settings_list_row_with_tooltip(
                         ui,
-                        CONTENT_WIDTH,
-                        ROW_HEIGHT,
+                        content_width,
+                        row_height,
                         "DPI",
                         true,
                         if suppress_tooltips {
@@ -9399,7 +9511,7 @@ impl EntropyApp {
                         } else {
                             Some("Touchpad pointer resolution in dots per inch")
                         },
-                        DROPDOWN_WIDTH,
+                        dropdown_width,
                         |ui| {
                             if variants.is_empty() {
                                 let current = self.touchpad_settings.dpi;
@@ -9413,11 +9525,12 @@ impl EntropyApp {
                                 {
                                     text = current.to_string();
                                 }
-                                let resp = crate::ui_style::modern_text_field(
+                                let resp = crate::ui_style::modern_text_field_sized(
                                     ui,
                                     edit_id,
                                     &mut text,
-                                    FIELD_WIDTH,
+                                    field_width,
+                                    metrics.settings_control_height(),
                                     "",
                                     5,
                                     egui::Align::Center,
@@ -9459,7 +9572,7 @@ impl EntropyApp {
                                     dropdown_id,
                                     selected_idx,
                                     &variants,
-                                    DROPDOWN_WIDTH,
+                                    dropdown_width,
                                 );
                                 if let Some(picked) = picked {
                                     self.touchpad_settings.dpi = picked as u16;
@@ -9472,10 +9585,10 @@ impl EntropyApp {
                 1..=3 => {
                     const SENS_MIN: u16 = 1;
                     const SENS_MAX: u16 = 32;
-                    const SLIDER_WIDTH: f32 = 124.0;
-                    const VALUE_WIDTH: f32 = 34.0;
-                    const SLIDER_CONTROL_WIDTH: f32 = SLIDER_WIDTH + VALUE_WIDTH + 8.0;
-                    const SLIDER_SIZE: [f32; 2] = [SLIDER_WIDTH, 20.0];
+                    let slider_width = metrics.value(124.0);
+                    let value_width = metrics.value(34.0);
+                    let slider_control_width = slider_width + value_width + metrics.value(8.0);
+                    let slider_size = [slider_width, metrics.value(20.0)];
                     let (qsid, label, tooltip) = match row_idx {
                         1 => (
                             121,
@@ -9498,8 +9611,8 @@ impl EntropyApp {
                     let mut value = current as f32;
                     crate::ui_style::settings_list_row_with_tooltip(
                         ui,
-                        CONTENT_WIDTH,
-                        ROW_HEIGHT,
+                        content_width,
+                        row_height,
                         label,
                         true,
                         if suppress_tooltips {
@@ -9507,7 +9620,7 @@ impl EntropyApp {
                         } else {
                             Some(tooltip)
                         },
-                        SLIDER_CONTROL_WIDTH,
+                        slider_control_width,
                         |ui| {
                             ui.spacing_mut().item_spacing.x = 0.0;
                             let slider_fill = if dark {
@@ -9524,10 +9637,10 @@ impl EntropyApp {
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
                                     ui.add_sized(
-                                        [VALUE_WIDTH, ROW_HEIGHT],
+                                        [value_width, row_height],
                                         egui::Label::new(
                                             RichText::new(format!("{}", value.round() as u8))
-                                                .size(12.0)
+                                                .size(metrics.value(12.0))
                                                 .color(if dark {
                                                     Color32::from_gray(230)
                                                 } else {
@@ -9536,7 +9649,7 @@ impl EntropyApp {
                                         )
                                         .halign(egui::Align::RIGHT),
                                     );
-                                    ui.spacing_mut().slider_width = SLIDER_WIDTH;
+                                    ui.spacing_mut().slider_width = slider_width;
                                     let slider = egui::Slider::new(
                                         &mut value,
                                         SENS_MIN as f32..=SENS_MAX as f32,
@@ -9544,7 +9657,7 @@ impl EntropyApp {
                                     .step_by(1.0)
                                     .show_value(false)
                                     .trailing_fill(true);
-                                    let resp = ui.add_sized(SLIDER_SIZE, slider);
+                                    let resp = ui.add_sized(slider_size, slider);
                                     if resp.changed() {
                                         let new_value =
                                             value.round().clamp(SENS_MIN as f32, SENS_MAX as f32)
@@ -9576,8 +9689,8 @@ impl EntropyApp {
                     };
                     crate::ui_style::settings_list_row_with_tooltip(
                         ui,
-                        CONTENT_WIDTH,
-                        ROW_HEIGHT,
+                        content_width,
+                        row_height,
                         label,
                         true,
                         if suppress_tooltips {
@@ -9585,10 +9698,11 @@ impl EntropyApp {
                         } else {
                             Some(tooltip)
                         },
-                        SWITCH_WIDTH,
+                        switch_width,
                         |ui| {
                             let mut value = self.touchpad_settings.bit(bit);
-                            let resp = crate::ui_style::settings_switch(ui, &mut value);
+                            let resp =
+                                crate::ui_style::settings_switch_sized(ui, &mut value, switch_size);
                             if resp.changed() {
                                 self.touchpad_settings.set_bit(bit, value);
                                 self.write_touchpad_bits();
@@ -9599,8 +9713,8 @@ impl EntropyApp {
                 7 if self.touchpad_settings.auto_layer_enable_supported => {
                     crate::ui_style::settings_list_row_with_tooltip(
                         ui,
-                        CONTENT_WIDTH,
-                        ROW_HEIGHT,
+                        content_width,
+                        row_height,
                         "Auto layer enable",
                         true,
                         if suppress_tooltips {
@@ -9608,10 +9722,11 @@ impl EntropyApp {
                         } else {
                             Some("Automatically switch to the selected layer while the touchpad is active")
                         },
-                        SWITCH_WIDTH,
+                        switch_width,
                         |ui| {
                             let mut value = self.touchpad_settings.auto_layer_enable;
-                            let resp = crate::ui_style::settings_switch(ui, &mut value);
+                            let resp =
+                                crate::ui_style::settings_switch_sized(ui, &mut value, switch_size);
                             if resp.changed() {
                                 self.touchpad_settings.auto_layer_enable = value;
                                 self.write_touchpad_bool_setting(142, value);
@@ -9625,8 +9740,8 @@ impl EntropyApp {
                         .min(variants.len().saturating_sub(1));
                     crate::ui_style::settings_list_row_with_tooltip(
                         ui,
-                        CONTENT_WIDTH,
-                        ROW_HEIGHT,
+                        content_width,
+                        row_height,
                         "Auto layer",
                         true,
                         if suppress_tooltips {
@@ -9634,7 +9749,7 @@ impl EntropyApp {
                         } else {
                             Some("Layer selected automatically while the touchpad is active")
                         },
-                        DROPDOWN_WIDTH,
+                        dropdown_width,
                         |ui| {
                             let dropdown_id = ui.make_persistent_id("touchpad_auto_layer_dropdown");
                             let (_, picked) = Self::draw_touchpad_select_control(
@@ -9643,7 +9758,7 @@ impl EntropyApp {
                                 dropdown_id,
                                 selected_idx,
                                 &variants,
-                                DROPDOWN_WIDTH,
+                                dropdown_width,
                             );
                             if let Some(picked) = picked {
                                 self.touchpad_settings.auto_layer = picked as u8;
@@ -9693,6 +9808,7 @@ impl EntropyApp {
 
     fn draw_live_feature_row(
         ui: &mut egui::Ui,
+        metrics: crate::ui_style::ResponsiveMetrics,
         label: &str,
         status: &str,
         ok: bool,
@@ -9712,15 +9828,19 @@ impl EntropyApp {
         };
         crate::ui_style::settings_list_row_with_tooltip(
             ui,
-            452.0,
-            54.0,
+            metrics.settings_row_content_width(),
+            metrics.settings_row_height(),
             label,
             true,
             hint,
-            168.0,
+            metrics.settings_control_width(),
             |ui| {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.label(RichText::new(status).size(12.0).color(status_color));
+                    ui.label(
+                        RichText::new(status)
+                            .size(metrics.value(12.0))
+                            .color(status_color),
+                    );
                 });
             },
         );
@@ -9728,7 +9848,8 @@ impl EntropyApp {
 
     fn draw_live_features_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
         let dark = ui.visuals().dark_mode;
-        let content_width = 470.0_f32;
+        let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ui.ctx());
+        let content_width = metrics.settings_content_width();
         let path_and_mode = self.selected_live_features_path_and_mode();
         let bridge_active = {
             #[cfg(not(target_arch = "wasm32"))]
@@ -9746,15 +9867,15 @@ impl EntropyApp {
 
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
-                ui.add_space(18.0);
-                ui.label(RichText::new("Live Features").size(18.0).strong());
-                ui.add_space(6.0);
+                ui.add_space(metrics.value(18.0));
+                ui.label(RichText::new("Live Features").size(metrics.value(18.0)).strong());
+                ui.add_space(metrics.value(6.0));
                 ui.label(
                     RichText::new("Entropy-powered live data for firmware features")
-                        .size(13.0)
+                        .size(metrics.value(13.0))
                         .color(app_muted_text(dark)),
                 );
-                ui.add_space(24.0);
+                ui.add_space(metrics.value(24.0));
 
                 let Some((_, mode)) = path_and_mode else {
                     crate::ui_style::modal_empty_state(
@@ -9769,6 +9890,7 @@ impl EntropyApp {
                 let status = if bridge_active { "active" } else { "starting" };
                 Self::draw_live_feature_row(
                     ui,
+                    metrics,
                     "Entropy background",
                     status,
                     bridge_active,
@@ -9777,6 +9899,7 @@ impl EntropyApp {
                 if mode.clock_volume {
                     Self::draw_live_feature_row(
                         ui,
+                        metrics,
                         "Time sync",
                         "ready",
                         true,
@@ -9785,6 +9908,7 @@ impl EntropyApp {
                     let volume = crate::qmk_hid_host::volume_check();
                     Self::draw_live_feature_row(
                         ui,
+                        metrics,
                         "Volume sync",
                         if volume.ok { volume.label } else { "needs setup" },
                         volume.ok,
@@ -9795,6 +9919,7 @@ impl EntropyApp {
                     let media = crate::qmk_hid_host::media_check();
                     Self::draw_live_feature_row(
                         ui,
+                        metrics,
                         "Media info",
                         if media.ok { media.label } else { "needs setup" },
                         media.ok,
@@ -9802,10 +9927,10 @@ impl EntropyApp {
                     );
                 }
 
-                ui.add_space(18.0);
+                ui.add_space(metrics.value(18.0));
                 ui.label(
                     RichText::new("No manual setup is needed when all rows are ready")
-                        .size(12.0)
+                        .size(metrics.value(12.0))
                         .color(app_muted_text(dark)),
                 );
             });
@@ -9814,7 +9939,8 @@ impl EntropyApp {
 
     fn draw_touchpad_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
         let dark = ui.visuals().dark_mode;
-        let content_width = 470.0_f32;
+        let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ui.ctx());
+        let content_width = metrics.settings_content_width();
         let hid_ready = {
             #[cfg(not(target_arch = "wasm32"))]
             {
@@ -9856,11 +9982,11 @@ impl EntropyApp {
                     return;
                 }
 
-                const ROW_HEIGHT: f32 = 54.0;
+                let row_height = metrics.settings_row_height();
                 let total_rows = self.touchpad_settings.row_count();
                 let visible_rows = responsive_settings_visible_rows(ui.ctx(), ui.available_height(), total_rows, 0.0).max(1);
-                let list_height = ROW_HEIGHT * visible_rows as f32;
-                let content_height = ROW_HEIGHT * total_rows as f32;
+                let list_height = row_height * visible_rows as f32;
+                let content_height = row_height * total_rows as f32;
                 let max_offset = (content_height - list_height).max(0.0);
                 let offset_id = ui.id().with("touchpad_settings_smooth_offset");
                 let target_id = ui.id().with("touchpad_settings_smooth_target");
@@ -9942,13 +10068,13 @@ impl EntropyApp {
                     d.insert_persisted(target_id, target_offset);
                 });
 
-                let first_visible_row = (scroll_offset / ROW_HEIGHT).floor() as usize;
-                let row_y_offset = scroll_offset - first_visible_row as f32 * ROW_HEIGHT;
+                let first_visible_row = (scroll_offset / row_height).floor() as usize;
+                let row_y_offset = scroll_offset - first_visible_row as f32 * row_height;
                 let last_visible_row = (first_visible_row + visible_rows + 1).min(total_rows);
                 let visible_row_count = last_visible_row.saturating_sub(first_visible_row);
                 let content_rect = egui::Rect::from_min_size(
                     egui::pos2(viewport.left(), viewport.top() - row_y_offset),
-                    egui::vec2(content_width, ROW_HEIGHT * visible_row_count as f32),
+                    egui::vec2(content_width, row_height * visible_row_count as f32),
                 );
                 let suppress_tooltips = scroll_active || ui.input(|i| i.pointer.primary_down());
                 ui.allocate_ui_at_rect(content_rect, |ui| {
@@ -9958,6 +10084,7 @@ impl EntropyApp {
                     self.draw_touchpad_editor_content(
                         ui,
                         first_visible_row..last_visible_row,
+                        metrics,
                         suppress_tooltips,
                     );
                 });
@@ -9994,6 +10121,9 @@ impl EntropyApp {
         &mut self,
         ui: &mut egui::Ui,
         row_range: std::ops::Range<usize>,
+        content_width: f32,
+        row_height: f32,
+        field_width: f32,
         suppress_tooltips: bool,
     ) {
         // Limits match Vial GUI qmk_settings.json.
@@ -10053,9 +10183,7 @@ impl EntropyApp {
                 1000,
             ),
         ];
-        const CONTENT_WIDTH: f32 = 452.0;
-        const ROW_HEIGHT: f32 = 54.0;
-        const FIELD_WIDTH: f32 = 86.0;
+        let control_height = (row_height / 54.0).clamp(1.0, 1.12) * 32.0;
 
         for row_idx in row_range {
             let Some((qsid, label, tooltip, max)) = rows.get(row_idx).copied() else {
@@ -10076,8 +10204,8 @@ impl EntropyApp {
 
             crate::ui_style::settings_list_row_with_tooltip(
                 ui,
-                CONTENT_WIDTH,
-                ROW_HEIGHT,
+                content_width,
+                row_height,
                 label,
                 true,
                 if suppress_tooltips {
@@ -10085,7 +10213,7 @@ impl EntropyApp {
                 } else {
                     Some(tooltip)
                 },
-                FIELD_WIDTH,
+                field_width,
                 |ui| {
                     let edit_id = egui::Id::new(("mouse_keys_edit", qsid));
                     let mut text = ui.ctx().data_mut(|d| {
@@ -10098,59 +10226,16 @@ impl EntropyApp {
                         text = current.to_string();
                     }
 
-                    let field_size = Vec2::new(FIELD_WIDTH, 32.0);
-                    let (field_rect, _) = ui.allocate_exact_size(field_size, Sense::hover());
-                    let field_hovered = ui.input(|i| {
-                        i.pointer
-                            .hover_pos()
-                            .map(|pos| field_rect.contains(pos))
-                            .unwrap_or(false)
-                    });
-                    let field_focused = ui.memory(|m| m.has_focus(edit_id));
-                    let field_fill = if field_focused {
-                        if ui.visuals().dark_mode {
-                            Color32::from_rgb(52, 52, 55)
-                        } else {
-                            Color32::from_rgb(244, 244, 246)
-                        }
-                    } else if field_hovered {
-                        crate::ui_style::hover_fill(ui.visuals().dark_mode)
-                    } else {
-                        app_surface_fill(ui.visuals().dark_mode)
-                    };
-                    let field_stroke = if field_focused {
-                        Stroke::new(1.0, Color32::from_rgb(126, 126, 130))
-                    } else if field_hovered {
-                        Stroke::new(1.0, Color32::from_rgb(112, 112, 116))
-                    } else {
-                        crate::ui_style::modal_outline_stroke(ui.visuals().dark_mode)
-                    };
-                    ui.painter().rect(
-                        field_rect,
-                        9.0,
-                        field_fill,
-                        field_stroke,
-                        egui::StrokeKind::Inside,
+                    let resp = crate::ui_style::modern_text_field_sized(
+                        ui,
+                        edit_id,
+                        &mut text,
+                        field_width,
+                        control_height,
+                        "",
+                        5,
+                        egui::Align::RIGHT,
                     );
-
-                    let mut edit_resp = None;
-                    ui.allocate_ui_at_rect(field_rect.shrink2(Vec2::new(10.0, 0.0)), |ui| {
-                        let resp = ui.add_sized(
-                            [FIELD_WIDTH - 20.0, 32.0],
-                            egui::TextEdit::singleline(&mut text)
-                                .id(edit_id)
-                                .desired_width(FIELD_WIDTH - 20.0)
-                                .char_limit(5)
-                                .frame(false)
-                                .horizontal_align(egui::Align::RIGHT)
-                                .vertical_align(egui::Align::Center),
-                        );
-                        edit_resp = Some(resp);
-                    });
-                    let resp = edit_resp.expect("mouse keys TextEdit response");
-                    if resp.hovered() {
-                        ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
-                    }
 
                     if resp.changed() {
                         let filtered: String =
@@ -10200,14 +10285,15 @@ impl EntropyApp {
         let mut changed = false;
         let dark = ui.visuals().dark_mode;
 
-        const POPUP_WIDTH: f32 = 244.0;
-        const LAYER_BUTTON_SIZE: Vec2 = Vec2::new(52.0, 30.0);
-        const BUTTON_GAP: f32 = 6.0;
-        let layer_row_width = LAYER_BUTTON_SIZE.x * 4.0 + BUTTON_GAP * 3.0;
-        let layer_row_inset = ((POPUP_WIDTH - layer_row_width) * 0.5).max(0.0);
+        let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ui.ctx());
+        let popup_width = metrics.value(244.0);
+        let layer_button_size = metrics.size(52.0, 30.0);
+        let button_gap = metrics.value(6.0);
+        let layer_row_width = layer_button_size.x * 4.0 + button_gap * 3.0;
+        let layer_row_inset = ((popup_width - layer_row_width) * 0.5).max(0.0);
 
-        ui.set_min_width(POPUP_WIDTH);
-        ui.spacing_mut().item_spacing = Vec2::new(BUTTON_GAP, BUTTON_GAP);
+        ui.set_min_width(popup_width);
+        ui.spacing_mut().item_spacing = Vec2::new(button_gap, button_gap);
         for row in 0..4 {
             ui.horizontal(|ui| {
                 ui.add_space(layer_row_inset);
@@ -10216,7 +10302,7 @@ impl EntropyApp {
                     let bit = 1u16 << idx;
                     let selected = (*layers & bit) != 0;
                     let label = idx.to_string();
-                    let (rect, resp) = ui.allocate_exact_size(LAYER_BUTTON_SIZE, Sense::click());
+                    let (rect, resp) = ui.allocate_exact_size(layer_button_size, Sense::click());
                     let active = resp.is_pointer_button_down_on();
                     let hovered = resp.hovered();
                     let fill = if selected {
@@ -10243,17 +10329,22 @@ impl EntropyApp {
                         crate::ui_style::surface_fill(dark)
                     };
                     let stroke = if selected {
-                        Stroke::new(1.35, app_accent())
+                        Stroke::new(metrics.value(1.35), app_accent())
                     } else {
                         crate::ui_style::modal_outline_stroke(dark)
                     };
-                    ui.painter()
-                        .rect(rect, 9.0, fill, stroke, egui::StrokeKind::Inside);
+                    ui.painter().rect(
+                        rect,
+                        metrics.value(9.0),
+                        fill,
+                        stroke,
+                        egui::StrokeKind::Inside,
+                    );
                     ui.painter().text(
                         rect.center(),
                         egui::Align2::CENTER_CENTER,
                         label,
-                        FontId::proportional(12.5),
+                        FontId::proportional(metrics.value(12.5)),
                         if selected {
                             ui.visuals().text_color()
                         } else {
@@ -10262,8 +10353,11 @@ impl EntropyApp {
                     );
                     if selected {
                         ui.painter().circle_filled(
-                            egui::pos2(rect.right() - 8.0, rect.top() + 8.0),
-                            2.4,
+                            egui::pos2(
+                                rect.right() - metrics.value(8.0),
+                                rect.top() + metrics.value(8.0),
+                            ),
+                            metrics.value(2.4),
                             app_accent(),
                         );
                     }
@@ -10282,19 +10376,19 @@ impl EntropyApp {
             });
         }
 
-        ui.add_space(4.0);
-        let action_width = 112.0 * 2.0 + BUTTON_GAP;
-        let action_inset = ((POPUP_WIDTH - action_width) * 0.5).max(0.0);
+        ui.add_space(metrics.value(4.0));
+        let action_width = metrics.value(112.0) * 2.0 + button_gap;
+        let action_inset = ((popup_width - action_width) * 0.5).max(0.0);
         ui.horizontal(|ui| {
             ui.add_space(action_inset);
             let all_resp =
-                crate::ui_style::modern_button(ui, "Enable all", Vec2::new(112.0, 30.0), true);
+                crate::ui_style::modern_button(ui, "Enable all", metrics.size(112.0, 30.0), true);
             if all_resp.clicked() && *layers != u16::MAX {
                 *layers = u16::MAX;
                 changed = true;
             }
             let none_resp =
-                crate::ui_style::modern_button(ui, "Disable all", Vec2::new(112.0, 30.0), true);
+                crate::ui_style::modern_button(ui, "Disable all", metrics.size(112.0, 30.0), true);
             if none_resp.clicked() && *layers != 0 {
                 *layers = 0;
                 changed = true;
@@ -10317,21 +10411,27 @@ impl EntropyApp {
             format!("Right {}", gui),
         ];
 
-        ui.set_min_width(244.0);
+        let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ui.ctx());
+        let popup_width = metrics.value(244.0);
+        let row_height = metrics.value(34.0);
+        let switch_width = metrics.value(46.0);
+        let switch_size = metrics.size(46.0, 24.0);
+        ui.set_min_width(popup_width);
         ui.spacing_mut().item_spacing.y = 0.0;
         for (idx, label) in labels.iter().enumerate() {
             let bit = 1u8 << idx;
             let mut checked = (*mask & bit) != 0;
             crate::ui_style::settings_list_row_with_tooltip(
                 ui,
-                244.0,
-                34.0,
+                popup_width,
+                row_height,
                 label.as_str(),
                 true,
                 None,
-                46.0,
+                switch_width,
                 |ui| {
-                    let resp = crate::ui_style::settings_switch(ui, &mut checked);
+                    let resp =
+                        crate::ui_style::settings_switch_sized(ui, &mut checked, switch_size);
                     if resp.changed() {
                         if checked {
                             *mask |= bit;
@@ -10385,6 +10485,8 @@ impl EntropyApp {
         let control_width = metrics.settings_control_width();
         let control_height = metrics.settings_control_height();
         let control_font_size = metrics.settings_control_font_size();
+        let switch_width = metrics.value(46.0);
+        let switch_size = metrics.size(46.0, 24.0);
         const ROW_COUNT: usize = 14;
 
         let custom = self
@@ -10717,12 +10819,12 @@ impl EntropyApp {
                                                 },
                                             );
                                         }
-                                        8 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, "Trigger press", true, Some("Activate when the trigger key is pressed"), 46.0, |ui| { crate::ui_style::settings_switch(ui, &mut edited.options.activation_trigger_down); }),
-                                        9 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, "Required mod press", true, Some("Activate when a required modifier is pressed"), 46.0, |ui| { crate::ui_style::settings_switch(ui, &mut edited.options.activation_required_mod_down); }),
-                                        10 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, "Blocked mod release", true, Some("Activate when a blocking modifier is released"), 46.0, |ui| { crate::ui_style::settings_switch(ui, &mut edited.options.activation_negative_mod_up); }),
-                                        11 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, "Any one mod", true, Some("Any one trigger modifier is enough"), 46.0, |ui| { crate::ui_style::settings_switch(ui, &mut edited.options.one_mod); }),
-                                        12 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, "No re-send", true, Some("Do not resend the trigger after override ends"), 46.0, |ui| { crate::ui_style::settings_switch(ui, &mut edited.options.no_reregister_trigger); }),
-                                        13 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, "Stay active", true, Some("Stay active when another key is pressed"), 46.0, |ui| { crate::ui_style::settings_switch(ui, &mut edited.options.no_unregister_on_other_key_down); }),
+                                        8 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, "Trigger press", true, Some("Activate when the trigger key is pressed"), switch_width, |ui| { crate::ui_style::settings_switch_sized(ui, &mut edited.options.activation_trigger_down, switch_size); }),
+                                        9 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, "Required mod press", true, Some("Activate when a required modifier is pressed"), switch_width, |ui| { crate::ui_style::settings_switch_sized(ui, &mut edited.options.activation_required_mod_down, switch_size); }),
+                                        10 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, "Blocked mod release", true, Some("Activate when a blocking modifier is released"), switch_width, |ui| { crate::ui_style::settings_switch_sized(ui, &mut edited.options.activation_negative_mod_up, switch_size); }),
+                                        11 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, "Any one mod", true, Some("Any one trigger modifier is enough"), switch_width, |ui| { crate::ui_style::settings_switch_sized(ui, &mut edited.options.one_mod, switch_size); }),
+                                        12 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, "No re-send", true, Some("Do not resend the trigger after override ends"), switch_width, |ui| { crate::ui_style::settings_switch_sized(ui, &mut edited.options.no_reregister_trigger, switch_size); }),
+                                        13 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, "Stay active", true, Some("Stay active when another key is pressed"), switch_width, |ui| { crate::ui_style::settings_switch_sized(ui, &mut edited.options.no_unregister_on_other_key_down, switch_size); }),
                                         _ => {}
                                     }
                                 }

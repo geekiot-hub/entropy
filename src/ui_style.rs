@@ -728,6 +728,7 @@ pub fn settings_list_row_with_tooltip(
     });
 }
 
+#[allow(dead_code)]
 pub fn settings_switch(ui: &mut Ui, checked: &mut bool) -> egui::Response {
     settings_switch_interactive(ui, checked, true)
 }
