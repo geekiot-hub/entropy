@@ -118,6 +118,8 @@ struct AppSettings {
     show_shifted_number_symbols: bool,
     #[serde(default = "default_layer_hover_preview")]
     layer_hover_preview: bool,
+    #[serde(default = "default_encoder_hover_enlarge")]
+    encoder_hover_enlarge: bool,
     #[serde(default = "default_app_accent_color")]
     accent_color: AppAccentColor,
     #[serde(default = "default_ui_scale")]
@@ -129,6 +131,10 @@ fn default_show_shifted_number_symbols() -> bool {
 }
 
 fn default_layer_hover_preview() -> bool {
+    true
+}
+
+fn default_encoder_hover_enlarge() -> bool {
     true
 }
 
@@ -190,6 +196,7 @@ impl Default for AppSettings {
             minimize_to_tray_on_close: false,
             show_shifted_number_symbols: default_show_shifted_number_symbols(),
             layer_hover_preview: default_layer_hover_preview(),
+            encoder_hover_enlarge: default_encoder_hover_enlarge(),
             accent_color: default_app_accent_color(),
             ui_scale: default_ui_scale(),
         }
@@ -3390,6 +3397,28 @@ impl EntropyApp {
                     if !layer_hover_preview {
                         self.hover_layer = None;
                     }
+                    save_app_settings(&self.app_settings);
+                }
+
+                let mut encoder_hover_enlarge = self.app_settings.encoder_hover_enlarge;
+                crate::ui_style::settings_list_row_with_tooltip(
+                    ui,
+                    content_width,
+                    row_height,
+                    "Encoder hover zoom",
+                    true,
+                    Some("Enlarge encoder controls while hovering them on the layout"),
+                    switch_width,
+                    |ui| {
+                        let _ = crate::ui_style::settings_switch_sized(
+                            ui,
+                            &mut encoder_hover_enlarge,
+                            switch_size,
+                        );
+                    },
+                );
+                if encoder_hover_enlarge != self.app_settings.encoder_hover_enlarge {
+                    self.app_settings.encoder_hover_enlarge = encoder_hover_enlarge;
                     save_app_settings(&self.app_settings);
                 }
 
@@ -13328,13 +13357,19 @@ impl EntropyApp {
         };
 
         const ENCODER_HOVER_SCALE: f32 = 1.5;
+        let encoder_hover_enlarge = self.app_settings.encoder_hover_enlarge;
         for (_encoder_idx, rect, ccw, cw) in &encoder_groups {
             let center = rect.center();
             let base_radius = rect.width().min(rect.height()) * LAYOUT_ENCODER_RADIUS_FACTOR;
             let hover_radius = base_radius * ENCODER_HOVER_SCALE;
+            let interactive_radius = if encoder_hover_enlarge {
+                hover_radius
+            } else {
+                base_radius
+            };
             let circle_bounds = egui::Rect::from_center_size(
                 center,
-                egui::vec2(hover_radius * 2.0, hover_radius * 2.0),
+                egui::vec2(interactive_radius * 2.0, interactive_radius * 2.0),
             );
             let press_slot = encoder_press_rects
                 .iter()
@@ -13378,12 +13413,12 @@ impl EntropyApp {
             let encoder_hovered = top_resp.hovered()
                 || middle_resp.as_ref().map(|r| r.hovered()).unwrap_or(false)
                 || bottom_resp.hovered();
-            let radius = if encoder_hovered {
+            let radius = if encoder_hovered && encoder_hover_enlarge {
                 hover_radius
             } else {
                 base_radius
             };
-            let font_scale = if encoder_hovered {
+            let font_scale = if encoder_hovered && encoder_hover_enlarge {
                 ENCODER_HOVER_SCALE
             } else {
                 1.0
