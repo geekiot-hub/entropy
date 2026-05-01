@@ -170,12 +170,14 @@ pub fn modern_text_field_sized(
     char_limit: usize,
     horizontal_align: egui::Align,
 ) -> egui::Response {
+    let font_size = 12.5 * (height / 32.0).clamp(1.0, 1.3);
     modern_text_field_impl(
         ui,
         id,
         text,
         width,
         height,
+        font_size,
         hint,
         char_limit,
         horizontal_align,
@@ -199,6 +201,7 @@ pub fn modern_text_field_interactive(
         text,
         width,
         32.0,
+        12.5,
         hint,
         char_limit,
         horizontal_align,
@@ -212,6 +215,7 @@ fn modern_text_field_impl(
     text: &mut String,
     width: f32,
     height: f32,
+    font_size: f32,
     hint: &str,
     char_limit: usize,
     horizontal_align: egui::Align,
@@ -254,6 +258,7 @@ fn modern_text_field_impl(
                 .id(id)
                 .desired_width(width - 20.0)
                 .hint_text(hint)
+                .font(FontId::proportional(font_size))
                 .char_limit(char_limit)
                 .frame(false)
                 .interactive(interactive)

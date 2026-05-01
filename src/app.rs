@@ -153,7 +153,7 @@ fn responsive_settings_editor_scale(ctx: &egui::Context) -> f32 {
         .max(1.0);
     let short_side = ctx.screen_rect().width().min(ctx.screen_rect().height()) * native_scale;
     let t = ((short_side - 1_500.0) / (2_160.0 - 1_500.0)).clamp(0.0, 1.0);
-    1.0 + 0.24 * t
+    1.0 + 0.12 * t
 }
 
 fn responsive_settings_visible_rows(
