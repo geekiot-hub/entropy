@@ -3763,20 +3763,27 @@ impl EntropyApp {
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(18.0);
-                ui.label(RichText::new(crate::i18n::tr(lang, crate::i18n::Key::MouseKeysTitle)).size(18.0).strong());
+                ui.label(
+                    RichText::new(crate::i18n::tr(lang, crate::i18n::Key::MouseKeysTitle))
+                        .size(18.0)
+                        .strong(),
+                );
                 ui.add_space(6.0);
                 ui.label(
-                    RichText::new("Tune mouse cursor and wheel movement parameters")
-                        .size(13.0)
-                        .color(app_muted_text(dark)),
+                    RichText::new(crate::i18n::tr(
+                        lang,
+                        crate::i18n::Key::MouseKeysDescription,
+                    ))
+                    .size(13.0)
+                    .color(app_muted_text(dark)),
                 );
                 ui.add_space(24.0);
 
                 if !self.mouse_keys_settings.supported {
                     crate::ui_style::modal_empty_state(
                         ui,
-                        "Mouse keys settings are not available on this firmware",
-                        Some("Enable MOUSEKEY_ENABLE and QMK_SETTINGS in the keyboard rules.mk to use this page"),
+                        crate::i18n::tr(lang, crate::i18n::Key::MouseKeysUnavailable),
+                        Some(crate::i18n::tr(lang, crate::i18n::Key::MouseKeysEnableHint)),
                     );
                     return;
                 }
@@ -3802,10 +3809,8 @@ impl EntropyApp {
                     .ctx()
                     .data_mut(|d| d.get_persisted::<f32>(target_id).unwrap_or(scroll_offset))
                     .clamp(0.0, max_offset);
-                let (viewport, viewport_resp) = ui.allocate_exact_size(
-                    egui::vec2(content_width, list_height),
-                    Sense::hover(),
-                );
+                let (viewport, viewport_resp) =
+                    ui.allocate_exact_size(egui::vec2(content_width, list_height), Sense::hover());
 
                 let track_width = 6.0;
                 let track_rect = egui::Rect::from_min_max(
@@ -3840,7 +3845,8 @@ impl EntropyApp {
                 }
 
                 let handle_height = if max_offset > 0.0 {
-                    (list_height / content_height * viewport.height()).clamp(42.0, viewport.height())
+                    (list_height / content_height * viewport.height())
+                        .clamp(42.0, viewport.height())
                 } else {
                     viewport.height()
                 };
@@ -3879,7 +3885,10 @@ impl EntropyApp {
                 let visible_row_count = last_visible_row.saturating_sub(first_visible_row);
                 let content_rect = egui::Rect::from_min_size(
                     egui::pos2(viewport.left(), viewport.top() - row_y_offset),
-                    egui::vec2(content_width, mouse_key_row_height * visible_row_count as f32),
+                    egui::vec2(
+                        content_width,
+                        mouse_key_row_height * visible_row_count as f32,
+                    ),
                 );
                 let suppress_tooltips = scroll_active || ui.input(|i| i.pointer.primary_down());
                 ui.allocate_ui_at_rect(content_rect, |ui| {
@@ -3980,9 +3989,10 @@ impl EntropyApp {
                     );
                     ui.add_space(6.0);
                     ui.label(
-                        RichText::new(
-                            "Press switches on the keyboard to verify every matrix position",
-                        )
+                        RichText::new(crate::i18n::tr(
+                            self.app_settings.language,
+                            crate::i18n::Key::MatrixTesterDescription,
+                        ))
                         .size(13.0)
                         .color(app_muted_text(dark)),
                     );
@@ -4150,7 +4160,7 @@ impl EntropyApp {
                 );
                 ui.add_space(6.0);
                 ui.label(
-                    RichText::new("Adjust lighting, effects, color and brightness")
+                    RichText::new(crate::i18n::tr(lang, crate::i18n::Key::RgbDescription))
                         .size(13.0)
                         .color(app_muted_text(dark)),
                 );
@@ -4159,7 +4169,7 @@ impl EntropyApp {
                 if !self.rgb_settings.supported {
                     crate::ui_style::modal_empty_state(
                         ui,
-                        "RGB settings are not available on this firmware",
+                        crate::i18n::tr(lang, crate::i18n::Key::RgbUnavailableTooltip),
                         None,
                     );
                     return;
@@ -4168,7 +4178,7 @@ impl EntropyApp {
                 if !hid_ready {
                     crate::ui_style::modal_empty_state(
                         ui,
-                        "Connect a Vial keyboard to edit RGB settings",
+                        crate::i18n::tr(lang, crate::i18n::Key::RgbConnect),
                         None,
                     );
                     return;
@@ -4209,7 +4219,10 @@ impl EntropyApp {
         ui.painter().text(
             egui::pos2(center_x, desc_y),
             egui::Align2::CENTER_CENTER,
-            "Configure alternate repeat keys and modifier behavior",
+            crate::i18n::tr(
+                self.app_settings.language,
+                crate::i18n::Key::AltRepeatDescription,
+            ),
             FontId::proportional(metrics.value(13.0)),
             app_muted_text(dark),
         );
@@ -4241,9 +4254,12 @@ impl EntropyApp {
                 );
                 ui.add_space(KEY_OVERRIDE_DESC_GAP * scale);
                 ui.label(
-                    RichText::new("Override one key with custom modifier rules")
-                        .size(13.0 * scale)
-                        .color(app_muted_text(dark)),
+                    RichText::new(crate::i18n::tr(
+                        lang,
+                        crate::i18n::Key::KeyOverridesDescription,
+                    ))
+                    .size(13.0 * scale)
+                    .color(app_muted_text(dark)),
                 );
                 ui.add_space(KEY_OVERRIDE_BLOCK_TOP_GAP * scale);
                 let editor_height = (content_rect.height()
@@ -4284,7 +4300,7 @@ impl EntropyApp {
                 );
                 ui.add_space(6.0 * scale);
                 ui.label(
-                    RichText::new("Press multiple keys together to send a separate keycode")
+                    RichText::new(crate::i18n::tr(lang, crate::i18n::Key::ComboDescription))
                         .size(13.0 * scale)
                         .color(app_muted_text(dark)),
                 );
@@ -4337,7 +4353,7 @@ impl EntropyApp {
                 );
                 ui.add_space(6.0);
                 ui.label(
-                    RichText::new("Show or hide encoder controls for this device")
+                    RichText::new(crate::i18n::tr(lang, crate::i18n::Key::EncodersDescription))
                         .size(13.0)
                         .color(app_muted_text(dark)),
                 );
@@ -4346,7 +4362,7 @@ impl EntropyApp {
                 if visible_count == 0 {
                     crate::ui_style::modal_empty_state(
                         ui,
-                        "No encoder controls are available for this device",
+                        crate::i18n::tr(lang, crate::i18n::Key::EncodersUnavailable),
                         None,
                     );
                     return;
@@ -4433,16 +4449,19 @@ impl EntropyApp {
                 );
                 ui.add_space(6.0);
                 ui.label(
-                    RichText::new("Configure OLED and display presets")
-                        .size(13.0)
-                        .color(app_muted_text(dark)),
+                    RichText::new(crate::i18n::tr(
+                        lang,
+                        crate::i18n::Key::DisplayPresetsDescription,
+                    ))
+                    .size(13.0)
+                    .color(app_muted_text(dark)),
                 );
                 ui.add_space(24.0);
 
                 if display_option_indices.is_empty() {
                     crate::ui_style::modal_empty_state(
                         ui,
-                        "No display presets are exposed by this keyboard",
+                        crate::i18n::tr(lang, crate::i18n::Key::DisplayPresetsUnavailable),
                         None,
                     );
                     return;
@@ -4451,7 +4470,7 @@ impl EntropyApp {
                 if !hid_ready || self.layout_options_value.is_none() {
                     crate::ui_style::modal_empty_state(
                         ui,
-                        "Connect a Vial keyboard to edit display presets",
+                        crate::i18n::tr(lang, crate::i18n::Key::DisplayPresetsConnect),
                         None,
                     );
                     return;
@@ -4748,17 +4767,20 @@ impl EntropyApp {
                 );
                 ui.add_space(6.0);
                 ui.label(
-                    RichText::new("Adjust hold threshold and typing behavior")
-                        .size(13.0)
-                        .color(app_muted_text(dark)),
+                    RichText::new(crate::i18n::tr(
+                        lang,
+                        crate::i18n::Key::AutoShiftDescription,
+                    ))
+                    .size(13.0)
+                    .color(app_muted_text(dark)),
                 );
                 ui.add_space(24.0);
 
                 if self.auto_shift_timeout.is_none() {
                     crate::ui_style::modal_empty_state(
                         ui,
-                        "Auto Shift is not enabled in this firmware",
-                        Some("Enable AUTO_SHIFT_ENABLE in the keyboard rules.mk to use this page"),
+                        crate::i18n::tr(lang, crate::i18n::Key::AutoShiftUnavailable),
+                        Some(crate::i18n::tr(lang, crate::i18n::Key::AutoShiftEnableHint)),
                     );
                     return;
                 }
@@ -4775,12 +4797,19 @@ impl EntropyApp {
                 if self.is_vial_locked() {
                     crate::ui_style::modal_centered_text_block(ui, 360.0, |ui| {
                         ui.vertical_centered(|ui| {
-                            ui.label(RichText::new("Keyboard is locked").size(14.0));
+                            ui.label(
+                                RichText::new(crate::i18n::tr(
+                                    lang,
+                                    crate::i18n::Key::KeyboardLocked,
+                                ))
+                                .size(14.0),
+                            );
                             ui.add_space(6.0);
                             ui.label(
-                                RichText::new(
-                                    "Unlock it from the Device menu to edit Auto Shift settings",
-                                )
+                                RichText::new(crate::i18n::tr(
+                                    lang,
+                                    crate::i18n::Key::AutoShiftUnlockHint,
+                                ))
                                 .size(12.5)
                                 .color(app_muted_text(dark)),
                             );
@@ -7456,7 +7485,10 @@ impl EntropyApp {
         if self.alt_repeat_entries.is_empty() {
             crate::ui_style::modal_empty_state(
                 ui,
-                "Alt Repeat is not supported by this keyboard",
+                crate::i18n::tr(
+                    self.app_settings.language,
+                    crate::i18n::Key::AltRepeatUnavailable,
+                ),
                 None,
             );
             return;
@@ -8116,20 +8148,27 @@ impl EntropyApp {
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(18.0);
-                ui.label(RichText::new(crate::i18n::tr(lang, crate::i18n::Key::LayerLedsTitle)).size(18.0).strong());
+                ui.label(
+                    RichText::new(crate::i18n::tr(lang, crate::i18n::Key::LayerLedsTitle))
+                        .size(18.0)
+                        .strong(),
+                );
                 ui.add_space(6.0);
                 ui.label(
-                    RichText::new("Set LED brightness, timeout and per-layer colors")
-                        .size(13.0)
-                        .color(app_muted_text(dark)),
+                    RichText::new(crate::i18n::tr(
+                        lang,
+                        crate::i18n::Key::LayerLedsDescription,
+                    ))
+                    .size(13.0)
+                    .color(app_muted_text(dark)),
                 );
                 ui.add_space(24.0);
 
                 if !self.layer_led_settings.supported {
                     crate::ui_style::modal_empty_state(
                         ui,
-                        "Layer LED settings are not available on this firmware",
-                        Some("Enable Ergohaven LED QMK_SETTINGS in the keyboard firmware to use this page"),
+                        crate::i18n::tr(lang, crate::i18n::Key::LayerLedsUnavailable),
+                        Some(crate::i18n::tr(lang, crate::i18n::Key::LayerLedsEnableHint)),
                     );
                     return;
                 }
@@ -8137,7 +8176,7 @@ impl EntropyApp {
                 if !hid_ready {
                     crate::ui_style::modal_empty_state(
                         ui,
-                        "Connect a Vial keyboard to edit Layer LED settings",
+                        crate::i18n::tr(lang, crate::i18n::Key::LayerLedsConnect),
                         None,
                     );
                     return;
@@ -8148,7 +8187,12 @@ impl EntropyApp {
                 let content_width = metrics.settings_content_width();
                 let row_content_width = metrics.settings_row_content_width();
                 let row_height = metrics.settings_row_height();
-                let visible_rows = responsive_settings_visible_rows(ui.ctx(), ui.available_height(), TOTAL_ROWS, 0.0);
+                let visible_rows = responsive_settings_visible_rows(
+                    ui.ctx(),
+                    ui.available_height(),
+                    TOTAL_ROWS,
+                    0.0,
+                );
                 let list_height = row_height * visible_rows as f32;
                 let content_height = row_height * TOTAL_ROWS as f32;
                 let max_offset = (content_height - list_height).max(0.0);
@@ -8162,10 +8206,8 @@ impl EntropyApp {
                     .ctx()
                     .data_mut(|d| d.get_persisted::<f32>(target_id).unwrap_or(scroll_offset))
                     .clamp(0.0, max_offset);
-                let (viewport, viewport_resp) = ui.allocate_exact_size(
-                    egui::vec2(content_width, list_height),
-                    Sense::hover(),
-                );
+                let (viewport, viewport_resp) =
+                    ui.allocate_exact_size(egui::vec2(content_width, list_height), Sense::hover());
                 let track_width = 6.0;
                 let track_rect = egui::Rect::from_min_max(
                     egui::pos2(viewport.right() - track_width, viewport.top()),
@@ -8197,7 +8239,8 @@ impl EntropyApp {
                 }
 
                 let handle_height = if max_offset > 0.0 {
-                    (list_height / content_height * viewport.height()).clamp(42.0, viewport.height())
+                    (list_height / content_height * viewport.height())
+                        .clamp(42.0, viewport.height())
                 } else {
                     viewport.height()
                 };
@@ -8637,23 +8680,30 @@ impl EntropyApp {
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(18.0);
-                ui.label(RichText::new(crate::i18n::tr(
-                        lang,
-                        crate::i18n::Key::GraveEscapeTitle,
-                    )).size(18.0).strong());
+                ui.label(
+                    RichText::new(crate::i18n::tr(lang, crate::i18n::Key::GraveEscapeTitle))
+                        .size(18.0)
+                        .strong(),
+                );
                 ui.add_space(6.0);
                 ui.label(
-                    RichText::new("Choose which modifiers make Grave Escape send Esc")
-                        .size(13.0)
-                        .color(app_muted_text(dark)),
+                    RichText::new(crate::i18n::tr(
+                        lang,
+                        crate::i18n::Key::GraveEscapeDescription,
+                    ))
+                    .size(13.0)
+                    .color(app_muted_text(dark)),
                 );
                 ui.add_space(24.0);
 
                 if !self.grave_escape_settings.supported {
                     crate::ui_style::modal_empty_state(
                         ui,
-                        "Grave Escape settings are not available on this firmware",
-                        Some("Enable QMK_SETTINGS and Grave Escape support in firmware to use this page"),
+                        crate::i18n::tr(lang, crate::i18n::Key::GraveEscapeUnavailable),
+                        Some(crate::i18n::tr(
+                            lang,
+                            crate::i18n::Key::GraveEscapeEnableHint,
+                        )),
                     );
                     return;
                 }
@@ -8661,7 +8711,7 @@ impl EntropyApp {
                 if !hid_ready {
                     crate::ui_style::modal_empty_state(
                         ui,
-                        "Connect a Vial keyboard to edit Grave Escape settings",
+                        crate::i18n::tr(lang, crate::i18n::Key::GraveEscapeConnect),
                         None,
                     );
                     return;
@@ -8683,12 +8733,15 @@ impl EntropyApp {
                     (
                         1,
                         "Control forces Esc".to_string(),
-                        "When Control is held, Grave Escape sends Esc instead of ` or ~".to_string(),
+                        "When Control is held, Grave Escape sends Esc instead of ` or ~"
+                            .to_string(),
                     ),
                     (
                         2,
                         format!("{gui_name} forces Esc"),
-                        format!("When {gui_name} is held, Grave Escape sends Esc instead of ` or ~"),
+                        format!(
+                            "When {gui_name} is held, Grave Escape sends Esc instead of ` or ~"
+                        ),
                     ),
                     (
                         3,
@@ -8712,7 +8765,11 @@ impl EntropyApp {
                                 Some(&tooltip),
                                 switch_width,
                                 |ui| {
-                                    let resp = crate::ui_style::settings_switch_sized(ui, &mut value, switch_size);
+                                    let resp = crate::ui_style::settings_switch_sized(
+                                        ui,
+                                        &mut value,
+                                        switch_size,
+                                    );
                                     if resp.changed() {
                                         self.grave_escape_settings.set_bit(bit, value);
                                         self.write_grave_escape_settings();
@@ -8753,10 +8810,14 @@ impl EntropyApp {
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(18.0);
-                ui.label(RichText::new(crate::i18n::tr(lang, crate::i18n::Key::MagicTitle)).size(18.0).strong());
+                ui.label(
+                    RichText::new(crate::i18n::tr(lang, crate::i18n::Key::MagicTitle))
+                        .size(18.0)
+                        .strong(),
+                );
                 ui.add_space(6.0);
                 ui.label(
-                    RichText::new("Tune global QMK keyboard behavior swaps")
+                    RichText::new(crate::i18n::tr(lang, crate::i18n::Key::MagicDescription))
                         .size(13.0)
                         .color(app_muted_text(dark)),
                 );
@@ -8765,8 +8826,8 @@ impl EntropyApp {
                 if !self.magic_settings.supported {
                     crate::ui_style::modal_empty_state(
                         ui,
-                        "Magic settings are not available on this firmware",
-                        Some("Enable QMK_SETTINGS and Magic in the keyboard firmware to use this page"),
+                        crate::i18n::tr(lang, crate::i18n::Key::MagicUnavailable),
+                        Some(crate::i18n::tr(lang, crate::i18n::Key::MagicEnableHint)),
                     );
                     return;
                 }
@@ -8774,7 +8835,7 @@ impl EntropyApp {
                 if !hid_ready {
                     crate::ui_style::modal_empty_state(
                         ui,
-                        "Connect a Vial keyboard to edit Magic settings",
+                        crate::i18n::tr(lang, crate::i18n::Key::MagicConnect),
                         None,
                     );
                     return;
@@ -8785,7 +8846,12 @@ impl EntropyApp {
                 let content_width = metrics.settings_content_width();
                 let row_content_width = metrics.settings_row_content_width();
                 let row_height = metrics.settings_row_height();
-                let visible_rows = responsive_settings_visible_rows(ui.ctx(), ui.available_height(), TOTAL_ROWS, 0.0);
+                let visible_rows = responsive_settings_visible_rows(
+                    ui.ctx(),
+                    ui.available_height(),
+                    TOTAL_ROWS,
+                    0.0,
+                );
                 let list_height = row_height * visible_rows as f32;
                 let content_height = row_height * TOTAL_ROWS as f32;
                 let max_offset = (content_height - list_height).max(0.0);
@@ -9026,17 +9092,23 @@ impl EntropyApp {
                 );
                 ui.add_space(6.0);
                 ui.label(
-                    RichText::new("Tune dual-role keys, one-shot modifiers and one-shot layers")
-                        .size(13.0)
-                        .color(app_muted_text(dark)),
+                    RichText::new(crate::i18n::tr(
+                        lang,
+                        crate::i18n::Key::TapHoldOneShotDescription,
+                    ))
+                    .size(13.0)
+                    .color(app_muted_text(dark)),
                 );
                 ui.add_space(24.0);
 
                 if !self.tap_hold_settings.supported && !self.one_shot_settings.supported {
                     crate::ui_style::modal_empty_state(
                         ui,
-                        "Tap-Hold & One Shot settings are not available on this firmware",
-                        Some("Enable QMK_SETTINGS in the keyboard rules.mk to use this page"),
+                        crate::i18n::tr(lang, crate::i18n::Key::TapHoldOneShotUnavailable),
+                        Some(crate::i18n::tr(
+                            lang,
+                            crate::i18n::Key::QmkSettingsEnableHint,
+                        )),
                     );
                     return;
                 }
@@ -9044,7 +9116,7 @@ impl EntropyApp {
                 if !hid_ready {
                     crate::ui_style::modal_empty_state(
                         ui,
-                        "Connect a Vial keyboard to edit Tap-Hold & One Shot settings",
+                        crate::i18n::tr(lang, crate::i18n::Key::TapHoldOneShotConnect),
                         None,
                     );
                     return;
@@ -10083,6 +10155,7 @@ impl EntropyApp {
     }
 
     fn draw_live_features_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
+        let lang = self.app_settings.language;
         let dark = ui.visuals().dark_mode;
         let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ui.ctx());
         let content_width = metrics.settings_content_width();
@@ -10104,23 +10177,33 @@ impl EntropyApp {
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(metrics.value(18.0));
-                ui.label(RichText::new(crate::i18n::tr(
+                ui.label(
+                    RichText::new(crate::i18n::tr(
                         self.app_settings.language,
                         crate::i18n::Key::LiveFeaturesTitle,
-                    )).size(metrics.value(18.0)).strong());
+                    ))
+                    .size(metrics.value(18.0))
+                    .strong(),
+                );
                 ui.add_space(metrics.value(6.0));
                 ui.label(
-                    RichText::new("Entropy-powered live data for firmware features")
-                        .size(metrics.value(13.0))
-                        .color(app_muted_text(dark)),
+                    RichText::new(crate::i18n::tr(
+                        lang,
+                        crate::i18n::Key::LiveFeaturesDescription,
+                    ))
+                    .size(metrics.value(13.0))
+                    .color(app_muted_text(dark)),
                 );
                 ui.add_space(metrics.value(24.0));
 
                 let Some((_, mode)) = path_and_mode else {
                     crate::ui_style::modal_empty_state(
                         ui,
-                        "Live Features are not active for this keyboard",
-                        Some("Select a preset or connect firmware that uses Entropy-powered live data"),
+                        crate::i18n::tr(lang, crate::i18n::Key::LiveFeaturesInactive),
+                        Some(crate::i18n::tr(
+                            lang,
+                            crate::i18n::Key::LiveFeaturesSelectHint,
+                        )),
                     );
                     return;
                 };
@@ -10149,7 +10232,11 @@ impl EntropyApp {
                         ui,
                         metrics,
                         "Volume sync",
-                        if volume.ok { volume.label } else { "needs setup" },
+                        if volume.ok {
+                            volume.label
+                        } else {
+                            "needs setup"
+                        },
                         volume.ok,
                         Some(volume.hint),
                     );
@@ -10168,9 +10255,12 @@ impl EntropyApp {
 
                 ui.add_space(metrics.value(18.0));
                 ui.label(
-                    RichText::new("No manual setup is needed when all rows are ready")
-                        .size(metrics.value(12.0))
-                        .color(app_muted_text(dark)),
+                    RichText::new(crate::i18n::tr(
+                        lang,
+                        crate::i18n::Key::LiveFeaturesReadyNote,
+                    ))
+                    .size(metrics.value(12.0))
+                    .color(app_muted_text(dark)),
                 );
             });
         });
@@ -10195,10 +10285,14 @@ impl EntropyApp {
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(18.0);
-                ui.label(RichText::new(crate::i18n::tr(lang, crate::i18n::Key::TouchpadTitle)).size(18.0).strong());
+                ui.label(
+                    RichText::new(crate::i18n::tr(lang, crate::i18n::Key::TouchpadTitle))
+                        .size(18.0)
+                        .strong(),
+                );
                 ui.add_space(6.0);
                 ui.label(
-                    RichText::new("Tune K:03 Pro touchpad pointer, scroll and mode behavior")
+                    RichText::new(crate::i18n::tr(lang, crate::i18n::Key::TouchpadDescription))
                         .size(13.0)
                         .color(app_muted_text(dark)),
                 );
@@ -10207,8 +10301,8 @@ impl EntropyApp {
                 if !self.touchpad_settings.supported {
                     crate::ui_style::modal_empty_state(
                         ui,
-                        "Touchpad settings are not available on this firmware",
-                        Some("Connect a K:03 Pro firmware with Touchpad QMK_SETTINGS to use this page"),
+                        crate::i18n::tr(lang, crate::i18n::Key::TouchpadUnavailable),
+                        Some(crate::i18n::tr(lang, crate::i18n::Key::TouchpadEnableHint)),
                     );
                     return;
                 }
@@ -10216,7 +10310,7 @@ impl EntropyApp {
                 if !hid_ready {
                     crate::ui_style::modal_empty_state(
                         ui,
-                        "Connect a Vial keyboard to edit Touchpad settings",
+                        crate::i18n::tr(lang, crate::i18n::Key::TouchpadConnect),
                         None,
                     );
                     return;
@@ -10224,7 +10318,13 @@ impl EntropyApp {
 
                 let row_height = metrics.settings_row_height();
                 let total_rows = self.touchpad_settings.row_count();
-                let visible_rows = responsive_settings_visible_rows(ui.ctx(), ui.available_height(), total_rows, 0.0).max(1);
+                let visible_rows = responsive_settings_visible_rows(
+                    ui.ctx(),
+                    ui.available_height(),
+                    total_rows,
+                    0.0,
+                )
+                .max(1);
                 let list_height = row_height * visible_rows as f32;
                 let content_height = row_height * total_rows as f32;
                 let max_offset = (content_height - list_height).max(0.0);
@@ -10238,10 +10338,8 @@ impl EntropyApp {
                     .ctx()
                     .data_mut(|d| d.get_persisted::<f32>(target_id).unwrap_or(scroll_offset))
                     .clamp(0.0, max_offset);
-                let (viewport, viewport_resp) = ui.allocate_exact_size(
-                    egui::vec2(content_width, list_height),
-                    Sense::hover(),
-                );
+                let (viewport, viewport_resp) =
+                    ui.allocate_exact_size(egui::vec2(content_width, list_height), Sense::hover());
 
                 let track_width = 6.0;
                 let track_rect = egui::Rect::from_min_max(
@@ -10276,7 +10374,8 @@ impl EntropyApp {
                 }
 
                 let handle_height = if max_offset > 0.0 {
-                    (list_height / content_height * viewport.height()).clamp(42.0, viewport.height())
+                    (list_height / content_height * viewport.height())
+                        .clamp(42.0, viewport.height())
                 } else {
                     viewport.height()
                 };
@@ -11195,7 +11294,10 @@ impl EntropyApp {
         if show_intro {
             crate::ui_style::modal_hint(
                 ui,
-                "Press multiple keys together to send a separate keycode",
+                crate::i18n::tr(
+                    self.app_settings.language,
+                    crate::i18n::Key::ComboDescription,
+                ),
             );
         }
 
