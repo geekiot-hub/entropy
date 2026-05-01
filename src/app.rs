@@ -617,6 +617,33 @@ fn top_dropdown_item(
     resp
 }
 
+fn top_menu_text_width(ui: &egui::Ui, label: &str, font_size: f32) -> f32 {
+    ui.fonts(|f| {
+        f.layout_no_wrap(
+            label.to_owned(),
+            egui::FontId::proportional(font_size),
+            ui.visuals().widgets.inactive.fg_stroke.color,
+        )
+        .size()
+        .x
+    })
+}
+
+fn adaptive_top_dropdown_width<'a>(
+    ui: &egui::Ui,
+    labels: impl IntoIterator<Item = &'a str>,
+    min_width: f32,
+) -> f32 {
+    let text_width = labels
+        .into_iter()
+        .filter(|label| !label.is_empty())
+        .map(|label| top_menu_text_width(ui, label, 13.0))
+        .fold(0.0, f32::max);
+
+    // 16px frame margins + 10px left text inset + selected-dot reserve + breathing room.
+    (text_width + 56.0).max(min_width).min(360.0)
+}
+
 fn keycode_label_with_macro_names(
     value: u16,
     custom: &[crate::keyboard::CustomKeycode],
@@ -11705,10 +11732,9 @@ impl EntropyApp {
             let lang = self.app_settings.language;
             let center_x = ui.min_rect().center().x;
             let tabs_y = top_base_y;
-            let tab_size = Vec2::new(112.0, 28.0);
-            let tab_gap = 8.0;
-            let total_w = tab_size.x * 3.0 + tab_gap * 2.0;
-            let start_x = center_x - total_w / 2.0;
+            let tab_font_size = 15.0;
+            let tab_height = 28.0;
+            let tab_gap = 16.0;
             let tabs = [
                 (
                     MainMenuTab::Keyboard,
@@ -11723,6 +11749,10 @@ impl EntropyApp {
                     crate::i18n::tr(lang, TrKey::MainTabConfig),
                 ),
             ];
+            let tab_widths = tabs
+                .map(|(_, label)| (top_menu_text_width(ui, label, tab_font_size) + 34.0).max(96.0));
+            let total_w = tab_widths.iter().sum::<f32>() + tab_gap * (tabs.len() - 1) as f32;
+            let start_x = center_x - total_w / 2.0;
             let mut device_tab_rect = None;
             let mut device_tab_hovered = false;
             let mut advanced_tab_rect = None;
@@ -11730,37 +11760,24 @@ impl EntropyApp {
             let mut settings_tab_rect = None;
             let mut settings_tab_hovered = false;
 
+            let mut tab_x = start_x;
             for (idx, (tab, label)) in tabs.iter().enumerate() {
                 let slot_rect = egui::Rect::from_min_size(
-                    egui::pos2(start_x + idx as f32 * (tab_size.x + tab_gap), tabs_y),
-                    tab_size,
+                    egui::pos2(tab_x, tabs_y),
+                    Vec2::new(tab_widths[idx], tab_height),
                 );
-                let text_rect = {
-                    let text_w = ui.fonts(|f| {
-                        f.layout_no_wrap(
-                            (*label).to_owned(),
-                            FontId::proportional(15.0),
-                            ui.visuals().widgets.inactive.fg_stroke.color,
-                        )
-                        .size()
-                        .x
-                    });
-                    egui::Rect::from_center_size(
-                        slot_rect.center(),
-                        Vec2::new(text_w + 20.0, tab_size.y),
-                    )
-                };
-                let resp = ui.allocate_rect(text_rect, Sense::CLICK);
+                tab_x += tab_widths[idx] + tab_gap;
+                let resp = ui.allocate_rect(slot_rect, Sense::CLICK);
                 if matches!(tab, MainMenuTab::Keyboard) {
-                    device_tab_rect = Some(text_rect);
+                    device_tab_rect = Some(slot_rect);
                     device_tab_hovered = resp.hovered();
                 }
                 if matches!(tab, MainMenuTab::Advanced) {
-                    advanced_tab_rect = Some(text_rect);
+                    advanced_tab_rect = Some(slot_rect);
                     advanced_tab_hovered = resp.hovered();
                 }
                 if matches!(tab, MainMenuTab::Settings) {
-                    settings_tab_rect = Some(text_rect);
+                    settings_tab_rect = Some(slot_rect);
                     settings_tab_hovered = resp.hovered();
                 }
                 if resp.hovered() {
@@ -11802,7 +11819,7 @@ impl EntropyApp {
                     slot_rect.center(),
                     egui::Align2::CENTER_CENTER,
                     *label,
-                    FontId::proportional(15.0),
+                    FontId::proportional(tab_font_size),
                     text_color,
                 );
             }
@@ -11825,7 +11842,7 @@ impl EntropyApp {
             });
             let undo_rect = egui::Rect::from_min_size(
                 egui::pos2(ui.min_rect().left() + 24.0, tabs_y),
-                Vec2::new(undo_text_w + 12.0, tab_size.y),
+                Vec2::new(undo_text_w + 12.0, tab_height),
             );
             let undo_resp = ui.allocate_rect(undo_rect, Sense::CLICK);
             if undo_resp.hovered() && undo_enabled {
@@ -11861,13 +11878,16 @@ impl EntropyApp {
                 Color32::from_gray(170)
             };
             let divider_top = tabs_y + 4.0;
-            let divider_bottom = tabs_y + tab_size.y - 4.0;
-            for sep_idx in 1..3 {
-                let x = start_x + sep_idx as f32 * tab_size.x + (sep_idx as f32 - 0.5) * tab_gap;
+            let divider_bottom = tabs_y + tab_height - 4.0;
+            let mut divider_x = start_x;
+            for width in tab_widths.iter().take(tabs.len() - 1) {
+                divider_x += *width;
+                let x = divider_x + tab_gap / 2.0;
                 ui.painter().line_segment(
                     [egui::pos2(x, divider_top), egui::pos2(x, divider_bottom)],
                     egui::Stroke::new(1.5, divider_color),
                 );
+                divider_x += tab_gap;
             }
 
             if let Some(device_rect) = device_tab_rect {
@@ -11893,12 +11913,38 @@ impl EntropyApp {
                 let device_rows = device_count.max(1) as f32;
                 let devices_h = 12.0 + device_rows * 30.0;
                 let lock_h = if has_lock_button { 36.0 } else { 0.0 };
-                let device_dropdown_width = if matches!(lang, crate::i18n::Language::Russian) {
-                    206.0
-                } else {
-                    152.0
-                };
-                let dropdown_size = Vec2::new(device_dropdown_width, devices_h + lock_h + 12.0);
+                let mut device_menu_labels: Vec<String> =
+                    if self.device_manager.devices().is_empty() {
+                        vec![crate::i18n::tr(lang, TrKey::NoDevicesFound).to_owned()]
+                    } else {
+                        self.device_manager
+                            .devices()
+                            .iter()
+                            .map(|dev| {
+                                self.device_display_names
+                                    .get(&dev.path)
+                                    .cloned()
+                                    .unwrap_or_else(|| dev.name.clone())
+                            })
+                            .collect()
+                    };
+                if has_lock_button {
+                    let action = if is_unlocked {
+                        crate::i18n::tr(lang, TrKey::LockAction)
+                    } else {
+                        crate::i18n::tr(lang, TrKey::UnlockAction)
+                    };
+                    let icon = if is_unlocked { "🔓" } else { "🔒" };
+                    device_menu_labels.push(format!("{icon} {action}"));
+                }
+                let dropdown_size = Vec2::new(
+                    adaptive_top_dropdown_width(
+                        ui,
+                        device_menu_labels.iter().map(String::as_str),
+                        152.0,
+                    ),
+                    devices_h + lock_h + 12.0,
+                );
                 let dropdown_rect = egui::Rect::from_min_size(
                     egui::pos2(
                         device_rect.center().x - dropdown_size.x / 2.0,
@@ -12035,11 +12081,18 @@ impl EntropyApp {
                 let advanced_item_count = combo_supported as usize
                     + auto_shift_supported as usize
                     + key_override_supported as usize;
-                let advanced_dropdown_width = if matches!(lang, crate::i18n::Language::Russian) {
-                    224.0
-                } else {
-                    152.0
-                };
+                let mut advanced_menu_labels = Vec::new();
+                if combo_supported {
+                    advanced_menu_labels.push(crate::i18n::tr(lang, TrKey::ComboTitle));
+                }
+                if auto_shift_supported {
+                    advanced_menu_labels.push(crate::i18n::tr(lang, TrKey::AutoShiftTitle));
+                }
+                if key_override_supported {
+                    advanced_menu_labels.push(crate::i18n::tr(lang, TrKey::KeyOverridesTitle));
+                }
+                let advanced_dropdown_width =
+                    adaptive_top_dropdown_width(ui, advanced_menu_labels, 152.0);
                 let dropdown_rect = egui::Rect::from_min_size(
                     egui::pos2(
                         advanced_rect.center().x - advanced_dropdown_width / 2.0,
@@ -12210,11 +12263,38 @@ impl EntropyApp {
                 // Keep hover bridge in sync with actual item height (30px) and frame padding.
                 // Underestimating this makes lower items close the dropdown on hover.
                 let dropdown_height = settings_item_count as f32 * 30.0 + 12.0;
-                let dropdown_width = if matches!(lang, crate::i18n::Language::Russian) {
-                    224.0
-                } else {
-                    184.0
-                };
+                let mut settings_menu_labels = vec![
+                    crate::i18n::tr(lang, TrKey::AppSettingsTitle),
+                    crate::i18n::tr(lang, TrKey::UniversalSymbolsTitle),
+                ];
+                if show_matrix_item {
+                    settings_menu_labels.push(crate::i18n::tr(lang, TrKey::MatrixTesterTitle));
+                }
+                if show_rgb_item {
+                    settings_menu_labels.push(crate::i18n::tr(lang, TrKey::RgbTitle));
+                }
+                if show_layer_leds_item {
+                    settings_menu_labels.push(crate::i18n::tr(lang, TrKey::LayerLedsTitle));
+                }
+                if show_encoders_item {
+                    settings_menu_labels.push(crate::i18n::tr(lang, TrKey::EncodersTitle));
+                }
+                if show_layout_options_item {
+                    settings_menu_labels.push(crate::i18n::tr(lang, TrKey::DisplayPresetsTitle));
+                }
+                if show_touchpad_item {
+                    settings_menu_labels.push(crate::i18n::tr(lang, TrKey::TouchpadTitle));
+                }
+                if show_live_features_item {
+                    settings_menu_labels.push(crate::i18n::tr(lang, TrKey::LiveFeaturesTitle));
+                }
+                if show_magic_item {
+                    settings_menu_labels.push(crate::i18n::tr(lang, TrKey::MagicTitle));
+                }
+                if show_tap_hold_item {
+                    settings_menu_labels.push(crate::i18n::tr(lang, TrKey::TapHoldOneShotTitle));
+                }
+                let dropdown_width = adaptive_top_dropdown_width(ui, settings_menu_labels, 184.0);
                 let dropdown_rect = egui::Rect::from_min_size(
                     egui::pos2(
                         settings_rect.center().x - dropdown_width / 2.0,
