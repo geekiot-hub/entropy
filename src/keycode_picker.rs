@@ -863,8 +863,7 @@ fn show_grouped_popup_key_buttons(
         ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| {
             for kc in &group {
-                let label =
-                    crate::i18n::tr_text(language, &popup_key_button_label(kc, friendly_mods));
+                let label = popup_key_button_label(kc, friendly_mods);
                 let size = popup_key_button_size(ui, &label);
                 let resp = picker_button(ui, &label, size, true, false);
                 if resp.clicked() {
@@ -905,9 +904,8 @@ fn show_grouped_popup_choice_buttons(
         ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| {
             for (value, label, tooltip) in choices {
-                let display_label = crate::i18n::tr_text(language, &label);
-                let size = popup_key_button_size(ui, &display_label);
-                let resp = picker_button(ui, &display_label, size, true, false);
+                let size = popup_key_button_size(ui, &label);
+                let resp = picker_button(ui, &label, size, true, false);
                 if resp.clicked() {
                     selected = Some(value);
                 }
@@ -1786,12 +1784,9 @@ impl KeycodePicker {
                 0x0027 => ")\n0".to_string(),
                 0x002D => "_\n-".to_string(),
                 0x002E => "+\n=".to_string(),
-                _ => crate::i18n::tr_text(
-                    self.language,
-                    &crate::keycode::find_keycode(assigned_value)
-                        .map(|_| keycode_label_with_names(assigned_value, &[], &self.layer_names))
-                        .unwrap_or_else(|| fallback_label.to_string()),
-                ),
+                _ => crate::keycode::find_keycode(assigned_value)
+                    .map(|_| keycode_label_with_names(assigned_value, &[], &self.layer_names))
+                    .unwrap_or_else(|| fallback_label.to_string()),
             };
             self.basic_key_button_at(
                 ui,
@@ -2061,8 +2056,7 @@ impl KeycodePicker {
                 let resp = ui
                     .add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""))
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
-                let display_label = crate::i18n::tr_text(self.language, label);
-                Self::paint_compact_picker_label(ui, &resp, &display_label);
+                Self::paint_compact_picker_label(ui, &resp, label);
                 if resp.clicked() {
                     self.vial_layer_pending = Some(*base);
                 }
@@ -4202,8 +4196,7 @@ Repeat"
                 let resp = ui
                     .add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""))
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
-                let display_label = crate::i18n::tr_text(self.language, label);
-                Self::paint_compact_picker_label(ui, &resp, &display_label);
+                Self::paint_compact_picker_label(ui, &resp, label);
                 if resp.clicked() {
                     self.assign_keycode_value(*value);
                 }
@@ -4399,8 +4392,7 @@ Repeat"
                     continue;
                 }
                 let resp = ui.add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""));
-                let display_text = crate::i18n::tr_text(self.language, text);
-                Self::paint_compact_picker_label(ui, &resp, &display_text);
+                Self::paint_compact_picker_label(ui, &resp, text);
                 if resp.clicked() {
                     self.assign_keycode_value(value);
                 }
@@ -4455,7 +4447,6 @@ Repeat"
                         .or_else(|| kc.label.strip_prefix("Num"))
                         .unwrap_or(kc.label),
                 };
-                let display = crate::i18n::tr_text(self.language, display);
                 let font_size = if display.chars().count() > 2 {
                     10.5
                 } else {
@@ -4479,7 +4470,7 @@ Repeat"
                 painter.text(
                     egui::pos2(rect.center().x, rect.center().y + 6.0),
                     egui::Align2::CENTER_CENTER,
-                    display.as_str(),
+                    display,
                     egui::FontId::proportional(font_size),
                     main_color,
                 );
@@ -4524,8 +4515,8 @@ Repeat"
                 for value in &visible_magic_keys {
                     let label = crate::keycode::keycode_label(*value);
                     let mut parts = label.splitn(2, '\n');
-                    let top = crate::i18n::tr_text(self.language, parts.next().unwrap_or(""));
-                    let bottom = crate::i18n::tr_text(self.language, parts.next().unwrap_or(""));
+                    let top = parts.next().unwrap_or("");
+                    let bottom = parts.next().unwrap_or("");
                     let mut resp =
                         ui.add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""));
                     let rect = resp.rect;
@@ -4545,7 +4536,7 @@ Repeat"
                         painter.text(
                             egui::pos2(rect.center().x, rect.center().y - 6.5),
                             egui::Align2::CENTER_CENTER,
-                            top.as_str(),
+                            top,
                             egui::FontId::proportional(top_font),
                             magic_top_color,
                         );
@@ -4553,11 +4544,7 @@ Repeat"
                     painter.text(
                         egui::pos2(rect.center().x, rect.center().y + 6.5),
                         egui::Align2::CENTER_CENTER,
-                        if bottom.is_empty() {
-                            top.as_str()
-                        } else {
-                            bottom.as_str()
-                        },
+                        if bottom.is_empty() { top } else { bottom },
                         egui::FontId::proportional(bottom_font),
                         main_color,
                     );
@@ -4629,8 +4616,6 @@ Repeat"
                 } else {
                     ui.visuals().widgets.inactive.fg_stroke.color
                 };
-                let top = crate::i18n::tr_text(self.language, top);
-                let bottom = crate::i18n::tr_text(self.language, bottom);
                 let top_font = if top.chars().count() > 6 { 8.7 } else { 9.3 };
                 let bottom_font = if bottom.chars().count() > 5 {
                     9.4
@@ -4640,14 +4625,14 @@ Repeat"
                 painter.text(
                     egui::pos2(rect.center().x, rect.center().y - 6.5),
                     egui::Align2::CENTER_CENTER,
-                    top.as_str(),
+                    *top,
                     egui::FontId::proportional(top_font),
                     cadet_top_color,
                 );
                 painter.text(
                     egui::pos2(rect.center().x, rect.center().y + 6.5),
                     egui::Align2::CENTER_CENTER,
-                    bottom.as_str(),
+                    *bottom,
                     egui::FontId::proportional(bottom_font),
                     main_color,
                 );
@@ -4701,8 +4686,6 @@ Repeat"
                 } else {
                     ui.visuals().widgets.inactive.fg_stroke.color
                 };
-                let top = crate::i18n::tr_text(self.language, top);
-                let bottom = crate::i18n::tr_text(self.language, bottom);
                 let top_font = if top.chars().count() > 6 { 8.5 } else { 9.2 };
                 let bottom_font = if bottom.chars().count() > 6 {
                     9.0
@@ -4712,14 +4695,14 @@ Repeat"
                 painter.text(
                     egui::pos2(rect.center().x, rect.center().y - 6.5),
                     egui::Align2::CENTER_CENTER,
-                    top.as_str(),
+                    *top,
                     egui::FontId::proportional(top_font),
                     intl_top_color,
                 );
                 painter.text(
                     egui::pos2(rect.center().x, rect.center().y + 6.5),
                     egui::Align2::CENTER_CENTER,
-                    bottom.as_str(),
+                    *bottom,
                     egui::FontId::proportional(bottom_font),
                     main_color,
                 );
