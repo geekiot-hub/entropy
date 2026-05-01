@@ -651,8 +651,13 @@ fn key_picker_popup_scroll_height(popup_size: Vec2) -> f32 {
 
 fn responsive_picker_element_scale(ctx: &egui::Context) -> f32 {
     let screen = ctx.screen_rect().size();
-    let t = ((screen.x.min(screen.y) - 900.0) / (1_450.0 - 900.0)).clamp(0.0, 1.0);
-    1.0 + 0.22 * t
+    let native_pixels_per_point = ctx
+        .native_pixels_per_point()
+        .unwrap_or_else(|| ctx.pixels_per_point() / ctx.zoom_factor().max(0.1))
+        .max(1.0);
+    let effective_short_side = screen.x.min(screen.y) * native_pixels_per_point;
+    let t = ((effective_short_side - 1_500.0) / (2_160.0 - 1_500.0)).clamp(0.0, 1.0);
+    1.0 + 0.30 * t
 }
 
 fn responsive_picker_key_size(ctx: &egui::Context) -> Vec2 {
@@ -2572,11 +2577,12 @@ impl KeycodePicker {
         let macro_font_size = 14.0 * scale;
         ui.add_space(4.0 * scale);
         if let Some(name) = self.macro_names.get_mut(n) {
-            let resp = crate::ui_style::modern_text_field(
+            let resp = crate::ui_style::modern_text_field_sized(
                 ui,
                 ui.make_persistent_id(("macro_name", grid_id, n)),
                 name,
                 124.0 * scale,
+                32.0 * scale,
                 "Macro name",
                 7,
                 egui::Align::Center,
@@ -2647,11 +2653,12 @@ impl KeycodePicker {
                     match action {
                         MacroAction::Text(text) => {
                             let text_w = (avail_w - 220.0 * scale).max(150.0 * scale);
-                            crate::ui_style::modern_text_field(
+                            crate::ui_style::modern_text_field_sized(
                                 ui,
                                 ui.make_persistent_id(("macro_text_action", grid_id, n, i)),
                                 text,
                                 text_w,
+                                32.0 * scale,
                                 "Type text here",
                                 256,
                                 egui::Align::Min,
@@ -2717,11 +2724,12 @@ impl KeycodePicker {
                         }
                         MacroAction::Delay(ms) => {
                             let mut ms_str = ms.to_string();
-                            if crate::ui_style::modern_text_field(
+                            if crate::ui_style::modern_text_field_sized(
                                 ui,
                                 ui.make_persistent_id(("macro_delay", grid_id, n, i)),
                                 &mut ms_str,
                                 80.0 * scale,
+                                32.0 * scale,
                                 "",
                                 5,
                                 egui::Align::Center,
@@ -2971,11 +2979,12 @@ impl KeycodePicker {
         ui.add_space(4.0 * scale);
         let prev_name = self.tap_dance_names.get(n).cloned().unwrap_or_default();
         let mut edited_name = prev_name.clone();
-        let resp = crate::ui_style::modern_text_field(
+        let resp = crate::ui_style::modern_text_field_sized(
             ui,
             ui.make_persistent_id(("tap_dance_name", n)),
             &mut edited_name,
             124.0 * scale,
+            32.0 * scale,
             "TD name",
             7,
             egui::Align::Center,
@@ -3042,11 +3051,12 @@ impl KeycodePicker {
                     ui.spacing_mut().item_spacing.x = 6.0;
                     let prev_term = self.tap_dance_entries[n].tapping_term;
                     let mut term_str = prev_term.to_string();
-                    if crate::ui_style::modern_text_field(
+                    if crate::ui_style::modern_text_field_sized(
                         ui,
                         ui.make_persistent_id(("tap_dance_term", n)),
                         &mut term_str,
                         76.0 * scale,
+                        32.0 * scale,
                         "",
                         5,
                         egui::Align::Center,
@@ -3269,11 +3279,12 @@ impl KeycodePicker {
                     );
                     let mut term_str = self.tap_dance_entries[n].tapping_term.to_string();
                     ui.horizontal(|ui| {
-                        if crate::ui_style::modern_text_field(
+                        if crate::ui_style::modern_text_field_sized(
                             ui,
                             ui.make_persistent_id(("tap_dance_legacy_term", n)),
                             &mut term_str,
                             80.0 * scale,
+                            32.0 * scale,
                             "",
                             5,
                             egui::Align::Center,

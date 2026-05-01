@@ -44,9 +44,7 @@ pub fn surface_fill(dark: bool) -> Color32 {
 
 fn mix(a: Color32, b: Color32, t: f32) -> Color32 {
     let t = t.clamp(0.0, 1.0);
-    let mix_channel = |x: u8, y: u8| -> u8 {
-        (x as f32 + (y as f32 - x as f32) * t).round() as u8
-    };
+    let mix_channel = |x: u8, y: u8| -> u8 { (x as f32 + (y as f32 - x as f32) * t).round() as u8 };
     Color32::from_rgb(
         mix_channel(a.r(), b.r()),
         mix_channel(a.g(), b.g()),
@@ -86,14 +84,13 @@ pub fn modal_outline_stroke(dark: bool) -> Stroke {
     }
 }
 
-pub fn modern_button(
-    ui: &mut Ui,
-    label: &str,
-    size: Vec2,
-    enabled: bool,
-) -> egui::Response {
+pub fn modern_button(ui: &mut Ui, label: &str, size: Vec2, enabled: bool) -> egui::Response {
     let dark = ui.visuals().dark_mode;
-    let sense = if enabled { Sense::click() } else { Sense::hover() };
+    let sense = if enabled {
+        Sense::click()
+    } else {
+        Sense::hover()
+    };
     let (rect, resp) = ui.allocate_exact_size(size, sense);
     let active = enabled && resp.is_pointer_button_down_on();
     let hovered = enabled && resp.hovered();
@@ -141,7 +138,39 @@ pub fn modern_text_field(
     char_limit: usize,
     horizontal_align: egui::Align,
 ) -> egui::Response {
-    modern_text_field_interactive(ui, id, text, width, hint, char_limit, horizontal_align, true)
+    modern_text_field_interactive(
+        ui,
+        id,
+        text,
+        width,
+        hint,
+        char_limit,
+        horizontal_align,
+        true,
+    )
+}
+
+pub fn modern_text_field_sized(
+    ui: &mut Ui,
+    id: egui::Id,
+    text: &mut String,
+    width: f32,
+    height: f32,
+    hint: &str,
+    char_limit: usize,
+    horizontal_align: egui::Align,
+) -> egui::Response {
+    modern_text_field_impl(
+        ui,
+        id,
+        text,
+        width,
+        height,
+        hint,
+        char_limit,
+        horizontal_align,
+        true,
+    )
 }
 
 pub fn modern_text_field_interactive(
@@ -154,8 +183,32 @@ pub fn modern_text_field_interactive(
     horizontal_align: egui::Align,
     interactive: bool,
 ) -> egui::Response {
+    modern_text_field_impl(
+        ui,
+        id,
+        text,
+        width,
+        32.0,
+        hint,
+        char_limit,
+        horizontal_align,
+        interactive,
+    )
+}
+
+fn modern_text_field_impl(
+    ui: &mut Ui,
+    id: egui::Id,
+    text: &mut String,
+    width: f32,
+    height: f32,
+    hint: &str,
+    char_limit: usize,
+    horizontal_align: egui::Align,
+    interactive: bool,
+) -> egui::Response {
     let dark = ui.visuals().dark_mode;
-    let field_size = Vec2::new(width, 32.0);
+    let field_size = Vec2::new(width, height);
     let (field_rect, _) = ui.allocate_exact_size(field_size, Sense::hover());
     let field_hovered = ui.input(|i| {
         i.pointer
@@ -186,7 +239,7 @@ pub fn modern_text_field_interactive(
     let mut edit_resp = None;
     ui.allocate_ui_at_rect(field_rect.shrink2(Vec2::new(10.0, 0.0)), |ui| {
         let resp = ui.add_sized(
-            [width - 20.0, 32.0],
+            [width - 20.0, height],
             egui::TextEdit::singleline(text)
                 .id(id)
                 .desired_width(width - 20.0)
@@ -215,10 +268,8 @@ pub fn modern_dropdown_button(
 ) -> egui::Response {
     let dark = ui.visuals().dark_mode;
     let dropdown_open = ui.memory(|m| m.is_popup_open(id));
-    let (dropdown_rect, dropdown_resp) = ui.allocate_exact_size(
-        Vec2::new(width, 32.0),
-        Sense::click(),
-    );
+    let (dropdown_rect, dropdown_resp) =
+        ui.allocate_exact_size(Vec2::new(width, 32.0), Sense::click());
     if dropdown_resp.hovered() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
     }
@@ -339,7 +390,11 @@ pub fn modal_window_frame(style: &egui::Style, dark: bool) -> egui::Frame {
 }
 
 pub fn modal_backdrop_alpha(dark: bool) -> u8 {
-    if dark { 96 } else { 48 }
+    if dark {
+        96
+    } else {
+        48
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -378,7 +433,10 @@ pub fn centered_modal_window<'a>(
         .order(egui::Order::Foreground)
         .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
         .fixed_size(size)
-        .frame(modal_window_frame(ctx.style().as_ref(), ctx.style().visuals.dark_mode))
+        .frame(modal_window_frame(
+            ctx.style().as_ref(),
+            ctx.style().visuals.dark_mode,
+        ))
 }
 
 pub fn modal_content(ui: &mut Ui, layout: ModalLayout, add_contents: impl FnOnce(&mut Ui)) {
@@ -402,7 +460,11 @@ pub fn modal_intro(ui: &mut Ui, text: &str) {
     ui.label(
         RichText::new(text)
             .size(11.0)
-            .color(Color32::from_gray(if ui.visuals().dark_mode { 140 } else { 140 })),
+            .color(Color32::from_gray(if ui.visuals().dark_mode {
+                140
+            } else {
+                140
+            })),
     );
 }
 
@@ -418,18 +480,10 @@ pub fn modal_empty_state(ui: &mut Ui, title: &str, detail: Option<&str>) {
     let dark = ui.visuals().dark_mode;
     ui.vertical_centered(|ui| {
         ui.add_space(72.0);
-        ui.label(
-            RichText::new(title)
-                .size(13.0)
-                .color(muted_text(dark)),
-        );
+        ui.label(RichText::new(title).size(13.0).color(muted_text(dark)));
         if let Some(detail) = detail {
             ui.add_space(6.0);
-            ui.label(
-                RichText::new(detail)
-                    .size(11.5)
-                    .color(muted_text(dark)),
-            );
+            ui.label(RichText::new(detail).size(11.5).color(muted_text(dark)));
         }
     });
 }
@@ -439,11 +493,7 @@ pub fn modal_action_row(ui: &mut Ui, add_contents: impl FnOnce(&mut Ui)) {
     ui.horizontal_centered(add_contents);
 }
 
-pub fn modal_centered_text_block(
-    ui: &mut Ui,
-    width: f32,
-    add_contents: impl FnOnce(&mut Ui),
-) {
+pub fn modal_centered_text_block(ui: &mut Ui, width: f32, add_contents: impl FnOnce(&mut Ui)) {
     ui.horizontal_centered(|ui| {
         ui.allocate_ui_with_layout(
             egui::vec2(width, 0.0),
@@ -511,7 +561,6 @@ pub fn modal_labeled_row(
     );
 }
 
-
 pub fn settings_list_row(
     ui: &mut Ui,
     content_width: f32,
@@ -544,10 +593,8 @@ pub fn settings_list_row_with_tooltip(
     add_control: impl FnOnce(&mut Ui),
 ) {
     let dark = ui.visuals().dark_mode;
-    let (row_rect, _) = ui.allocate_exact_size(
-        egui::vec2(content_width, row_height),
-        egui::Sense::hover(),
-    );
+    let (row_rect, _) =
+        ui.allocate_exact_size(egui::vec2(content_width, row_height), egui::Sense::hover());
     let separator = border_color(dark).gamma_multiply(if dark { 0.72 } else { 0.9 });
     ui.painter().line_segment(
         [row_rect.left_bottom(), row_rect.right_bottom()],
@@ -571,7 +618,10 @@ pub fn settings_list_row_with_tooltip(
         let text_width = (label.chars().count() as f32 * 7.4 + 8.0)
             .min((content_width - control_width - 20.0).max(0.0));
         let label_rect = egui::Rect::from_center_size(
-            egui::pos2(row_rect.left() + 2.0 + text_width / 2.0, row_rect.center().y),
+            egui::pos2(
+                row_rect.left() + 2.0 + text_width / 2.0,
+                row_rect.center().y,
+            ),
             egui::vec2(text_width, 22.0),
         );
         let label_resp = ui.interact(
@@ -592,7 +642,10 @@ pub fn settings_list_row_with_tooltip(
     );
     ui.allocate_ui_at_rect(control_rect, |ui| {
         ui.set_min_size(egui::vec2(control_width, row_height));
-        ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), add_control);
+        ui.with_layout(
+            egui::Layout::left_to_right(egui::Align::Center),
+            add_control,
+        );
     });
 }
 
@@ -606,7 +659,11 @@ pub fn settings_switch_interactive(
     interactive: bool,
 ) -> egui::Response {
     let desired_size = egui::vec2(46.0, 24.0);
-    let sense = if interactive { egui::Sense::click() } else { egui::Sense::hover() };
+    let sense = if interactive {
+        egui::Sense::click()
+    } else {
+        egui::Sense::hover()
+    };
     let (rect, mut response) = ui.allocate_exact_size(desired_size, sense);
     if interactive && response.clicked() {
         *checked = !*checked;
@@ -632,13 +689,8 @@ pub fn settings_switch_interactive(
             Color32::from_rgb(232, 232, 235)
         };
         let stroke = Stroke::new(0.0, Color32::TRANSPARENT);
-        ui.painter().rect(
-            rect,
-            radius,
-            track_fill,
-            stroke,
-            egui::StrokeKind::Inside,
-        );
+        ui.painter()
+            .rect(rect, radius, track_fill, stroke, egui::StrokeKind::Inside);
 
         let knob_radius = radius - 4.0;
         let x = egui::lerp((rect.left() + radius)..=(rect.right() - radius), t);
@@ -653,11 +705,8 @@ pub fn settings_switch_interactive(
         } else {
             Color32::from_rgb(188, 188, 192)
         };
-        ui.painter().circle_filled(
-            egui::pos2(x, rect.center().y),
-            knob_radius,
-            knob_fill,
-        );
+        ui.painter()
+            .circle_filled(egui::pos2(x, rect.center().y), knob_radius, knob_fill);
     }
 
     response
