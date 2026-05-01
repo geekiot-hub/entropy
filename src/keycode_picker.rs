@@ -1059,7 +1059,7 @@ impl KeycodePicker {
                 });
                 if picker_button(
                     ui,
-                    crate::i18n::tr_static(self.language, "None (clear)"),
+                    "None (clear)",
                     crate::ui_style::modal_action_button_size(),
                     true,
                     false,
@@ -3615,7 +3615,7 @@ impl KeycodePicker {
             ui.add_space(crate::ui_style::modal_space_xs());
             if picker_button(
                 ui,
-                crate::i18n::tr_static(self.language, "None (clear)"),
+                "None (clear)",
                 crate::ui_style::modal_action_button_size(),
                 true,
                 false,
