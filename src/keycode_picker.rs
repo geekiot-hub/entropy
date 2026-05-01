@@ -657,7 +657,7 @@ fn responsive_picker_element_scale(ctx: &egui::Context) -> f32 {
         .max(1.0);
     let effective_short_side = screen.x.min(screen.y) * native_pixels_per_point;
     let t = ((effective_short_side - 1_500.0) / (2_160.0 - 1_500.0)).clamp(0.0, 1.0);
-    1.0 + 0.30 * t
+    1.0 + 0.12 * t
 }
 
 fn responsive_picker_key_size(ctx: &egui::Context) -> Vec2 {
