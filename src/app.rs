@@ -3625,9 +3625,12 @@ impl EntropyApp {
                         ui.add_sized(
                             Vec2::new(content_width, metrics.value(18.0)),
                             egui::Label::new(
-                                RichText::new(crate::smart_input::universal_output_status())
-                                    .size(metrics.value(12.5))
-                                    .color(app_muted_text(dark)),
+                                RichText::new(crate::i18n::tr_text(
+                                    lang,
+                                    &crate::smart_input::universal_output_status(),
+                                ))
+                                .size(metrics.value(12.5))
+                                .color(app_muted_text(dark)),
                             )
                             .wrap()
                             .halign(egui::Align::Center),
@@ -3637,7 +3640,7 @@ impl EntropyApp {
                             ui.add_sized(
                                 Vec2::new(content_width, metrics.value(18.0)),
                                 egui::Label::new(
-                                    RichText::new(hint)
+                                    RichText::new(crate::i18n::tr_text(lang, hint))
                                         .size(metrics.value(11.0))
                                         .color(app_muted_text(dark)),
                                 )
@@ -3673,7 +3676,7 @@ impl EntropyApp {
                             ui.painter().text(
                                 egui::pos2(block_rect.center().x, y),
                                 egui::Align2::CENTER_CENTER,
-                                *step,
+                                crate::i18n::tr_text(lang, step),
                                 FontId::proportional(metrics.value(12.0)),
                                 if idx == 0 {
                                     app_accent()
@@ -3703,7 +3706,7 @@ impl EntropyApp {
             {
                 if crate::ui_style::modern_button(
                     ui,
-                    crate::i18n::tr_static(self.app_settings.language, crate::i18n::tr_static(self.app_settings.language, "Open Privacy Settings")),
+                    crate::i18n::tr_static(self.app_settings.language, "Open Privacy Settings"),
                     metrics.size(184.0, 34.0),
                     true,
                 )
@@ -3722,13 +3725,13 @@ impl EntropyApp {
 
             #[cfg(target_os = "linux")]
             {
-                if crate::ui_style::modern_button(ui, crate::i18n::tr_static(self.app_settings.language, crate::i18n::tr_static(self.app_settings.language, "Install IBus")), metrics.size(132.0, 34.0), true)
+                if crate::ui_style::modern_button(ui, crate::i18n::tr_static(self.app_settings.language, "Install IBus"), metrics.size(132.0, 34.0), true)
                     .clicked()
                 {
                     self.run_linux_universal_symbols_setup("linux/ibus/install-user.sh", "IBus");
                 }
                 ui.add_space(metrics.value(8.0));
-                if crate::ui_style::modern_button(ui, crate::i18n::tr_static(self.app_settings.language, crate::i18n::tr_static(self.app_settings.language, "Install Fcitx5")), metrics.size(142.0, 34.0), true)
+                if crate::ui_style::modern_button(ui, crate::i18n::tr_static(self.app_settings.language, "Install Fcitx5"), metrics.size(142.0, 34.0), true)
                     .clicked()
                 {
                     self.run_linux_universal_symbols_setup("linux/fcitx5/install-user.sh", "Fcitx5");
@@ -4406,7 +4409,14 @@ impl EntropyApp {
                     |ui| {
                         for visual_idx in 0..visible_count {
                             let mut visible = self.encoder_visibility[visual_idx];
-                            let label = format!("Encoder {}", visual_idx + 1);
+                            let label = if matches!(
+                                self.app_settings.language,
+                                crate::i18n::Language::Russian
+                            ) {
+                                format!("Энкодер {}", visual_idx + 1)
+                            } else {
+                                format!("Encoder {}", visual_idx + 1)
+                            };
                             crate::ui_style::settings_list_row(
                                 ui,
                                 encoders_content_width,
@@ -4652,7 +4662,16 @@ impl EntropyApp {
                                 .unwrap_or("Unknown");
                             let selected_text =
                                 Self::display_preset_choice_label(selected_raw_text);
-                            let tooltip = format!("Choose firmware preset for {}", option.label);
+                            let translated_label =
+                                crate::i18n::tr_text(self.app_settings.language, &option.label);
+                            let tooltip = if matches!(
+                                self.app_settings.language,
+                                crate::i18n::Language::Russian
+                            ) {
+                                format!("Выбрать пресет прошивки для {translated_label}")
+                            } else {
+                                format!("Choose firmware preset for {}", option.label)
+                            };
                             crate::ui_style::settings_list_row_with_tooltip(
                                 ui,
                                 row_content_width,

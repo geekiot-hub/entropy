@@ -266,52 +266,52 @@ pub fn tr_static(language: Language, text: &'static str) -> &'static str {
         "Allow more simultaneous key presses when the keyboard supports it" => {
             "Разрешить больше одновременных нажатий, если клавиатура это поддерживает"
         }
-        "Tapping term" => "Tapping term",
+        "Tapping term" => "Окно tap/hold",
         "Global tap-vs-hold decision window for dual-role keys" => {
             "Общее окно выбора tap/hold для dual-role клавиш"
         }
-        "Permissive hold" => "Permissive hold",
+        "Permissive hold" => "Разрешающий hold",
         "Nested taps choose hold for Mod-Tap and Layer-Tap keys" => {
             "Вложенные taps выбирают hold для Mod-Tap и Layer-Tap"
         }
-        "Hold on other key" => "Hold on other key",
+        "Hold on other key" => "Hold при другой клавише",
         "Pressing another key immediately chooses hold for dual-role keys" => {
             "Нажатие другой клавиши сразу выбирает hold для dual-role клавиш"
         }
-        "Retro tapping" => "Retro tapping",
+        "Retro tapping" => "Retro tap",
         "A held-and-released-alone dual-role key still sends its tap action" => {
             "Dual-role клавиша, удержанная и отпущенная отдельно, всё равно отправляет tap"
         }
-        "Chordal hold" => "Chordal hold",
+        "Chordal hold" => "Аккордный hold",
         "Same-hand chords prefer tap to reduce home-row mod accidents" => {
             "Аккорды одной рукой предпочитают tap, чтобы снизить ошибки home-row mods"
         }
-        "Quick tap term" => "Quick tap term",
+        "Quick tap term" => "Окно quick tap",
         "Tap-then-hold repeat window for dual-role key tap actions" => {
             "Окно повтора tap-then-hold для tap-действий dual-role клавиш"
         }
-        "Tap code delay" => "Tap code delay",
+        "Tap code delay" => "Задержка tap_code",
         "Delay between register and unregister in tap_code" => {
             "Задержка между register и unregister в tap_code"
         }
-        "Tap hold caps delay" => "Tap hold caps delay",
+        "Tap hold caps delay" => "Задержка Caps Lock tap",
         "Extra delay for LT/MT keys whose tap action is Caps Lock" => {
             "Дополнительная задержка для LT/MT, где tap-действие — Caps Lock"
         }
-        "Tapping toggle" => "Tapping toggle",
+        "Tapping toggle" => "Переключение TT",
         "Number of taps needed for TT layer toggle" => {
             "Количество taps для переключения слоя через TT"
         }
-        "Flow tap" => "Flow tap",
+        "Flow tap" => "Flow tap timeout",
         "Fast typing timeout that forces MT/LT keys to tap" => {
             "Таймаут быстрого набора, принудительно выбирающий tap для MT/LT"
         }
         "One Shot Keys" => "One Shot клавиши",
-        "One-shot tap toggle" => "One-shot tap toggle",
+        "One-shot tap toggle" => "One-shot toggle",
         "Tap this many times to keep a one-shot key held until tapped again" => {
             "Столько taps удерживают one-shot до следующего нажатия"
         }
-        "One-shot timeout" => "One-shot timeout",
+        "One-shot timeout" => "One-shot таймаут",
         "How long one-shot state waits before it is released" => {
             "Сколько one-shot состояние ждёт перед сбросом"
         }
@@ -363,6 +363,41 @@ pub fn tr_static(language: Language, text: &'static str) -> &'static str {
         "active" => "активно",
         "starting" => "запуск",
         _ => text,
+    }
+}
+
+pub fn tr_text(language: Language, text: &str) -> String {
+    if !matches!(language, Language::Russian) {
+        return text.to_owned();
+    }
+
+    match text {
+        "No extra setup is required on Windows" => "В Windows дополнительная настройка не нужна".to_owned(),
+        "Keep Entropy running while using Universal Symbols" => "Оставляйте Entropy запущенной при использовании универсальных символов".to_owned(),
+        "Assign keys from Symbols → Universal symbols in the key picker" => "Назначьте клавиши из Symbols → Universal symbols в пикере клавиш".to_owned(),
+        "Open Privacy & Security" => "Откройте Privacy & Security".to_owned(),
+        "Allow Entropy in Accessibility" => "Разрешите Entropy в Accessibility".to_owned(),
+        "If prompted, allow Entropy in Input Monitoring too" => "Если потребуется, разрешите Entropy и в Input Monitoring".to_owned(),
+        "Restart Entropy after changing permissions" => "Перезапустите Entropy после изменения разрешений".to_owned(),
+        "X11: install xdotool and keep Entropy running" => "X11: установите xdotool и оставляйте Entropy запущенной".to_owned(),
+        "Wayland + IBus: install Entropy Universal Symbols and select it as an input source" => "Wayland + IBus: установите Entropy Universal Symbols и выберите его источником ввода".to_owned(),
+        "Wayland + Fcitx5: install the addon, restart Fcitx5, and enable Entropy Universal Symbols" => "Wayland + Fcitx5: установите addon, перезапустите Fcitx5 и включите Entropy Universal Symbols".to_owned(),
+        "Universal Symbols are not supported on this OS yet" => "Universal Symbols пока не поддерживаются на этой ОС".to_owned(),
+        "Open Config → Universal Symbols to finish permissions setup" => "Откройте Настройки → Универсальные символы, чтобы завершить настройку разрешений".to_owned(),
+        "Open Config → Universal Symbols to finish Linux setup" => "Откройте Настройки → Универсальные символы, чтобы завершить настройку Linux".to_owned(),
+        "disabled" | "Disabled" => "Отключено".to_owned(),
+        "clock" | "Clock" => "Часы".to_owned(),
+        "volume" | "Volume" => "Громкость".to_owned(),
+        "media" | "Media" => "Медиа".to_owned(),
+        "Default" | "default" => "По умолчанию".to_owned(),
+        "Unknown" => "Неизвестно".to_owned(),
+        "Universal output backend: Windows native" => "Бэкенд универсального вывода: Windows native".to_owned(),
+        "Universal output backend: macOS native — requires Accessibility/Input Monitoring permission" => "Бэкенд универсального вывода: macOS native — нужны разрешения Accessibility/Input Monitoring".to_owned(),
+        "Universal output backend: unsupported on this OS" => "Бэкенд универсального вывода: эта ОС не поддерживается".to_owned(),
+        other if other.starts_with("Universal output backend: Wayland via IBus/Fcitx5 input method") => other.replacen("Universal output backend: Wayland via IBus/Fcitx5 input method", "Бэкенд универсального вывода: Wayland через IBus/Fcitx5", 1),
+        other if other.starts_with("Universal output backend: Linux X11 native") => other.replacen("Universal output backend: Linux X11 native; Wayland uses IBus/Fcitx5", "Бэкенд универсального вывода: Linux X11 native; Wayland использует IBus/Fcitx5", 1),
+        other if other.starts_with("Universal output backend: Linux; use IBus/Fcitx5 for Wayland") => other.replacen("Universal output backend: Linux; use IBus/Fcitx5 for Wayland", "Бэкенд универсального вывода: Linux; для Wayland используйте IBus/Fcitx5", 1),
+        other => other.to_owned(),
     }
 }
 
