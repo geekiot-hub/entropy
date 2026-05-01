@@ -116,6 +116,8 @@ struct AppSettings {
     minimize_to_tray_on_close: bool,
     #[serde(default = "default_show_shifted_number_symbols")]
     show_shifted_number_symbols: bool,
+    #[serde(default = "default_layer_hover_preview")]
+    layer_hover_preview: bool,
     #[serde(default = "default_app_accent_color")]
     accent_color: AppAccentColor,
     #[serde(default = "default_ui_scale")]
@@ -123,6 +125,10 @@ struct AppSettings {
 }
 
 fn default_show_shifted_number_symbols() -> bool {
+    true
+}
+
+fn default_layer_hover_preview() -> bool {
     true
 }
 
@@ -183,6 +189,7 @@ impl Default for AppSettings {
         Self {
             minimize_to_tray_on_close: false,
             show_shifted_number_symbols: default_show_shifted_number_symbols(),
+            layer_hover_preview: default_layer_hover_preview(),
             accent_color: default_app_accent_color(),
             ui_scale: default_ui_scale(),
         }
@@ -3358,6 +3365,31 @@ impl EntropyApp {
                 );
                 if show_shifted_symbols != self.app_settings.show_shifted_number_symbols {
                     self.app_settings.show_shifted_number_symbols = show_shifted_symbols;
+                    save_app_settings(&self.app_settings);
+                }
+
+                let mut layer_hover_preview = self.app_settings.layer_hover_preview;
+                crate::ui_style::settings_list_row_with_tooltip(
+                    ui,
+                    content_width,
+                    row_height,
+                    "Layer hover preview",
+                    true,
+                    Some("Preview the target layer while hovering layer keys on the layout"),
+                    switch_width,
+                    |ui| {
+                        let _ = crate::ui_style::settings_switch_sized(
+                            ui,
+                            &mut layer_hover_preview,
+                            switch_size,
+                        );
+                    },
+                );
+                if layer_hover_preview != self.app_settings.layer_hover_preview {
+                    self.app_settings.layer_hover_preview = layer_hover_preview;
+                    if !layer_hover_preview {
+                        self.hover_layer = None;
+                    }
                     save_app_settings(&self.app_settings);
                 }
 
@@ -13028,8 +13060,19 @@ impl EntropyApp {
 
             if let Some(preview_layer_idx) = preview_layer {
                 if response.hovered() {
-                    self.hover_layer = Some(preview_layer_idx);
                     hovered_key = Some(*ki); // keep hovered_key for layer keys too
+                    if self.app_settings.layer_hover_preview {
+                        self.hover_layer = Some(preview_layer_idx);
+                    } else {
+                        let tip = keycode_tooltip_with_macro_names(
+                            kc,
+                            &layout.custom_keycodes,
+                            &self.layer_names,
+                            &self.keycode_picker.macro_names,
+                            &self.keycode_picker.tap_dance_names,
+                        );
+                        *response = response.clone().on_hover_text(tip);
+                    }
                 }
                 if response.secondary_clicked() && preview_layer_idx != self.selected_layer {
                     // Right-click: jump to that layer
