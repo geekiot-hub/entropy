@@ -146,6 +146,16 @@ fn clamp_ui_scale(scale: f32) -> f32 {
         .clamp(UI_SCALE_MIN, UI_SCALE_MAX)
 }
 
+fn responsive_settings_editor_scale(ctx: &egui::Context) -> f32 {
+    let native_scale = ctx
+        .native_pixels_per_point()
+        .unwrap_or_else(|| ctx.pixels_per_point() / ctx.zoom_factor().max(0.1))
+        .max(1.0);
+    let short_side = ctx.screen_rect().width().min(ctx.screen_rect().height()) * native_scale;
+    let t = ((short_side - 1_500.0) / (2_160.0 - 1_500.0)).clamp(0.0, 1.0);
+    1.0 + 0.24 * t
+}
+
 fn responsive_settings_visible_rows(
     ctx: &egui::Context,
     available_height: f32,
@@ -4000,26 +4010,28 @@ impl EntropyApp {
         const KEY_OVERRIDE_BLOCK_TOP_GAP: f32 = 18.0;
 
         let dark = ui.visuals().dark_mode;
+        let scale = responsive_settings_editor_scale(ui.ctx());
+        let page_width = KEY_OVERRIDE_PAGE_WIDTH * scale;
 
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
-                ui.add_space(KEY_OVERRIDE_TITLE_Y_OFFSET);
-                ui.label(RichText::new("Key Overrides").size(18.0).strong());
-                ui.add_space(KEY_OVERRIDE_DESC_GAP);
+                ui.add_space(KEY_OVERRIDE_TITLE_Y_OFFSET * scale);
+                ui.label(RichText::new("Key Overrides").size(18.0 * scale).strong());
+                ui.add_space(KEY_OVERRIDE_DESC_GAP * scale);
                 ui.label(
                     RichText::new("Override one key with custom modifier rules")
-                        .size(13.0)
+                        .size(13.0 * scale)
                         .color(app_muted_text(dark)),
                 );
-                ui.add_space(KEY_OVERRIDE_BLOCK_TOP_GAP);
+                ui.add_space(KEY_OVERRIDE_BLOCK_TOP_GAP * scale);
                 let editor_height = (content_rect.height()
-                    - KEY_OVERRIDE_TITLE_Y_OFFSET
-                    - KEY_OVERRIDE_DESC_GAP
-                    - KEY_OVERRIDE_BLOCK_TOP_GAP
-                    - 64.0)
-                    .max(360.0);
+                    - KEY_OVERRIDE_TITLE_Y_OFFSET * scale
+                    - KEY_OVERRIDE_DESC_GAP * scale
+                    - KEY_OVERRIDE_BLOCK_TOP_GAP * scale
+                    - 64.0 * scale)
+                    .max(360.0 * scale);
                 ui.allocate_ui_with_layout(
-                    egui::vec2(KEY_OVERRIDE_PAGE_WIDTH, editor_height),
+                    egui::vec2(page_width, editor_height),
                     egui::Layout::top_down(egui::Align::Min),
                     |ui| {
                         self.draw_key_override_editor_content(ui, true);
@@ -4040,15 +4052,16 @@ impl EntropyApp {
 
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
-                ui.add_space(18.0);
-                ui.label(RichText::new("Combo").size(18.0).strong());
-                ui.add_space(6.0);
+                let scale = responsive_settings_editor_scale(ui.ctx());
+                ui.add_space(18.0 * scale);
+                ui.label(RichText::new("Combo").size(18.0 * scale).strong());
+                ui.add_space(6.0 * scale);
                 ui.label(
                     RichText::new("Press multiple keys together to send a separate keycode")
-                        .size(13.0)
+                        .size(13.0 * scale)
                         .color(app_muted_text(dark)),
                 );
-                ui.add_space(18.0);
+                ui.add_space(18.0 * scale);
                 self.draw_combo_editor_content(ui, false);
             });
         });
@@ -10359,10 +10372,13 @@ impl EntropyApp {
         let current = self.key_override_entries[idx].clone();
         let mut edited = current.clone();
         let page_center_x = ui.max_rect().center().x;
-        const CONTENT_WIDTH: f32 = 470.0;
-        const ROW_CONTENT_WIDTH: f32 = 452.0;
-        const ROW_HEIGHT: f32 = 54.0;
-        const CONTROL_WIDTH: f32 = 168.0;
+        let scale = responsive_settings_editor_scale(ui.ctx());
+        let content_width = 470.0 * scale;
+        let row_content_width = 452.0 * scale;
+        let row_height = 54.0 * scale;
+        let control_width = 168.0 * scale;
+        let control_height = 32.0 * scale;
+        let control_font_size = 12.5 * scale;
         const ROW_COUNT: usize = 14;
 
         let custom = self
@@ -10430,7 +10446,7 @@ impl EntropyApp {
 
         crate::ui_style::modal_content(
             ui,
-            crate::ui_style::ModalLayout::new(CONTENT_WIDTH).with_top_padding(4.0),
+            crate::ui_style::ModalLayout::new(content_width).with_top_padding(4.0 * scale),
             |ui| {
                 ui.spacing_mut().item_spacing.y = 0.0;
                 let visible_rows = responsive_settings_visible_rows(
@@ -10439,37 +10455,39 @@ impl EntropyApp {
                     ROW_COUNT,
                     86.0,
                 );
-                let list_height = ROW_HEIGHT * visible_rows as f32;
+                let list_height = row_height * visible_rows as f32;
                 ui.allocate_ui_with_layout(
-                    Vec2::new(CONTENT_WIDTH, list_height),
+                    Vec2::new(content_width, list_height),
                     egui::Layout::top_down(egui::Align::Min),
                     |ui| {
-                        ui.set_min_size(Vec2::new(CONTENT_WIDTH, list_height));
+                        ui.set_min_size(Vec2::new(content_width, list_height));
                         egui::ScrollArea::vertical()
                             .id_salt(format!("ko_settings_scroll_{}", idx))
                             .max_height(list_height)
                             .min_scrolled_height(list_height)
                             .auto_shrink([false, false])
-                            .show_rows(ui, ROW_HEIGHT, ROW_COUNT, |ui, row_range| {
+                            .show_rows(ui, row_height, ROW_COUNT, |ui, row_range| {
                                 for row_idx in row_range {
                                     match row_idx {
                                         0 => {
                                             crate::ui_style::settings_list_row_with_tooltip(
                                                 ui,
-                                                ROW_CONTENT_WIDTH,
-                                                ROW_HEIGHT,
+                                                row_content_width,
+                                                row_height,
                                                 "Entry",
                                                 true,
                                                 Some("Select Key Override slot"),
-                                                CONTROL_WIDTH,
+                                                control_width,
                                                 |ui| {
                                                     let dropdown_id = ui.make_persistent_id("key_override_entry_dropdown");
-                                                    let dropdown_resp = crate::ui_style::modern_dropdown_button(
+                                                    let dropdown_resp = crate::ui_style::modern_dropdown_button_sized(
                                                         ui,
                                                         dropdown_id,
                                                         selected_override_text.as_str(),
                                                         selected_override_text_color,
-                                                        CONTROL_WIDTH,
+                                                        control_width,
+                                                        control_height,
+                                                        control_font_size,
                                                     );
                                                     ui.style_mut().visuals.window_stroke =
                                                         crate::ui_style::modal_outline_stroke(dark);
@@ -10480,11 +10498,11 @@ impl EntropyApp {
                                                         &dropdown_resp,
                                                         egui::PopupCloseBehavior::CloseOnClickOutside,
                                                         |ui| {
-                                                            ui.set_min_width(CONTROL_WIDTH);
+                                                            ui.set_min_width(control_width);
                                                             ui.spacing_mut().item_spacing = Vec2::new(0.0, 2.0);
                                                             egui::ScrollArea::vertical()
                                                                 .id_salt("key_override_entry_dropdown_scroll")
-                                                                .max_height(142.0)
+                                                                 .max_height(142.0 * scale)
                                                                 .auto_shrink([false, true])
                                                                 .show(ui, |ui| {
                                                                     for entry_idx in 0..self.key_override_entries.len() {
@@ -10500,7 +10518,7 @@ impl EntropyApp {
                                                                         };
                                                                         let selected = entry_idx == self.selected_key_override;
                                                                         let (option_rect, option_resp) = ui.allocate_exact_size(
-                                                                            Vec2::new(CONTROL_WIDTH, 28.0),
+                                                                            Vec2::new(control_width, 28.0 * scale),
                                                                             Sense::click(),
                                                                         );
                                                                         if option_resp.hovered() {
@@ -10518,7 +10536,7 @@ impl EntropyApp {
                                                                             egui::pos2(option_rect.left() + 10.0, option_rect.center().y),
                                                                             egui::Align2::LEFT_CENTER,
                                                                             option_text,
-                                                                            FontId::proportional(12.0),
+                                                                            FontId::proportional(12.0 * scale),
                                                                             if selected {
                                                                                 ui.visuals().text_color()
                                                                             } else if empty {
@@ -10542,19 +10560,20 @@ impl EntropyApp {
                                             let mut name_changed = false;
                                             crate::ui_style::settings_list_row_with_tooltip(
                                                 ui,
-                                                ROW_CONTENT_WIDTH,
-                                                ROW_HEIGHT,
+                                                row_content_width,
+                                                row_height,
                                                 "Name",
                                                 true,
                                                 Some("Local name for this Key Override slot"),
-                                                CONTROL_WIDTH,
+                                                control_width,
                                                 |ui| {
                                                     if let Some(name) = self.key_override_names.get_mut(idx) {
-                                                        let resp = crate::ui_style::modern_text_field(
+                                                        let resp = crate::ui_style::modern_text_field_sized(
                                                             ui,
                                                             egui::Id::new(("key_override_name", idx)),
                                                             name,
-                                                            CONTROL_WIDTH,
+                                                            control_width,
+                                                            32.0 * scale,
                                                             "Name",
                                                             12,
                                                             egui::Align::Center,
@@ -10571,14 +10590,14 @@ impl EntropyApp {
                                         2 => {
                                             crate::ui_style::settings_list_row_with_tooltip(
                                                 ui,
-                                                ROW_CONTENT_WIDTH,
-                                                ROW_HEIGHT,
+                                                row_content_width,
+                                                row_height,
                                                 "Trigger",
                                                 true,
                                                 Some("Original key that can be overridden"),
-                                                CONTROL_WIDTH,
+                                                control_width,
                                                 |ui| {
-                                                    let resp = crate::ui_style::modern_button(ui, trigger_label.as_str(), Vec2::new(CONTROL_WIDTH, 32.0), true);
+                                                    let resp = crate::ui_style::modern_button_with_font(ui, trigger_label.as_str(), Vec2::new(control_width, control_height), control_font_size, true);
                                                     if resp.clicked() {
                                                         self.open_key_override_picker(KeyOverridePickField::Trigger);
                                                     }
@@ -10589,14 +10608,14 @@ impl EntropyApp {
                                         3 => {
                                             crate::ui_style::settings_list_row_with_tooltip(
                                                 ui,
-                                                ROW_CONTENT_WIDTH,
-                                                ROW_HEIGHT,
+                                                row_content_width,
+                                                row_height,
                                                 "Replacement",
                                                 true,
                                                 Some("Keycode sent while override conditions match"),
-                                                CONTROL_WIDTH,
+                                                control_width,
                                                 |ui| {
-                                                    let resp = crate::ui_style::modern_button(ui, replacement_label.as_str(), Vec2::new(CONTROL_WIDTH, 32.0), true);
+                                                    let resp = crate::ui_style::modern_button_with_font(ui, replacement_label.as_str(), Vec2::new(control_width, control_height), control_font_size, true);
                                                     if resp.clicked() {
                                                         self.open_key_override_picker(KeyOverridePickField::Replacement);
                                                     }
@@ -10607,16 +10626,16 @@ impl EntropyApp {
                                         4 => {
                                             crate::ui_style::settings_list_row_with_tooltip(
                                                 ui,
-                                                ROW_CONTENT_WIDTH,
-                                                ROW_HEIGHT,
+                                                row_content_width,
+                                                row_height,
                                                 "Suppressed mods",
                                                 true,
                                                 Some("Modifiers hidden while the replacement is active"),
-                                                CONTROL_WIDTH,
+                                                control_width,
                                                 |ui| {
                                                     let popup_id = ui.make_persistent_id(("ko_suppressed_mods_popup", idx));
                                                     let summary = Self::key_override_mod_mask_summary(edited.suppressed_mods);
-                                                    let resp = crate::ui_style::modern_button(ui, summary.as_str(), Vec2::new(CONTROL_WIDTH, 32.0), true);
+                                                    let resp = crate::ui_style::modern_button_with_font(ui, summary.as_str(), Vec2::new(control_width, control_height), control_font_size, true);
                                                     if resp.clicked() { ui.memory_mut(|m| m.toggle_popup(popup_id)); }
                                                     ui.style_mut().visuals.window_stroke = crate::ui_style::modal_outline_stroke(dark);
                                                     ui.style_mut().visuals.window_fill = app_surface_fill(dark);
@@ -10629,16 +10648,16 @@ impl EntropyApp {
                                         5 => {
                                             crate::ui_style::settings_list_row_with_tooltip(
                                                 ui,
-                                                ROW_CONTENT_WIDTH,
-                                                ROW_HEIGHT,
+                                                row_content_width,
+                                                row_height,
                                                 "Trigger mods",
                                                 true,
                                                 Some("Modifiers required for this override"),
-                                                CONTROL_WIDTH,
+                                                control_width,
                                                 |ui| {
                                                     let popup_id = ui.make_persistent_id(("ko_trigger_mods_popup", idx));
                                                     let summary = Self::key_override_mod_mask_summary(edited.trigger_mods);
-                                                    let resp = crate::ui_style::modern_button(ui, summary.as_str(), Vec2::new(CONTROL_WIDTH, 32.0), true);
+                                                    let resp = crate::ui_style::modern_button_with_font(ui, summary.as_str(), Vec2::new(control_width, control_height), control_font_size, true);
                                                     if resp.clicked() { ui.memory_mut(|m| m.toggle_popup(popup_id)); }
                                                     ui.style_mut().visuals.window_stroke = crate::ui_style::modal_outline_stroke(dark);
                                                     ui.style_mut().visuals.window_fill = app_surface_fill(dark);
@@ -10651,16 +10670,16 @@ impl EntropyApp {
                                         6 => {
                                             crate::ui_style::settings_list_row_with_tooltip(
                                                 ui,
-                                                ROW_CONTENT_WIDTH,
-                                                ROW_HEIGHT,
+                                                row_content_width,
+                                                row_height,
                                                 "Negative mods",
                                                 true,
                                                 Some("Modifiers that block this override"),
-                                                CONTROL_WIDTH,
+                                                control_width,
                                                 |ui| {
                                                     let popup_id = ui.make_persistent_id(("ko_negative_mods_popup", idx));
                                                     let summary = Self::key_override_mod_mask_summary(edited.negative_mod_mask);
-                                                    let resp = crate::ui_style::modern_button(ui, summary.as_str(), Vec2::new(CONTROL_WIDTH, 32.0), true);
+                                                    let resp = crate::ui_style::modern_button_with_font(ui, summary.as_str(), Vec2::new(control_width, control_height), control_font_size, true);
                                                     if resp.clicked() { ui.memory_mut(|m| m.toggle_popup(popup_id)); }
                                                     ui.style_mut().visuals.window_stroke = crate::ui_style::modal_outline_stroke(dark);
                                                     ui.style_mut().visuals.window_fill = app_surface_fill(dark);
@@ -10673,16 +10692,16 @@ impl EntropyApp {
                                         7 => {
                                             crate::ui_style::settings_list_row_with_tooltip(
                                                 ui,
-                                                ROW_CONTENT_WIDTH,
-                                                ROW_HEIGHT,
+                                                row_content_width,
+                                                row_height,
                                                 "Enable on layers",
                                                 true,
                                                 Some("Layers where this override can activate"),
-                                                CONTROL_WIDTH,
+                                                control_width,
                                                 |ui| {
                                                     let popup_id = ui.make_persistent_id(("ko_layers_popup", idx));
                                                     let summary = Self::key_override_layers_summary(edited.layers);
-                                                    let resp = crate::ui_style::modern_button(ui, summary.as_str(), Vec2::new(CONTROL_WIDTH, 32.0), true);
+                                                    let resp = crate::ui_style::modern_button_with_font(ui, summary.as_str(), Vec2::new(control_width, control_height), control_font_size, true);
                                                     if resp.clicked() { ui.memory_mut(|m| m.toggle_popup(popup_id)); }
                                                     ui.style_mut().visuals.window_stroke = crate::ui_style::modal_outline_stroke(dark);
                                                     ui.style_mut().visuals.window_fill = app_surface_fill(dark);
@@ -10692,12 +10711,12 @@ impl EntropyApp {
                                                 },
                                             );
                                         }
-                                        8 => crate::ui_style::settings_list_row_with_tooltip(ui, ROW_CONTENT_WIDTH, ROW_HEIGHT, "Trigger press", true, Some("Activate when the trigger key is pressed"), 46.0, |ui| { crate::ui_style::settings_switch(ui, &mut edited.options.activation_trigger_down); }),
-                                        9 => crate::ui_style::settings_list_row_with_tooltip(ui, ROW_CONTENT_WIDTH, ROW_HEIGHT, "Required mod press", true, Some("Activate when a required modifier is pressed"), 46.0, |ui| { crate::ui_style::settings_switch(ui, &mut edited.options.activation_required_mod_down); }),
-                                        10 => crate::ui_style::settings_list_row_with_tooltip(ui, ROW_CONTENT_WIDTH, ROW_HEIGHT, "Blocked mod release", true, Some("Activate when a blocking modifier is released"), 46.0, |ui| { crate::ui_style::settings_switch(ui, &mut edited.options.activation_negative_mod_up); }),
-                                        11 => crate::ui_style::settings_list_row_with_tooltip(ui, ROW_CONTENT_WIDTH, ROW_HEIGHT, "Any one mod", true, Some("Any one trigger modifier is enough"), 46.0, |ui| { crate::ui_style::settings_switch(ui, &mut edited.options.one_mod); }),
-                                        12 => crate::ui_style::settings_list_row_with_tooltip(ui, ROW_CONTENT_WIDTH, ROW_HEIGHT, "No re-send", true, Some("Do not resend the trigger after override ends"), 46.0, |ui| { crate::ui_style::settings_switch(ui, &mut edited.options.no_reregister_trigger); }),
-                                        13 => crate::ui_style::settings_list_row_with_tooltip(ui, ROW_CONTENT_WIDTH, ROW_HEIGHT, "Stay active", true, Some("Stay active when another key is pressed"), 46.0, |ui| { crate::ui_style::settings_switch(ui, &mut edited.options.no_unregister_on_other_key_down); }),
+                                        8 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, "Trigger press", true, Some("Activate when the trigger key is pressed"), 46.0, |ui| { crate::ui_style::settings_switch(ui, &mut edited.options.activation_trigger_down); }),
+                                        9 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, "Required mod press", true, Some("Activate when a required modifier is pressed"), 46.0, |ui| { crate::ui_style::settings_switch(ui, &mut edited.options.activation_required_mod_down); }),
+                                        10 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, "Blocked mod release", true, Some("Activate when a blocking modifier is released"), 46.0, |ui| { crate::ui_style::settings_switch(ui, &mut edited.options.activation_negative_mod_up); }),
+                                        11 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, "Any one mod", true, Some("Any one trigger modifier is enough"), 46.0, |ui| { crate::ui_style::settings_switch(ui, &mut edited.options.one_mod); }),
+                                        12 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, "No re-send", true, Some("Do not resend the trigger after override ends"), 46.0, |ui| { crate::ui_style::settings_switch(ui, &mut edited.options.no_reregister_trigger); }),
+                                        13 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, "Stay active", true, Some("Stay active when another key is pressed"), 46.0, |ui| { crate::ui_style::settings_switch(ui, &mut edited.options.no_unregister_on_other_key_down); }),
                                         _ => {}
                                     }
                                 }
@@ -10705,9 +10724,9 @@ impl EntropyApp {
                     },
                 );
 
-                ui.add_space(14.0);
-                let action_size = crate::ui_style::modal_action_button_size();
-                let action_width = action_size.x * 2.0 + 8.0;
+                ui.add_space(14.0 * scale);
+                let action_size = crate::ui_style::modal_action_button_size() * scale;
+                let action_width = action_size.x * 2.0 + 8.0 * scale;
                 let action_rect = egui::Rect::from_min_size(
                     egui::pos2(page_center_x - action_width / 2.0, ui.cursor().min.y),
                     Vec2::new(action_width, action_size.y),
@@ -10715,7 +10734,7 @@ impl EntropyApp {
                 ui.allocate_ui_at_rect(action_rect, |ui| {
                     ui.set_min_size(action_rect.size());
                     ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                        ui.spacing_mut().item_spacing.x = 8.0;
+                        ui.spacing_mut().item_spacing.x = 8.0 * scale;
                         let clear_enabled =
                             Self::key_override_entry_exists(&self.key_override_entries[idx])
                                 || self
@@ -10723,8 +10742,13 @@ impl EntropyApp {
                                     .get(idx)
                                     .map(|s| !s.trim().is_empty())
                                     .unwrap_or(false);
-                        let clear_resp =
-                            crate::ui_style::modern_button(ui, "Clear", action_size, clear_enabled);
+                        let clear_resp = crate::ui_style::modern_button_with_font(
+                            ui,
+                            "Clear",
+                            action_size,
+                            control_font_size,
+                            clear_enabled,
+                        );
                         if clear_resp.clicked() && clear_enabled {
                             self.push_key_override_undo();
                             self.key_override_entries[idx] = KeyOverrideEntry::default();
@@ -10739,8 +10763,13 @@ impl EntropyApp {
                         }
 
                         let undo_enabled = !self.key_override_undo_stack.is_empty();
-                        let undo_resp =
-                            crate::ui_style::modern_button(ui, "Undo", action_size, undo_enabled);
+                        let undo_resp = crate::ui_style::modern_button_with_font(
+                            ui,
+                            "Undo",
+                            action_size,
+                            control_font_size,
+                            undo_enabled,
+                        );
                         if undo_resp.clicked() && undo_enabled {
                             if let Some((entries, names, selected, visible_count)) =
                                 self.key_override_undo_stack.pop()
@@ -10856,11 +10885,14 @@ impl EntropyApp {
             self.selected_combo,
             self.combo_visible_count,
         );
-        const CONTENT_WIDTH: f32 = 470.0;
-        const ROW_CONTENT_WIDTH: f32 = 452.0;
-        const ROW_HEIGHT: f32 = 54.0;
-        const CONTROL_WIDTH: f32 = 168.0;
-        const TIMEOUT_CONTROL_WIDTH: f32 = 118.0;
+        let scale = responsive_settings_editor_scale(ui.ctx());
+        let content_width = 470.0 * scale;
+        let row_content_width = 452.0 * scale;
+        let row_height = 54.0 * scale;
+        let control_width = 168.0 * scale;
+        let control_height = 32.0 * scale;
+        let control_font_size = 12.5 * scale;
+        let timeout_control_width = 118.0 * scale;
         let custom = self
             .layout
             .as_ref()
@@ -10944,25 +10976,27 @@ impl EntropyApp {
 
         crate::ui_style::modal_content(
             ui,
-            crate::ui_style::ModalLayout::new(CONTENT_WIDTH).with_top_padding(4.0),
+            crate::ui_style::ModalLayout::new(content_width).with_top_padding(4.0 * scale),
             |ui| {
                 ui.spacing_mut().item_spacing.y = 0.0;
                 crate::ui_style::settings_list_row_with_tooltip(
                     ui,
-                    ROW_CONTENT_WIDTH,
-                    ROW_HEIGHT,
+                    row_content_width,
+                    row_height,
                     "Entry",
                     true,
                     Some("Select Combo slot"),
-                    CONTROL_WIDTH,
+                    control_width,
                     |ui| {
                         let dropdown_id = ui.make_persistent_id("combo_entry_dropdown");
-                        let dropdown_resp = crate::ui_style::modern_dropdown_button(
+                        let dropdown_resp = crate::ui_style::modern_dropdown_button_sized(
                             ui,
                             dropdown_id,
                             selected_text.as_str(),
                             selected_text_color,
-                            CONTROL_WIDTH,
+                            control_width,
+                            control_height,
+                            control_font_size,
                         );
                         ui.style_mut().visuals.window_stroke =
                             crate::ui_style::modal_outline_stroke(dark);
@@ -10973,11 +11007,11 @@ impl EntropyApp {
                             &dropdown_resp,
                             egui::PopupCloseBehavior::CloseOnClickOutside,
                             |ui| {
-                                ui.set_min_width(CONTROL_WIDTH);
+                                ui.set_min_width(control_width);
                                 ui.spacing_mut().item_spacing = Vec2::new(0.0, 2.0);
                                 egui::ScrollArea::vertical()
                                     .id_salt("combo_entry_dropdown_scroll")
-                                    .max_height(142.0)
+                                    .max_height(142.0 * scale)
                                     .auto_shrink([false, true])
                                     .show(ui, |ui| {
                                         for entry_idx in 0..self.combo_entries.len() {
@@ -11004,7 +11038,7 @@ impl EntropyApp {
                                             let selected = entry_idx == self.selected_combo;
                                             let (option_rect, option_resp) = ui
                                                 .allocate_exact_size(
-                                                    Vec2::new(CONTROL_WIDTH, 28.0),
+                                                    Vec2::new(control_width, 28.0 * scale),
                                                     Sense::click(),
                                                 );
                                             if option_resp.hovered() {
@@ -11031,7 +11065,7 @@ impl EntropyApp {
                                                 ),
                                                 egui::Align2::LEFT_CENTER,
                                                 option_text,
-                                                FontId::proportional(12.0),
+                                                FontId::proportional(12.0 * scale),
                                                 if selected {
                                                     ui.visuals().text_color()
                                                 } else if empty {
@@ -11054,19 +11088,20 @@ impl EntropyApp {
                 let mut combo_name_changed = false;
                 crate::ui_style::settings_list_row_with_tooltip(
                     ui,
-                    ROW_CONTENT_WIDTH,
-                    ROW_HEIGHT,
+                    row_content_width,
+                    row_height,
                     "Name",
                     true,
                     Some("Local name for this combo slot"),
-                    CONTROL_WIDTH,
+                    control_width,
                     |ui| {
                         if let Some(name) = self.combo_names.get_mut(combo_idx) {
-                            let resp = crate::ui_style::modern_text_field(
+                            let resp = crate::ui_style::modern_text_field_sized(
                                 ui,
                                 egui::Id::new(("combo_name", combo_idx)),
                                 name,
-                                CONTROL_WIDTH,
+                                control_width,
+                                control_height,
                                 "Name",
                                 12,
                                 egui::Align::Center,
@@ -11083,17 +11118,18 @@ impl EntropyApp {
 
                 crate::ui_style::settings_list_row_with_tooltip(
                     ui,
-                    ROW_CONTENT_WIDTH,
-                    ROW_HEIGHT,
+                    row_content_width,
+                    row_height,
                     "Input keys",
                     true,
                     Some("Keys that must be pressed together"),
-                    CONTROL_WIDTH,
+                    control_width,
                     |ui| {
-                        let field_resp = crate::ui_style::modern_button(
+                        let field_resp = crate::ui_style::modern_button_with_font(
                             ui,
                             input_summary.as_str(),
-                            Vec2::new(CONTROL_WIDTH, 32.0),
+                            Vec2::new(control_width, control_height),
+                            control_font_size,
                             true,
                         );
                         if field_resp.clicked() {
@@ -11117,17 +11153,18 @@ impl EntropyApp {
 
                 crate::ui_style::settings_list_row_with_tooltip(
                     ui,
-                    ROW_CONTENT_WIDTH,
-                    ROW_HEIGHT,
+                    row_content_width,
+                    row_height,
                     "Output key",
                     true,
                     Some("Keycode sent when the combo activates"),
-                    CONTROL_WIDTH,
+                    control_width,
                     |ui| {
-                        let resp = crate::ui_style::modern_button(
+                        let resp = crate::ui_style::modern_button_with_font(
                             ui,
                             output_label.as_str(),
-                            Vec2::new(CONTROL_WIDTH, 32.0),
+                            Vec2::new(control_width, control_height),
+                            control_font_size,
                             true,
                         );
                         if resp.clicked() {
@@ -11143,21 +11180,22 @@ impl EntropyApp {
                     let mut combo_term_text = current_combo_term.to_string();
                     crate::ui_style::settings_list_row_with_tooltip(
                         ui,
-                        ROW_CONTENT_WIDTH,
-                        ROW_HEIGHT,
+                        row_content_width,
+                        row_height,
                         "Timeout",
                         true,
                         Some("Maximum time between combo key presses"),
-                        TIMEOUT_CONTROL_WIDTH,
+                        timeout_control_width,
                         |ui| {
                             ui.with_layout(
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
-                                    let resp = crate::ui_style::modern_text_field(
+                                    let resp = crate::ui_style::modern_text_field_sized(
                                         ui,
                                         egui::Id::new("combo_term"),
                                         &mut combo_term_text,
-                                        70.0,
+                                        70.0 * scale,
+                                        control_height,
                                         "",
                                         4,
                                         egui::Align::RIGHT,
@@ -11183,9 +11221,9 @@ impl EntropyApp {
             },
         );
 
-        ui.add_space(14.0);
-        let action_size = crate::ui_style::modal_action_button_size();
-        let action_width = action_size.x * 2.0 + 8.0;
+        ui.add_space(14.0 * scale);
+        let action_size = crate::ui_style::modal_action_button_size() * scale;
+        let action_width = action_size.x * 2.0 + 8.0 * scale;
         let action_rect = egui::Rect::from_min_size(
             egui::pos2(page_center_x - action_width / 2.0, ui.cursor().min.y),
             Vec2::new(action_width, action_size.y),
@@ -11193,7 +11231,7 @@ impl EntropyApp {
         ui.allocate_ui_at_rect(action_rect, |ui| {
             ui.set_min_size(action_rect.size());
             ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                ui.spacing_mut().item_spacing.x = 8.0;
+                ui.spacing_mut().item_spacing.x = 8.0 * scale;
                 let clear_enabled = combo_idx < self.combo_entries.len()
                     && (self.combo_entries[combo_idx].keys.iter().any(|&k| k != 0)
                         || self.combo_entries[combo_idx].output != 0
@@ -11202,8 +11240,13 @@ impl EntropyApp {
                             .get(combo_idx)
                             .map(|s| !s.trim().is_empty())
                             .unwrap_or(false));
-                let clear_resp =
-                    crate::ui_style::modern_button(ui, "Clear", action_size, clear_enabled);
+                let clear_resp = crate::ui_style::modern_button_with_font(
+                    ui,
+                    "Clear",
+                    action_size,
+                    control_font_size,
+                    clear_enabled,
+                );
                 if clear_resp.clicked() && clear_enabled {
                     self.push_combo_undo();
                     self.combo_entries[combo_idx] = ComboEntry::default();
@@ -11214,8 +11257,13 @@ impl EntropyApp {
                     self.combo_names_dirty = true;
                 }
                 let undo_enabled = !self.combo_undo_stack.is_empty();
-                let undo_resp =
-                    crate::ui_style::modern_button(ui, "Undo", action_size, undo_enabled);
+                let undo_resp = crate::ui_style::modern_button_with_font(
+                    ui,
+                    "Undo",
+                    action_size,
+                    control_font_size,
+                    undo_enabled,
+                );
                 if undo_resp.clicked() && undo_enabled {
                     if let Some((entries, names, term, selected, visible_count)) =
                         self.combo_undo_stack.pop()

@@ -85,6 +85,16 @@ pub fn modal_outline_stroke(dark: bool) -> Stroke {
 }
 
 pub fn modern_button(ui: &mut Ui, label: &str, size: Vec2, enabled: bool) -> egui::Response {
+    modern_button_with_font(ui, label, size, 12.5, enabled)
+}
+
+pub fn modern_button_with_font(
+    ui: &mut Ui,
+    label: &str,
+    size: Vec2,
+    font_size: f32,
+    enabled: bool,
+) -> egui::Response {
     let dark = ui.visuals().dark_mode;
     let sense = if enabled {
         Sense::click()
@@ -116,7 +126,7 @@ pub fn modern_button(ui: &mut Ui, label: &str, size: Vec2, enabled: bool) -> egu
         rect.center(),
         egui::Align2::CENTER_CENTER,
         label,
-        FontId::proportional(12.5),
+        FontId::proportional(font_size),
         if enabled {
             ui.visuals().text_color()
         } else {
@@ -266,10 +276,22 @@ pub fn modern_dropdown_button(
     text_color: Color32,
     width: f32,
 ) -> egui::Response {
+    modern_dropdown_button_sized(ui, id, selected_text, text_color, width, 32.0, 12.5)
+}
+
+pub fn modern_dropdown_button_sized(
+    ui: &mut Ui,
+    id: egui::Id,
+    selected_text: &str,
+    text_color: Color32,
+    width: f32,
+    height: f32,
+    font_size: f32,
+) -> egui::Response {
     let dark = ui.visuals().dark_mode;
     let dropdown_open = ui.memory(|m| m.is_popup_open(id));
     let (dropdown_rect, dropdown_resp) =
-        ui.allocate_exact_size(Vec2::new(width, 32.0), Sense::click());
+        ui.allocate_exact_size(Vec2::new(width, height), Sense::click());
     if dropdown_resp.hovered() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
     }
@@ -293,7 +315,7 @@ pub fn modern_dropdown_button(
         egui::pos2(dropdown_rect.left() + 12.0, dropdown_rect.center().y),
         egui::Align2::LEFT_CENTER,
         selected_text,
-        FontId::proportional(12.5),
+        FontId::proportional(font_size),
         text_color,
     );
     let chevron_x = dropdown_rect.right() - 15.0;
@@ -601,6 +623,7 @@ pub fn settings_list_row_with_tooltip(
         Stroke::new(1.0, separator),
     );
 
+    let label_scale = (row_height / 54.0).clamp(1.0, 1.3);
     let label_color = if label_enabled {
         ui.visuals().text_color()
     } else {
@@ -610,19 +633,19 @@ pub fn settings_list_row_with_tooltip(
         egui::pos2(row_rect.left() + 2.0, row_rect.center().y),
         egui::Align2::LEFT_CENTER,
         label,
-        egui::FontId::proportional(13.0),
+        egui::FontId::proportional(13.0 * label_scale),
         label_color,
     );
 
     if let Some(tooltip) = tooltip {
-        let text_width = (label.chars().count() as f32 * 7.4 + 8.0)
+        let text_width = (label.chars().count() as f32 * 7.4 * label_scale + 8.0)
             .min((content_width - control_width - 20.0).max(0.0));
         let label_rect = egui::Rect::from_center_size(
             egui::pos2(
                 row_rect.left() + 2.0 + text_width / 2.0,
                 row_rect.center().y,
             ),
-            egui::vec2(text_width, 22.0),
+            egui::vec2(text_width, 22.0 * label_scale),
         );
         let label_resp = ui.interact(
             label_rect,
