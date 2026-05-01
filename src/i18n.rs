@@ -119,6 +119,249 @@ pub fn tr(language: Language, key: Key) -> &'static str {
     }
 }
 
+pub fn tr_static(language: Language, text: &'static str) -> &'static str {
+    if !matches!(language, Language::Russian) {
+        return text;
+    }
+
+    match text {
+        "Right-click or Esc to return to layout" => "ПКМ или Esc — вернуться к раскладке",
+        "Open Privacy Settings" => "Открыть настройки приватности",
+        "No setup action is available for this OS" => "Для этой ОС нет действия настройки",
+        "Install IBus" => "Установить IBus",
+        "Install Fcitx5" => "Установить Fcitx5",
+        "Keyboard is locked, unlock it to use Matrix Tester" => {
+            "Клавиатура заблокирована — разблокируйте её для тестера матрицы"
+        }
+        "Click to reset Matrix Tester" => "Нажмите, чтобы сбросить тестер матрицы",
+        "Matrix Tester is currently available only for Vial keyboards" => {
+            "Тестер матрицы пока доступен только для Vial-клавиатур"
+        }
+        "Connect a Vial keyboard to start live switch testing" => {
+            "Подключите Vial-клавиатуру, чтобы начать live-тест свитчей"
+        }
+        "Click Tested to reset progress" => "Нажмите на счётчик проверки, чтобы сбросить прогресс",
+        "Toggle firmware layout/display option" => "Переключить опцию раскладки/дисплея в прошивке",
+        "Choose firmware preset" => "Выбрать пресет прошивки",
+        "Connect a Vial keyboard to edit Auto Shift settings" => {
+            "Подключите Vial-клавиатуру, чтобы менять Auto Shift"
+        }
+        "Enable" => "Включить",
+        "Turn Auto Shift on or off" => "Включить или выключить Auto Shift",
+        "Enable for modifiers" => "Для модификаторов",
+        "Allow Auto Shift behavior on modifier keys" => {
+            "Разрешить Auto Shift на клавишах-модификаторах"
+        }
+        "No special keys" => "Без специальных клавиш",
+        "Do not Auto Shift special keys such as Enter, Esc, Tab or Backspace" => {
+            "Не применять Auto Shift к Enter, Esc, Tab и Backspace"
+        }
+        "No numeric keys" => "Без цифровых клавиш",
+        "Do not Auto Shift number keys" => "Не применять Auto Shift к цифрам",
+        "No alpha keys" => "Без буквенных клавиш",
+        "Do not Auto Shift letter keys" => "Не применять Auto Shift к буквам",
+        "Enable keyrepeat" => "Повтор клавиши",
+        "Allow held Auto Shift keys to repeat" => "Разрешить повтор удерживаемых Auto Shift клавиш",
+        "Stop repeat after timeout" => "Остановить повтор после таймаута",
+        "Disable key repeat after the Auto Shift timeout is exceeded" => {
+            "Отключать повтор после превышения таймаута Auto Shift"
+        }
+        "Timeout" => "Таймаут",
+        "Hold time before Auto Shift sends the shifted key" => {
+            "Время удержания перед отправкой shifted-клавиши"
+        }
+        "Timeout is in milliseconds" => "Таймаут в миллисекундах",
+        "Waiting for a keyboard" => "Ожидание клавиатуры",
+        "Connect a Vial device" => "Подключите Vial-устройство",
+        "Light" => "Светлая",
+        "Dark" => "Тёмная",
+        "☀ Light" => "☀ Светлая",
+        "🌙 Dark" => "🌙 Тёмная",
+        "🔓 Unlock Keyboard" => "🔓 Разблокировать клавиатуру",
+        "Unlock Keyboard" => "Разблокировать клавиатуру",
+        "Press and hold the highlighted keys one by one" => {
+            "Нажмите и удерживайте подсвеченные клавиши по очереди"
+        }
+        "Keyboard is locked, unlock it to edit macros" => {
+            "Клавиатура заблокирована — разблокируйте её для редактирования макросов"
+        }
+        "Macros saved" => "Макросы сохранены",
+        "Combos saved" => "Комбо сохранены",
+        "Combo timeout saved" => "Таймаут комбо сохранён",
+        "Pick key" => "Выбрать клавишу",
+        "Entry" => "Слот",
+        "Select Alt Repeat slot" => "Выбрать слот Alt Repeat",
+        "Name" => "Имя",
+        "Local name for this slot" => "Локальное имя этого слота",
+        "Stored locally in Entropy" => "Хранится локально в Entropy",
+        "Last key" => "Последняя клавиша",
+        "Key that triggers alternate repeat behavior" => "Клавиша, запускающая alternate repeat",
+        "Alt key" => "Alt-клавиша",
+        "Key repeated when alternate repeat activates" => {
+            "Клавиша, повторяемая при срабатывании alternate repeat"
+        }
+        "Ctrl mods" => "Ctrl-моды",
+        "Shift mods" => "Shift-моды",
+        "Alt mods" => "Alt-моды",
+        "Allowed Ctrl modifiers" => "Разрешённые Ctrl-модификаторы",
+        "Allowed Shift modifiers" => "Разрешённые Shift-модификаторы",
+        "Allowed Alt modifiers" => "Разрешённые Alt-модификаторы",
+        "Allowed OS modifiers" => "Разрешённые OS-модификаторы",
+        "Right-side modifier" => "Правый модификатор",
+        "Left-side modifier" => "Левый модификатор",
+        "Default alt key" => "Alt-клавиша по умолчанию",
+        "Use this alt key by default" => "Использовать эту Alt-клавишу по умолчанию",
+        "Bidirectional" => "Двунаправленно",
+        "Allow both keys to alternate each other" => {
+            "Разрешить обеим клавишам чередовать друг друга"
+        }
+        "Ignore handedness" => "Игнорировать сторону",
+        "Treat left and right modifiers as equivalent" => {
+            "Считать левые и правые модификаторы одинаковыми"
+        }
+        "Clear" => "Очистить",
+        "Undo" => "Отменить",
+        "LED brightness" => "Яркость подсветки",
+        "Global LED brightness for layer color lighting" => "Общая яркость цветной подсветки слоёв",
+        "LED timeout" => "Таймаут подсветки",
+        "Minutes before LEDs turn off automatically, 0 disables timeout" => {
+            "Минут до автоотключения подсветки; 0 отключает таймаут"
+        }
+        "Off" => "Выкл",
+        "Alt forces Esc" => "Alt отправляет Esc",
+        "When Alt is held, Grave Escape sends Esc instead of ` or ~" => {
+            "При удержании Alt Grave Escape отправляет Esc вместо ` или ~"
+        }
+        "Control forces Esc" => "Control отправляет Esc",
+        "When Control is held, Grave Escape sends Esc instead of ` or ~" => {
+            "При удержании Control Grave Escape отправляет Esc вместо ` или ~"
+        }
+        "Shift forces Esc" => "Shift отправляет Esc",
+        "When Shift is held, Grave Escape sends Esc instead of ` or ~" => {
+            "При удержании Shift Grave Escape отправляет Esc вместо ` или ~"
+        }
+        "Swap Caps Lock and Left Control" => "Поменять Caps Lock и левый Control",
+        "Caps Lock sends Left Control and Left Control sends Caps Lock" => {
+            "Caps Lock отправляет Left Control, а Left Control — Caps Lock"
+        }
+        "Treat Caps Lock as Control" => "Считать Caps Lock Control",
+        "Caps Lock sends Control without swapping Left Control" => {
+            "Caps Lock отправляет Control без обмена с Left Control"
+        }
+        "Disable OS keys" => "Отключить OS-клавиши",
+        "Ignore both OS keys while this option is enabled" => {
+            "Игнорировать обе OS-клавиши, пока опция включена"
+        }
+        "Swap ` and Escape" => "Поменять ` и Escape",
+        "Grave sends Escape and Escape sends Grave" => "Grave отправляет Escape, а Escape — Grave",
+        r"Swap \ and Backspace" => r"Поменять \ и Backspace",
+        "Backslash sends Backspace and Backspace sends Backslash" => {
+            "Backslash отправляет Backspace, а Backspace — Backslash"
+        }
+        "Enable N-key rollover" => "Включить N-key rollover",
+        "Allow more simultaneous key presses when the keyboard supports it" => {
+            "Разрешить больше одновременных нажатий, если клавиатура это поддерживает"
+        }
+        "Tapping term" => "Tapping term",
+        "Global tap-vs-hold decision window for dual-role keys" => {
+            "Общее окно выбора tap/hold для dual-role клавиш"
+        }
+        "Permissive hold" => "Permissive hold",
+        "Nested taps choose hold for Mod-Tap and Layer-Tap keys" => {
+            "Вложенные taps выбирают hold для Mod-Tap и Layer-Tap"
+        }
+        "Hold on other key" => "Hold on other key",
+        "Pressing another key immediately chooses hold for dual-role keys" => {
+            "Нажатие другой клавиши сразу выбирает hold для dual-role клавиш"
+        }
+        "Retro tapping" => "Retro tapping",
+        "A held-and-released-alone dual-role key still sends its tap action" => {
+            "Dual-role клавиша, удержанная и отпущенная отдельно, всё равно отправляет tap"
+        }
+        "Chordal hold" => "Chordal hold",
+        "Same-hand chords prefer tap to reduce home-row mod accidents" => {
+            "Аккорды одной рукой предпочитают tap, чтобы снизить ошибки home-row mods"
+        }
+        "Quick tap term" => "Quick tap term",
+        "Tap-then-hold repeat window for dual-role key tap actions" => {
+            "Окно повтора tap-then-hold для tap-действий dual-role клавиш"
+        }
+        "Tap code delay" => "Tap code delay",
+        "Delay between register and unregister in tap_code" => {
+            "Задержка между register и unregister в tap_code"
+        }
+        "Tap hold caps delay" => "Tap hold caps delay",
+        "Extra delay for LT/MT keys whose tap action is Caps Lock" => {
+            "Дополнительная задержка для LT/MT, где tap-действие — Caps Lock"
+        }
+        "Tapping toggle" => "Tapping toggle",
+        "Number of taps needed for TT layer toggle" => {
+            "Количество taps для переключения слоя через TT"
+        }
+        "Flow tap" => "Flow tap",
+        "Fast typing timeout that forces MT/LT keys to tap" => {
+            "Таймаут быстрого набора, принудительно выбирающий tap для MT/LT"
+        }
+        "One Shot Keys" => "One Shot клавиши",
+        "One-shot tap toggle" => "One-shot tap toggle",
+        "Tap this many times to keep a one-shot key held until tapped again" => {
+            "Столько taps удерживают one-shot до следующего нажатия"
+        }
+        "One-shot timeout" => "One-shot timeout",
+        "How long one-shot state waits before it is released" => {
+            "Сколько one-shot состояние ждёт перед сбросом"
+        }
+        "Value is in milliseconds" => "Значение в миллисекундах",
+        "DPI" => "DPI",
+        "Touchpad pointer resolution in dots per inch" => {
+            "Разрешение указателя тачпада в точках на дюйм"
+        }
+        "Sniper sens" => "Чувств. sniper",
+        "Sniper divisor: lower is faster, higher is more precise" => {
+            "Делитель sniper: ниже — быстрее, выше — точнее"
+        }
+        "Scroll sens" => "Чувств. скролла",
+        "Scroll divisor: lower is faster, higher is smoother" => {
+            "Делитель скролла: ниже — быстрее, выше — плавнее"
+        }
+        "Text sens" => "Чувств. текста",
+        "Text mode divisor: lower is faster, higher is slower" => {
+            "Делитель текстового режима: ниже — быстрее, выше — медленнее"
+        }
+        "Invert scroll" => "Инвертировать скролл",
+        "Reverse the touchpad scroll direction" => "Развернуть направление скролла тачпада",
+        "Acceleration" => "Ускорение",
+        "Use firmware pointer acceleration for touchpad movement" => {
+            "Использовать ускорение указателя из прошивки"
+        }
+        "Sticky mode" => "Фиксировать режим",
+        "Keep the selected touchpad mode active until another mode is selected" => {
+            "Оставлять выбранный режим тачпада активным до выбора другого"
+        }
+        "Auto layer enable" => "Автослой",
+        "Automatically switch to the selected layer while the touchpad is active" => {
+            "Автоматически переключаться на выбранный слой, пока тачпад активен"
+        }
+        "Auto layer" => "Автослой",
+        "Layer selected automatically while the touchpad is active" => {
+            "Слой, выбираемый автоматически при активности тачпада"
+        }
+        "Entropy background" => "Entropy в фоне",
+        "Keep Entropy running in the background for live firmware data" => {
+            "Держать Entropy в фоне для live-данных прошивки"
+        }
+        "Time sync" => "Синхронизация времени",
+        "Uses the local system clock" => "Использует локальные системные часы",
+        "Volume sync" => "Синхронизация громкости",
+        "Media info" => "Медиа-информация",
+        "ready" => "готово",
+        "needs setup" => "нужна настройка",
+        "active" => "активно",
+        "starting" => "запуск",
+        _ => text,
+    }
+}
+
 fn en(key: Key) -> &'static str {
     match key {
         Key::MainTabLayout => "Layout",

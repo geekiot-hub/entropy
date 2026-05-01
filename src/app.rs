@@ -3338,7 +3338,10 @@ impl EntropyApp {
         ui.painter().text(
             egui::pos2(ui.max_rect().center().x, ui.max_rect().bottom() - 36.0),
             egui::Align2::CENTER_CENTER,
-            "Right-click or Esc to return to layout",
+            crate::i18n::tr_static(
+                self.app_settings.language,
+                "Right-click or Esc to return to layout",
+            ),
             FontId::proportional(11.0),
             hint_color,
         );
@@ -3700,7 +3703,7 @@ impl EntropyApp {
             {
                 if crate::ui_style::modern_button(
                     ui,
-                    "Open Privacy Settings",
+                    crate::i18n::tr_static(self.app_settings.language, crate::i18n::tr_static(self.app_settings.language, "Open Privacy Settings")),
                     metrics.size(184.0, 34.0),
                     true,
                 )
@@ -3719,13 +3722,13 @@ impl EntropyApp {
 
             #[cfg(target_os = "linux")]
             {
-                if crate::ui_style::modern_button(ui, "Install IBus", metrics.size(132.0, 34.0), true)
+                if crate::ui_style::modern_button(ui, crate::i18n::tr_static(self.app_settings.language, crate::i18n::tr_static(self.app_settings.language, "Install IBus")), metrics.size(132.0, 34.0), true)
                     .clicked()
                 {
                     self.run_linux_universal_symbols_setup("linux/ibus/install-user.sh", "IBus");
                 }
                 ui.add_space(metrics.value(8.0));
-                if crate::ui_style::modern_button(ui, "Install Fcitx5", metrics.size(142.0, 34.0), true)
+                if crate::ui_style::modern_button(ui, crate::i18n::tr_static(self.app_settings.language, crate::i18n::tr_static(self.app_settings.language, "Install Fcitx5")), metrics.size(142.0, 34.0), true)
                     .clicked()
                 {
                     self.run_linux_universal_symbols_setup("linux/fcitx5/install-user.sh", "Fcitx5");
@@ -3735,7 +3738,7 @@ impl EntropyApp {
             #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
             {
                 ui.label(
-                    RichText::new("No setup action is available for this OS")
+                    RichText::new(crate::i18n::tr_static(self.app_settings.language, "No setup action is available for this OS"))
                         .size(11.0)
                         .color(app_muted_text(ui.visuals().dark_mode)),
                 );
@@ -3954,7 +3957,14 @@ impl EntropyApp {
             if self.is_vial_locked() {
                 self.unlock_open = true;
                 self.matrix_tester_unlock_prompted = true;
-                self.status_msg = "Keyboard is locked, unlock it to use Matrix Tester".into();
+                self.status_msg = crate::i18n::tr_static(
+                    self.app_settings.language,
+                    crate::i18n::tr_static(
+                        self.app_settings.language,
+                        "Keyboard is locked, unlock it to use Matrix Tester",
+                    ),
+                )
+                .into();
             }
         }
 
@@ -4019,7 +4029,10 @@ impl EntropyApp {
             self.reset_matrix_tester_state();
         }
         let status_hovered = status_resp.hovered();
-        status_resp.on_hover_text("Click to reset Matrix Tester");
+        status_resp.on_hover_text(crate::i18n::tr_static(
+            self.app_settings.language,
+            crate::i18n::tr_static(self.app_settings.language, "Click to reset Matrix Tester"),
+        ));
         painter.rect(
             status_rect,
             9.0,
@@ -4060,7 +4073,13 @@ impl EntropyApp {
             painter.text(
                 board_rect.center(),
                 egui::Align2::CENTER_CENTER,
-                "Matrix Tester is currently available only for Vial keyboards",
+                crate::i18n::tr_static(
+                    self.app_settings.language,
+                    crate::i18n::tr_static(
+                        self.app_settings.language,
+                        "Matrix Tester is currently available only for Vial keyboards",
+                    ),
+                ),
                 FontId::proportional(15.0),
                 app_muted_text(dark),
             );
@@ -4071,7 +4090,13 @@ impl EntropyApp {
             painter.text(
                 board_rect.center(),
                 egui::Align2::CENTER_CENTER,
-                "Connect a Vial keyboard to start live switch testing",
+                crate::i18n::tr_static(
+                    self.app_settings.language,
+                    crate::i18n::tr_static(
+                        self.app_settings.language,
+                        "Connect a Vial keyboard to start live switch testing",
+                    ),
+                ),
                 FontId::proportional(15.0),
                 app_muted_text(dark),
             );
@@ -4100,7 +4125,13 @@ impl EntropyApp {
         painter.text(
             egui::pos2(content_rect.center().x, hint_y),
             egui::Align2::CENTER_CENTER,
-            "Click Tested to reset progress",
+            crate::i18n::tr_static(
+                self.app_settings.language,
+                crate::i18n::tr_static(
+                    self.app_settings.language,
+                    "Click Tested to reset progress",
+                ),
+            ),
             FontId::proportional(11.0),
             hint_color,
         );
@@ -4591,7 +4622,10 @@ impl EntropyApp {
                                 row_height,
                                 &option.label,
                                 true,
-                                Some("Toggle firmware layout/display option"),
+                                Some(crate::i18n::tr_static(
+                                    self.app_settings.language,
+                                    "Toggle firmware layout/display option",
+                                )),
                                 switch_width,
                                 |ui| {
                                     let resp = crate::ui_style::settings_switch_sized(
@@ -4788,7 +4822,10 @@ impl EntropyApp {
                 if !hid_ready {
                     crate::ui_style::modal_empty_state(
                         ui,
-                        "Connect a Vial keyboard to edit Auto Shift settings",
+                        crate::i18n::tr_static(
+                            self.app_settings.language,
+                            "Connect a Vial keyboard to edit Auto Shift settings",
+                        ),
                         None,
                     );
                     return;
@@ -4966,32 +5003,59 @@ impl EntropyApp {
         suppress_tooltips: bool,
     ) {
         let row = match row_idx {
-            0 => ("Enable", "Turn Auto Shift on or off", true),
+            0 => (
+                crate::i18n::tr_static(self.app_settings.language, "Enable"),
+                crate::i18n::tr_static(self.app_settings.language, "Turn Auto Shift on or off"),
+                true,
+            ),
             1 => (
-                "Enable for modifiers",
-                "Allow Auto Shift behavior on modifier keys",
+                crate::i18n::tr_static(self.app_settings.language, "Enable for modifiers"),
+                crate::i18n::tr_static(
+                    self.app_settings.language,
+                    "Allow Auto Shift behavior on modifier keys",
+                ),
                 true,
             ),
             2 => (
-                "No special keys",
-                "Do not Auto Shift special keys such as Enter, Esc, Tab or Backspace",
+                crate::i18n::tr_static(self.app_settings.language, "No special keys"),
+                crate::i18n::tr_static(
+                    self.app_settings.language,
+                    "Do not Auto Shift special keys such as Enter, Esc, Tab or Backspace",
+                ),
                 true,
             ),
-            3 => ("No numeric keys", "Do not Auto Shift number keys", true),
-            4 => ("No alpha keys", "Do not Auto Shift letter keys", true),
+            3 => (
+                crate::i18n::tr_static(self.app_settings.language, "No numeric keys"),
+                crate::i18n::tr_static(self.app_settings.language, "Do not Auto Shift number keys"),
+                true,
+            ),
+            4 => (
+                crate::i18n::tr_static(self.app_settings.language, "No alpha keys"),
+                crate::i18n::tr_static(self.app_settings.language, "Do not Auto Shift letter keys"),
+                true,
+            ),
             5 => (
-                "Enable keyrepeat",
-                "Allow held Auto Shift keys to repeat",
+                crate::i18n::tr_static(self.app_settings.language, "Enable keyrepeat"),
+                crate::i18n::tr_static(
+                    self.app_settings.language,
+                    "Allow held Auto Shift keys to repeat",
+                ),
                 true,
             ),
             6 => (
-                "Stop repeat after timeout",
-                "Disable key repeat after the Auto Shift timeout is exceeded",
+                crate::i18n::tr_static(self.app_settings.language, "Stop repeat after timeout"),
+                crate::i18n::tr_static(
+                    self.app_settings.language,
+                    "Disable key repeat after the Auto Shift timeout is exceeded",
+                ),
                 true,
             ),
             7 => (
-                "Timeout",
-                "Hold time before Auto Shift sends the shifted key",
+                crate::i18n::tr_static(self.app_settings.language, "Timeout"),
+                crate::i18n::tr_static(
+                    self.app_settings.language,
+                    "Hold time before Auto Shift sends the shifted key",
+                ),
                 false,
             ),
             _ => return,
@@ -5060,7 +5124,10 @@ impl EntropyApp {
                         egui::Align::RIGHT,
                         enabled,
                     )
-                    .on_hover_text("Timeout is in milliseconds");
+                    .on_hover_text(crate::i18n::tr_static(
+                        self.app_settings.language,
+                        "Timeout is in milliseconds",
+                    ));
                     if resp.changed() {
                         let filtered: String = self
                             .auto_shift_timeout_text
@@ -5588,7 +5655,14 @@ impl eframe::App for EntropyApp {
             && self.is_vial_locked()
         {
             self.unlock_open = true;
-            self.status_msg = "Keyboard is locked, unlock it to edit macros".into();
+            self.status_msg = crate::i18n::tr_static(
+                self.app_settings.language,
+                crate::i18n::tr_static(
+                    self.app_settings.language,
+                    "Keyboard is locked, unlock it to edit macros",
+                ),
+            )
+            .into();
         }
 
         // Arrow keys Left/Right switch layers (when picker is closed and no text field is focused)
@@ -5626,20 +5700,32 @@ impl eframe::App for EntropyApp {
                         ui.label(RichText::new("✦").size(28.0).color(app_accent()));
                         ui.add_space(10.0);
                         ui.label(
-                            RichText::new("Waiting for a keyboard")
-                                .size(20.0)
-                                .strong()
-                                .color(if self.dark_mode {
-                                    Color32::from_rgb(235, 235, 235)
-                                } else {
-                                    Color32::from_rgb(42, 42, 44)
-                                }),
+                            RichText::new(crate::i18n::tr_static(
+                                self.app_settings.language,
+                                crate::i18n::tr_static(
+                                    self.app_settings.language,
+                                    "Waiting for a keyboard",
+                                ),
+                            ))
+                            .size(20.0)
+                            .strong()
+                            .color(if self.dark_mode {
+                                Color32::from_rgb(235, 235, 235)
+                            } else {
+                                Color32::from_rgb(42, 42, 44)
+                            }),
                         );
                         ui.add_space(7.0);
                         ui.label(
-                            RichText::new("Connect a Vial device")
-                                .size(13.0)
-                                .color(app_muted_text(self.dark_mode)),
+                            RichText::new(crate::i18n::tr_static(
+                                self.app_settings.language,
+                                crate::i18n::tr_static(
+                                    self.app_settings.language,
+                                    "Connect a Vial device",
+                                ),
+                            ))
+                            .size(13.0)
+                            .color(app_muted_text(self.dark_mode)),
                         );
                     });
                 });
@@ -5714,9 +5800,16 @@ impl eframe::App for EntropyApp {
 
                     let light_resp = ui.add(
                         egui::Label::new(
-                            RichText::new("☀ Light")
-                                .size(11.0)
-                                .color(if self.dark_mode { inactive } else { active }),
+                            RichText::new(crate::i18n::tr_static(
+                                self.app_settings.language,
+                                "☀ Light",
+                            ))
+                            .size(11.0)
+                            .color(if self.dark_mode {
+                                inactive
+                            } else {
+                                active
+                            }),
                         )
                         .selectable(false)
                         .sense(egui::Sense::click()),
@@ -5735,9 +5828,16 @@ impl eframe::App for EntropyApp {
 
                     let dark_resp = ui.add(
                         egui::Label::new(
-                            RichText::new("🌙 Dark")
-                                .size(11.0)
-                                .color(if self.dark_mode { active } else { inactive }),
+                            RichText::new(crate::i18n::tr_static(
+                                self.app_settings.language,
+                                "🌙 Dark",
+                            ))
+                            .size(11.0)
+                            .color(if self.dark_mode {
+                                active
+                            } else {
+                                inactive
+                            }),
                         )
                         .selectable(false)
                         .sense(egui::Sense::click()),
@@ -5845,7 +5945,7 @@ impl eframe::App for EntropyApp {
                     ui.painter().text(
                         egui::pos2(center_x, top_y),
                         egui::Align2::CENTER_CENTER,
-                        "🔓 Unlock Keyboard",
+                        crate::i18n::tr_static(self.app_settings.language, "🔓 Unlock Keyboard"),
                         FontId::proportional(24.0),
                         title_color,
                     );
@@ -5853,7 +5953,13 @@ impl eframe::App for EntropyApp {
                     ui.painter().text(
                         egui::pos2(center_x, top_y + 30.0),
                         egui::Align2::CENTER_CENTER,
-                        "Press and hold the highlighted keys one by one",
+                        crate::i18n::tr_static(
+                            self.app_settings.language,
+                            crate::i18n::tr_static(
+                                self.app_settings.language,
+                                "Press and hold the highlighted keys one by one",
+                            ),
+                        ),
                         FontId::proportional(14.0),
                         subtitle_color,
                     );
@@ -5996,7 +6102,11 @@ impl eframe::App for EntropyApp {
                 // Defer macro write until unlock flow fully finishes.
             } else if self.is_vial_locked() {
                 self.unlock_open = true;
-                self.status_msg = "Keyboard is locked, unlock it to save macros".into();
+                self.status_msg = crate::i18n::tr_static(
+                    self.app_settings.language,
+                    "Keyboard is locked, unlock it to save macros",
+                )
+                .into();
             } else {
                 self.keycode_picker.macros_dirty = false;
                 if let Some(hid) = &self.hid_device {
@@ -6006,7 +6116,13 @@ impl eframe::App for EntropyApp {
                             size,
                         );
                         match hid.set_macro_buffer(&buf) {
-                            Ok(()) => self.status_msg = "Macros saved".into(),
+                            Ok(()) => {
+                                self.status_msg = crate::i18n::tr_static(
+                                    self.app_settings.language,
+                                    "Macros saved",
+                                )
+                                .into()
+                            }
                             Err(e) => self.status_msg = format!("Macro write error: {e}"),
                         }
                     }
@@ -6031,7 +6147,8 @@ impl eframe::App for EntropyApp {
             }
             if combo_save_ok {
                 self.combo_dirty = false;
-                self.status_msg = "Combos saved".into();
+                self.status_msg =
+                    crate::i18n::tr_static(self.app_settings.language, "Combos saved").into();
             }
         }
 
@@ -6045,7 +6162,9 @@ impl eframe::App for EntropyApp {
             }
             if term_save_ok {
                 self.combo_term_dirty = false;
-                self.status_msg = "Combo timeout saved".into();
+                self.status_msg =
+                    crate::i18n::tr_static(self.app_settings.language, "Combo timeout saved")
+                        .into();
             }
         }
 
@@ -7171,7 +7290,7 @@ impl EntropyApp {
                 ui,
                 content_width,
                 layout.row_height,
-                "Enable",
+                crate::i18n::tr_static(self.app_settings.language, "Enable"),
                 true,
                 46.0 * scale,
                 |ui| {
@@ -7520,7 +7639,7 @@ impl EntropyApp {
             .map(|l| l.custom_keycodes.as_slice())
             .unwrap_or(&[]);
         let last_key_label = if edited.keycode == 0 {
-            "Pick key".to_string()
+            crate::i18n::tr_static(self.app_settings.language, "Pick key").to_string()
         } else {
             keycode_label_with_macro_names(
                 edited.keycode,
@@ -7532,7 +7651,7 @@ impl EntropyApp {
             .replace("\n", " ")
         };
         let alt_key_label = if edited.alt_keycode == 0 {
-            "Pick key".to_string()
+            crate::i18n::tr_static(self.app_settings.language, "Pick key").to_string()
         } else {
             keycode_label_with_macro_names(
                 edited.alt_keycode,
@@ -7680,9 +7799,12 @@ impl EntropyApp {
                                     ui,
                                     row_content_width,
                                     row_height,
-                                    "Entry",
+                                    crate::i18n::tr_static(self.app_settings.language, "Entry"),
                                     true,
-                                    Some("Select Alt Repeat slot"),
+                                    Some(crate::i18n::tr_static(
+                                        self.app_settings.language,
+                                        "Select Alt Repeat slot",
+                                    )),
                                     control_width,
                                     |ui| {
                                         let dropdown_id =
@@ -7817,9 +7939,12 @@ impl EntropyApp {
                                     ui,
                                     row_content_width,
                                     row_height,
-                                    "Name",
+                                    crate::i18n::tr_static(self.app_settings.language, "Name"),
                                     true,
-                                    Some("Local name for this slot"),
+                                    Some(crate::i18n::tr_static(
+                                        self.app_settings.language,
+                                        "Local name for this slot",
+                                    )),
                                     control_width,
                                     |ui| {
                                         if let Some(name) = self.alt_repeat_names.get_mut(idx) {
@@ -7829,12 +7954,18 @@ impl EntropyApp {
                                                 name,
                                                 control_width,
                                                 metrics.settings_control_height(),
-                                                "Name",
+                                                crate::i18n::tr_static(
+                                                    self.app_settings.language,
+                                                    "Name",
+                                                ),
                                                 12,
                                                 egui::Align::Center,
                                             );
                                             name_changed = resp.changed();
-                                            resp.clone().on_hover_text("Stored locally in Entropy");
+                                            resp.clone().on_hover_text(crate::i18n::tr_static(
+                                                self.app_settings.language,
+                                                "Stored locally in Entropy",
+                                            ));
                                         }
                                     },
                                 );
@@ -7851,9 +7982,12 @@ impl EntropyApp {
                                     ui,
                                     row_content_width,
                                     row_height,
-                                    "Last key",
+                                    crate::i18n::tr_static(self.app_settings.language, "Last key"),
                                     true,
-                                    Some("Key that triggers alternate repeat behavior"),
+                                    Some(crate::i18n::tr_static(
+                                        self.app_settings.language,
+                                        "Key that triggers alternate repeat behavior",
+                                    )),
                                     control_width,
                                     |ui| {
                                         let resp = crate::ui_style::modern_button_with_font(
@@ -7877,9 +8011,12 @@ impl EntropyApp {
                                     ui,
                                     row_content_width,
                                     row_height,
-                                    "Alt key",
+                                    crate::i18n::tr_static(self.app_settings.language, "Alt key"),
                                     true,
-                                    Some("Key repeated when alternate repeat activates"),
+                                    Some(crate::i18n::tr_static(
+                                        self.app_settings.language,
+                                        "Key repeated when alternate repeat activates",
+                                    )),
                                     control_width,
                                     |ui| {
                                         let resp = crate::ui_style::modern_button_with_font(
@@ -7898,9 +8035,33 @@ impl EntropyApp {
                             }
                             4..=7 => {
                                 let (row_label, left_bit, right_bit) = match row_idx {
-                                    4 => ("Ctrl mods".to_string(), 0, 4),
-                                    5 => ("Shift mods".to_string(), 1, 5),
-                                    6 => ("Alt mods".to_string(), 2, 6),
+                                    4 => (
+                                        crate::i18n::tr_static(
+                                            self.app_settings.language,
+                                            "Ctrl mods",
+                                        )
+                                        .to_string(),
+                                        0,
+                                        4,
+                                    ),
+                                    5 => (
+                                        crate::i18n::tr_static(
+                                            self.app_settings.language,
+                                            "Shift mods",
+                                        )
+                                        .to_string(),
+                                        1,
+                                        5,
+                                    ),
+                                    6 => (
+                                        crate::i18n::tr_static(
+                                            self.app_settings.language,
+                                            "Alt mods",
+                                        )
+                                        .to_string(),
+                                        2,
+                                        6,
+                                    ),
                                     _ => (format!("{} mods", gui), 3, 7),
                                 };
                                 crate::ui_style::settings_list_row_with_tooltip(
@@ -7910,10 +8071,22 @@ impl EntropyApp {
                                     row_label.as_str(),
                                     true,
                                     Some(match row_idx {
-                                        4 => "Allowed Ctrl modifiers",
-                                        5 => "Allowed Shift modifiers",
-                                        6 => "Allowed Alt modifiers",
-                                        _ => "Allowed OS modifiers",
+                                        4 => crate::i18n::tr_static(
+                                            self.app_settings.language,
+                                            "Allowed Ctrl modifiers",
+                                        ),
+                                        5 => crate::i18n::tr_static(
+                                            self.app_settings.language,
+                                            "Allowed Shift modifiers",
+                                        ),
+                                        6 => crate::i18n::tr_static(
+                                            self.app_settings.language,
+                                            "Allowed Alt modifiers",
+                                        ),
+                                        _ => crate::i18n::tr_static(
+                                            self.app_settings.language,
+                                            "Allowed OS modifiers",
+                                        ),
                                     }),
                                     mod_control_width,
                                     |ui| {
@@ -7946,8 +8119,12 @@ impl EntropyApp {
                                                     ui.ctx()
                                                         .set_cursor_icon(egui::CursorIcon::Help);
                                                 }
-                                                right_label_resp
-                                                    .on_hover_text("Right-side modifier");
+                                                right_label_resp.on_hover_text(
+                                                    crate::i18n::tr_static(
+                                                        self.app_settings.language,
+                                                        "Right-side modifier",
+                                                    ),
+                                                );
                                                 ui.add_space(metrics.value(10.0));
                                                 let mut left_checked =
                                                     (edited.allowed_mods & (1 << left_bit)) != 0;
@@ -7975,7 +8152,12 @@ impl EntropyApp {
                                                     ui.ctx()
                                                         .set_cursor_icon(egui::CursorIcon::Help);
                                                 }
-                                                left_label_resp.on_hover_text("Left-side modifier");
+                                                left_label_resp.on_hover_text(
+                                                    crate::i18n::tr_static(
+                                                        self.app_settings.language,
+                                                        "Left-side modifier",
+                                                    ),
+                                                );
                                             },
                                         );
                                     },
@@ -7986,9 +8168,15 @@ impl EntropyApp {
                                     ui,
                                     row_content_width,
                                     row_height,
-                                    "Default alt key",
+                                    crate::i18n::tr_static(
+                                        self.app_settings.language,
+                                        "Default alt key",
+                                    ),
                                     true,
-                                    Some("Use this alt key by default"),
+                                    Some(crate::i18n::tr_static(
+                                        self.app_settings.language,
+                                        "Use this alt key by default",
+                                    )),
                                     metrics.value(46.0),
                                     |ui| {
                                         crate::ui_style::settings_switch_sized(
@@ -8004,9 +8192,15 @@ impl EntropyApp {
                                     ui,
                                     row_content_width,
                                     row_height,
-                                    "Bidirectional",
+                                    crate::i18n::tr_static(
+                                        self.app_settings.language,
+                                        "Bidirectional",
+                                    ),
                                     true,
-                                    Some("Allow both keys to alternate each other"),
+                                    Some(crate::i18n::tr_static(
+                                        self.app_settings.language,
+                                        "Allow both keys to alternate each other",
+                                    )),
                                     metrics.value(46.0),
                                     |ui| {
                                         crate::ui_style::settings_switch_sized(
@@ -8022,9 +8216,15 @@ impl EntropyApp {
                                     ui,
                                     row_content_width,
                                     row_height,
-                                    "Ignore handedness",
+                                    crate::i18n::tr_static(
+                                        self.app_settings.language,
+                                        "Ignore handedness",
+                                    ),
                                     true,
-                                    Some("Treat left and right modifiers as equivalent"),
+                                    Some(crate::i18n::tr_static(
+                                        self.app_settings.language,
+                                        "Treat left and right modifiers as equivalent",
+                                    )),
                                     metrics.value(46.0),
                                     |ui| {
                                         crate::ui_style::settings_switch_sized(
@@ -8072,7 +8272,7 @@ impl EntropyApp {
                                     .unwrap_or(false);
                         let clear_resp = crate::ui_style::modern_button_with_font(
                             ui,
-                            "Clear",
+                            crate::i18n::tr_static(self.app_settings.language, "Clear"),
                             action_size,
                             metrics.settings_control_font_size(),
                             clear_enabled,
@@ -8094,7 +8294,7 @@ impl EntropyApp {
                         let undo_enabled = !self.alt_repeat_undo_stack.is_empty();
                         let undo_resp = crate::ui_style::modern_button_with_font(
                             ui,
-                            "Undo",
+                            crate::i18n::tr_static(self.app_settings.language, "Undo"),
                             action_size,
                             metrics.settings_control_font_size(),
                             undo_enabled,
@@ -8338,12 +8538,15 @@ impl EntropyApp {
                         ui,
                         content_width,
                         row_height,
-                        "LED brightness",
+                        crate::i18n::tr_static(self.app_settings.language, "LED brightness"),
                         true,
                         if suppress_tooltips {
                             None
                         } else {
-                            Some("Global LED brightness for layer color lighting")
+                            Some(crate::i18n::tr_static(
+                                self.app_settings.language,
+                                "Global LED brightness for layer color lighting",
+                            ))
                         },
                         slider_control_width,
                         |ui| {
@@ -8398,12 +8601,15 @@ impl EntropyApp {
                         ui,
                         content_width,
                         row_height,
-                        "LED timeout",
+                        crate::i18n::tr_static(self.app_settings.language, "LED timeout"),
                         true,
                         if suppress_tooltips {
                             None
                         } else {
-                            Some("Minutes before LEDs turn off automatically, 0 disables timeout")
+                            Some(crate::i18n::tr_static(
+                                self.app_settings.language,
+                                "Minutes before LEDs turn off automatically, 0 disables timeout",
+                            ))
                         },
                         slider_control_width,
                         |ui| {
@@ -8423,7 +8629,8 @@ impl EntropyApp {
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
                                     let value_text = if value.round() as u8 == 0 {
-                                        "Off".to_string()
+                                        crate::i18n::tr_static(self.app_settings.language, "Off")
+                                            .to_string()
                                     } else {
                                         format!("{}m", value.round() as u8)
                                     };
@@ -8727,14 +8934,23 @@ impl EntropyApp {
                 let rows: Vec<(u8, String, String)> = vec![
                     (
                         0,
-                        "Alt forces Esc".to_string(),
-                        "When Alt is held, Grave Escape sends Esc instead of ` or ~".to_string(),
+                        crate::i18n::tr_static(self.app_settings.language, "Alt forces Esc")
+                            .to_string(),
+                        crate::i18n::tr_static(
+                            self.app_settings.language,
+                            "When Alt is held, Grave Escape sends Esc instead of ` or ~",
+                        )
+                        .to_string(),
                     ),
                     (
                         1,
-                        "Control forces Esc".to_string(),
-                        "When Control is held, Grave Escape sends Esc instead of ` or ~"
+                        crate::i18n::tr_static(self.app_settings.language, "Control forces Esc")
                             .to_string(),
+                        crate::i18n::tr_static(
+                            self.app_settings.language,
+                            "When Control is held, Grave Escape sends Esc instead of ` or ~",
+                        )
+                        .to_string(),
                     ),
                     (
                         2,
@@ -8745,8 +8961,13 @@ impl EntropyApp {
                     ),
                     (
                         3,
-                        "Shift forces Esc".to_string(),
-                        "When Shift is held, Grave Escape sends Esc instead of ` or ~".to_string(),
+                        crate::i18n::tr_static(self.app_settings.language, "Shift forces Esc")
+                            .to_string(),
+                        crate::i18n::tr_static(
+                            self.app_settings.language,
+                            "When Shift is held, Grave Escape sends Esc instead of ` or ~",
+                        )
+                        .to_string(),
                     ),
                 ];
 
@@ -8984,13 +9205,29 @@ impl EntropyApp {
             let (bit, label, tooltip) = match row_idx {
                 0 => (
                     0,
-                    "Swap Caps Lock and Left Control".to_owned(),
-                    "Caps Lock sends Left Control and Left Control sends Caps Lock".to_owned(),
+                    crate::i18n::tr_static(
+                        self.app_settings.language,
+                        "Swap Caps Lock and Left Control",
+                    )
+                    .to_owned(),
+                    crate::i18n::tr_static(
+                        self.app_settings.language,
+                        "Caps Lock sends Left Control and Left Control sends Caps Lock",
+                    )
+                    .to_owned(),
                 ),
                 1 => (
                     1,
-                    "Treat Caps Lock as Control".to_owned(),
-                    "Caps Lock sends Control without swapping Left Control".to_owned(),
+                    crate::i18n::tr_static(
+                        self.app_settings.language,
+                        "Treat Caps Lock as Control",
+                    )
+                    .to_owned(),
+                    crate::i18n::tr_static(
+                        self.app_settings.language,
+                        "Caps Lock sends Control without swapping Left Control",
+                    )
+                    .to_owned(),
                 ),
                 2 => (
                     2,
@@ -9009,18 +9246,33 @@ impl EntropyApp {
                 ),
                 5 => (
                     5,
-                    "Swap ` and Escape".to_owned(),
-                    "Grave sends Escape and Escape sends Grave".to_owned(),
+                    crate::i18n::tr_static(self.app_settings.language, "Swap ` and Escape")
+                        .to_owned(),
+                    crate::i18n::tr_static(
+                        self.app_settings.language,
+                        "Grave sends Escape and Escape sends Grave",
+                    )
+                    .to_owned(),
                 ),
                 6 => (
                     6,
-                    "Swap \\ and Backspace".to_owned(),
-                    "Backslash sends Backspace and Backspace sends Backslash".to_owned(),
+                    crate::i18n::tr_static(self.app_settings.language, "Swap \\ and Backspace")
+                        .to_owned(),
+                    crate::i18n::tr_static(
+                        self.app_settings.language,
+                        "Backslash sends Backspace and Backspace sends Backslash",
+                    )
+                    .to_owned(),
                 ),
                 7 => (
                     7,
-                    "Enable N-key rollover".to_owned(),
-                    "Allow more simultaneous key presses when the keyboard supports it".to_owned(),
+                    crate::i18n::tr_static(self.app_settings.language, "Enable N-key rollover")
+                        .to_owned(),
+                    crate::i18n::tr_static(
+                        self.app_settings.language,
+                        "Allow more simultaneous key presses when the keyboard supports it",
+                    )
+                    .to_owned(),
                 ),
                 8 => (
                     8,
@@ -9289,80 +9541,113 @@ impl EntropyApp {
                 SettingsRow::Setting {
                     kind: SettingsRowKind::TapHold,
                     qsid: 7,
-                    label: "Tapping term",
-                    tooltip: "Global tap-vs-hold decision window for dual-role keys",
+                    label: crate::i18n::tr_static(self.app_settings.language, "Tapping term"),
+                    tooltip: crate::i18n::tr_static(
+                        self.app_settings.language,
+                        "Global tap-vs-hold decision window for dual-role keys",
+                    ),
                     is_bool: false,
                     max: 10000,
                 },
                 SettingsRow::Setting {
                     kind: SettingsRowKind::TapHold,
                     qsid: 22,
-                    label: "Permissive hold",
-                    tooltip: "Nested taps choose hold for Mod-Tap and Layer-Tap keys",
+                    label: crate::i18n::tr_static(self.app_settings.language, "Permissive hold"),
+                    tooltip: crate::i18n::tr_static(
+                        self.app_settings.language,
+                        "Nested taps choose hold for Mod-Tap and Layer-Tap keys",
+                    ),
                     is_bool: true,
                     max: 1,
                 },
                 SettingsRow::Setting {
                     kind: SettingsRowKind::TapHold,
                     qsid: 23,
-                    label: "Hold on other key",
-                    tooltip: "Pressing another key immediately chooses hold for dual-role keys",
+                    label: crate::i18n::tr_static(self.app_settings.language, "Hold on other key"),
+                    tooltip: crate::i18n::tr_static(
+                        self.app_settings.language,
+                        "Pressing another key immediately chooses hold for dual-role keys",
+                    ),
                     is_bool: true,
                     max: 1,
                 },
                 SettingsRow::Setting {
                     kind: SettingsRowKind::TapHold,
                     qsid: 24,
-                    label: "Retro tapping",
-                    tooltip: "A held-and-released-alone dual-role key still sends its tap action",
+                    label: crate::i18n::tr_static(self.app_settings.language, "Retro tapping"),
+                    tooltip: crate::i18n::tr_static(
+                        self.app_settings.language,
+                        "A held-and-released-alone dual-role key still sends its tap action",
+                    ),
                     is_bool: true,
                     max: 1,
                 },
                 SettingsRow::Setting {
                     kind: SettingsRowKind::TapHold,
                     qsid: 26,
-                    label: "Chordal hold",
-                    tooltip: "Same-hand chords prefer tap to reduce home-row mod accidents",
+                    label: crate::i18n::tr_static(self.app_settings.language, "Chordal hold"),
+                    tooltip: crate::i18n::tr_static(
+                        self.app_settings.language,
+                        "Same-hand chords prefer tap to reduce home-row mod accidents",
+                    ),
                     is_bool: true,
                     max: 1,
                 },
                 SettingsRow::Setting {
                     kind: SettingsRowKind::TapHold,
                     qsid: 25,
-                    label: "Quick tap term",
-                    tooltip: "Tap-then-hold repeat window for dual-role key tap actions",
+                    label: crate::i18n::tr_static(self.app_settings.language, "Quick tap term"),
+                    tooltip: crate::i18n::tr_static(
+                        self.app_settings.language,
+                        "Tap-then-hold repeat window for dual-role key tap actions",
+                    ),
                     is_bool: false,
                     max: 10000,
                 },
                 SettingsRow::Setting {
                     kind: SettingsRowKind::TapHold,
                     qsid: 18,
-                    label: "Tap code delay",
-                    tooltip: "Delay between register and unregister in tap_code",
+                    label: crate::i18n::tr_static(self.app_settings.language, "Tap code delay"),
+                    tooltip: crate::i18n::tr_static(
+                        self.app_settings.language,
+                        "Delay between register and unregister in tap_code",
+                    ),
                     is_bool: false,
                     max: 1000,
                 },
                 SettingsRow::Setting {
                     kind: SettingsRowKind::TapHold,
                     qsid: 19,
-                    label: "Tap hold caps delay",
-                    tooltip: "Extra delay for LT/MT keys whose tap action is Caps Lock",
+                    label: crate::i18n::tr_static(
+                        self.app_settings.language,
+                        "Tap hold caps delay",
+                    ),
+                    tooltip: crate::i18n::tr_static(
+                        self.app_settings.language,
+                        "Extra delay for LT/MT keys whose tap action is Caps Lock",
+                    ),
                     is_bool: false,
                     max: 1000,
                 },
                 SettingsRow::Setting {
                     kind: SettingsRowKind::TapHold,
                     qsid: 20,
-                    label: "Tapping toggle",
-                    tooltip: "Number of taps needed for TT layer toggle",
+                    label: crate::i18n::tr_static(self.app_settings.language, "Tapping toggle"),
+                    tooltip: crate::i18n::tr_static(
+                        self.app_settings.language,
+                        "Number of taps needed for TT layer toggle",
+                    ),
                     is_bool: false,
                     max: 100,
                 },
                 SettingsRow::Setting {
                     kind: SettingsRowKind::TapHold,
                     qsid: 27,
-                    label: "Flow tap",
-                    tooltip: "Fast typing timeout that forces MT/LT keys to tap",
+                    label: crate::i18n::tr_static(self.app_settings.language, "Flow tap"),
+                    tooltip: crate::i18n::tr_static(
+                        self.app_settings.language,
+                        "Fast typing timeout that forces MT/LT keys to tap",
+                    ),
                     is_bool: false,
                     max: 10000,
                 },
@@ -9370,22 +9655,34 @@ impl EntropyApp {
         }
         if self.one_shot_settings.supported {
             if self.tap_hold_settings.supported {
-                rows.push(SettingsRow::Section("One Shot Keys"));
+                rows.push(SettingsRow::Section(crate::i18n::tr_static(
+                    self.app_settings.language,
+                    "One Shot Keys",
+                )));
             }
             rows.extend([
                 SettingsRow::Setting {
                     kind: SettingsRowKind::OneShot,
                     qsid: 5,
-                    label: "One-shot tap toggle",
-                    tooltip: "Tap this many times to keep a one-shot key held until tapped again",
+                    label: crate::i18n::tr_static(
+                        self.app_settings.language,
+                        "One-shot tap toggle",
+                    ),
+                    tooltip: crate::i18n::tr_static(
+                        self.app_settings.language,
+                        "Tap this many times to keep a one-shot key held until tapped again",
+                    ),
                     is_bool: false,
                     max: 50,
                 },
                 SettingsRow::Setting {
                     kind: SettingsRowKind::OneShot,
                     qsid: 6,
-                    label: "One-shot timeout",
-                    tooltip: "How long one-shot state waits before it is released",
+                    label: crate::i18n::tr_static(self.app_settings.language, "One-shot timeout"),
+                    tooltip: crate::i18n::tr_static(
+                        self.app_settings.language,
+                        "How long one-shot state waits before it is released",
+                    ),
                     is_bool: false,
                     max: 60000,
                 },
@@ -9490,7 +9787,10 @@ impl EntropyApp {
                             match (kind, qsid) {
                                 (SettingsRowKind::TapHold, 7 | 25 | 18 | 19 | 27)
                                 | (SettingsRowKind::OneShot, 6) => {
-                                    resp.clone().on_hover_text("Value is in milliseconds");
+                                    resp.clone().on_hover_text(crate::i18n::tr_static(
+                                        self.app_settings.language,
+                                        "Value is in milliseconds",
+                                    ));
                                 }
                                 _ => {}
                             }
@@ -9812,12 +10112,15 @@ impl EntropyApp {
                         ui,
                         content_width,
                         row_height,
-                        "DPI",
+                        crate::i18n::tr_static(self.app_settings.language, "DPI"),
                         true,
                         if suppress_tooltips {
                             None
                         } else {
-                            Some("Touchpad pointer resolution in dots per inch")
+                            Some(crate::i18n::tr_static(
+                                self.app_settings.language,
+                                "Touchpad pointer resolution in dots per inch",
+                            ))
                         },
                         dropdown_width,
                         |ui| {
@@ -9900,18 +10203,27 @@ impl EntropyApp {
                     let (qsid, label, tooltip) = match row_idx {
                         1 => (
                             121,
-                            "Sniper sens",
-                            "Sniper divisor: lower is faster, higher is more precise",
+                            crate::i18n::tr_static(self.app_settings.language, "Sniper sens"),
+                            crate::i18n::tr_static(
+                                self.app_settings.language,
+                                "Sniper divisor: lower is faster, higher is more precise",
+                            ),
                         ),
                         2 => (
                             122,
-                            "Scroll sens",
-                            "Scroll divisor: lower is faster, higher is smoother",
+                            crate::i18n::tr_static(self.app_settings.language, "Scroll sens"),
+                            crate::i18n::tr_static(
+                                self.app_settings.language,
+                                "Scroll divisor: lower is faster, higher is smoother",
+                            ),
                         ),
                         3 => (
                             123,
-                            "Text sens",
-                            "Text mode divisor: lower is faster, higher is slower",
+                            crate::i18n::tr_static(self.app_settings.language, "Text sens"),
+                            crate::i18n::tr_static(
+                                self.app_settings.language,
+                                "Text mode divisor: lower is faster, higher is slower",
+                            ),
                         ),
                         _ => unreachable!(),
                     };
@@ -9982,16 +10294,16 @@ impl EntropyApp {
                 }
                 4..=6 => {
                     let (bit, label, tooltip) = match row_idx {
-                        4 => (0, "Invert scroll", "Reverse the touchpad scroll direction"),
+                        4 => (0, crate::i18n::tr_static(self.app_settings.language, "Invert scroll"), crate::i18n::tr_static(self.app_settings.language, "Reverse the touchpad scroll direction")),
                         5 => (
                             1,
-                            "Acceleration",
-                            "Use firmware pointer acceleration for touchpad movement",
+                            crate::i18n::tr_static(self.app_settings.language, "Acceleration"),
+                            crate::i18n::tr_static(self.app_settings.language, "Use firmware pointer acceleration for touchpad movement"),
                         ),
                         6 => (
                             2,
-                            "Sticky mode",
-                            "Keep the selected touchpad mode active until another mode is selected",
+                            crate::i18n::tr_static(self.app_settings.language, "Sticky mode"),
+                            crate::i18n::tr_static(self.app_settings.language, "Keep the selected touchpad mode active until another mode is selected"),
                         ),
                         _ => unreachable!(),
                     };
@@ -10023,12 +10335,12 @@ impl EntropyApp {
                         ui,
                         content_width,
                         row_height,
-                        "Auto layer enable",
+                        crate::i18n::tr_static(self.app_settings.language, "Auto layer enable"),
                         true,
                         if suppress_tooltips {
                             None
                         } else {
-                            Some("Automatically switch to the selected layer while the touchpad is active")
+                            Some(crate::i18n::tr_static(self.app_settings.language, "Automatically switch to the selected layer while the touchpad is active"))
                         },
                         switch_width,
                         |ui| {
@@ -10050,12 +10362,15 @@ impl EntropyApp {
                         ui,
                         content_width,
                         row_height,
-                        "Auto layer",
+                        crate::i18n::tr_static(self.app_settings.language, "Auto layer"),
                         true,
                         if suppress_tooltips {
                             None
                         } else {
-                            Some("Layer selected automatically while the touchpad is active")
+                            Some(crate::i18n::tr_static(
+                                self.app_settings.language,
+                                "Layer selected automatically while the touchpad is active",
+                            ))
                         },
                         dropdown_width,
                         |ui| {
@@ -10209,33 +10524,43 @@ impl EntropyApp {
                 };
 
                 ui.set_width(content_width);
-                let status = if bridge_active { "active" } else { "starting" };
+                let status = if bridge_active {
+                    crate::i18n::tr_static(self.app_settings.language, "active")
+                } else {
+                    crate::i18n::tr_static(self.app_settings.language, "starting")
+                };
                 Self::draw_live_feature_row(
                     ui,
                     metrics,
-                    "Entropy background",
+                    crate::i18n::tr_static(self.app_settings.language, "Entropy background"),
                     status,
                     bridge_active,
-                    Some("Keep Entropy running in the background for live firmware data"),
+                    Some(crate::i18n::tr_static(
+                        self.app_settings.language,
+                        "Keep Entropy running in the background for live firmware data",
+                    )),
                 );
                 if mode.clock_volume {
                     Self::draw_live_feature_row(
                         ui,
                         metrics,
-                        "Time sync",
-                        "ready",
+                        crate::i18n::tr_static(self.app_settings.language, "Time sync"),
+                        crate::i18n::tr_static(self.app_settings.language, "ready"),
                         true,
-                        Some("Uses the local system clock"),
+                        Some(crate::i18n::tr_static(
+                            self.app_settings.language,
+                            "Uses the local system clock",
+                        )),
                     );
                     let volume = crate::qmk_hid_host::volume_check();
                     Self::draw_live_feature_row(
                         ui,
                         metrics,
-                        "Volume sync",
+                        crate::i18n::tr_static(self.app_settings.language, "Volume sync"),
                         if volume.ok {
                             volume.label
                         } else {
-                            "needs setup"
+                            crate::i18n::tr_static(self.app_settings.language, "needs setup")
                         },
                         volume.ok,
                         Some(volume.hint),
@@ -10246,8 +10571,12 @@ impl EntropyApp {
                     Self::draw_live_feature_row(
                         ui,
                         metrics,
-                        "Media info",
-                        if media.ok { media.label } else { "needs setup" },
+                        crate::i18n::tr_static(self.app_settings.language, "Media info"),
+                        if media.ok {
+                            media.label
+                        } else {
+                            crate::i18n::tr_static(self.app_settings.language, "needs setup")
+                        },
                         media.ok,
                         Some(media.hint),
                     );
@@ -10921,7 +11250,7 @@ impl EntropyApp {
                                                 ui,
                                                 row_content_width,
                                                 row_height,
-                                                "Entry",
+                                                crate::i18n::tr_static(self.app_settings.language, "Entry"),
                                                 true,
                                                 Some("Select Key Override slot"),
                                                 control_width,
@@ -11009,7 +11338,7 @@ impl EntropyApp {
                                                 ui,
                                                 row_content_width,
                                                 row_height,
-                                                "Name",
+                                                crate::i18n::tr_static(self.app_settings.language, "Name"),
                                                 true,
                                                 Some("Local name for this Key Override slot"),
                                                 control_width,
@@ -11021,12 +11350,12 @@ impl EntropyApp {
                                                             name,
                                                             control_width,
                                                             32.0 * scale,
-                                                            "Name",
+                                                            crate::i18n::tr_static(self.app_settings.language, "Name"),
                                                             12,
                                                             egui::Align::Center,
                                                         );
                                                         name_changed = resp.changed();
-                                                        resp.clone().on_hover_text("Stored locally in Entropy");
+                                                        resp.clone().on_hover_text(crate::i18n::tr_static(self.app_settings.language, "Stored locally in Entropy"));
                                                     }
                                                 },
                                             );
@@ -11191,7 +11520,7 @@ impl EntropyApp {
                                     .unwrap_or(false);
                         let clear_resp = crate::ui_style::modern_button_with_font(
                             ui,
-                            "Clear",
+                            crate::i18n::tr_static(self.app_settings.language, "Clear"),
                             action_size,
                             control_font_size,
                             clear_enabled,
@@ -11212,7 +11541,7 @@ impl EntropyApp {
                         let undo_enabled = !self.key_override_undo_stack.is_empty();
                         let undo_resp = crate::ui_style::modern_button_with_font(
                             ui,
-                            "Undo",
+                            crate::i18n::tr_static(self.app_settings.language, "Undo"),
                             action_size,
                             control_font_size,
                             undo_enabled,
@@ -11434,7 +11763,7 @@ impl EntropyApp {
                     ui,
                     row_content_width,
                     row_height,
-                    "Entry",
+                    crate::i18n::tr_static(self.app_settings.language, "Entry"),
                     true,
                     Some("Select Combo slot"),
                     control_width,
@@ -11541,7 +11870,7 @@ impl EntropyApp {
                     ui,
                     row_content_width,
                     row_height,
-                    "Name",
+                    crate::i18n::tr_static(self.app_settings.language, "Name"),
                     true,
                     Some("Local name for this combo slot"),
                     control_width,
@@ -11553,12 +11882,15 @@ impl EntropyApp {
                                 name,
                                 control_width,
                                 control_height,
-                                "Name",
+                                crate::i18n::tr_static(self.app_settings.language, "Name"),
                                 12,
                                 egui::Align::Center,
                             );
                             combo_name_changed = resp.changed();
-                            resp.clone().on_hover_text("Stored locally in Entropy");
+                            resp.clone().on_hover_text(crate::i18n::tr_static(
+                                self.app_settings.language,
+                                "Stored locally in Entropy",
+                            ));
                         }
                     },
                 );
@@ -11633,7 +11965,7 @@ impl EntropyApp {
                         ui,
                         row_content_width,
                         row_height,
-                        "Timeout",
+                        crate::i18n::tr_static(self.app_settings.language, "Timeout"),
                         true,
                         Some("Maximum time between combo key presses"),
                         timeout_control_width,
@@ -11651,7 +11983,12 @@ impl EntropyApp {
                                         4,
                                         egui::Align::RIGHT,
                                     )
-                                    .on_hover_text("Timeout is in milliseconds");
+                                    .on_hover_text(
+                                        crate::i18n::tr_static(
+                                            self.app_settings.language,
+                                            "Timeout is in milliseconds",
+                                        ),
+                                    );
                                     if resp.changed() {
                                         let filtered: String = combo_term_text
                                             .chars()
@@ -11693,7 +12030,7 @@ impl EntropyApp {
                             .unwrap_or(false));
                 let clear_resp = crate::ui_style::modern_button_with_font(
                     ui,
-                    "Clear",
+                    crate::i18n::tr_static(self.app_settings.language, "Clear"),
                     action_size,
                     control_font_size,
                     clear_enabled,
@@ -11710,7 +12047,7 @@ impl EntropyApp {
                 let undo_enabled = !self.combo_undo_stack.is_empty();
                 let undo_resp = crate::ui_style::modern_button_with_font(
                     ui,
-                    "Undo",
+                    crate::i18n::tr_static(self.app_settings.language, "Undo"),
                     action_size,
                     control_font_size,
                     undo_enabled,
