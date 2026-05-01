@@ -147,13 +147,7 @@ fn clamp_ui_scale(scale: f32) -> f32 {
 }
 
 fn responsive_settings_editor_scale(ctx: &egui::Context) -> f32 {
-    let native_scale = ctx
-        .native_pixels_per_point()
-        .unwrap_or_else(|| ctx.pixels_per_point() / ctx.zoom_factor().max(0.1))
-        .max(1.0);
-    let short_side = ctx.screen_rect().width().min(ctx.screen_rect().height()) * native_scale;
-    let t = ((short_side - 1_500.0) / (2_160.0 - 1_500.0)).clamp(0.0, 1.0);
-    1.0 + 0.12 * t
+    crate::ui_style::ResponsiveMetrics::from_ctx(ctx).scale
 }
 
 fn responsive_settings_visible_rows(
@@ -288,12 +282,12 @@ struct RgbModalLayout {
 
 impl RgbModalLayout {
     fn responsive(ctx: &egui::Context) -> Self {
-        let scale = responsive_settings_editor_scale(ctx);
+        let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ctx);
         Self {
-            content_width: 470.0 * scale,
-            top_padding: 4.0 * scale,
-            row_height: 54.0 * scale,
-            color_row_height: 54.0 * scale,
+            content_width: metrics.settings_content_width(),
+            top_padding: metrics.value(4.0),
+            row_height: metrics.settings_row_height(),
+            color_row_height: metrics.settings_row_height(),
         }
     }
 
@@ -4011,7 +4005,8 @@ impl EntropyApp {
         const KEY_OVERRIDE_BLOCK_TOP_GAP: f32 = 18.0;
 
         let dark = ui.visuals().dark_mode;
-        let scale = responsive_settings_editor_scale(ui.ctx());
+        let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ui.ctx());
+        let scale = metrics.scale;
         let page_width = KEY_OVERRIDE_PAGE_WIDTH * scale;
 
         ui.allocate_ui_at_rect(content_rect, |ui| {
@@ -10382,13 +10377,14 @@ impl EntropyApp {
         let current = self.key_override_entries[idx].clone();
         let mut edited = current.clone();
         let page_center_x = ui.max_rect().center().x;
-        let scale = responsive_settings_editor_scale(ui.ctx());
-        let content_width = 470.0 * scale;
-        let row_content_width = 452.0 * scale;
-        let row_height = 54.0 * scale;
-        let control_width = 168.0 * scale;
-        let control_height = 32.0 * scale;
-        let control_font_size = 12.5 * scale;
+        let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ui.ctx());
+        let scale = metrics.scale;
+        let content_width = metrics.settings_content_width();
+        let row_content_width = metrics.settings_row_content_width();
+        let row_height = metrics.settings_row_height();
+        let control_width = metrics.settings_control_width();
+        let control_height = metrics.settings_control_height();
+        let control_font_size = metrics.settings_control_font_size();
         const ROW_COUNT: usize = 14;
 
         let custom = self
@@ -10895,14 +10891,15 @@ impl EntropyApp {
             self.selected_combo,
             self.combo_visible_count,
         );
-        let scale = responsive_settings_editor_scale(ui.ctx());
-        let content_width = 470.0 * scale;
-        let row_content_width = 452.0 * scale;
-        let row_height = 54.0 * scale;
-        let control_width = 168.0 * scale;
-        let control_height = 32.0 * scale;
-        let control_font_size = 12.5 * scale;
-        let timeout_control_width = 118.0 * scale;
+        let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ui.ctx());
+        let scale = metrics.scale;
+        let content_width = metrics.settings_content_width();
+        let row_content_width = metrics.settings_row_content_width();
+        let row_height = metrics.settings_row_height();
+        let control_width = metrics.settings_control_width();
+        let control_height = metrics.settings_control_height();
+        let control_font_size = metrics.settings_control_font_size();
+        let timeout_control_width = metrics.value(118.0);
         let custom = self
             .layout
             .as_ref()

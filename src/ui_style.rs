@@ -84,6 +84,57 @@ pub fn modal_outline_stroke(dark: bool) -> Stroke {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct ResponsiveMetrics {
+    pub scale: f32,
+}
+
+impl ResponsiveMetrics {
+    pub fn from_ctx(ctx: &egui::Context) -> Self {
+        let native_scale = ctx
+            .native_pixels_per_point()
+            .unwrap_or_else(|| ctx.pixels_per_point() / ctx.zoom_factor().max(0.1))
+            .max(1.0);
+        let short_side = ctx.screen_rect().width().min(ctx.screen_rect().height()) * native_scale;
+        let t = ((short_side - 1_500.0) / (2_160.0 - 1_500.0)).clamp(0.0, 1.0);
+        Self {
+            scale: 1.0 + 0.12 * t,
+        }
+    }
+
+    pub fn value(self, base: f32) -> f32 {
+        base * self.scale
+    }
+
+    pub fn size(self, width: f32, height: f32) -> Vec2 {
+        Vec2::new(self.value(width), self.value(height))
+    }
+
+    pub fn settings_content_width(self) -> f32 {
+        self.value(470.0)
+    }
+
+    pub fn settings_row_content_width(self) -> f32 {
+        self.value(452.0)
+    }
+
+    pub fn settings_row_height(self) -> f32 {
+        self.value(54.0)
+    }
+
+    pub fn settings_control_width(self) -> f32 {
+        self.value(168.0)
+    }
+
+    pub fn settings_control_height(self) -> f32 {
+        self.value(32.0)
+    }
+
+    pub fn settings_control_font_size(self) -> f32 {
+        self.value(12.5)
+    }
+}
+
 pub fn modern_button(ui: &mut Ui, label: &str, size: Vec2, enabled: bool) -> egui::Response {
     modern_button_with_font(ui, label, size, 12.5, enabled)
 }

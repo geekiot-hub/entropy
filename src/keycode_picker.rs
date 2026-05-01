@@ -650,14 +650,7 @@ fn key_picker_popup_scroll_height(popup_size: Vec2) -> f32 {
 }
 
 fn responsive_picker_element_scale(ctx: &egui::Context) -> f32 {
-    let screen = ctx.screen_rect().size();
-    let native_pixels_per_point = ctx
-        .native_pixels_per_point()
-        .unwrap_or_else(|| ctx.pixels_per_point() / ctx.zoom_factor().max(0.1))
-        .max(1.0);
-    let effective_short_side = screen.x.min(screen.y) * native_pixels_per_point;
-    let t = ((effective_short_side - 1_500.0) / (2_160.0 - 1_500.0)).clamp(0.0, 1.0);
-    1.0 + 0.12 * t
+    crate::ui_style::ResponsiveMetrics::from_ctx(ctx).scale
 }
 
 fn responsive_picker_key_size(ctx: &egui::Context) -> Vec2 {
@@ -665,8 +658,7 @@ fn responsive_picker_key_size(ctx: &egui::Context) -> Vec2 {
 }
 
 fn picker_scaled_size(ctx: &egui::Context, width: f32, height: f32) -> Vec2 {
-    let scale = responsive_picker_element_scale(ctx);
-    Vec2::new(width * scale, height * scale)
+    crate::ui_style::ResponsiveMetrics::from_ctx(ctx).size(width, height)
 }
 
 fn picker_paint_centered_label(
