@@ -123,6 +123,7 @@ pub struct KeycodePicker {
     /// Macro key picker: (macro_idx, action_idx) being edited
     macro_key_pick: Option<(usize, usize)>,
     popup_state: PopupState,
+    pub language: crate::i18n::Language,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -437,6 +438,7 @@ impl Default for KeycodePicker {
             macro_key_pick: None,
             macros_dirty: false,
             popup_state: PopupState::default(),
+            language: crate::i18n::default_language(),
         }
     }
 }
@@ -827,6 +829,7 @@ fn show_grouped_popup_key_buttons(
     keys: Vec<&'static crate::keycode::Keycode>,
     layer_names: &[String],
     friendly_mods: bool,
+    language: crate::i18n::Language,
 ) -> Option<u16> {
     let group_order = [
         "Letters",
@@ -852,7 +855,7 @@ fn show_grouped_popup_key_buttons(
 
         ui.add_space(2.0);
         ui.label(
-            RichText::new(title)
+            RichText::new(crate::i18n::tr_static(language, title))
                 .size(11.0)
                 .color(Color32::from_gray(150))
                 .strong(),
@@ -860,14 +863,18 @@ fn show_grouped_popup_key_buttons(
         ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| {
             for kc in &group {
-                let label = popup_key_button_label(kc, friendly_mods);
+                let label =
+                    crate::i18n::tr_text(language, &popup_key_button_label(kc, friendly_mods));
                 let size = popup_key_button_size(ui, &label);
                 let resp = picker_button(ui, &label, size, true, false);
                 if resp.clicked() {
                     selected = Some(kc.value);
                 }
                 if resp.hovered() {
-                    resp.on_hover_text(keycode_tooltip(kc.value, &[], layer_names));
+                    resp.on_hover_text(crate::i18n::tr_text(
+                        language,
+                        &keycode_tooltip(kc.value, &[], layer_names),
+                    ));
                 }
             }
         });
@@ -880,6 +887,7 @@ fn show_grouped_popup_key_buttons(
 fn show_grouped_popup_choice_buttons(
     ui: &mut egui::Ui,
     groups: Vec<(&'static str, Vec<(u16, String, String)>)>,
+    language: crate::i18n::Language,
 ) -> Option<u16> {
     let mut selected = None;
 
@@ -889,7 +897,7 @@ fn show_grouped_popup_choice_buttons(
         }
         ui.add_space(2.0);
         ui.label(
-            RichText::new(title)
+            RichText::new(crate::i18n::tr_static(language, title))
                 .size(11.0)
                 .color(Color32::from_gray(150))
                 .strong(),
@@ -897,13 +905,14 @@ fn show_grouped_popup_choice_buttons(
         ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| {
             for (value, label, tooltip) in choices {
-                let size = popup_key_button_size(ui, &label);
-                let resp = picker_button(ui, &label, size, true, false);
+                let display_label = crate::i18n::tr_text(language, &label);
+                let size = popup_key_button_size(ui, &display_label);
+                let resp = picker_button(ui, &display_label, size, true, false);
                 if resp.clicked() {
                     selected = Some(value);
                 }
                 if resp.hovered() {
-                    resp.on_hover_text(tooltip);
+                    resp.on_hover_text(crate::i18n::tr_text(language, &tooltip));
                 }
             }
         });
@@ -994,17 +1003,26 @@ impl KeycodePicker {
             let popup_size = key_picker_popup_size(ctx);
             crate::ui_style::centered_modal_window(
                 ctx,
-                "Pick key",
+                crate::i18n::tr_static(self.language, "Pick key"),
                 self.popup_state.id(PopupKey::MacroKeyPickWindow),
                 &mut pick_open,
                 popup_size,
             )
             .show(ctx, |ui| {
                 apply_picker_button_visuals(ui);
-                crate::ui_style::modal_intro(ui, "Press a key on your keyboard, or click below");
+                crate::ui_style::modal_intro(
+                    ui,
+                    crate::i18n::tr_static(
+                        self.language,
+                        "Press a key on your keyboard, or click below",
+                    ),
+                );
                 crate::ui_style::modal_hint(
                     ui,
-                    "Best for normal keys, navigation, media and special actions",
+                    crate::i18n::tr_static(
+                        self.language,
+                        "Best for normal keys, navigation, media and special actions",
+                    ),
                 );
                 ui.add_space(crate::ui_style::modal_space_xs());
                 // Physical key capture
@@ -1043,7 +1061,7 @@ impl KeycodePicker {
                 });
                 if picker_button(
                     ui,
-                    "None (clear)",
+                    crate::i18n::tr_static(self.language, "None (clear)"),
                     crate::ui_style::modal_action_button_size(),
                     true,
                     false,
@@ -1091,6 +1109,7 @@ impl KeycodePicker {
                             key_choices,
                             &self.layer_names,
                             false,
+                            self.language,
                         ) {
                             if let Some(action) = self
                                 .macro_actions
@@ -1190,7 +1209,7 @@ impl KeycodePicker {
         let picker_size = key_picker_main_size(ctx);
         crate::ui_style::centered_modal_window(
             ctx,
-            "Key Picker",
+            crate::i18n::tr_static(self.language, "Key Picker"),
             self.popup_state.id(PopupKey::PickerWindow),
             &mut still_open,
             picker_size,
@@ -1198,7 +1217,13 @@ impl KeycodePicker {
         .show(ctx, |ui| {
             apply_picker_button_visuals(ui);
             ui.vertical_centered(|ui| {
-                crate::ui_style::modal_intro(ui, "Press a key on your keyboard, or pick below");
+                crate::ui_style::modal_intro(
+                    ui,
+                    crate::i18n::tr_static(
+                        self.language,
+                        "Press a key on your keyboard, or pick below",
+                    ),
+                );
             });
             ui.add_space(4.0);
 
@@ -1216,7 +1241,7 @@ impl KeycodePicker {
             let tab_spacing = 6.0;
             let tab_bar_width: f32 = visible_tabs
                 .iter()
-                .map(|tab| picker_tab_width(tab.label()))
+                .map(|tab| picker_tab_width(crate::i18n::tr_static(self.language, tab.label())))
                 .sum::<f32>()
                 + tab_spacing * visible_tabs.len().saturating_sub(1) as f32;
             ui.horizontal(|ui| {
@@ -1227,7 +1252,8 @@ impl KeycodePicker {
                 }
                 for tab in &visible_tabs {
                     let active = self.selected_tab == *tab;
-                    if picker_tab_button(ui, tab.label(), active).clicked() {
+                    let tab_label = crate::i18n::tr_static(self.language, tab.label());
+                    if picker_tab_button(ui, tab_label, active).clicked() {
                         self.selected_tab = *tab;
                         self.vial_quantum_pending_mod = None;
                         self.vial_quantum_pending_mt = None;
@@ -1301,14 +1327,17 @@ impl KeycodePicker {
             let mut still_open = true;
             let resp_win = crate::ui_style::centered_modal_window(
                 ctx,
-                "Pick layer",
+                crate::i18n::tr_static(self.language, "Pick layer"),
                 self.popup_state.id(PopupKey::PickLayerWindow),
                 &mut still_open,
                 Vec2::new(300.0, 120.0),
             )
             .show(ctx, |ui| {
                 apply_picker_button_visuals(ui);
-                crate::ui_style::modal_intro(ui, "Choose which layer (Esc to cancel)");
+                crate::ui_style::modal_intro(
+                    ui,
+                    crate::i18n::tr_static(self.language, "Choose which layer (Esc to cancel)"),
+                );
                 ui.add_space(crate::ui_style::modal_space_sm());
                 ui.horizontal_wrapped(|ui| {
                     for n in 0u16..self.layer_names.len().max(4) as u16 {
@@ -1387,9 +1416,9 @@ impl KeycodePicker {
 
         if let Some(base) = pending {
             let title = if is_mt {
-                "Pick tap key (hold = modifier)"
+                crate::i18n::tr_static(self.language, "Pick tap key (hold = modifier)")
             } else {
-                "Pick key for modifier combo"
+                crate::i18n::tr_static(self.language, "Pick key for modifier combo")
             };
             let mut still_open = true;
             let popup_size = key_picker_popup_size(ctx);
@@ -1404,7 +1433,10 @@ impl KeycodePicker {
                 apply_picker_button_visuals(ui);
                 crate::ui_style::modal_intro(
                     ui,
-                    "Press a key on your keyboard, or click below (Esc to cancel)",
+                    crate::i18n::tr_static(
+                        self.language,
+                        "Press a key on your keyboard, or click below (Esc to cancel)",
+                    ),
                 );
                 ui.add_space(crate::ui_style::modal_space_sm());
                 let key_choices: Vec<&'static crate::keycode::Keycode> = KEYCODES
@@ -1428,6 +1460,7 @@ impl KeycodePicker {
                             key_choices,
                             &self.layer_names,
                             false,
+                            self.language,
                         ) {
                             self.finish_quantum_pending_key(base, value, is_mt);
                         }
@@ -1573,9 +1606,12 @@ impl KeycodePicker {
                 egui::Layout::left_to_right(egui::Align::Center),
                 |ui| {
                     ui.label(
-                        RichText::new("Basic keys — standard keyboard layout")
-                            .size(11.0 * scale)
-                            .color(Color32::from_gray(150)),
+                        RichText::new(crate::i18n::tr_static(
+                            self.language,
+                            "Basic keys — standard keyboard layout",
+                        ))
+                        .size(11.0 * scale)
+                        .color(Color32::from_gray(150)),
                     );
                     let dropdown_width = 126.0 * scale;
                     let spacer = (ui.available_width() - dropdown_width).max(0.0);
@@ -1750,9 +1786,12 @@ impl KeycodePicker {
                 0x0027 => ")\n0".to_string(),
                 0x002D => "_\n-".to_string(),
                 0x002E => "+\n=".to_string(),
-                _ => crate::keycode::find_keycode(assigned_value)
-                    .map(|_| keycode_label_with_names(assigned_value, &[], &self.layer_names))
-                    .unwrap_or_else(|| fallback_label.to_string()),
+                _ => crate::i18n::tr_text(
+                    self.language,
+                    &crate::keycode::find_keycode(assigned_value)
+                        .map(|_| keycode_label_with_names(assigned_value, &[], &self.layer_names))
+                        .unwrap_or_else(|| fallback_label.to_string()),
+                ),
             };
             self.basic_key_button_at(
                 ui,
@@ -1829,9 +1868,12 @@ impl KeycodePicker {
         ];
 
         ui.label(
-            RichText::new("Universal symbols — same output in any language")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
+            RichText::new(crate::i18n::tr_static(
+                self.language,
+                "Universal symbols — same output in any language",
+            ))
+            .size(11.0)
+            .color(Color32::from_gray(150)),
         );
         if let Some(hint) = crate::smart_input::universal_output_setup_hint() {
             ui.add_space(3.0);
@@ -1869,9 +1911,12 @@ impl KeycodePicker {
 
         ui.add_space(10.0);
         ui.label(
-            RichText::new("Layout symbols — follow the active keyboard language")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
+            RichText::new(crate::i18n::tr_static(
+                self.language,
+                "Layout symbols — follow the active keyboard language",
+            ))
+            .size(11.0)
+            .color(Color32::from_gray(150)),
         );
         ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| {
@@ -1895,9 +1940,12 @@ impl KeycodePicker {
 
         ui.add_space(10.0);
         ui.label(
-            RichText::new("Extra universal symbols — typography and math")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
+            RichText::new(crate::i18n::tr_static(
+                self.language,
+                "Extra universal symbols — typography and math",
+            ))
+            .size(11.0)
+            .color(Color32::from_gray(150)),
         );
         ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| {
@@ -1959,9 +2007,12 @@ impl KeycodePicker {
     fn show_vial_custom(&mut self, ui: &mut egui::Ui) {
         let custom_keycodes = self.custom_keycodes.clone();
         ui.label(
-            RichText::new("Custom keycodes — defined by this keyboard")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
+            RichText::new(crate::i18n::tr_static(
+                self.language,
+                "Custom keycodes — defined by this keyboard",
+            ))
+            .size(11.0)
+            .color(Color32::from_gray(150)),
         );
         ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| {
@@ -1997,9 +2048,12 @@ impl KeycodePicker {
         ];
 
         ui.label(
-            RichText::new("Layers: choose a layer action, then pick the target layer")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
+            RichText::new(crate::i18n::tr_static(
+                self.language,
+                "Layers: choose a layer action, then pick the target layer",
+            ))
+            .size(11.0)
+            .color(Color32::from_gray(150)),
         );
         ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| {
@@ -2031,7 +2085,7 @@ impl KeycodePicker {
         let lgui = gui_label(false);
 
         ui.label(
-            RichText::new("Plain modifiers")
+            RichText::new(crate::i18n::tr_static(self.language, "Plain modifiers"))
                 .size(11.0)
                 .color(Color32::from_gray(150)),
         );
@@ -2063,9 +2117,12 @@ impl KeycodePicker {
 
         ui.add_space(10.0);
         ui.label(
-            RichText::new("Mod+Key — always sends modifier+key together")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
+            RichText::new(crate::i18n::tr_static(
+                self.language,
+                "Mod+Key — always sends modifier+key together",
+            ))
+            .size(11.0)
+            .color(Color32::from_gray(150)),
         );
         ui.add_space(4.0);
         let mk: Vec<(String, u16, Option<u16>, String)> = vec![
@@ -2152,9 +2209,12 @@ impl KeycodePicker {
 
         ui.add_space(10.0);
         ui.label(
-            RichText::new("Mod-Tap — hold for modifier, tap for regular key")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
+            RichText::new(crate::i18n::tr_static(
+                self.language,
+                "Mod-Tap — hold for modifier, tap for regular key",
+            ))
+            .size(11.0)
+            .color(Color32::from_gray(150)),
         );
         ui.add_space(4.0);
         let mut mt: Vec<(String, u16, Option<u16>, String)> = vec![
@@ -2235,9 +2295,12 @@ impl KeycodePicker {
 
         ui.add_space(10.0);
         ui.label(
-            RichText::new("One-Shot Mod — active for next keypress only")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
+            RichText::new(crate::i18n::tr_static(
+                self.language,
+                "One-Shot Mod — active for next keypress only",
+            ))
+            .size(11.0)
+            .color(Color32::from_gray(150)),
         );
         ui.add_space(4.0);
         let mut osm: Vec<(String, u16, Option<u16>, String)> = vec![
@@ -2288,17 +2351,26 @@ impl KeycodePicker {
         // Pending mod+key selection
         if let Some(base) = self.vial_quantum_pending_mod {
             ui.label(
-                RichText::new("Choose the key to pair with the modifier")
-                    .size(11.5)
-                    .strong(),
+                RichText::new(crate::i18n::tr_static(
+                    self.language,
+                    "Choose the key to pair with the modifier",
+                ))
+                .size(11.5)
+                .strong(),
             );
             ui.label(
-                RichText::new("This key will always be sent together with the selected modifier")
-                    .size(10.5)
-                    .color(Color32::from_gray(150)),
+                RichText::new(crate::i18n::tr_static(
+                    self.language,
+                    "This key will always be sent together with the selected modifier",
+                ))
+                .size(10.5)
+                .color(Color32::from_gray(150)),
             );
             ui.add_space(4.0);
-            if ui.button("✕ Cancel").clicked() {
+            if ui
+                .button(crate::i18n::tr_static(self.language, "✕ Cancel"))
+                .clicked()
+            {
                 self.vial_quantum_pending_mod = None;
             }
             ui.add_space(4.0);
@@ -2330,14 +2402,24 @@ impl KeycodePicker {
             return;
         }
         if let Some(base) = self.vial_quantum_pending_mt {
-            ui.label(RichText::new("Choose the tap key").size(11.5).strong());
             ui.label(
-                RichText::new("Hold will send the modifier; tap will send the key you pick")
-                    .size(10.5)
-                    .color(Color32::from_gray(150)),
+                RichText::new(crate::i18n::tr_static(self.language, "Choose the tap key"))
+                    .size(11.5)
+                    .strong(),
+            );
+            ui.label(
+                RichText::new(crate::i18n::tr_static(
+                    self.language,
+                    "Hold will send the modifier; tap will send the key you pick",
+                ))
+                .size(10.5)
+                .color(Color32::from_gray(150)),
             );
             ui.add_space(4.0);
-            if ui.button("✕ Cancel").clicked() {
+            if ui
+                .button(crate::i18n::tr_static(self.language, "✕ Cancel"))
+                .clicked()
+            {
                 self.vial_quantum_pending_mt = None;
             }
             ui.add_space(4.0);
@@ -2374,9 +2456,12 @@ impl KeycodePicker {
 
         // Mod+Key section
         ui.label(
-            RichText::new("Mod+Key — pick modifier, then key")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
+            RichText::new(crate::i18n::tr_static(
+                self.language,
+                "Mod+Key — pick modifier, then key",
+            ))
+            .size(11.0)
+            .color(Color32::from_gray(150)),
         );
         ui.add_space(4.0);
         let mod_bases: Vec<(String, u16, String)> = vec![
@@ -2446,9 +2531,12 @@ impl KeycodePicker {
 
         ui.separator();
         ui.label(
-            RichText::new("Mod-Tap — pick modifier, then tap key")
-                .size(11.0)
-                .color(Color32::from_gray(150)),
+            RichText::new(crate::i18n::tr_static(
+                self.language,
+                "Mod-Tap — pick modifier, then tap key",
+            ))
+            .size(11.0)
+            .color(Color32::from_gray(150)),
         );
         ui.add_space(4.0);
         let mt_bases: Vec<(String, u16, String)> = vec![
@@ -2509,7 +2597,7 @@ impl KeycodePicker {
     ) -> u8 {
         let mut selected_macro = raw_n;
         ui.label(
-            RichText::new("Choose macro")
+            RichText::new(crate::i18n::tr_static(self.language, "Choose macro"))
                 .size(11.0)
                 .color(Color32::from_gray(150)),
         );
@@ -2555,9 +2643,12 @@ impl KeycodePicker {
 
         if selected_macro == 254 {
             ui.label(
-                RichText::new("Select a macro above to edit")
-                    .size(16.0)
-                    .color(Color32::from_gray(140)),
+                RichText::new(crate::i18n::tr_static(
+                    self.language,
+                    "Select a macro above to edit",
+                ))
+                .size(16.0)
+                .color(Color32::from_gray(140)),
             );
             return selected_macro;
         }
@@ -2575,7 +2666,7 @@ impl KeycodePicker {
                 name,
                 124.0 * scale,
                 32.0 * scale,
-                "Macro name",
+                crate::i18n::tr_static(self.language, "Macro name"),
                 7,
                 egui::Align::Center,
             );
@@ -2595,10 +2686,10 @@ impl KeycodePicker {
             for (i, action) in self.macro_actions[n].iter_mut().enumerate() {
                 ui.horizontal(|ui| {
                     let arrow_size = picker_scaled_size(ui.ctx(), 28.0, 28.0);
-                    let up_resp =
-                        picker_button(ui, "↑", arrow_size, i > 0, false).on_hover_text("Move up");
+                    let up_resp = picker_button(ui, "↑", arrow_size, i > 0, false)
+                        .on_hover_text(crate::i18n::tr_static(self.language, "Move up"));
                     let down_resp = picker_button(ui, "↓", arrow_size, i + 1 < action_count, false)
-                        .on_hover_text("Move down");
+                        .on_hover_text(crate::i18n::tr_static(self.language, "Move down"));
                     if up_resp.clicked() && i > 0 {
                         move_up = Some(i);
                     }
@@ -2608,26 +2699,36 @@ impl KeycodePicker {
 
                     let (type_label, type_color, tooltip) = match action {
                         MacroAction::Text(_) => (
-                            "Text",
+                            crate::i18n::tr_static(self.language, "Text"),
                             crate::ui_style::accent(),
-                            "Types text characters one by one",
+                            crate::i18n::tr_static(
+                                self.language,
+                                "Types text characters one by one",
+                            ),
                         ),
-                        MacroAction::Tap(_) => {
-                            ("Tap", crate::ui_style::accent(), "Press and release a key")
-                        }
+                        MacroAction::Tap(_) => (
+                            crate::i18n::tr_static(self.language, "Tap"),
+                            crate::ui_style::accent(),
+                            crate::i18n::tr_static(self.language, "Press and release a key"),
+                        ),
                         MacroAction::Down(_) => (
-                            "Down",
+                            crate::i18n::tr_static(self.language, "Down"),
                             Color32::from_rgb(200, 150, 50),
-                            "Press a key (hold until Up)",
+                            crate::i18n::tr_static(self.language, "Press a key (hold until Up)"),
                         ),
                         MacroAction::Up(_) => (
-                            "Up",
+                            crate::i18n::tr_static(self.language, "Up"),
                             Color32::from_rgb(132, 150, 178),
-                            "Release a previously pressed key",
+                            crate::i18n::tr_static(
+                                self.language,
+                                "Release a previously pressed key",
+                            ),
                         ),
-                        MacroAction::Delay(_) => {
-                            ("Delay", Color32::from_gray(150), "Wait before next action")
-                        }
+                        MacroAction::Delay(_) => (
+                            crate::i18n::tr_static(self.language, "Delay"),
+                            Color32::from_gray(150),
+                            crate::i18n::tr_static(self.language, "Wait before next action"),
+                        ),
                     };
                     ui.allocate_ui(picker_scaled_size(ui.ctx(), 55.0, 30.0), |ui| {
                         ui.add(
@@ -2651,11 +2752,14 @@ impl KeycodePicker {
                                 text,
                                 text_w,
                                 32.0 * scale,
-                                "Type text here",
+                                crate::i18n::tr_static(self.language, "Type text here"),
                                 256,
                                 egui::Align::Min,
                             )
-                            .on_hover_text("Characters to type when this macro runs");
+                            .on_hover_text(crate::i18n::tr_static(
+                                self.language,
+                                "Characters to type when this macro runs",
+                            ));
                         }
                         MacroAction::Tap(kc) => {
                             let label = crate::keycode::KEYCODES
@@ -2670,7 +2774,10 @@ impl KeycodePicker {
                                 true,
                                 false,
                             )
-                            .on_hover_text("Click to change key — press and release this key")
+                            .on_hover_text(crate::i18n::tr_static(
+                                self.language,
+                                "Click to change key — press and release this key",
+                            ))
                             .clicked()
                             {
                                 self.macro_key_pick = Some((n, i));
@@ -2689,7 +2796,10 @@ impl KeycodePicker {
                                 true,
                                 false,
                             )
-                            .on_hover_text("Click to change key — holds down until Up")
+                            .on_hover_text(crate::i18n::tr_static(
+                                self.language,
+                                "Click to change key — holds down until Up",
+                            ))
                             .clicked()
                             {
                                 self.macro_key_pick = Some((n, i));
@@ -2708,7 +2818,10 @@ impl KeycodePicker {
                                 true,
                                 false,
                             )
-                            .on_hover_text("Click to change key — releases this key")
+                            .on_hover_text(crate::i18n::tr_static(
+                                self.language,
+                                "Click to change key — releases this key",
+                            ))
                             .clicked()
                             {
                                 self.macro_key_pick = Some((n, i));
@@ -2726,7 +2839,10 @@ impl KeycodePicker {
                                 5,
                                 egui::Align::Center,
                             )
-                            .on_hover_text("Delay is in milliseconds")
+                            .on_hover_text(crate::i18n::tr_static(
+                                self.language,
+                                "Delay is in milliseconds",
+                            ))
                             .changed()
                             {
                                 if let Ok(v) = ms_str.parse::<u16>() {
@@ -2744,7 +2860,7 @@ impl KeycodePicker {
                             true,
                             false,
                         )
-                        .on_hover_text("Remove this action")
+                        .on_hover_text(crate::i18n::tr_static(self.language, "Remove this action"))
                         .clicked()
                         {
                             remove_idx = Some(i);
@@ -2782,24 +2898,27 @@ impl KeycodePicker {
             ui.spacing_mut().item_spacing = egui::vec2(6.0, 6.0);
             if picker_button(
                 ui,
-                "+ Text",
+                crate::i18n::tr_static(self.language, "+ Text"),
                 picker_scaled_size(ui.ctx(), 72.0, 30.0),
                 true,
                 false,
             )
-            .on_hover_text("Type characters")
+            .on_hover_text(crate::i18n::tr_static(self.language, "Type characters"))
             .clicked()
             {
                 self.macro_actions[n].push(MacroAction::Text(String::new()));
             }
             if picker_button(
                 ui,
-                "+ Tap",
+                crate::i18n::tr_static(self.language, "+ Tap"),
                 picker_scaled_size(ui.ctx(), 66.0, 30.0),
                 true,
                 false,
             )
-            .on_hover_text("Press and release a key")
+            .on_hover_text(crate::i18n::tr_static(
+                self.language,
+                "Press and release a key",
+            ))
             .clicked()
             {
                 self.macro_actions[n].push(MacroAction::Tap(0x04));
@@ -2807,12 +2926,12 @@ impl KeycodePicker {
             }
             if picker_button(
                 ui,
-                "+ Down",
+                crate::i18n::tr_static(self.language, "+ Down"),
                 picker_scaled_size(ui.ctx(), 80.0, 30.0),
                 true,
                 false,
             )
-            .on_hover_text("Hold a key")
+            .on_hover_text(crate::i18n::tr_static(self.language, "Hold a key"))
             .clicked()
             {
                 self.macro_actions[n].push(MacroAction::Down(0x04));
@@ -2820,12 +2939,12 @@ impl KeycodePicker {
             }
             if picker_button(
                 ui,
-                "+ Up",
+                crate::i18n::tr_static(self.language, "+ Up"),
                 picker_scaled_size(ui.ctx(), 64.0, 30.0),
                 true,
                 false,
             )
-            .on_hover_text("Release a key")
+            .on_hover_text(crate::i18n::tr_static(self.language, "Release a key"))
             .clicked()
             {
                 self.macro_actions[n].push(MacroAction::Up(0x04));
@@ -2833,12 +2952,15 @@ impl KeycodePicker {
             }
             if picker_button(
                 ui,
-                "+ Delay",
+                crate::i18n::tr_static(self.language, "+ Delay"),
                 picker_scaled_size(ui.ctx(), 82.0, 30.0),
                 true,
                 false,
             )
-            .on_hover_text("Pause in milliseconds")
+            .on_hover_text(crate::i18n::tr_static(
+                self.language,
+                "Pause in milliseconds",
+            ))
             .clicked()
             {
                 self.macro_actions[n].push(MacroAction::Delay(100));
@@ -2855,12 +2977,15 @@ impl KeycodePicker {
                     .unwrap_or(false);
             if picker_button(
                 ui,
-                "Clear all",
+                crate::i18n::tr_static(self.language, "Clear all"),
                 picker_scaled_size(ui.ctx(), 86.0, 30.0),
                 can_clear_macro,
                 false,
             )
-            .on_hover_text("Remove all actions from this macro")
+            .on_hover_text(crate::i18n::tr_static(
+                self.language,
+                "Remove all actions from this macro",
+            ))
             .clicked()
             {
                 self.macro_undo_stack
@@ -2875,12 +3000,12 @@ impl KeycodePicker {
             }
             if picker_button(
                 ui,
-                "↩ Undo",
+                crate::i18n::tr_static(self.language, "↩ Undo"),
                 picker_scaled_size(ui.ctx(), 78.0, 30.0),
                 !self.macro_undo_stack.is_empty(),
                 false,
             )
-            .on_hover_text("Undo last change")
+            .on_hover_text(crate::i18n::tr_static(self.language, "Undo last change"))
             .clicked()
             {
                 if let Some((idx, prev)) = self.macro_undo_stack.pop() {
@@ -2898,9 +3023,12 @@ impl KeycodePicker {
         if self.tap_dance_entries.is_empty() {
             self.tap_dance_editor_open = None;
             ui.label(
-                RichText::new("No Tap Dance slots available on this keyboard")
-                    .size(16.0)
-                    .color(Color32::from_gray(140)),
+                RichText::new(crate::i18n::tr_static(
+                    self.language,
+                    "No Tap Dance slots available on this keyboard",
+                ))
+                .size(16.0)
+                .color(Color32::from_gray(140)),
             );
             return;
         }
@@ -2913,7 +3041,7 @@ impl KeycodePicker {
         self.ensure_tap_dance_name_len(selected as usize);
 
         ui.label(
-            RichText::new("Choose tap dance")
+            RichText::new(crate::i18n::tr_static(self.language, "Choose tap dance"))
                 .size(11.0)
                 .color(Color32::from_gray(150)),
         );
@@ -2977,7 +3105,7 @@ impl KeycodePicker {
             &mut edited_name,
             124.0 * scale,
             32.0 * scale,
-            "TD name",
+            crate::i18n::tr_static(self.language, "TD name"),
             7,
             egui::Align::Center,
         );
@@ -2993,10 +3121,26 @@ impl KeycodePicker {
         ui.add_space(8.0);
 
         let fields = [
-            ("On Tap", "Key sent on single tap", 0u8),
-            ("On Hold", "Key sent when held", 1),
-            ("On Double Tap", "Key sent on double tap", 2),
-            ("On Tap + Hold", "Key sent on tap then hold", 3),
+            (
+                crate::i18n::tr_static(self.language, "On Tap"),
+                crate::i18n::tr_static(self.language, "Key sent on single tap"),
+                0u8,
+            ),
+            (
+                crate::i18n::tr_static(self.language, "On Hold"),
+                crate::i18n::tr_static(self.language, "Key sent when held"),
+                1,
+            ),
+            (
+                crate::i18n::tr_static(self.language, "On Double Tap"),
+                crate::i18n::tr_static(self.language, "Key sent on double tap"),
+                2,
+            ),
+            (
+                crate::i18n::tr_static(self.language, "On Tap + Hold"),
+                crate::i18n::tr_static(self.language, "Key sent on tap then hold"),
+                3,
+            ),
         ];
 
         egui::Grid::new("td_fields_inline")
@@ -3023,7 +3167,8 @@ impl KeycodePicker {
                     };
                     if picker_button(ui, &kc_label, Vec2::new(120.0, 30.0), true, false)
                         .on_hover_text(if kc == 0 {
-                            "Click to assign a key".to_string()
+                            crate::i18n::tr_static(self.language, "Click to assign a key")
+                                .to_string()
                         } else {
                             keycode_tooltip(kc, &[], &self.layer_names)
                         })
@@ -3035,10 +3180,17 @@ impl KeycodePicker {
                 }
 
                 ui.add(
-                    egui::Label::new(RichText::new("Tapping Term").size(td_font_size).strong())
-                        .sense(egui::Sense::hover()),
+                    egui::Label::new(
+                        RichText::new(crate::i18n::tr_static(self.language, "Tapping Term"))
+                            .size(td_font_size)
+                            .strong(),
+                    )
+                    .sense(egui::Sense::hover()),
                 )
-                .on_hover_text("Time in milliseconds to distinguish tap from hold (default: 200)");
+                .on_hover_text(crate::i18n::tr_static(
+                    self.language,
+                    "Time in milliseconds to distinguish tap from hold (default: 200)",
+                ));
                 ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                     ui.spacing_mut().item_spacing.x = 6.0;
                     let prev_term = self.tap_dance_entries[n].tapping_term;
@@ -3053,7 +3205,10 @@ impl KeycodePicker {
                         5,
                         egui::Align::Center,
                     )
-                    .on_hover_text("Tapping term is in milliseconds")
+                    .on_hover_text(crate::i18n::tr_static(
+                        self.language,
+                        "Tapping term is in milliseconds",
+                    ))
                     .changed()
                     {
                         if let Ok(v) = term_str.parse::<u16>() {
@@ -3089,12 +3244,15 @@ impl KeycodePicker {
                     .unwrap_or(false);
             if picker_button(
                 ui,
-                "Clear all",
+                crate::i18n::tr_static(self.language, "Clear all"),
                 picker_scaled_size(ui.ctx(), 86.0, 30.0),
                 can_clear_tap_dance,
                 false,
             )
-            .on_hover_text("Clear all actions for this tap dance")
+            .on_hover_text(crate::i18n::tr_static(
+                self.language,
+                "Clear all actions for this tap dance",
+            ))
             .clicked()
             {
                 self.push_tap_dance_undo(n);
@@ -3116,12 +3274,15 @@ impl KeycodePicker {
                 .any(|(idx, _, _)| *idx == n);
             if picker_button(
                 ui,
-                "↩ Undo",
+                crate::i18n::tr_static(self.language, "↩ Undo"),
                 picker_scaled_size(ui.ctx(), 78.0, 30.0),
                 can_undo_current,
                 false,
             )
-            .on_hover_text("Undo last tap dance change")
+            .on_hover_text(crate::i18n::tr_static(
+                self.language,
+                "Undo last tap dance change",
+            ))
             .clicked()
             {
                 if let Some(pos) = self
@@ -3158,7 +3319,7 @@ impl KeycodePicker {
         let mut still_open = true;
         crate::ui_style::centered_modal_window(
             ctx,
-            "Tap Dance Editor",
+            crate::i18n::tr_static(self.language, "Tap Dance Editor"),
             self.popup_state.id(PopupKey::TapDanceEditorWindow),
             &mut still_open,
             responsive_window_size(ctx, Vec2::new(680.0, 480.0), Vec2::new(980.0, 720.0)),
@@ -3190,18 +3351,24 @@ impl KeycodePicker {
 
             if self.tap_dance_entries.is_empty() {
                 ui.label(
-                    RichText::new("No Tap Dance slots available on this keyboard")
-                        .size(16.0)
-                        .color(Color32::from_gray(140)),
+                    RichText::new(crate::i18n::tr_static(
+                        self.language,
+                        "No Tap Dance slots available on this keyboard",
+                    ))
+                    .size(16.0)
+                    .color(Color32::from_gray(140)),
                 );
                 return;
             }
 
             if active_td == 255 || active_td as usize >= self.tap_dance_entries.len() {
                 ui.label(
-                    RichText::new("Select a tap dance tab above to edit")
-                        .size(16.0)
-                        .color(Color32::from_gray(140)),
+                    RichText::new(crate::i18n::tr_static(
+                        self.language,
+                        "Select a tap dance tab above to edit",
+                    ))
+                    .size(16.0)
+                    .color(Color32::from_gray(140)),
                 );
                 return;
             }
@@ -3216,10 +3383,26 @@ impl KeycodePicker {
             ui.add_space(8.0 * scale);
 
             let fields = [
-                ("On Tap", "Key sent on single tap", 0u8),
-                ("On Hold", "Key sent when held", 1),
-                ("On Double Tap", "Key sent on double tap", 2),
-                ("On Tap + Hold", "Key sent on tap then hold", 3),
+                (
+                    crate::i18n::tr_static(self.language, "On Tap"),
+                    crate::i18n::tr_static(self.language, "Key sent on single tap"),
+                    0u8,
+                ),
+                (
+                    crate::i18n::tr_static(self.language, "On Hold"),
+                    crate::i18n::tr_static(self.language, "Key sent when held"),
+                    1,
+                ),
+                (
+                    crate::i18n::tr_static(self.language, "On Double Tap"),
+                    crate::i18n::tr_static(self.language, "Key sent on double tap"),
+                    2,
+                ),
+                (
+                    crate::i18n::tr_static(self.language, "On Tap + Hold"),
+                    crate::i18n::tr_static(self.language, "Key sent on tap then hold"),
+                    3,
+                ),
             ];
 
             egui::Grid::new("td_fields")
@@ -3250,7 +3433,8 @@ impl KeycodePicker {
                                     .min_size(picker_scaled_size(ui.ctx(), 132.0, 30.0)),
                             )
                             .on_hover_text(if kc == 0 {
-                                "Click to assign a key".to_string()
+                                crate::i18n::tr_static(self.language, "Click to assign a key")
+                                    .to_string()
                             } else {
                                 keycode_tooltip(kc, &[], &self.layer_names)
                             })
@@ -3263,12 +3447,17 @@ impl KeycodePicker {
 
                     // Tapping term
                     ui.add(
-                        egui::Label::new(RichText::new("Tapping Term").size(15.0 * scale).strong())
-                            .sense(egui::Sense::hover()),
+                        egui::Label::new(
+                            RichText::new(crate::i18n::tr_static(self.language, "Tapping Term"))
+                                .size(15.0 * scale)
+                                .strong(),
+                        )
+                        .sense(egui::Sense::hover()),
                     )
-                    .on_hover_text(
+                    .on_hover_text(crate::i18n::tr_static(
+                        self.language,
                         "Time in milliseconds to distinguish tap from hold (default: 200)",
-                    );
+                    ));
                     let mut term_str = self.tap_dance_entries[n].tapping_term.to_string();
                     ui.horizontal(|ui| {
                         if crate::ui_style::modern_text_field_sized(
@@ -3281,7 +3470,10 @@ impl KeycodePicker {
                             5,
                             egui::Align::Center,
                         )
-                        .on_hover_text("Tapping term is in milliseconds")
+                        .on_hover_text(crate::i18n::tr_static(
+                            self.language,
+                            "Tapping term is in milliseconds",
+                        ))
                         .changed()
                         {
                             if let Ok(v) = term_str.parse::<u16>() {
@@ -3329,18 +3521,27 @@ impl KeycodePicker {
         });
 
         let field_name = match field {
-            0 => "On Tap",
-            1 => "On Hold",
-            2 => "On Double Tap",
-            3 => "On Tap+Hold",
+            0 => crate::i18n::tr_static(self.language, "On Tap"),
+            1 => crate::i18n::tr_static(self.language, "On Hold"),
+            2 => crate::i18n::tr_static(self.language, "On Double Tap"),
+            3 => crate::i18n::tr_static(self.language, "On Tap + Hold"),
             _ => "?",
         };
         let helper_text = match field {
-            0 => "Best for normal keys, navigation, media and special actions",
+            0 => crate::i18n::tr_static(
+                self.language,
+                "Best for normal keys, navigation, media and special actions",
+            ),
             1 => "Hold actions are limited to left/right modifiers and layers",
-            2 => "Best for a second tap action, usually another normal key or command",
+            2 => crate::i18n::tr_static(
+                self.language,
+                "Best for a second tap action, usually another normal key or command",
+            ),
             3 => "Tap-then-hold actions are limited to left/right modifiers and layers",
-            _ => "Press a key on your keyboard, or click below (Esc to cancel)",
+            _ => crate::i18n::tr_static(
+                self.language,
+                "Press a key on your keyboard, or click below (Esc to cancel)",
+            ),
         };
         let td_choices: Vec<(u16, String, String)> = if matches!(field, 1 | 3) {
             let gui = gui_label(false).to_string();
@@ -3410,13 +3611,16 @@ impl KeycodePicker {
             apply_picker_button_visuals(ui);
             crate::ui_style::modal_intro(
                 ui,
-                "Press a key on your keyboard, or click below (Esc to cancel)",
+                crate::i18n::tr_static(
+                    self.language,
+                    "Press a key on your keyboard, or click below (Esc to cancel)",
+                ),
             );
             crate::ui_style::modal_hint(ui, helper_text);
             ui.add_space(crate::ui_style::modal_space_xs());
             if picker_button(
                 ui,
-                "None (clear)",
+                crate::i18n::tr_static(self.language, "None (clear)"),
                 crate::ui_style::modal_action_button_size(),
                 true,
                 false,
@@ -3438,7 +3642,9 @@ impl KeycodePicker {
                             td_choices.iter().skip(8).cloned().collect();
                         let groups =
                             vec![("Modifiers", modifier_choices), ("Layers", layer_choices)];
-                        if let Some(value) = show_grouped_popup_choice_buttons(ui, groups) {
+                        if let Some(value) =
+                            show_grouped_popup_choice_buttons(ui, groups, self.language)
+                        {
                             self.set_tap_dance_field(td_idx, field, value);
                             self.td_key_pick = None;
                         }
@@ -3464,6 +3670,7 @@ impl KeycodePicker {
                             key_choices,
                             &self.layer_names,
                             false,
+                            self.language,
                         ) {
                             self.set_tap_dance_field(td_idx, field, value);
                             self.td_key_pick = None;

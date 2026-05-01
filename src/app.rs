@@ -6093,6 +6093,7 @@ impl eframe::App for EntropyApp {
         }
 
         if !self.unlock_open && !self.vial_unlock_polling {
+            self.keycode_picker.language = self.app_settings.language;
             self.keycode_picker.show(ctx);
             self.apply_picker_results();
         }

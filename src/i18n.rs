@@ -131,6 +131,144 @@ pub fn tr_static(language: Language, text: &'static str) -> &'static str {
         "Color" => "Цвет",
         "Speed" => "Скорость",
         "Brightness" => "Яркость",
+        "Key Picker" => "Пикер клавиш",
+        "Pick key" => "Выбрать клавишу",
+        "Press a key on your keyboard, or pick below" => {
+            "Нажмите клавишу на клавиатуре или выберите ниже"
+        }
+        "Press a key on your keyboard, or click below" => {
+            "Нажмите клавишу на клавиатуре или выберите ниже"
+        }
+        "Press a key on your keyboard, or click below (Esc to cancel)" => {
+            "Нажмите клавишу на клавиатуре или выберите ниже (Esc — отмена)"
+        }
+        "Best for normal keys, navigation, media and special actions" => {
+            "Лучше всего для обычных клавиш, навигации, медиа и спецдействий"
+        }
+        "None (clear)" => "Нет (очистить)",
+        "Pick layer" => "Выбрать слой",
+        "Choose which layer (Esc to cancel)" => "Выберите слой (Esc — отмена)",
+        "Pick tap key (hold = modifier)" => "Выбрать tap-клавишу (hold = модификатор)",
+        "Pick key for modifier combo" => "Выбрать клавишу для комбо с модификатором",
+        "Basic" => "Базовые",
+        "Symbols" => "Символы",
+        "Mods" => "Моды",
+        "Special" => "Спец",
+        "Macros" => "Макросы",
+        "Tap Dance" => "Tap Dance",
+        "Custom" => "Кастом",
+        "Layers" => "Слои",
+        "Letters" => "Буквы",
+        "Numbers" => "Цифры",
+        "Editing" => "Редактирование",
+        "Navigation" => "Навигация",
+        "Function keys" => "Функциональные клавиши",
+        "Modifiers" => "Модификаторы",
+        "Other keys" => "Другие клавиши",
+        "Clear all" => "Очистить всё",
+        "↩ Undo" => "↩ Отменить",
+        "Undo last change" => "Отменить последнее изменение",
+        "Remove all actions from this macro" => "Удалить все действия из этого макроса",
+        "Select a tap dance tab above to edit" => "Выберите Tap Dance выше для редактирования",
+        "Key sent on single tap" => "Клавиша при одиночном tap",
+        "Key sent when held" => "Клавиша при hold",
+        "Key sent on double tap" => "Клавиша при double tap",
+        "Key sent on tap then hold" => "Клавиша при tap затем hold",
+        "Best for a second tap action, usually another normal key or command" => {
+            "Лучше всего для второго tap-действия: обычная клавиша или команда"
+        }
+        "Basic keys — standard keyboard layout" => "Базовые клавиши — стандартная раскладка",
+        "Universal symbols — same output in any language" => {
+            "Универсальные символы — одинаковый ввод на любом языке"
+        }
+        "Layout symbols — follow the active keyboard language" => {
+            "Символы раскладки — зависят от активного языка"
+        }
+        "Extra universal symbols — typography and math" => {
+            "Дополнительные универсальные символы — типографика и математика"
+        }
+        "Custom keycodes — defined by this keyboard" => {
+            "Кастомные keycodes — определены этой клавиатурой"
+        }
+        "Layers: choose a layer action, then pick the target layer" => {
+            "Слои: выберите действие слоя, затем целевой слой"
+        }
+        "Plain modifiers" => "Обычные модификаторы",
+        "Mod+Key — always sends modifier+key together" => {
+            "Mod+Key — всегда отправляет модификатор+клавишу вместе"
+        }
+        "Mod-Tap — hold for modifier, tap for regular key" => {
+            "Mod-Tap — hold для модификатора, tap для обычной клавиши"
+        }
+        "One-Shot Mod — active for next keypress only" => {
+            "One-Shot Mod — активен только для следующего нажатия"
+        }
+        "Choose the key to pair with the modifier" => "Выберите клавишу для пары с модификатором",
+        "This key will always be sent together with the selected modifier" => {
+            "Эта клавиша всегда будет отправляться вместе с выбранным модификатором"
+        }
+        "Choose the tap key" => "Выберите tap-клавишу",
+        "Hold will send the modifier; tap will send the key you pick" => {
+            "Hold отправит модификатор; tap отправит выбранную клавишу"
+        }
+        "✕ Cancel" => "✕ Отмена",
+        "Mod+Key — pick modifier, then key" => "Mod+Key — выберите модификатор, затем клавишу",
+        "Mod-Tap — pick modifier, then tap key" => {
+            "Mod-Tap — выберите модификатор, затем tap-клавишу"
+        }
+        "Choose macro" => "Выбрать макрос",
+        "Select a macro above to edit" => "Выберите макрос выше для редактирования",
+        "Macro name" => "Имя макроса",
+        "Move up" => "Выше",
+        "Move down" => "Ниже",
+        "Text" => "Текст",
+        "Types text characters one by one" => "Вводит символы текста по одному",
+        "Tap" => "Tap",
+        "Press and release a key" => "Нажать и отпустить клавишу",
+        "Down" => "Down",
+        "Press a key (hold until Up)" => "Нажать клавишу (удерживать до Up)",
+        "Up" => "Up",
+        "Release a previously pressed key" => "Отпустить ранее нажатую клавишу",
+        "Delay" => "Задержка",
+        "Wait before next action" => "Пауза перед следующим действием",
+        "Type text here" => "Введите текст здесь",
+        "Characters to type when this macro runs" => "Символы, которые макрос будет вводить",
+        "Click to change key — press and release this key" => {
+            "Нажмите, чтобы сменить клавишу — press/release"
+        }
+        "Click to change key — holds down until Up" => {
+            "Нажмите, чтобы сменить клавишу — удерживать до Up"
+        }
+        "Click to change key — releases this key" => "Нажмите, чтобы сменить клавишу — отпустить",
+        "Delay is in milliseconds" => "Задержка в миллисекундах",
+        "Remove this action" => "Удалить это действие",
+        "+ Text" => "+ Текст",
+        "Type characters" => "Ввести символы",
+        "+ Tap" => "+ Tap",
+        "+ Down" => "+ Down",
+        "Hold a key" => "Удерживать клавишу",
+        "+ Up" => "+ Up",
+        "Release a key" => "Отпустить клавишу",
+        "+ Delay" => "+ Задержка",
+        "Pause in milliseconds" => "Пауза в миллисекундах",
+        "No Tap Dance slots available on this keyboard" => {
+            "На этой клавиатуре нет слотов Tap Dance"
+        }
+        "Choose tap dance" => "Выбрать Tap Dance",
+        "TD name" => "Имя TD",
+        "On Tap" => "При Tap",
+        "On Hold" => "При Hold",
+        "On Double Tap" => "При Double Tap",
+        "On Tap + Hold" => "При Tap + Hold",
+        "Click to assign a key" => "Нажмите, чтобы назначить клавишу",
+        "Tapping Term" => "Tapping Term",
+        "Time in milliseconds to distinguish tap from hold (default: 200)" => {
+            "Время в миллисекундах для различения tap и hold (по умолчанию 200)"
+        }
+        "Tapping term is in milliseconds" => "Tapping term в миллисекундах",
+        "Clear all actions for this tap dance" => "Очистить все действия этого Tap Dance",
+        "Undo last tap dance change" => "Отменить последнее изменение Tap Dance",
+        "Tap Dance Editor" => "Редактор Tap Dance",
         "No setup action is available for this OS" => "Для этой ОС нет действия настройки",
         "Install IBus" => "Установить IBus",
         "Install Fcitx5" => "Установить Fcitx5",
@@ -193,7 +331,6 @@ pub fn tr_static(language: Language, text: &'static str) -> &'static str {
         "Macros saved" => "Макросы сохранены",
         "Combos saved" => "Комбо сохранены",
         "Combo timeout saved" => "Таймаут комбо сохранён",
-        "Pick key" => "Выбрать клавишу",
         "Entry" => "Слот",
         "Select Alt Repeat slot" => "Выбрать слот Alt Repeat",
         "Name" => "Имя",
@@ -397,6 +534,35 @@ pub fn tr_text(language: Language, text: &str) -> String {
         "Universal output backend: Windows native" => "Бэкенд универсального вывода: Windows native".to_owned(),
         "Universal output backend: macOS native — requires Accessibility/Input Monitoring permission" => "Бэкенд универсального вывода: macOS native — нужны разрешения Accessibility/Input Monitoring".to_owned(),
         "Universal output backend: unsupported on this OS" => "Бэкенд универсального вывода: эта ОС не поддерживается".to_owned(),
+        "Esc" => "Esc".to_owned(),
+        "Escape" => "Escape".to_owned(),
+        "Backspace" => "Backspace".to_owned(),
+        "Insert" => "Insert".to_owned(),
+        "Delete" => "Delete".to_owned(),
+        "Caps\nLock" | "Caps Lock" => "Caps\nLock".to_owned(),
+        "Print\nScreen" | "Print Screen" => "Print\nScreen".to_owned(),
+        "Scroll\nLock" | "Scroll Lock" => "Scroll\nLock".to_owned(),
+        "Page\nUp" | "Page Up" => "Page\nUp".to_owned(),
+        "Page\nDown" | "Page Down" => "Page\nDown".to_owned(),
+        "Space" => "Пробел".to_owned(),
+        "Menu" => "Меню".to_owned(),
+        "Pause" => "Pause".to_owned(),
+        "Home" => "Home".to_owned(),
+        "End" => "End".to_owned(),
+        "Left\nCtrl" => "Левый\nCtrl".to_owned(),
+        "Right\nCtrl" => "Правый\nCtrl".to_owned(),
+        "Left\nShift" => "Левый\nShift".to_owned(),
+        "Right\nShift" => "Правый\nShift".to_owned(),
+        "Left\nAlt" => "Левый\nAlt".to_owned(),
+        "Right\nAlt" => "Правый\nAlt".to_owned(),
+        "No key — this key does nothing" => "No key — эта клавиша ничего не делает".to_owned(),
+        "Transparent — uses the key assigned on the layer below" => "Transparent — использует клавишу со слоя ниже".to_owned(),
+        "Enter — confirm / new line" => "Enter — подтвердить / новая строка".to_owned(),
+        "Escape — cancel / close" => "Escape — отмена / закрыть".to_owned(),
+        "Backspace — delete character before cursor" => "Backspace — удалить символ перед курсором".to_owned(),
+        "Tab — indent / move focus forward" => "Tab — отступ / фокус вперёд".to_owned(),
+        "Caps Lock — toggle uppercase input" => "Caps Lock — переключить верхний регистр".to_owned(),
+        "Menu key — open right-click context menu" => "Menu — открыть контекстное меню".to_owned(),
         other if other.starts_with("Universal output backend: Wayland via IBus/Fcitx5 input method") => other.replacen("Universal output backend: Wayland via IBus/Fcitx5 input method", "Бэкенд универсального вывода: Wayland через IBus/Fcitx5", 1),
         other if other.starts_with("Universal output backend: Linux X11 native") => other.replacen("Universal output backend: Linux X11 native; Wayland uses IBus/Fcitx5", "Бэкенд универсального вывода: Linux X11 native; Wayland использует IBus/Fcitx5", 1),
         other if other.starts_with("Universal output backend: Linux; use IBus/Fcitx5 for Wayland") => other.replacen("Universal output backend: Linux; use IBus/Fcitx5 for Wayland", "Бэкенд универсального вывода: Linux; для Wayland используйте IBus/Fcitx5", 1),
