@@ -165,6 +165,13 @@ pub fn tr_static(language: Language, text: &'static str) -> &'static str {
         "Function keys" => "Функциональные клавиши",
         "Modifiers" => "Модификаторы",
         "Other keys" => "Другие клавиши",
+        "Special QMK keys" => "Специальные QMK-клавиши",
+        "Mouse" => "Мышь",
+        "Media, Apps, System" => "Медиа, приложения, система",
+        "OS / edit shortcuts" => "ОС / редактирование",
+        "Numpad" => "Нампад",
+        "Space Cadet" => "Space Cadet",
+        "International" => "Международные",
         "Clear all" => "Очистить всё",
         "↩ Undo" => "↩ Отменить",
         "Undo last change" => "Отменить последнее изменение",
@@ -563,6 +570,158 @@ pub fn tr_text(language: Language, text: &str) -> String {
         "Tab — indent / move focus forward" => "Tab — отступ / фокус вперёд".to_owned(),
         "Caps Lock — toggle uppercase input" => "Caps Lock — переключить верхний регистр".to_owned(),
         "Menu key — open right-click context menu" => "Menu — открыть контекстное меню".to_owned(),
+        "✕\nNone" => "✕\nНет".to_owned(),
+        "▽\nInherit" => "▽\nНиже".to_owned(),
+        "🔒\nLock" => "🔒\nLock".to_owned(),
+        "Combo\nToggle" => "Combo\nВкл/выкл".to_owned(),
+        "KC_NO — disables this key completely, it sends nothing when pressed" => {
+            "KC_NO — полностью отключает клавишу, при нажатии ничего не отправляется".to_owned()
+        }
+        "KC_TRNS — inherits the key from the layer below" => {
+            "KC_TRNS — наследует клавишу со слоя ниже".to_owned()
+        }
+        other if other.starts_with("Grave/Escape — sends Esc normally") => other
+            .replace("Grave/Escape — sends Esc normally, ` when Shift or", "Grave/Escape — обычно отправляет Esc, ` при удержании Shift или")
+            .replace("is held", ""),
+        "QK_BOOT — put keyboard into flash mode" | "Bootloader — put keyboard into flash mode" => {
+            "QK_BOOT — перевести клавиатуру в режим прошивки".to_owned()
+        }
+        "DB_TOGG — toggle debug mode" | "Debug toggle — enable/disable debug output" => {
+            "DB_TOGG — переключить debug-режим".to_owned()
+        }
+        "QK_LOCK — hold to lock remaining keys until pressed again"
+        | "Lock — lock a key in pressed state until pressed again" => {
+            "QK_LOCK — удерживать клавишу нажатой до повторного нажатия".to_owned()
+        }
+        "Toggles the state of the Auto Shift feature" => "Переключает состояние Auto Shift".to_owned(),
+        "Toggles Combo feature on and off" => "Включает или выключает Combo".to_owned(),
+        "Capitalizes until end of current word" => "Верхний регистр до конца текущего слова".to_owned(),
+        "Repeats the last pressed key" => "Повторяет последнюю нажатую клавишу".to_owned(),
+        "Alt repeats the last pressed key" => "Alt-повтор последней нажатой клавиши".to_owned(),
+        "Mouse\nUp" => "Мышь\n↑".to_owned(),
+        "Mouse\nDown" => "Мышь\n↓".to_owned(),
+        "Mouse\nLeft" => "Мышь\n←".to_owned(),
+        "Mouse\nRight" => "Мышь\n→".to_owned(),
+        "Scroll\nUp" => "Скролл\n↑".to_owned(),
+        "Scroll\nDown" => "Скролл\n↓".to_owned(),
+        "Scroll\nLeft" => "Скролл\n←".to_owned(),
+        "Scroll\nRight" => "Скролл\n→".to_owned(),
+        "Accel\n0" => "Ускор.\n0".to_owned(),
+        "Accel\n1" => "Ускор.\n1".to_owned(),
+        "Accel\n2" => "Ускор.\n2".to_owned(),
+        other if other.starts_with("Mouse cursor — move ") => other
+            .replace("Mouse cursor — move up", "Курсор мыши — вверх")
+            .replace("Mouse cursor — move down", "Курсор мыши — вниз")
+            .replace("Mouse cursor — move left", "Курсор мыши — влево")
+            .replace("Mouse cursor — move right", "Курсор мыши — вправо"),
+        other if other.starts_with("Mouse button ") => other
+            .replace("Mouse button", "Кнопка мыши")
+            .replace("left click", "левый клик")
+            .replace("right click", "правый клик")
+            .replace("middle click", "средний клик")
+            .replace("back", "назад")
+            .replace("forward", "вперёд"),
+        other if other.starts_with("Mouse wheel — scroll ") => other
+            .replace("Mouse wheel — scroll up", "Колесо мыши — вверх")
+            .replace("Mouse wheel — scroll down", "Колесо мыши — вниз")
+            .replace("Mouse wheel — scroll left", "Колесо мыши — влево")
+            .replace("Mouse wheel — scroll right", "Колесо мыши — вправо"),
+        "⏻\nPower" => "⏻\nПитание".to_owned(),
+        "🌙\nSleep" => "🌙\nСон".to_owned(),
+        "☀\nWake" => "☀\nWake".to_owned(),
+        "🔇\nMute" => "🔇\nMute".to_owned(),
+        "🔉\nVol-" => "🔉\nГр-".to_owned(),
+        "🔊\nVol+" => "🔊\nГр+".to_owned(),
+        "⏮\nPrev" => "⏮\nНазад".to_owned(),
+        "⏭\nNext" => "⏭\nВперёд".to_owned(),
+        "⏹\nStop" => "⏹\nСтоп".to_owned(),
+        "🎵\nMedia" => "🎵\nМедиа".to_owned(),
+        "✉\nMail" => "✉\nПочта".to_owned(),
+        "🖩\nCalc" => "🖩\nКальк".to_owned(),
+        "💻\nFiles" => "💻\nФайлы".to_owned(),
+        "🔍\nSearch" => "🔍\nПоиск".to_owned(),
+        "⬅\nBack" => "⬅\nНазад".to_owned(),
+        "➡\nForward" => "➡\nВперёд".to_owned(),
+        "↻\nRefresh" => "↻\nОбнов".to_owned(),
+        "★\nFavs" => "★\nИзбр".to_owned(),
+        "⏩\nFwd" => "⏩\nВпер".to_owned(),
+        "⏪\nRew" => "⏪\nНазад".to_owned(),
+        "☀+\nBright" => "☀+\nЯрк".to_owned(),
+        "☀-\nBright" => "☀-\nЯрк".to_owned(),
+        "Ctrl\nView" => "Ctrl\nОкна".to_owned(),
+        "Launch\nPad" => "Launch\nPad".to_owned(),
+        "Mute / Unmute audio" => "Включить/выключить звук".to_owned(),
+        "Volume Up" => "Громкость выше".to_owned(),
+        "Volume Down" => "Громкость ниже".to_owned(),
+        "Next Track" => "Следующий трек".to_owned(),
+        "Previous Track" => "Предыдущий трек".to_owned(),
+        "Stop playback" => "Остановить воспроизведение".to_owned(),
+        "Play / Pause" => "Воспроизведение / пауза".to_owned(),
+        "Open media player" => "Открыть медиаплеер".to_owned(),
+        "Open email client" => "Открыть почтовый клиент".to_owned(),
+        "Open calculator" => "Открыть калькулятор".to_owned(),
+        "Open My Computer / file manager" => "Открыть файловый менеджер".to_owned(),
+        "Browser search" => "Поиск в браузере".to_owned(),
+        "Browser home page" => "Домашняя страница браузера".to_owned(),
+        "Browser back" => "Браузер назад".to_owned(),
+        "Browser forward" => "Браузер вперёд".to_owned(),
+        "Browser stop loading" => "Остановить загрузку в браузере".to_owned(),
+        "Browser refresh" => "Обновить страницу".to_owned(),
+        "Browser favourites" => "Избранное браузера".to_owned(),
+        "Sleep — put computer to sleep" => "Sleep — перевести компьютер в сон".to_owned(),
+        "Wake — wake computer from sleep" => "Wake — вывести компьютер из сна".to_owned(),
+        "Brightness Up" => "Яркость выше".to_owned(),
+        "Brightness Down" => "Яркость ниже".to_owned(),
+        "Power — system power button" => "Power — системная кнопка питания".to_owned(),
+        "Eject — eject removable media" => "Eject — извлечь съёмный носитель".to_owned(),
+        "Fast Forward — jump forward in media" => "Fast Forward — перемотка вперёд".to_owned(),
+        "Rewind — jump backward in media" => "Rewind — перемотка назад".to_owned(),
+        "Mission Control / Task View — show open windows and spaces" => "Mission Control / Task View — показать открытые окна".to_owned(),
+        "Launchpad / app launcher" => "Launchpad / запуск приложений".to_owned(),
+        "Undo" => "Отмена".to_owned(),
+        "On" => "Вкл".to_owned(),
+        "Off" => "Выкл".to_owned(),
+        "⏯\nPlay" => "⏯\nPlay".to_owned(),
+        "⏏\nEject" => "⏏\nEject".to_owned(),
+        "🏠\nHome" => "🏠\nHome".to_owned(),
+        "Redo" => "Повтор".to_owned(),
+        "Cut" => "Вырез".to_owned(),
+        "Copy" => "Копия".to_owned(),
+        "Paste" => "Встав".to_owned(),
+        "Find" => "Поиск".to_owned(),
+        "Prev\nWord" => "Пред.\nслово".to_owned(),
+        "Next\nWord" => "След.\nслово".to_owned(),
+        "Prev\nApp" => "Пред.\nприл.".to_owned(),
+        "Next\nApp" => "След.\nприл.".to_owned(),
+        "Lock" => "Lock".to_owned(),
+        "Swap" => "Обмен".to_owned(),
+        "Restore" => "Сброс".to_owned(),
+        "Toggle" => "Вкл/выкл".to_owned(),
+        "as Caps" => "как Caps".to_owned(),
+        "as Ctrl" => "как Ctrl".to_owned(),
+        "Left" => "Лево".to_owned(),
+        "Right" => "Право".to_owned(),
+        "Num Lock — toggle numpad number input" => "Num Lock — переключить цифровой ввод нампада".to_owned(),
+        "Numpad ÷ (divide)" => "Нампад ÷ (деление)".to_owned(),
+        "Numpad × (multiply)" => "Нампад × (умножение)".to_owned(),
+        "Numpad − (minus)" => "Нампад − (минус)".to_owned(),
+        "Numpad + (plus)" => "Нампад + (плюс)".to_owned(),
+        "Numpad Enter" => "Нампад Enter".to_owned(),
+        "Numpad . (decimal point)" => "Нампад . (десятичная точка)".to_owned(),
+        "Numpad = (equals)" => "Нампад = (равно)".to_owned(),
+        "Numpad , (comma)" => "Нампад , (запятая)".to_owned(),
+        "Left Control when held, ( when tapped" => "Левый Control при hold, ( при tap".to_owned(),
+        "Right Control when held, ) when tapped" => "Правый Control при hold, ) при tap".to_owned(),
+        "Left Shift when held, ( when tapped" => "Левый Shift при hold, ( при tap".to_owned(),
+        "Right Shift when held, ) when tapped" => "Правый Shift при hold, ) при tap".to_owned(),
+        "Left Alt when held, ( when tapped" => "Левый Alt при hold, ( при tap".to_owned(),
+        "Right Alt when held, ) when tapped" => "Правый Alt при hold, ) при tap".to_owned(),
+        "Right Shift when held, Enter when tapped" => "Правый Shift при hold, Enter при tap".to_owned(),
+        other if other.starts_with("Universal Cyrillic ") => other
+            .replace("Universal Cyrillic", "Universal Cyrillic")
+            .replace("types", "вводит")
+            .replace("consistently regardless of the active keyboard language", "одинаково независимо от активного языка клавиатуры")
+            .replace("hold Shift for", "удерживайте Shift для"),
         other if other.starts_with("Universal output backend: Wayland via IBus/Fcitx5 input method") => other.replacen("Universal output backend: Wayland via IBus/Fcitx5 input method", "Бэкенд универсального вывода: Wayland через IBus/Fcitx5", 1),
         other if other.starts_with("Universal output backend: Linux X11 native") => other.replacen("Universal output backend: Linux X11 native; Wayland uses IBus/Fcitx5", "Бэкенд универсального вывода: Linux X11 native; Wayland использует IBus/Fcitx5", 1),
         other if other.starts_with("Universal output backend: Linux; use IBus/Fcitx5 for Wayland") => other.replacen("Universal output backend: Linux; use IBus/Fcitx5 for Wayland", "Бэкенд универсального вывода: Linux; для Wayland используйте IBus/Fcitx5", 1),

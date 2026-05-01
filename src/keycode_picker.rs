@@ -1905,7 +1905,7 @@ impl KeycodePicker {
                 if resp.clicked() {
                     self.assign_keycode_value(smart.trigger_keycode);
                 }
-                resp.on_hover_text(tip);
+                resp.on_hover_text(crate::i18n::tr_text(self.language, &tip));
             }
         });
 
@@ -1969,7 +1969,7 @@ impl KeycodePicker {
                 if resp.clicked() {
                     self.assign_keycode_value(smart.trigger_keycode);
                 }
-                resp.on_hover_text(tip);
+                resp.on_hover_text(crate::i18n::tr_text(self.language, &tip));
             }
         });
     }
@@ -2032,7 +2032,7 @@ impl KeycodePicker {
                 if resp.clicked() {
                     self.assign_keycode_value(value);
                 }
-                resp.on_hover_text(tip);
+                resp.on_hover_text(crate::i18n::tr_text(self.language, &tip));
             }
         });
     }
@@ -2061,7 +2061,8 @@ impl KeycodePicker {
                 let resp = ui
                     .add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""))
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
-                Self::paint_compact_picker_label(ui, &resp, label);
+                let display_label = crate::i18n::tr_text(self.language, label);
+                Self::paint_compact_picker_label(ui, &resp, &display_label);
                 if resp.clicked() {
                     self.vial_layer_pending = Some(*base);
                 }
@@ -2525,7 +2526,7 @@ impl KeycodePicker {
                 if resp.clicked() {
                     self.vial_quantum_pending_mod = Some(*base);
                 }
-                resp.on_hover_text(tip.as_str());
+                resp.on_hover_text(crate::i18n::tr_text(self.language, &tip));
             }
         });
 
@@ -2582,7 +2583,7 @@ impl KeycodePicker {
                 if resp.clicked() {
                     self.vial_quantum_pending_mt = Some(*base);
                 }
-                resp.on_hover_text(tip.as_str());
+                resp.on_hover_text(crate::i18n::tr_text(self.language, &tip));
             }
         });
     }
@@ -4178,7 +4179,7 @@ Repeat"
             ),
         ];
 
-        let special_title = "Special QMK keys";
+        let special_title = crate::i18n::tr_static(self.language, "Special QMK keys");
         ui.label(
             RichText::new(special_title)
                 .size(11.0)
@@ -4201,11 +4202,12 @@ Repeat"
                 let resp = ui
                     .add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""))
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
-                Self::paint_compact_picker_label(ui, &resp, label);
+                let display_label = crate::i18n::tr_text(self.language, label);
+                Self::paint_compact_picker_label(ui, &resp, &display_label);
                 if resp.clicked() {
                     self.assign_keycode_value(*value);
                 }
-                resp.on_hover_text(tip.as_str());
+                resp.on_hover_text(crate::i18n::tr_text(self.language, &tip));
             }
         });
 
@@ -4223,7 +4225,7 @@ Repeat"
         if !mouse_values.is_empty() {
             ui.add_space(10.0);
             ui.label(
-                RichText::new("Mouse")
+                RichText::new(crate::i18n::tr_static(self.language, "Mouse"))
                     .size(11.0)
                     .color(Color32::from_gray(150)),
             );
@@ -4233,13 +4235,19 @@ Repeat"
                     let resp = ui
                         .add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""))
                         .on_hover_cursor(egui::CursorIcon::PointingHand);
-                    let label = keycode_label_with_names(*value, &[], &self.layer_names);
+                    let label = crate::i18n::tr_text(
+                        self.language,
+                        &keycode_label_with_names(*value, &[], &self.layer_names),
+                    );
                     Self::paint_compact_picker_label(ui, &resp, &label);
                     if resp.clicked() {
                         self.assign_keycode_value(*value);
                     }
                     if resp.hovered() {
-                        resp.on_hover_text(self.picker_keycode_tooltip(*value, &[]));
+                        resp.on_hover_text(crate::i18n::tr_text(
+                            self.language,
+                            &self.picker_keycode_tooltip(*value, &[]),
+                        ));
                     }
                 }
             });
@@ -4277,7 +4285,7 @@ Repeat"
         ];
         ui.add_space(10.0);
         ui.label(
-            RichText::new("Media, Apps, System")
+            RichText::new(crate::i18n::tr_static(self.language, "Media, Apps, System"))
                 .size(11.0)
                 .color(Color32::from_gray(150)),
         );
@@ -4290,20 +4298,26 @@ Repeat"
                 let resp = ui
                     .add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""))
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
-                let label = keycode_label_with_names(*value, &[], &self.layer_names);
+                let label = crate::i18n::tr_text(
+                    self.language,
+                    &keycode_label_with_names(*value, &[], &self.layer_names),
+                );
                 Self::paint_compact_picker_label(ui, &resp, &label);
                 if resp.clicked() {
                     self.assign_keycode_value(*value);
                 }
                 if resp.hovered() {
-                    resp.on_hover_text(self.picker_keycode_tooltip(*value, &[]));
+                    resp.on_hover_text(crate::i18n::tr_text(
+                        self.language,
+                        &self.picker_keycode_tooltip(*value, &[]),
+                    ));
                 }
             }
         });
 
         ui.add_space(10.0);
         ui.label(
-            RichText::new("OS / edit shortcuts")
+            RichText::new(crate::i18n::tr_static(self.language, "OS / edit shortcuts"))
                 .size(11.0)
                 .color(Color32::from_gray(150)),
         );
@@ -4385,17 +4399,18 @@ Repeat"
                     continue;
                 }
                 let resp = ui.add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""));
-                Self::paint_compact_picker_label(ui, &resp, text);
+                let display_text = crate::i18n::tr_text(self.language, text);
+                Self::paint_compact_picker_label(ui, &resp, &display_text);
                 if resp.clicked() {
                     self.assign_keycode_value(value);
                 }
-                resp.on_hover_text(tip);
+                resp.on_hover_text(crate::i18n::tr_text(self.language, &tip));
             }
         });
 
         ui.add_space(10.0);
         ui.label(
-            RichText::new("Numpad")
+            RichText::new(crate::i18n::tr_static(self.language, "Numpad"))
                 .size(11.0)
                 .color(Color32::from_gray(150)),
         );
@@ -4440,7 +4455,12 @@ Repeat"
                         .or_else(|| kc.label.strip_prefix("Num"))
                         .unwrap_or(kc.label),
                 };
-                let font_size = if display.len() > 2 { 10.5 } else { 13.0 };
+                let display = crate::i18n::tr_text(self.language, display);
+                let font_size = if display.chars().count() > 2 {
+                    10.5
+                } else {
+                    13.0
+                };
                 let mut resp = ui.add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""));
                 let rect = resp.rect;
                 let painter = ui.painter();
@@ -4459,7 +4479,7 @@ Repeat"
                 painter.text(
                     egui::pos2(rect.center().x, rect.center().y + 6.0),
                     egui::Align2::CENTER_CENTER,
-                    display,
+                    display.as_str(),
                     egui::FontId::proportional(font_size),
                     main_color,
                 );
@@ -4467,7 +4487,10 @@ Repeat"
                     self.assign_keycode_value(kc.value);
                 }
                 if resp.hovered() {
-                    resp = resp.on_hover_text(self.picker_keycode_tooltip(kc.value, &[]));
+                    resp = resp.on_hover_text(crate::i18n::tr_text(
+                        self.language,
+                        &self.picker_keycode_tooltip(kc.value, &[]),
+                    ));
                     let _ = resp;
                 }
             }
@@ -4487,7 +4510,7 @@ Repeat"
         if !visible_magic_keys.is_empty() {
             ui.add_space(10.0);
             ui.label(
-                RichText::new("Magic")
+                RichText::new(crate::i18n::tr_static(self.language, "Magic"))
                     .size(11.0)
                     .color(Color32::from_gray(150)),
             );
@@ -4501,8 +4524,8 @@ Repeat"
                 for value in &visible_magic_keys {
                     let label = crate::keycode::keycode_label(*value);
                     let mut parts = label.splitn(2, '\n');
-                    let top = parts.next().unwrap_or("");
-                    let bottom = parts.next().unwrap_or("");
+                    let top = crate::i18n::tr_text(self.language, parts.next().unwrap_or(""));
+                    let bottom = crate::i18n::tr_text(self.language, parts.next().unwrap_or(""));
                     let mut resp =
                         ui.add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""));
                     let rect = resp.rect;
@@ -4522,7 +4545,7 @@ Repeat"
                         painter.text(
                             egui::pos2(rect.center().x, rect.center().y - 6.5),
                             egui::Align2::CENTER_CENTER,
-                            top,
+                            top.as_str(),
                             egui::FontId::proportional(top_font),
                             magic_top_color,
                         );
@@ -4530,7 +4553,11 @@ Repeat"
                     painter.text(
                         egui::pos2(rect.center().x, rect.center().y + 6.5),
                         egui::Align2::CENTER_CENTER,
-                        if bottom.is_empty() { top } else { bottom },
+                        if bottom.is_empty() {
+                            top.as_str()
+                        } else {
+                            bottom.as_str()
+                        },
                         egui::FontId::proportional(bottom_font),
                         main_color,
                     );
@@ -4538,7 +4565,10 @@ Repeat"
                         self.assign_keycode_value(*value);
                     }
                     if resp.hovered() {
-                        resp = resp.on_hover_text(self.picker_keycode_tooltip(*value, &[]));
+                        resp = resp.on_hover_text(crate::i18n::tr_text(
+                            self.language,
+                            &self.picker_keycode_tooltip(*value, &[]),
+                        ));
                         let _ = resp;
                     }
                 }
@@ -4547,7 +4577,7 @@ Repeat"
 
         ui.add_space(10.0);
         ui.label(
-            RichText::new("Space Cadet")
+            RichText::new(crate::i18n::tr_static(self.language, "Space Cadet"))
                 .size(11.0)
                 .color(Color32::from_gray(150)),
         );
@@ -4599,6 +4629,8 @@ Repeat"
                 } else {
                     ui.visuals().widgets.inactive.fg_stroke.color
                 };
+                let top = crate::i18n::tr_text(self.language, top);
+                let bottom = crate::i18n::tr_text(self.language, bottom);
                 let top_font = if top.chars().count() > 6 { 8.7 } else { 9.3 };
                 let bottom_font = if bottom.chars().count() > 5 {
                     9.4
@@ -4608,28 +4640,28 @@ Repeat"
                 painter.text(
                     egui::pos2(rect.center().x, rect.center().y - 6.5),
                     egui::Align2::CENTER_CENTER,
-                    *top,
+                    top.as_str(),
                     egui::FontId::proportional(top_font),
                     cadet_top_color,
                 );
                 painter.text(
                     egui::pos2(rect.center().x, rect.center().y + 6.5),
                     egui::Align2::CENTER_CENTER,
-                    *bottom,
+                    bottom.as_str(),
                     egui::FontId::proportional(bottom_font),
                     main_color,
                 );
                 if resp.clicked() {
                     self.assign_keycode_value(*value);
                 }
-                resp = resp.on_hover_text(*tip);
+                resp = resp.on_hover_text(crate::i18n::tr_text(self.language, &tip));
                 let _ = resp;
             }
         });
 
         ui.add_space(10.0);
         ui.label(
-            RichText::new("International")
+            RichText::new(crate::i18n::tr_static(self.language, "International"))
                 .size(11.0)
                 .color(Color32::from_gray(150)),
         );
@@ -4669,6 +4701,8 @@ Repeat"
                 } else {
                     ui.visuals().widgets.inactive.fg_stroke.color
                 };
+                let top = crate::i18n::tr_text(self.language, top);
+                let bottom = crate::i18n::tr_text(self.language, bottom);
                 let top_font = if top.chars().count() > 6 { 8.5 } else { 9.2 };
                 let bottom_font = if bottom.chars().count() > 6 {
                     9.0
@@ -4678,21 +4712,21 @@ Repeat"
                 painter.text(
                     egui::pos2(rect.center().x, rect.center().y - 6.5),
                     egui::Align2::CENTER_CENTER,
-                    *top,
+                    top.as_str(),
                     egui::FontId::proportional(top_font),
                     intl_top_color,
                 );
                 painter.text(
                     egui::pos2(rect.center().x, rect.center().y + 6.5),
                     egui::Align2::CENTER_CENTER,
-                    *bottom,
+                    bottom.as_str(),
                     egui::FontId::proportional(bottom_font),
                     main_color,
                 );
                 if resp.clicked() {
                     self.assign_keycode_value(*value);
                 }
-                resp = resp.on_hover_text(*tip);
+                resp = resp.on_hover_text(crate::i18n::tr_text(self.language, &tip));
                 let _ = resp;
             }
         });
