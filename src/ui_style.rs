@@ -681,12 +681,28 @@ pub fn settings_switch(ui: &mut Ui, checked: &mut bool) -> egui::Response {
     settings_switch_interactive(ui, checked, true)
 }
 
+pub fn settings_switch_sized(
+    ui: &mut Ui,
+    checked: &mut bool,
+    desired_size: Vec2,
+) -> egui::Response {
+    settings_switch_impl(ui, checked, desired_size, true)
+}
+
 pub fn settings_switch_interactive(
     ui: &mut Ui,
     checked: &mut bool,
     interactive: bool,
 ) -> egui::Response {
-    let desired_size = egui::vec2(46.0, 24.0);
+    settings_switch_impl(ui, checked, egui::vec2(46.0, 24.0), interactive)
+}
+
+fn settings_switch_impl(
+    ui: &mut Ui,
+    checked: &mut bool,
+    desired_size: Vec2,
+    interactive: bool,
+) -> egui::Response {
     let sense = if interactive {
         egui::Sense::click()
     } else {

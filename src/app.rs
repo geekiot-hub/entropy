@@ -287,12 +287,13 @@ struct RgbModalLayout {
 }
 
 impl RgbModalLayout {
-    fn new() -> Self {
+    fn responsive(ctx: &egui::Context) -> Self {
+        let scale = responsive_settings_editor_scale(ctx);
         Self {
-            content_width: 470.0,
-            top_padding: 4.0,
-            row_height: 54.0,
-            color_row_height: 54.0,
+            content_width: 470.0 * scale,
+            top_padding: 4.0 * scale,
+            row_height: 54.0 * scale,
+            color_row_height: 54.0 * scale,
         }
     }
 
@@ -3959,7 +3960,7 @@ impl EntropyApp {
                     return;
                 }
 
-                self.draw_rgb_editor_content(ui, dark, &RgbModalLayout::new());
+                self.draw_rgb_editor_content(ui, dark, &RgbModalLayout::responsive(ui.ctx()));
             });
         });
     }
@@ -6867,10 +6868,13 @@ impl EntropyApp {
 
         crate::ui_style::modal_content(ui, layout.modal_layout(), |ui| {
             let content_width = layout.content_width;
-            const RGB_VALUE_WIDTH: f32 = 36.0;
-            const RGB_SLIDER_WIDTH: f32 = 160.0;
-            const RGB_SLIDER_SIZE: [f32; 2] = [168.0, 24.0];
-            const RGB_CONTROL_WIDTH: f32 = RGB_SLIDER_SIZE[0] + RGB_VALUE_WIDTH;
+            let scale = (layout.row_height / 54.0).clamp(1.0, 1.12);
+            let rgb_value_width = 36.0 * scale;
+            let rgb_slider_width = 160.0 * scale;
+            let rgb_slider_size = egui::vec2(168.0 * scale, 24.0 * scale);
+            let rgb_control_width = rgb_slider_size.x + rgb_value_width;
+            let rgb_control_height = 32.0 * scale;
+            let rgb_font_size = 12.5 * scale;
 
             crate::ui_style::settings_list_row(
                 ui,
@@ -6878,9 +6882,13 @@ impl EntropyApp {
                 layout.row_height,
                 "Enable",
                 true,
-                46.0,
+                46.0 * scale,
                 |ui| {
-                    let enable_resp = crate::ui_style::settings_switch(ui, &mut enabled);
+                    let enable_resp = crate::ui_style::settings_switch_sized(
+                        ui,
+                        &mut enabled,
+                        egui::vec2(46.0 * scale, 24.0 * scale),
+                    );
                     if enable_resp.changed() {
                         let next_effect = if enabled {
                             self.rgb_settings.effect_or_default()
@@ -6902,15 +6910,17 @@ impl EntropyApp {
                 layout.row_height,
                 "Effect",
                 true,
-                RGB_SLIDER_SIZE[0],
+                rgb_slider_size.x,
                 |ui| {
                     let dropdown_id = ui.make_persistent_id("rgb_effect_dropdown");
-                    let dropdown_resp = crate::ui_style::modern_dropdown_button(
+                    let dropdown_resp = crate::ui_style::modern_dropdown_button_sized(
                         ui,
                         dropdown_id,
                         selected_effect_name,
                         ui.visuals().text_color(),
-                        RGB_SLIDER_SIZE[0],
+                        rgb_slider_size.x,
+                        rgb_control_height,
+                        rgb_font_size,
                     );
 
                     egui::popup_below_widget(
@@ -6919,17 +6929,17 @@ impl EntropyApp {
                         &dropdown_resp,
                         egui::PopupCloseBehavior::CloseOnClickOutside,
                         |ui| {
-                            ui.set_min_width(RGB_SLIDER_SIZE[0]);
+                            ui.set_min_width(rgb_slider_size.x);
                             ui.spacing_mut().item_spacing = Vec2::new(0.0, 2.0);
                             egui::ScrollArea::vertical()
                                 .id_salt("rgb_effect_dropdown_scroll")
-                                .max_height(142.0)
+                                .max_height(142.0 * scale)
                                 .auto_shrink([false, true])
                                 .show(ui, |ui| {
                                     for (id, label) in &options {
                                         let selected = *id == selected_effect;
                                         let (option_rect, option_resp) = ui.allocate_exact_size(
-                                            Vec2::new(RGB_SLIDER_SIZE[0], 28.0),
+                                            Vec2::new(rgb_slider_size.x, 28.0 * scale),
                                             Sense::click(),
                                         );
                                         if option_resp.hovered() {
@@ -6955,7 +6965,7 @@ impl EntropyApp {
                                             ),
                                             egui::Align2::LEFT_CENTER,
                                             *label,
-                                            FontId::proportional(12.0),
+                                            FontId::proportional(12.0 * scale),
                                             if selected {
                                                 ui.visuals().text_color()
                                             } else {
@@ -6981,7 +6991,7 @@ impl EntropyApp {
                 layout.color_row_height,
                 "Color",
                 color_enabled,
-                64.0,
+                64.0 * scale,
                 |ui| {
                     let popup_id = ui.make_persistent_id("rgb_color_popup");
                     let popup_hsva_id = popup_id.with("hsva");
@@ -7003,7 +7013,7 @@ impl EntropyApp {
                         Sense::hover()
                     };
                     let (swatch_rect, swatch_resp) =
-                        ui.allocate_exact_size(Vec2::new(64.0, 34.0), swatch_sense);
+                        ui.allocate_exact_size(Vec2::new(64.0 * scale, 34.0 * scale), swatch_sense);
                     if color_enabled && swatch_resp.hovered() {
                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                     }
@@ -7020,7 +7030,7 @@ impl EntropyApp {
                         egui::StrokeKind::Inside,
                     );
                     ui.painter().rect(
-                        swatch_rect.shrink(5.0),
+                        swatch_rect.shrink(5.0 * scale),
                         6.0,
                         if color_enabled {
                             swatch_color
@@ -7042,7 +7052,7 @@ impl EntropyApp {
                             &swatch_resp,
                             egui::PopupCloseBehavior::CloseOnClickOutside,
                             |ui| {
-                                ui.spacing_mut().slider_width = 136.0;
+                                ui.spacing_mut().slider_width = 136.0 * scale;
                                 if compact_rgb_color_picker(ui, &mut picked_hsva) {
                                     let hue = (picked_hsva.h.rem_euclid(1.0) * 255.0)
                                         .round()
@@ -7071,7 +7081,7 @@ impl EntropyApp {
                 layout.row_height,
                 "Speed",
                 speed_enabled,
-                RGB_CONTROL_WIDTH,
+                rgb_control_width,
                 |ui| {
                     ui.spacing_mut().item_spacing.x = 0.0;
                     let value_color = if speed_enabled {
@@ -7093,21 +7103,21 @@ impl EntropyApp {
                     ui.visuals_mut().widgets.hovered.bg_stroke = Stroke::new(1.0, rgb_slider_fill);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.add_sized(
-                            [RGB_VALUE_WIDTH, layout.row_height],
+                            [rgb_value_width, layout.row_height],
                             egui::Label::new(
                                 RichText::new(format!("{}%", speed_percent as u8))
-                                    .size(12.0)
+                                    .size(12.0 * scale)
                                     .color(value_color),
                             )
                             .halign(egui::Align::RIGHT),
                         );
                         ui.add_enabled_ui(speed_enabled, |ui| {
-                            ui.spacing_mut().slider_width = RGB_SLIDER_WIDTH;
+                            ui.spacing_mut().slider_width = rgb_slider_width;
                             let slider = egui::Slider::new(&mut speed_percent, 0.0..=100.0)
                                 .step_by(1.0)
                                 .show_value(false)
                                 .trailing_fill(true);
-                            let resp = ui.add_sized(RGB_SLIDER_SIZE, slider);
+                            let resp = ui.add_sized(rgb_slider_size, slider);
                             if resp.changed() {
                                 let raw_value = ((speed_percent / 100.0) * speed_max)
                                     .round()
@@ -7127,7 +7137,7 @@ impl EntropyApp {
                 layout.row_height,
                 "Brightness",
                 brightness_enabled,
-                RGB_CONTROL_WIDTH,
+                rgb_control_width,
                 |ui| {
                     ui.spacing_mut().item_spacing.x = 0.0;
                     let value_color = if brightness_enabled {
@@ -7149,21 +7159,21 @@ impl EntropyApp {
                     ui.visuals_mut().widgets.hovered.bg_stroke = Stroke::new(1.0, rgb_slider_fill);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.add_sized(
-                            [RGB_VALUE_WIDTH, layout.row_height],
+                            [rgb_value_width, layout.row_height],
                             egui::Label::new(
                                 RichText::new(format!("{}%", brightness_percent as u8))
-                                    .size(12.0)
+                                    .size(12.0 * scale)
                                     .color(value_color),
                             )
                             .halign(egui::Align::RIGHT),
                         );
                         ui.add_enabled_ui(brightness_enabled, |ui| {
-                            ui.spacing_mut().slider_width = RGB_SLIDER_WIDTH;
+                            ui.spacing_mut().slider_width = rgb_slider_width;
                             let slider = egui::Slider::new(&mut brightness_percent, 0.0..=100.0)
                                 .step_by(1.0)
                                 .show_value(false)
                                 .trailing_fill(true);
-                            let resp = ui.add_sized(RGB_SLIDER_SIZE, slider);
+                            let resp = ui.add_sized(rgb_slider_size, slider);
                             if resp.changed() {
                                 let raw_value = ((brightness_percent / 100.0)
                                     * brightness_max as f32)
