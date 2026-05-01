@@ -118,6 +118,8 @@ struct AppSettings {
     show_shifted_number_symbols: bool,
     #[serde(default = "default_layer_hover_preview")]
     layer_hover_preview: bool,
+    #[serde(default = "crate::i18n::default_language")]
+    language: crate::i18n::Language,
     #[serde(default = "default_encoder_hover_enlarge")]
     encoder_hover_enlarge: bool,
     #[serde(default = "default_app_accent_color")]
@@ -196,6 +198,7 @@ impl Default for AppSettings {
             minimize_to_tray_on_close: false,
             show_shifted_number_symbols: default_show_shifted_number_symbols(),
             layer_hover_preview: default_layer_hover_preview(),
+            language: crate::i18n::default_language(),
             encoder_hover_enlarge: default_encoder_hover_enlarge(),
             accent_color: default_app_accent_color(),
             ui_scale: default_ui_scale(),
@@ -3315,8 +3318,11 @@ impl EntropyApp {
     }
 
     fn draw_app_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
+        use crate::i18n::Key as TrKey;
+
         let dark = ui.visuals().dark_mode;
         let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ui.ctx());
+        let lang = self.app_settings.language;
         let content_width = metrics.settings_content_width();
         let row_height = metrics.settings_row_height();
         let switch_width = metrics.value(46.0);
@@ -3324,23 +3330,95 @@ impl EntropyApp {
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(18.0);
-                ui.label(RichText::new("App Settings").size(18.0).strong());
+                ui.label(RichText::new(crate::i18n::tr(lang, TrKey::AppSettingsTitle))
+                        .size(18.0)
+                        .strong());
                 ui.add_space(6.0);
                 ui.label(
-                    RichText::new("Configure Entropy behavior and visual accent")
+                    RichText::new(crate::i18n::tr(lang, TrKey::AppSettingsDescription))
                         .size(13.0)
                         .color(app_muted_text(dark)),
                 );
                 ui.add_space(24.0);
+
+                let mut selected_language = self.app_settings.language;
+                crate::ui_style::settings_list_row_with_tooltip(
+                    ui,
+                    content_width,
+                    row_height,
+                    crate::i18n::tr(lang, TrKey::LanguageLabel),
+                    true,
+                    Some(crate::i18n::tr(lang, TrKey::LanguageTooltip)),
+                    metrics.settings_control_width(),
+                    |ui| {
+                        let dropdown_id = ui.make_persistent_id("app_language_dropdown");
+                        let dropdown_resp = crate::ui_style::modern_dropdown_button_sized(
+                            ui,
+                            dropdown_id,
+                            selected_language.native_name(),
+                            ui.visuals().text_color(),
+                            metrics.settings_control_width(),
+                            metrics.settings_control_height(),
+                            metrics.settings_control_font_size(),
+                        );
+                        egui::popup_below_widget(
+                            ui,
+                            dropdown_id,
+                            &dropdown_resp,
+                            egui::PopupCloseBehavior::CloseOnClickOutside,
+                            |ui| {
+                                ui.set_min_width(metrics.settings_control_width());
+                                ui.spacing_mut().item_spacing = Vec2::new(0.0, 2.0);
+                                for language in crate::i18n::Language::ALL {
+                                    let selected = language == selected_language;
+                                    let (option_rect, option_resp) = ui.allocate_exact_size(
+                                        metrics.size(168.0, 28.0),
+                                        Sense::click(),
+                                    );
+                                    if option_resp.hovered() {
+                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                    }
+                                    let option_fill = if selected {
+                                        if dark {
+                                            Color32::from_rgb(58, 58, 61)
+                                        } else {
+                                            Color32::from_rgb(236, 236, 238)
+                                        }
+                                    } else if option_resp.hovered() {
+                                        crate::ui_style::hover_fill(dark)
+                                    } else {
+                                        Color32::TRANSPARENT
+                                    };
+                                    ui.painter().rect_filled(option_rect, 7.0, option_fill);
+                                    ui.painter().text(
+                                        egui::pos2(option_rect.left() + metrics.value(10.0), option_rect.center().y),
+                                        egui::Align2::LEFT_CENTER,
+                                        language.native_name(),
+                                        FontId::proportional(metrics.value(12.0)),
+                                        if selected { ui.visuals().text_color() } else { app_muted_text(dark) },
+                                    );
+                                    if option_resp.clicked() {
+                                        selected_language = language;
+                                        ui.memory_mut(|m| m.close_popup());
+                                    }
+                                }
+                            },
+                        );
+                    },
+                );
+                if selected_language != self.app_settings.language {
+                    self.app_settings.language = selected_language;
+                    save_app_settings(&self.app_settings);
+                }
 
                 let mut minimize_to_tray = self.app_settings.minimize_to_tray_on_close;
                 crate::ui_style::settings_list_row_with_tooltip(
                     ui,
                     content_width,
                     row_height,
-                    "Close to tray",
+                    crate::i18n::tr(lang, TrKey::CloseToTrayLabel),
                     true,
-                    Some("Hide Entropy in the system tray instead of quitting when the window is closed"),
+                    Some(crate::i18n::tr(lang, TrKey::CloseToTrayTooltip)),
                     switch_width,
                     |ui| {
                         let _ = crate::ui_style::settings_switch_sized(ui, &mut minimize_to_tray, switch_size);
@@ -3362,9 +3440,9 @@ impl EntropyApp {
                     ui,
                     content_width,
                     row_height,
-                    "Shifted number symbols",
+                    crate::i18n::tr(lang, TrKey::ShiftedNumberSymbolsLabel),
                     true,
-                    Some("Show shifted symbols above number-row keys, like ! over 1 and @ over 2"),
+                    Some(crate::i18n::tr(lang, TrKey::ShiftedNumberSymbolsTooltip)),
                     switch_width,
                     |ui| {
                         let _ = crate::ui_style::settings_switch_sized(ui, &mut show_shifted_symbols, switch_size);
@@ -3380,9 +3458,9 @@ impl EntropyApp {
                     ui,
                     content_width,
                     row_height,
-                    "Layer hover preview",
+                    crate::i18n::tr(lang, TrKey::LayerHoverPreviewLabel),
                     true,
-                    Some("Preview the target layer while hovering layer keys on the layout"),
+                    Some(crate::i18n::tr(lang, TrKey::LayerHoverPreviewTooltip)),
                     switch_width,
                     |ui| {
                         let _ = crate::ui_style::settings_switch_sized(
@@ -3405,9 +3483,9 @@ impl EntropyApp {
                     ui,
                     content_width,
                     row_height,
-                    "Encoder hover zoom",
+                    crate::i18n::tr(lang, TrKey::EncoderHoverZoomLabel),
                     true,
-                    Some("Enlarge encoder controls while hovering them on the layout"),
+                    Some(crate::i18n::tr(lang, TrKey::EncoderHoverZoomTooltip)),
                     switch_width,
                     |ui| {
                         let _ = crate::ui_style::settings_switch_sized(
@@ -3427,9 +3505,9 @@ impl EntropyApp {
                     ui,
                     content_width,
                     row_height,
-                    "Accent color",
+                    crate::i18n::tr(lang, TrKey::AccentColorLabel),
                     true,
-                    Some("Choose the color used for active states and highlights"),
+                    Some(crate::i18n::tr(lang, TrKey::AccentColorTooltip)),
                     metrics.value(218.0),
                     |ui| {
                         ui.horizontal(|ui| {

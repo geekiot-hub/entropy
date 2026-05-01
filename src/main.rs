@@ -5,6 +5,7 @@ mod device;
 mod firmware;
 #[cfg(not(target_arch = "wasm32"))]
 mod hid;
+mod i18n;
 mod keyboard;
 mod keycode;
 mod keycode_picker;
