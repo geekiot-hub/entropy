@@ -28,6 +28,30 @@ pub fn default_language() -> Language {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Key {
+    MainTabLayout,
+    MainTabAdvanced,
+    MainTabConfig,
+    NoDevicesFound,
+    LockAction,
+    UnlockAction,
+    ComboTitle,
+    AutoShiftTitle,
+    KeyOverridesTitle,
+    MouseKeysTitle,
+    MatrixTesterTitle,
+    UniversalSymbolsSetupTitle,
+    UniversalSymbolsTitle,
+    RgbTitle,
+    LayerLedsTitle,
+    EncodersTitle,
+    DisplayPresetsTitle,
+    TouchpadTitle,
+    LiveFeaturesTitle,
+    MagicTitle,
+    TapHoldOneShotTitle,
+    AltRepeatTitle,
+    GraveEscapeTitle,
+    RgbUnavailableTooltip,
     AppSettingsTitle,
     AppSettingsDescription,
     LanguageLabel,
@@ -53,6 +77,30 @@ pub fn tr(language: Language, key: Key) -> &'static str {
 
 fn en(key: Key) -> &'static str {
     match key {
+        Key::MainTabLayout => "Layout",
+        Key::MainTabAdvanced => "Advanced",
+        Key::MainTabConfig => "Config",
+        Key::NoDevicesFound => "No devices found",
+        Key::LockAction => "Lock",
+        Key::UnlockAction => "Unlock",
+        Key::ComboTitle => "Combo",
+        Key::AutoShiftTitle => "Auto Shift",
+        Key::KeyOverridesTitle => "Key Overrides",
+        Key::MouseKeysTitle => "Mouse Keys",
+        Key::MatrixTesterTitle => "Matrix Tester",
+        Key::UniversalSymbolsSetupTitle => "Universal Symbols Setup",
+        Key::UniversalSymbolsTitle => "Universal Symbols",
+        Key::RgbTitle => "RGB",
+        Key::LayerLedsTitle => "Layer LEDs",
+        Key::EncodersTitle => "Encoders",
+        Key::DisplayPresetsTitle => "Display Presets",
+        Key::TouchpadTitle => "Touchpad",
+        Key::LiveFeaturesTitle => "Live Features",
+        Key::MagicTitle => "Magic",
+        Key::TapHoldOneShotTitle => "Tap-Hold & One Shot",
+        Key::AltRepeatTitle => "Alt Repeat",
+        Key::GraveEscapeTitle => "Grave Escape",
+        Key::RgbUnavailableTooltip => "RGB settings are not available on this firmware",
         Key::AppSettingsTitle => "App Settings",
         Key::AppSettingsDescription => "Configure Entropy behavior and visual accent",
         Key::LanguageLabel => "Language",
@@ -70,7 +118,9 @@ fn en(key: Key) -> &'static str {
             "Preview the target layer while hovering layer keys on the layout"
         }
         Key::EncoderHoverZoomLabel => "Encoder hover zoom",
-        Key::EncoderHoverZoomTooltip => "Enlarge encoder controls while hovering them on the layout",
+        Key::EncoderHoverZoomTooltip => {
+            "Enlarge encoder controls while hovering them on the layout"
+        }
         Key::AccentColorLabel => "Accent color",
         Key::AccentColorTooltip => "Choose the color used for active states and highlights",
     }
@@ -78,12 +128,38 @@ fn en(key: Key) -> &'static str {
 
 fn ru(key: Key) -> &'static str {
     match key {
+        Key::MainTabLayout => "Раскладка",
+        Key::MainTabAdvanced => "Дополнительно",
+        Key::MainTabConfig => "Настройки",
+        Key::NoDevicesFound => "Устройства не найдены",
+        Key::LockAction => "Заблокировать",
+        Key::UnlockAction => "Разблокировать",
+        Key::ComboTitle => "Комбо",
+        Key::AutoShiftTitle => "Auto Shift",
+        Key::KeyOverridesTitle => "Переопределения клавиш",
+        Key::MouseKeysTitle => "Mouse Keys",
+        Key::MatrixTesterTitle => "Тестер матрицы",
+        Key::UniversalSymbolsSetupTitle => "Настройка Universal Symbols",
+        Key::UniversalSymbolsTitle => "Universal Symbols",
+        Key::RgbTitle => "RGB",
+        Key::LayerLedsTitle => "Layer LEDs",
+        Key::EncodersTitle => "Энкодеры",
+        Key::DisplayPresetsTitle => "Пресеты дисплея",
+        Key::TouchpadTitle => "Тачпад",
+        Key::LiveFeaturesTitle => "Live Features",
+        Key::MagicTitle => "Magic",
+        Key::TapHoldOneShotTitle => "Tap-Hold и One Shot",
+        Key::AltRepeatTitle => "Alt Repeat",
+        Key::GraveEscapeTitle => "Grave Escape",
+        Key::RgbUnavailableTooltip => "RGB-настройки недоступны в этой прошивке",
         Key::AppSettingsTitle => "Настройки приложения",
         Key::AppSettingsDescription => "Поведение Entropy и визуальный акцент",
         Key::LanguageLabel => "Язык",
         Key::LanguageTooltip => "Выбрать язык интерфейса приложения",
         Key::CloseToTrayLabel => "Закрывать в трей",
-        Key::CloseToTrayTooltip => "Прятать Entropy в системный трей вместо выхода при закрытии окна",
+        Key::CloseToTrayTooltip => {
+            "Прятать Entropy в системный трей вместо выхода при закрытии окна"
+        }
         Key::ShiftedNumberSymbolsLabel => "Символы Shift на цифрах",
         Key::ShiftedNumberSymbolsTooltip => {
             "Показывать символы с Shift над цифровым рядом, например ! над 1 и @ над 2"

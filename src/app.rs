@@ -3330,9 +3330,11 @@ impl EntropyApp {
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(18.0);
-                ui.label(RichText::new(crate::i18n::tr(lang, TrKey::AppSettingsTitle))
+                ui.label(
+                    RichText::new(crate::i18n::tr(lang, TrKey::AppSettingsTitle))
                         .size(18.0)
-                        .strong());
+                        .strong(),
+                );
                 ui.add_space(6.0);
                 ui.label(
                     RichText::new(crate::i18n::tr(lang, TrKey::AppSettingsDescription))
@@ -3391,11 +3393,18 @@ impl EntropyApp {
                                     };
                                     ui.painter().rect_filled(option_rect, 7.0, option_fill);
                                     ui.painter().text(
-                                        egui::pos2(option_rect.left() + metrics.value(10.0), option_rect.center().y),
+                                        egui::pos2(
+                                            option_rect.left() + metrics.value(10.0),
+                                            option_rect.center().y,
+                                        ),
                                         egui::Align2::LEFT_CENTER,
                                         language.native_name(),
                                         FontId::proportional(metrics.value(12.0)),
-                                        if selected { ui.visuals().text_color() } else { app_muted_text(dark) },
+                                        if selected {
+                                            ui.visuals().text_color()
+                                        } else {
+                                            app_muted_text(dark)
+                                        },
                                     );
                                     if option_resp.clicked() {
                                         selected_language = language;
@@ -3421,7 +3430,11 @@ impl EntropyApp {
                     Some(crate::i18n::tr(lang, TrKey::CloseToTrayTooltip)),
                     switch_width,
                     |ui| {
-                        let _ = crate::ui_style::settings_switch_sized(ui, &mut minimize_to_tray, switch_size);
+                        let _ = crate::ui_style::settings_switch_sized(
+                            ui,
+                            &mut minimize_to_tray,
+                            switch_size,
+                        );
                     },
                 );
                 if minimize_to_tray != self.app_settings.minimize_to_tray_on_close {
@@ -3445,7 +3458,11 @@ impl EntropyApp {
                     Some(crate::i18n::tr(lang, TrKey::ShiftedNumberSymbolsTooltip)),
                     switch_width,
                     |ui| {
-                        let _ = crate::ui_style::settings_switch_sized(ui, &mut show_shifted_symbols, switch_size);
+                        let _ = crate::ui_style::settings_switch_sized(
+                            ui,
+                            &mut show_shifted_symbols,
+                            switch_size,
+                        );
                     },
                 );
                 if show_shifted_symbols != self.app_settings.show_shifted_number_symbols {
@@ -3551,6 +3568,7 @@ impl EntropyApp {
     }
 
     fn draw_universal_symbols_setup_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
+        let lang = self.app_settings.language;
         let dark = ui.visuals().dark_mode;
         let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ui.ctx());
         let content_width = metrics.settings_content_width();
@@ -3564,9 +3582,12 @@ impl EntropyApp {
                         ui.add_sized(
                             Vec2::new(content_width, metrics.value(24.0)),
                             egui::Label::new(
-                                RichText::new("Universal Symbols Setup")
-                                    .size(metrics.value(18.0))
-                                    .strong(),
+                                RichText::new(crate::i18n::tr(
+                                    lang,
+                                    crate::i18n::Key::UniversalSymbolsSetupTitle,
+                                ))
+                                .size(metrics.value(18.0))
+                                .strong(),
                             )
                             .halign(egui::Align::Center),
                         );
@@ -3706,6 +3727,7 @@ impl EntropyApp {
     }
 
     fn draw_mouse_keys_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
+        let lang = self.app_settings.language;
         let dark = ui.visuals().dark_mode;
         let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ui.ctx());
         let content_width = metrics.settings_content_width();
@@ -3714,7 +3736,7 @@ impl EntropyApp {
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(18.0);
-                ui.label(RichText::new("Mouse Keys").size(18.0).strong());
+                ui.label(RichText::new(crate::i18n::tr(lang, crate::i18n::Key::MouseKeysTitle)).size(18.0).strong());
                 ui.add_space(6.0);
                 ui.label(
                     RichText::new("Tune mouse cursor and wheel movement parameters")
@@ -3921,7 +3943,14 @@ impl EntropyApp {
             |ui| {
                 ui.vertical_centered(|ui| {
                     ui.add_space(18.0);
-                    ui.label(RichText::new("Matrix Tester").size(18.0).strong());
+                    ui.label(
+                        RichText::new(crate::i18n::tr(
+                            self.app_settings.language,
+                            crate::i18n::Key::MatrixTesterTitle,
+                        ))
+                        .size(18.0)
+                        .strong(),
+                    );
                     ui.add_space(6.0);
                     ui.label(
                         RichText::new(
@@ -4072,6 +4101,7 @@ impl EntropyApp {
     }
 
     fn draw_rgb_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect, dark: bool) {
+        let lang = self.app_settings.language;
         let hid_ready = {
             #[cfg(not(target_arch = "wasm32"))]
             {
@@ -4086,7 +4116,11 @@ impl EntropyApp {
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(18.0);
-                ui.label(RichText::new("RGB").size(18.0).strong());
+                ui.label(
+                    RichText::new(crate::i18n::tr(lang, crate::i18n::Key::RgbTitle))
+                        .size(18.0)
+                        .strong(),
+                );
                 ui.add_space(6.0);
                 ui.label(
                     RichText::new("Adjust lighting, effects, color and brightness")
@@ -4141,7 +4175,7 @@ impl EntropyApp {
         ui.painter().text(
             egui::pos2(center_x, title_y),
             egui::Align2::CENTER_CENTER,
-            "Alt Repeat",
+            crate::i18n::tr(self.app_settings.language, crate::i18n::Key::AltRepeatTitle),
             FontId::proportional(metrics.value(18.0)),
             ui.visuals().text_color(),
         );
@@ -4159,6 +4193,7 @@ impl EntropyApp {
     }
 
     fn draw_key_override_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
+        let lang = self.app_settings.language;
         const KEY_OVERRIDE_PAGE_WIDTH: f32 = 548.0;
         const KEY_OVERRIDE_TITLE_Y_OFFSET: f32 = 18.0;
         const KEY_OVERRIDE_DESC_GAP: f32 = 6.0;
@@ -4172,7 +4207,11 @@ impl EntropyApp {
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(KEY_OVERRIDE_TITLE_Y_OFFSET * scale);
-                ui.label(RichText::new("Key Overrides").size(18.0 * scale).strong());
+                ui.label(
+                    RichText::new(crate::i18n::tr(lang, crate::i18n::Key::KeyOverridesTitle))
+                        .size(18.0 * scale)
+                        .strong(),
+                );
                 ui.add_space(KEY_OVERRIDE_DESC_GAP * scale);
                 ui.label(
                     RichText::new("Override one key with custom modifier rules")
@@ -4204,13 +4243,18 @@ impl EntropyApp {
         content_rect: egui::Rect,
     ) {
         self.handle_combo_editor_input(ctx, false);
+        let lang = self.app_settings.language;
         let dark = ui.visuals().dark_mode;
 
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
                 let scale = responsive_settings_editor_scale(ui.ctx());
                 ui.add_space(18.0 * scale);
-                ui.label(RichText::new("Combo").size(18.0 * scale).strong());
+                ui.label(
+                    RichText::new(crate::i18n::tr(lang, crate::i18n::Key::ComboTitle))
+                        .size(18.0 * scale)
+                        .strong(),
+                );
                 ui.add_space(6.0 * scale);
                 ui.label(
                     RichText::new("Press multiple keys together to send a separate keycode")
@@ -4229,6 +4273,7 @@ impl EntropyApp {
         content_rect: egui::Rect,
         dark: bool,
     ) {
+        let lang = self.app_settings.language;
         let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ui.ctx());
         let encoders_content_width = metrics.settings_content_width();
         let encoders_row_height = metrics.settings_row_height();
@@ -4258,7 +4303,11 @@ impl EntropyApp {
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(18.0);
-                ui.label(RichText::new("Encoders").size(18.0).strong());
+                ui.label(
+                    RichText::new(crate::i18n::tr(lang, crate::i18n::Key::EncodersTitle))
+                        .size(18.0)
+                        .strong(),
+                );
                 ui.add_space(6.0);
                 ui.label(
                     RichText::new("Show or hide encoder controls for this device")
@@ -4316,6 +4365,7 @@ impl EntropyApp {
     }
 
     fn draw_layout_options_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
+        let lang = self.app_settings.language;
         let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ui.ctx());
         let content_width = metrics.settings_content_width();
         let row_content_width = metrics.settings_row_content_width();
@@ -4349,7 +4399,11 @@ impl EntropyApp {
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(18.0);
-                ui.label(RichText::new("Display Presets").size(18.0).strong());
+                ui.label(
+                    RichText::new(crate::i18n::tr(lang, crate::i18n::Key::DisplayPresetsTitle))
+                        .size(18.0)
+                        .strong(),
+                );
                 ui.add_space(6.0);
                 ui.label(
                     RichText::new("Configure OLED and display presets")
@@ -4645,6 +4699,7 @@ impl EntropyApp {
         content_rect: egui::Rect,
         dark: bool,
     ) {
+        let lang = self.app_settings.language;
         let hid_ready = {
             #[cfg(not(target_arch = "wasm32"))]
             {
@@ -4659,7 +4714,11 @@ impl EntropyApp {
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(18.0);
-                ui.label(RichText::new("Auto Shift").size(18.0).strong());
+                ui.label(
+                    RichText::new(crate::i18n::tr(lang, crate::i18n::Key::AutoShiftTitle))
+                        .size(18.0)
+                        .strong(),
+                );
                 ui.add_space(6.0);
                 ui.label(
                     RichText::new("Adjust hold threshold and typing behavior")
@@ -8014,6 +8073,7 @@ impl EntropyApp {
     }
 
     fn draw_layer_led_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
+        let lang = self.app_settings.language;
         let dark = ui.visuals().dark_mode;
         let hid_ready = {
             #[cfg(not(target_arch = "wasm32"))]
@@ -8029,7 +8089,7 @@ impl EntropyApp {
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(18.0);
-                ui.label(RichText::new("Layer LEDs").size(18.0).strong());
+                ui.label(RichText::new(crate::i18n::tr(lang, crate::i18n::Key::LayerLedsTitle)).size(18.0).strong());
                 ui.add_space(6.0);
                 ui.label(
                     RichText::new("Set LED brightness, timeout and per-layer colors")
@@ -8534,6 +8594,7 @@ impl EntropyApp {
     }
 
     fn draw_grave_escape_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
+        let lang = self.app_settings.language;
         let dark = ui.visuals().dark_mode;
         let hid_ready = {
             #[cfg(not(target_arch = "wasm32"))]
@@ -8549,7 +8610,10 @@ impl EntropyApp {
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(18.0);
-                ui.label(RichText::new("Grave Escape").size(18.0).strong());
+                ui.label(RichText::new(crate::i18n::tr(
+                        lang,
+                        crate::i18n::Key::GraveEscapeTitle,
+                    )).size(18.0).strong());
                 ui.add_space(6.0);
                 ui.label(
                     RichText::new("Choose which modifiers make Grave Escape send Esc")
@@ -8646,6 +8710,7 @@ impl EntropyApp {
     }
 
     fn draw_magic_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
+        let lang = self.app_settings.language;
         let dark = ui.visuals().dark_mode;
         let hid_ready = {
             #[cfg(not(target_arch = "wasm32"))]
@@ -8661,7 +8726,7 @@ impl EntropyApp {
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(18.0);
-                ui.label(RichText::new("Magic").size(18.0).strong());
+                ui.label(RichText::new(crate::i18n::tr(lang, crate::i18n::Key::MagicTitle)).size(18.0).strong());
                 ui.add_space(6.0);
                 ui.label(
                     RichText::new("Tune global QMK keyboard behavior swaps")
@@ -8911,6 +8976,7 @@ impl EntropyApp {
     }
 
     fn draw_tap_hold_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
+        let lang = self.app_settings.language;
         let dark = ui.visuals().dark_mode;
         let hid_ready = {
             #[cfg(not(target_arch = "wasm32"))]
@@ -8926,7 +8992,11 @@ impl EntropyApp {
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(18.0);
-                ui.label(RichText::new("Tap-Hold & One Shot").size(18.0).strong());
+                ui.label(
+                    RichText::new(crate::i18n::tr(lang, crate::i18n::Key::TapHoldOneShotTitle))
+                        .size(18.0)
+                        .strong(),
+                );
                 ui.add_space(6.0);
                 ui.label(
                     RichText::new("Tune dual-role keys, one-shot modifiers and one-shot layers")
@@ -10007,7 +10077,10 @@ impl EntropyApp {
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(metrics.value(18.0));
-                ui.label(RichText::new("Live Features").size(metrics.value(18.0)).strong());
+                ui.label(RichText::new(crate::i18n::tr(
+                        self.app_settings.language,
+                        crate::i18n::Key::LiveFeaturesTitle,
+                    )).size(metrics.value(18.0)).strong());
                 ui.add_space(metrics.value(6.0));
                 ui.label(
                     RichText::new("Entropy-powered live data for firmware features")
@@ -10077,6 +10150,7 @@ impl EntropyApp {
     }
 
     fn draw_touchpad_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
+        let lang = self.app_settings.language;
         let dark = ui.visuals().dark_mode;
         let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ui.ctx());
         let content_width = metrics.settings_content_width();
@@ -10094,7 +10168,7 @@ impl EntropyApp {
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(18.0);
-                ui.label(RichText::new("Touchpad").size(18.0).strong());
+                ui.label(RichText::new(crate::i18n::tr(lang, crate::i18n::Key::TouchpadTitle)).size(18.0).strong());
                 ui.add_space(6.0);
                 ui.label(
                     RichText::new("Tune K:03 Pro touchpad pointer, scroll and mode behavior")
@@ -11626,6 +11700,9 @@ impl EntropyApp {
 
         // ── Main menu tabs ────────────────────────────────────────────────
         {
+            use crate::i18n::Key as TrKey;
+
+            let lang = self.app_settings.language;
             let center_x = ui.min_rect().center().x;
             let tabs_y = top_base_y;
             let tab_size = Vec2::new(112.0, 28.0);
@@ -11633,9 +11710,18 @@ impl EntropyApp {
             let total_w = tab_size.x * 3.0 + tab_gap * 2.0;
             let start_x = center_x - total_w / 2.0;
             let tabs = [
-                (MainMenuTab::Keyboard, "Layout"),
-                (MainMenuTab::Advanced, "Advanced"),
-                (MainMenuTab::Settings, "Config"),
+                (
+                    MainMenuTab::Keyboard,
+                    crate::i18n::tr(lang, TrKey::MainTabLayout),
+                ),
+                (
+                    MainMenuTab::Advanced,
+                    crate::i18n::tr(lang, TrKey::MainTabAdvanced),
+                ),
+                (
+                    MainMenuTab::Settings,
+                    crate::i18n::tr(lang, TrKey::MainTabConfig),
+                ),
             ];
             let mut device_tab_rect = None;
             let mut device_tab_hovered = false;
@@ -11807,7 +11893,12 @@ impl EntropyApp {
                 let device_rows = device_count.max(1) as f32;
                 let devices_h = 12.0 + device_rows * 30.0;
                 let lock_h = if has_lock_button { 36.0 } else { 0.0 };
-                let dropdown_size = Vec2::new(152.0, devices_h + lock_h + 12.0);
+                let device_dropdown_width = if matches!(lang, crate::i18n::Language::Russian) {
+                    206.0
+                } else {
+                    152.0
+                };
+                let dropdown_size = Vec2::new(device_dropdown_width, devices_h + lock_h + 12.0);
                 let dropdown_rect = egui::Rect::from_min_size(
                     egui::pos2(
                         device_rect.center().x - dropdown_size.x / 2.0,
@@ -11844,9 +11935,12 @@ impl EntropyApp {
                                         |ui| {
                                             ui.add_space(10.0);
                                             ui.label(
-                                                RichText::new("No devices found")
-                                                    .size(13.0)
-                                                    .color(app_muted_text(ui.visuals().dark_mode)),
+                                                RichText::new(crate::i18n::tr(
+                                                    lang,
+                                                    TrKey::NoDevicesFound,
+                                                ))
+                                                .size(13.0)
+                                                .color(app_muted_text(ui.visuals().dark_mode)),
                                             );
                                         },
                                     );
@@ -11885,14 +11979,14 @@ impl EntropyApp {
                                 if has_lock_button {
                                     ui.add_space(6.0);
                                     let lock_label = if is_unlocked {
-                                        "🔓 Lock"
+                                        format!("🔓 {}", crate::i18n::tr(lang, TrKey::LockAction))
                                     } else {
-                                        "🔒 Unlock"
+                                        format!("🔒 {}", crate::i18n::tr(lang, TrKey::UnlockAction))
                                     };
                                     if top_dropdown_item(
                                         ui,
                                         dropdown_size.x - 16.0,
-                                        lock_label,
+                                        &lock_label,
                                         true,
                                         false,
                                     )
@@ -11941,12 +12035,20 @@ impl EntropyApp {
                 let advanced_item_count = combo_supported as usize
                     + auto_shift_supported as usize
                     + key_override_supported as usize;
+                let advanced_dropdown_width = if matches!(lang, crate::i18n::Language::Russian) {
+                    224.0
+                } else {
+                    152.0
+                };
                 let dropdown_rect = egui::Rect::from_min_size(
                     egui::pos2(
-                        advanced_rect.center().x - 76.0,
+                        advanced_rect.center().x - advanced_dropdown_width / 2.0,
                         advanced_rect.bottom() + 6.0,
                     ),
-                    Vec2::new(152.0, (advanced_item_count.max(1) as f32) * 28.0 + 22.0),
+                    Vec2::new(
+                        advanced_dropdown_width,
+                        (advanced_item_count.max(1) as f32) * 28.0 + 22.0,
+                    ),
                 );
                 let hover_bridge_rect = advanced_rect.union(dropdown_rect).expand(3.0);
                 let pointer_over_bridge = ui
@@ -11974,7 +12076,7 @@ impl EntropyApp {
                                             top_dropdown_item(
                                                 ui,
                                                 item_width,
-                                                "Combo",
+                                                crate::i18n::tr(lang, TrKey::ComboTitle),
                                                 true,
                                                 self.main_menu_tab == MainMenuTab::Advanced
                                                     && self.settings_tab == SettingsTab::Combo,
@@ -11984,7 +12086,7 @@ impl EntropyApp {
                                             top_dropdown_item(
                                                 ui,
                                                 item_width,
-                                                "Auto Shift",
+                                                crate::i18n::tr(lang, TrKey::AutoShiftTitle),
                                                 true,
                                                 self.main_menu_tab == MainMenuTab::Advanced
                                                     && self.settings_tab == SettingsTab::AutoShift,
@@ -11994,7 +12096,7 @@ impl EntropyApp {
                                             top_dropdown_item(
                                                 ui,
                                                 item_width,
-                                                "Key Overrides",
+                                                crate::i18n::tr(lang, TrKey::KeyOverridesTitle),
                                                 true,
                                                 self.main_menu_tab == MainMenuTab::Advanced
                                                     && self.settings_tab
@@ -12108,7 +12210,11 @@ impl EntropyApp {
                 // Keep hover bridge in sync with actual item height (30px) and frame padding.
                 // Underestimating this makes lower items close the dropdown on hover.
                 let dropdown_height = settings_item_count as f32 * 30.0 + 12.0;
-                let dropdown_width = 184.0;
+                let dropdown_width = if matches!(lang, crate::i18n::Language::Russian) {
+                    224.0
+                } else {
+                    184.0
+                };
                 let dropdown_rect = egui::Rect::from_min_size(
                     egui::pos2(
                         settings_rect.center().x - dropdown_width / 2.0,
@@ -12154,7 +12260,7 @@ impl EntropyApp {
                                     let app_resp = top_dropdown_item(
                                         ui,
                                         item_width,
-                                        "App Settings",
+                                        crate::i18n::tr(lang, TrKey::AppSettingsTitle),
                                         true,
                                         self.main_menu_tab == MainMenuTab::Settings
                                             && self.settings_tab == SettingsTab::AppSettings,
@@ -12163,7 +12269,7 @@ impl EntropyApp {
                                         top_dropdown_item(
                                             ui,
                                             item_width,
-                                            "Matrix Tester",
+                                            crate::i18n::tr(lang, TrKey::MatrixTesterTitle),
                                             true,
                                             self.main_menu_tab == MainMenuTab::Settings
                                                 && self.settings_tab == SettingsTab::MatrixTester,
@@ -12172,7 +12278,7 @@ impl EntropyApp {
                                     let universal_symbols_resp = top_dropdown_item(
                                         ui,
                                         item_width,
-                                        "Universal Symbols",
+                                        crate::i18n::tr(lang, TrKey::UniversalSymbolsTitle),
                                         true,
                                         self.main_menu_tab == MainMenuTab::Settings
                                             && self.settings_tab
@@ -12182,7 +12288,7 @@ impl EntropyApp {
                                         Some(top_dropdown_item(
                                             ui,
                                             item_width,
-                                            "RGB",
+                                            crate::i18n::tr(lang, TrKey::RgbTitle),
                                             rgb_available,
                                             self.main_menu_tab == MainMenuTab::Settings
                                                 && self.settings_tab == SettingsTab::Rgb,
@@ -12194,7 +12300,7 @@ impl EntropyApp {
                                         top_dropdown_item(
                                             ui,
                                             item_width,
-                                            "Layer LEDs",
+                                            crate::i18n::tr(lang, TrKey::LayerLedsTitle),
                                             true,
                                             self.main_menu_tab == MainMenuTab::Settings
                                                 && self.settings_tab == SettingsTab::LayerLeds,
@@ -12204,7 +12310,7 @@ impl EntropyApp {
                                         top_dropdown_item(
                                             ui,
                                             item_width,
-                                            "Encoders",
+                                            crate::i18n::tr(lang, TrKey::EncodersTitle),
                                             true,
                                             self.main_menu_tab == MainMenuTab::Settings
                                                 && self.settings_tab == SettingsTab::Encoders,
@@ -12214,7 +12320,7 @@ impl EntropyApp {
                                         top_dropdown_item(
                                             ui,
                                             item_width,
-                                            "Display Presets",
+                                            crate::i18n::tr(lang, TrKey::DisplayPresetsTitle),
                                             true,
                                             self.main_menu_tab == MainMenuTab::Settings
                                                 && self.settings_tab == SettingsTab::LayoutOptions,
@@ -12224,7 +12330,7 @@ impl EntropyApp {
                                         top_dropdown_item(
                                             ui,
                                             item_width,
-                                            "Touchpad",
+                                            crate::i18n::tr(lang, TrKey::TouchpadTitle),
                                             true,
                                             self.main_menu_tab == MainMenuTab::Settings
                                                 && self.settings_tab == SettingsTab::Touchpad,
@@ -12234,7 +12340,7 @@ impl EntropyApp {
                                         top_dropdown_item(
                                             ui,
                                             item_width,
-                                            "Live Features",
+                                            crate::i18n::tr(lang, TrKey::LiveFeaturesTitle),
                                             true,
                                             self.main_menu_tab == MainMenuTab::Settings
                                                 && self.settings_tab == SettingsTab::LiveFeatures,
@@ -12244,7 +12350,7 @@ impl EntropyApp {
                                         top_dropdown_item(
                                             ui,
                                             item_width,
-                                            "Magic",
+                                            crate::i18n::tr(lang, TrKey::MagicTitle),
                                             true,
                                             self.main_menu_tab == MainMenuTab::Settings
                                                 && self.settings_tab == SettingsTab::Magic,
@@ -12254,7 +12360,7 @@ impl EntropyApp {
                                         top_dropdown_item(
                                             ui,
                                             item_width,
-                                            "Tap-Hold & One Shot",
+                                            crate::i18n::tr(lang, TrKey::TapHoldOneShotTitle),
                                             true,
                                             self.main_menu_tab == MainMenuTab::Settings
                                                 && self.settings_tab == SettingsTab::TapHold,
@@ -12286,7 +12392,7 @@ impl EntropyApp {
                                         }
                                         if !rgb_available {
                                             let _ = rgb_resp.clone().on_hover_text(
-                                                "RGB settings are not available on this firmware",
+                                                crate::i18n::tr(lang, TrKey::RgbUnavailableTooltip),
                                             );
                                         }
                                     }
