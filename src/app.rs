@@ -7318,7 +7318,7 @@ impl EntropyApp {
                 ui,
                 content_width,
                 layout.row_height,
-                "Effect",
+                crate::i18n::tr_static(self.app_settings.language, "Effect"),
                 true,
                 rgb_slider_size.x,
                 |ui| {
@@ -7399,7 +7399,7 @@ impl EntropyApp {
                 ui,
                 content_width,
                 layout.color_row_height,
-                "Color",
+                crate::i18n::tr_static(self.app_settings.language, "Color"),
                 color_enabled,
                 64.0 * scale,
                 |ui| {
@@ -7489,7 +7489,7 @@ impl EntropyApp {
                 ui,
                 content_width,
                 layout.row_height,
-                "Speed",
+                crate::i18n::tr_static(self.app_settings.language, "Speed"),
                 speed_enabled,
                 rgb_control_width,
                 |ui| {
@@ -7545,7 +7545,7 @@ impl EntropyApp {
                 ui,
                 content_width,
                 layout.row_height,
-                "Brightness",
+                crate::i18n::tr_static(self.app_settings.language, "Brightness"),
                 brightness_enabled,
                 rgb_control_width,
                 |ui| {
@@ -8062,7 +8062,18 @@ impl EntropyApp {
                                         2,
                                         6,
                                     ),
-                                    _ => (format!("{} mods", gui), 3, 7),
+                                    _ => (
+                                        if matches!(
+                                            self.app_settings.language,
+                                            crate::i18n::Language::Russian
+                                        ) {
+                                            format!("{gui}-моды")
+                                        } else {
+                                            format!("{} mods", gui)
+                                        },
+                                        3,
+                                        7,
+                                    ),
                                 };
                                 crate::ui_style::settings_list_row_with_tooltip(
                                     ui,
@@ -8675,11 +8686,28 @@ impl EntropyApp {
                         .filter(|name| !name.is_empty() && *name != layer.to_string())
                         .map(|name| {
                             let visible: String = name.chars().take(22).collect();
-                            format!("Layer {layer}: {visible}")
+                            if matches!(self.app_settings.language, crate::i18n::Language::Russian)
+                            {
+                                format!("Слой {layer}: {visible}")
+                            } else {
+                                format!("Layer {layer}: {visible}")
+                            }
                         })
-                        .unwrap_or_else(|| format!("Layer {layer} color"));
+                        .unwrap_or_else(|| {
+                            if matches!(self.app_settings.language, crate::i18n::Language::Russian)
+                            {
+                                format!("Цвет слоя {layer}")
+                            } else {
+                                format!("Layer {layer} color")
+                            }
+                        });
                     let label = layer_name;
-                    let tooltip = format!("LED palette color used when layer {layer} is active");
+                    let tooltip =
+                        if matches!(self.app_settings.language, crate::i18n::Language::Russian) {
+                            format!("Цвет подсветки, когда активен слой {layer}")
+                        } else {
+                            format!("LED palette color used when layer {layer} is active")
+                        };
                     crate::ui_style::settings_list_row_with_tooltip(
                         ui,
                         content_width,
@@ -8954,10 +8982,18 @@ impl EntropyApp {
                     ),
                     (
                         2,
-                        format!("{gui_name} forces Esc"),
-                        format!(
-                            "When {gui_name} is held, Grave Escape sends Esc instead of ` or ~"
-                        ),
+                        if matches!(self.app_settings.language, crate::i18n::Language::Russian) {
+                            format!("{gui_name} отправляет Esc")
+                        } else {
+                            format!("{gui_name} forces Esc")
+                        },
+                        if matches!(self.app_settings.language, crate::i18n::Language::Russian) {
+                            format!("При удержании {gui_name} Grave Escape отправляет Esc вместо ` или ~")
+                        } else {
+                            format!(
+                                "When {gui_name} is held, Grave Escape sends Esc instead of ` or ~"
+                            )
+                        },
                     ),
                     (
                         3,
@@ -9231,18 +9267,42 @@ impl EntropyApp {
                 ),
                 2 => (
                     2,
-                    format!("Swap Left Alt and {gui}"),
-                    format!("Left Alt sends {gui} and Left {gui} sends Alt"),
+                    if matches!(self.app_settings.language, crate::i18n::Language::Russian) {
+                        format!("Поменять Left Alt и {gui}")
+                    } else {
+                        format!("Swap Left Alt and {gui}")
+                    },
+                    if matches!(self.app_settings.language, crate::i18n::Language::Russian) {
+                        format!("Left Alt отправляет {gui}, а Left {gui} — Alt")
+                    } else {
+                        format!("Left Alt sends {gui} and Left {gui} sends Alt")
+                    },
                 ),
                 3 => (
                     3,
-                    format!("Swap Right Alt and {gui}"),
-                    format!("Right Alt sends {gui} and Right {gui} sends Alt"),
+                    if matches!(self.app_settings.language, crate::i18n::Language::Russian) {
+                        format!("Поменять Right Alt и {gui}")
+                    } else {
+                        format!("Swap Right Alt and {gui}")
+                    },
+                    if matches!(self.app_settings.language, crate::i18n::Language::Russian) {
+                        format!("Right Alt отправляет {gui}, а Right {gui} — Alt")
+                    } else {
+                        format!("Right Alt sends {gui} and Right {gui} sends Alt")
+                    },
                 ),
                 4 => (
                     4,
-                    format!("Disable {gui} keys"),
-                    format!("Ignore both {gui} keys while this option is enabled"),
+                    if matches!(self.app_settings.language, crate::i18n::Language::Russian) {
+                        format!("Отключить клавиши {gui}")
+                    } else {
+                        format!("Disable {gui} keys")
+                    },
+                    if matches!(self.app_settings.language, crate::i18n::Language::Russian) {
+                        format!("Игнорировать обе клавиши {gui}, пока опция включена")
+                    } else {
+                        format!("Ignore both {gui} keys while this option is enabled")
+                    },
                 ),
                 5 => (
                     5,
@@ -9276,13 +9336,29 @@ impl EntropyApp {
                 ),
                 8 => (
                     8,
-                    format!("Swap Left Control and {gui}"),
-                    format!("Left Control sends {gui} and Left {gui} sends Control"),
+                    if matches!(self.app_settings.language, crate::i18n::Language::Russian) {
+                        format!("Поменять Left Control и {gui}")
+                    } else {
+                        format!("Swap Left Control and {gui}")
+                    },
+                    if matches!(self.app_settings.language, crate::i18n::Language::Russian) {
+                        format!("Left Control отправляет {gui}, а Left {gui} — Control")
+                    } else {
+                        format!("Left Control sends {gui} and Left {gui} sends Control")
+                    },
                 ),
                 9 => (
                     9,
-                    format!("Swap Right Control and {gui}"),
-                    format!("Right Control sends {gui} and Right {gui} sends Control"),
+                    if matches!(self.app_settings.language, crate::i18n::Language::Russian) {
+                        format!("Поменять Right Control и {gui}")
+                    } else {
+                        format!("Swap Right Control and {gui}")
+                    },
+                    if matches!(self.app_settings.language, crate::i18n::Language::Russian) {
+                        format!("Right Control отправляет {gui}, а Right {gui} — Control")
+                    } else {
+                        format!("Right Control sends {gui} and Right {gui} sends Control")
+                    },
                 ),
                 _ => continue,
             };

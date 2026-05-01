@@ -127,6 +127,10 @@ pub fn tr_static(language: Language, text: &'static str) -> &'static str {
     match text {
         "Right-click or Esc to return to layout" => "ПКМ или Esc — вернуться к раскладке",
         "Open Privacy Settings" => "Открыть настройки приватности",
+        "Effect" => "Эффект",
+        "Color" => "Цвет",
+        "Speed" => "Скорость",
+        "Brightness" => "Яркость",
         "No setup action is available for this OS" => "Для этой ОС нет действия настройки",
         "Install IBus" => "Установить IBus",
         "Install Fcitx5" => "Установить Fcitx5",
