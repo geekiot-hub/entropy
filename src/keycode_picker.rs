@@ -4228,10 +4228,7 @@ Repeat"
                     let resp = ui
                         .add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""))
                         .on_hover_cursor(egui::CursorIcon::PointingHand);
-                    let label = crate::i18n::tr_text(
-                        self.language,
-                        &keycode_label_with_names(*value, &[], &self.layer_names),
-                    );
+                    let label = keycode_label_with_names(*value, &[], &self.layer_names);
                     Self::paint_compact_picker_label(ui, &resp, &label);
                     if resp.clicked() {
                         self.assign_keycode_value(*value);
@@ -4291,10 +4288,7 @@ Repeat"
                 let resp = ui
                     .add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""))
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
-                let label = crate::i18n::tr_text(
-                    self.language,
-                    &keycode_label_with_names(*value, &[], &self.layer_names),
-                );
+                let label = keycode_label_with_names(*value, &[], &self.layer_names);
                 Self::paint_compact_picker_label(ui, &resp, &label);
                 if resp.clicked() {
                     self.assign_keycode_value(*value);
