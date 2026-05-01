@@ -145,6 +145,7 @@ pub fn tr_static(language: Language, text: &'static str) -> &'static str {
             "Подключите Vial-клавиатуру, чтобы начать live-тест свитчей"
         }
         "Click Tested to reset progress" => "Нажмите на счётчик проверки, чтобы сбросить прогресс",
+        "Tested" => "Проверено",
         "Toggle firmware layout/display option" => "Переключить опцию раскладки/дисплея в прошивке",
         "Choose firmware preset" => "Выбрать пресет прошивки",
         "Connect a Vial keyboard to edit Auto Shift settings" => {
@@ -386,6 +387,8 @@ pub fn tr_text(language: Language, text: &str) -> String {
         "Open Config → Universal Symbols to finish permissions setup" => "Откройте Настройки → Универсальные символы, чтобы завершить настройку разрешений".to_owned(),
         "Open Config → Universal Symbols to finish Linux setup" => "Откройте Настройки → Универсальные символы, чтобы завершить настройку Linux".to_owned(),
         "disabled" | "Disabled" => "Отключено".to_owned(),
+        "oled master" | "OLED Master" | "OLED master" => "OLED мастер".to_owned(),
+        "oled slave" | "OLED Slave" | "OLED slave" => "OLED ведомый".to_owned(),
         "clock" | "Clock" => "Часы".to_owned(),
         "volume" | "Volume" => "Громкость".to_owned(),
         "media" | "Media" => "Медиа".to_owned(),

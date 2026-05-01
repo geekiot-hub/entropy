@@ -4015,7 +4015,8 @@ impl EntropyApp {
 
         let painter = ui.painter().clone();
         let complete = tested_count == total_keys && total_keys > 0;
-        let status_text = format!("Tested: {tested_count}/{total_keys}");
+        let status_prefix = crate::i18n::tr_static(self.app_settings.language, "Tested");
+        let status_text = format!("{status_prefix}: {tested_count}/{total_keys}");
         let status_rect = egui::Rect::from_center_size(
             egui::pos2(content_rect.center().x, status_y),
             Vec2::new(132.0, 30.0),
