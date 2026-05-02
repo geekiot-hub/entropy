@@ -23,7 +23,59 @@ impl Default for Language {
 }
 
 pub fn default_language() -> Language {
-    Language::English
+    system_language()
+}
+
+fn system_language() -> Language {
+    system_locale_tag()
+        .as_deref()
+        .and_then(language_from_locale_tag)
+        .unwrap_or(Language::English)
+}
+
+fn language_from_locale_tag(locale: &str) -> Option<Language> {
+    let normalized = locale.trim().to_ascii_lowercase().replace('_', "-");
+    let language = normalized.split(['-', '.', '@']).next().unwrap_or("");
+    match language {
+        "ru" => Some(Language::Russian),
+        "en" => Some(Language::English),
+        _ => None,
+    }
+}
+
+fn system_locale_tag() -> Option<String> {
+    #[cfg(target_os = "windows")]
+    {
+        windows_user_locale_tag().or_else(env_locale_tag)
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        env_locale_tag()
+    }
+}
+
+fn env_locale_tag() -> Option<String> {
+    ["LC_ALL", "LC_MESSAGES", "LANGUAGE", "LANG"]
+        .iter()
+        .filter_map(|name| std::env::var(name).ok())
+        .flat_map(|value| value.split(':').map(str::to_owned).collect::<Vec<_>>())
+        .find(|value| {
+            let value = value.trim();
+            !value.is_empty() && value != "C" && value != "POSIX"
+        })
+}
+
+#[cfg(target_os = "windows")]
+fn windows_user_locale_tag() -> Option<String> {
+    use windows_sys::Win32::Globalization::GetUserDefaultLocaleName;
+
+    const LOCALE_NAME_MAX_LENGTH: usize = 85;
+    let mut buffer = [0u16; LOCALE_NAME_MAX_LENGTH];
+    let len = unsafe { GetUserDefaultLocaleName(buffer.as_mut_ptr(), buffer.len() as i32) };
+    if len <= 1 {
+        return None;
+    }
+    String::from_utf16(&buffer[..len as usize - 1]).ok()
 }
 
 const EN_CATALOG: &str = include_str!("../i18n/en.toml");
