@@ -9632,7 +9632,7 @@ impl EntropyApp {
                 SettingsRow::Setting {
                     kind: SettingsRowKind::TapHold,
                     qsid: 7,
-                    label: crate::i18n::tr_catalog(self.app_settings.language, "tap_hold_settings.tapping_term_cbc17e7a"),
+                    label: crate::i18n::tr_catalog(self.app_settings.language, "tap_hold_settings.tapping_term_label"),
                     tooltip: crate::i18n::tr_catalog(
                         self.app_settings.language,
                         "Global tap-vs-hold decision window for dual-role keys",
@@ -12471,7 +12471,7 @@ impl EntropyApp {
             self.draw_ui_scale_controls(ui, zoom_left_top);
 
             let undo_enabled = !self.undo_stack.is_empty();
-            let undo_label = crate::i18n::tr_catalog(lang, "alt_repeat_editor.undo_undo_6840d526");
+            let undo_label = crate::i18n::tr_catalog(lang, "alt_repeat_editor.undo_curved");
             let undo_font = FontId::proportional(14.0);
             let undo_text_w = ui.fonts(|f| {
                 f.layout_no_wrap(

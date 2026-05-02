@@ -722,7 +722,7 @@ fn static_catalog_key(text: &str) -> Option<&'static str> {
         "Treat left and right modifiers as equivalent" => Some("alt_repeat_editor.treat_left_and_right_modifiers_as_equivalent"),
         "Clear" => Some("alt_repeat_editor.clear"),
         "Undo" => Some("alt_repeat_editor.undo"),
-        "↶ Undo" => Some("alt_repeat_editor.undo_undo_6840d526"),
+        "↶ Undo" => Some("alt_repeat_editor.undo_curved"),
         "LED brightness" => Some("advanced_settings.led_brightness"),
         "Global LED brightness for layer color lighting" => Some("advanced_settings.global_led_brightness_for_layer_color_lighting"),
         "LED timeout" => Some("advanced_settings.led_timeout"),
@@ -746,7 +746,7 @@ fn static_catalog_key(text: &str) -> Option<&'static str> {
         "Backslash sends Backspace and Backspace sends Backslash" => Some("advanced_settings.backslash_sends_backspace_and_backspace_sends_backslash"),
         "Enable N-key rollover" => Some("advanced_settings.enable_n_key_rollover"),
         "Allow more simultaneous key presses when the keyboard supports it" => Some("advanced_settings.allow_more_simultaneous_key_presses_when_the_keyboard_supports_it"),
-        "Tapping term" => Some("tap_hold_settings.tapping_term_cbc17e7a"),
+        "Tapping term" => Some("tap_hold_settings.tapping_term_label"),
         "Global tap-vs-hold decision window for dual-role keys" => Some("tap_hold_settings.global_tap_vs_hold_decision_window_for_dual_role_keys"),
         "Permissive hold" => Some("tap_hold_settings.permissive_hold"),
         "Nested taps choose hold for Mod-Tap and Layer-Tap keys" => Some("tap_hold_settings.nested_taps_choose_hold_for_mod_tap_and_layer_tap_keys"),
@@ -819,12 +819,6 @@ fn static_catalog_key(text: &str) -> Option<&'static str> {
         "starting" => Some("live_features.starting"),
         _ => None,
     }
-}
-
-pub fn tr_static(language: Language, text: &'static str) -> &'static str {
-    static_catalog_key(text)
-        .map(|key| tr_catalog(language, key))
-        .unwrap_or(text)
 }
 
 fn exact_text_catalog_key(text: &str) -> Option<&'static str> {
@@ -1069,7 +1063,7 @@ Play"# => Some("key_names.play"),
         r#"⏏
 Eject"# => Some("key_names.eject"),
         r#"🏠
-Home"# => Some("key_names.home_e3170d03"),
+Home"# => Some("key_names.home_icon"),
         "Redo" => Some("key_names.redo"),
         "Cut" => Some("key_names.cut"),
         "Copy" => Some("key_names.copy"),
@@ -1120,10 +1114,10 @@ App"# => Some("key_names.next_app"),
         "Arrow Right" => Some("keycode_tooltips.arrow_right"),
         "Left Control" => Some("keycode_tooltips.left_control"),
         "Right Control" => Some("keycode_tooltips.right_control"),
-        "Left Shift" => Some("keycode_tooltips.left_shift_494064e7"),
-        "Right Shift" => Some("keycode_tooltips.right_shift_26a36a6d"),
-        "Left Alt" => Some("keycode_tooltips.left_alt_c689a8e4"),
-        "Right Alt" => Some("keycode_tooltips.right_alt_cdd21f78"),
+        "Left Shift" => Some("keycode_tooltips.left_shift_key"),
+        "Right Shift" => Some("keycode_tooltips.right_shift_key"),
+        "Left Alt" => Some("keycode_tooltips.left_alt_key"),
+        "Right Alt" => Some("keycode_tooltips.right_alt_key"),
         "Swap Caps Lock and Left Control" => Some("keycode_tooltips.swap_caps_lock_and_left_control"),
         "Unswap Caps Lock and Left Control" => Some("keycode_tooltips.unswap_caps_lock_and_left_control"),
         "Toggle Caps Lock and Left Control swap" => Some("keycode_tooltips.toggle_caps_lock_and_left_control_swap"),
@@ -1415,31 +1409,31 @@ pub fn tr_text(language: Language, text: &str) -> String {
                 tr_catalog(language, "dynamic_tooltips.one_shot_active_next"),
             ),
         other if other.starts_with("RGB Matrix: solid color") => {
-            tr_catalog_string(language, "dynamic_tooltips.literal_a8951ae549")
+            tr_catalog_string(language, "dynamic_tooltips.rgb_matrix_solid_color")
         }
         other if other.starts_with("RGB Matrix: breathing effect") => {
-            tr_catalog_string(language, "dynamic_tooltips.literal_9476b3bedd")
+            tr_catalog_string(language, "dynamic_tooltips.rgb_matrix_breathing_effect")
         }
         other if other.starts_with("RGB Matrix: rainbow gradient") => {
-            tr_catalog_string(language, "dynamic_tooltips.literal_1e7b2a6264")
+            tr_catalog_string(language, "dynamic_tooltips.rgb_matrix_rainbow_gradient")
         }
         other if other.starts_with("RGB Matrix: swirling rainbow") => {
-            tr_catalog_string(language, "dynamic_tooltips.literal_19ece435cc")
+            tr_catalog_string(language, "dynamic_tooltips.rgb_matrix_swirl")
         }
         other if other.starts_with("RGB Matrix: snake animation") => {
-            tr_catalog_string(language, "dynamic_tooltips.literal_9e1739f4da")
+            tr_catalog_string(language, "dynamic_tooltips.rgb_matrix_snake")
         }
         other if other.starts_with("RGB Matrix: Knight Rider") => {
-            tr_catalog_string(language, "dynamic_tooltips.literal_ad630cf4e0")
+            tr_catalog_string(language, "dynamic_tooltips.rgb_matrix_knight_rider")
         }
         other if other.starts_with("RGB Matrix: alternating red and green") => {
-            tr_catalog_string(language, "dynamic_tooltips.literal_9c94537d4d")
+            tr_catalog_string(language, "dynamic_tooltips.rgb_matrix_christmas")
         }
         other if other.starts_with("RGB Matrix: static gradient") => {
-            tr_catalog_string(language, "dynamic_tooltips.literal_588f0e10ab")
+            tr_catalog_string(language, "dynamic_tooltips.rgb_matrix_static_gradient")
         }
         other if other.starts_with("RGB Matrix: test mode") => {
-            tr_catalog_string(language, "dynamic_tooltips.literal_6f81091fd7")
+            tr_catalog_string(language, "dynamic_tooltips.rgb_matrix_test_mode")
         }
         other if other.starts_with("Swap Left Alt and ") => other.replace(
             "Swap Left Alt and ",
@@ -1659,7 +1653,7 @@ pub fn tr_text(language: Language, text: &str) -> String {
         }
         other if other.contains(" — macro ") => other.replace(
             " — macro ",
-            tr_catalog(language, "dynamic_tooltips.macro_6715ba"),
+            tr_catalog(language, "dynamic_tooltips.macro_separator"),
         ),
         other if other.contains(" — tap dance ") => {
             other.replace(" — tap dance ", " — Tap Dance ")
