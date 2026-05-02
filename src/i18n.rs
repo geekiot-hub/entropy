@@ -853,13 +853,54 @@ pub fn tr_text(language: Language, text: &str) -> String {
         "Left Alt when held, ( when tapped" => "Левый Alt при hold, ( при tap".to_owned(),
         "Right Alt when held, ) when tapped" => "Правый Alt при hold, ) при tap".to_owned(),
         "Right Shift when held, Enter when tapped" => "Правый Shift при hold, Enter при tap".to_owned(),
+        "Left Ctrl — modifier key (hold to activate shortcuts)" => "Левый Ctrl — модификатор для сочетаний клавиш".to_owned(),
+        "Right Ctrl — modifier key (hold to activate shortcuts)" => "Правый Ctrl — модификатор для сочетаний клавиш".to_owned(),
+        "Left Shift — hold to type uppercase / shifted symbols" => "Левый Shift — удерживайте для верхнего регистра и shifted-символов".to_owned(),
+        "Right Shift — hold to type uppercase / shifted symbols" => "Правый Shift — удерживайте для верхнего регистра и shifted-символов".to_owned(),
+        "Left Alt — modifier key (hold to activate shortcuts)" => "Левый Alt — модификатор для сочетаний клавиш".to_owned(),
+        "Right Alt / AltGr — access special characters" => "Правый Alt / AltGr — доступ к спецсимволам".to_owned(),
+        other if other.starts_with("Left Cmd, ") => other
+            .replace("Left Cmd, macOS modifier key and app shortcuts", "Левый Cmd — модификатор macOS и сочетания приложений"),
+        other if other.starts_with("Right Cmd, ") => other
+            .replace("Right Cmd, macOS modifier key and app shortcuts", "Правый Cmd — модификатор macOS и сочетания приложений"),
+        other if other.starts_with("Left Win, ") => other
+            .replace("Left Win, Windows modifier key and OS shortcuts", "Левый Win — модификатор Windows и системные сочетания"),
+        other if other.starts_with("Right Win, ") => other
+            .replace("Right Win, Windows modifier key and OS shortcuts", "Правый Win — модификатор Windows и системные сочетания"),
+        other if other.starts_with("Left Super, ") => other
+            .replace("Left Super, desktop modifier key and OS shortcuts", "Левый Super — модификатор рабочего стола и системные сочетания"),
+        other if other.starts_with("Right Super, ") => other
+            .replace("Right Super, desktop modifier key and OS shortcuts", "Правый Super — модификатор рабочего стола и системные сочетания"),
         "Plain modifier — hold for left/right side, tap nothing" => "Обычный модификатор — удержание левой/правой стороны, tap ничего не отправляет".to_owned(),
+        other if other.starts_with("Use ") && other.contains(" by itself as a held modifier") => other
+            .replace("Use ", "Использовать ")
+            .replace(" by itself as a held modifier", " отдельно как удерживаемый модификатор")
+            .replace("Left click assigns Left ", "Левый клик назначает левый ")
+            .replace("Right click assigns Right ", "Правый клик назначает правый "),
+        other if other.starts_with("Hold ") && other.contains(" together with another key") => other
+            .replace("Hold ", "Удерживать ")
+            .replace(" together with another key", " вместе с другой клавишей")
+            .replace("Left click starts a Left ", "Левый клик начинает связку с левым ")
+            .replace("Right click starts a Right ", "Правый клик начинает связку с правым ")
+            .replace("+key binding", "+клавиша")
+            .replace("Then choose the key part", "Затем выберите клавишу")
+            .replace("Click to choose the key part", "Кликните, чтобы выбрать клавишу"),
         other if other.starts_with("Hold ") && other.contains(" with the key you choose next") => other
             .replace("Hold ", "Удерживать ")
             .replace(" together with the key you choose next", " вместе со следующей выбранной клавишей"),
         other if other.starts_with("Dual-role key: hold for ") => other
             .replace("Dual-role key: hold for ", "Dual-role клавиша: hold для ")
-            .replace(", tap for the key you choose next", ", tap для следующей выбранной клавиши"),
+            .replace(", tap for another key", ", tap для другой клавиши")
+            .replace(", tap for the key you choose next", ", tap для следующей выбранной клавиши")
+            .replace("Left click uses Left ", "Левый клик использует левый ")
+            .replace("Right click uses Right ", "Правый клик использует правый ")
+            .replace("Then choose the tap key", "Затем выберите tap-клавишу")
+            .replace("Click to choose the tap key", "Кликните, чтобы выбрать tap-клавишу"),
+        other if other.starts_with("Applies ") && other.contains(" to the next keypress only") => other
+            .replace("Applies ", "Применяет ")
+            .replace(" to the next keypress only", " только к следующему нажатию")
+            .replace("Left click assigns One-Shot Left ", "Левый клик назначает One-Shot левый ")
+            .replace("Right click assigns One-Shot Right ", "Правый клик назначает One-Shot правый "),
         other if other.starts_with("One-Shot ") => other
             .replace("One-Shot ", "One-Shot ")
             .replace(" — active for the next keypress only", " — активен только для следующего нажатия")
@@ -954,7 +995,20 @@ pub fn tr_text(language: Language, text: &str) -> String {
         other if other.starts_with("Momentarily activate layer ") => other
             .replace("Momentarily activate layer ", "Моментально активировать слой ")
             .replace(" while held", " при удержании"),
-        other if other.starts_with("Key: ") => other.replace("Key: ", "Клавиша: "),
+        other if other.starts_with("Key: ") => other
+            .replace("Key: ", "Клавиша: ")
+            .replace("Left Ctrl", "левый Ctrl")
+            .replace("Right Ctrl", "правый Ctrl")
+            .replace("Left Shift", "левый Shift")
+            .replace("Right Shift", "правый Shift")
+            .replace("Left Alt", "левый Alt")
+            .replace("Right Alt", "правый Alt")
+            .replace("Left Cmd", "левый Cmd")
+            .replace("Right Cmd", "правый Cmd")
+            .replace("Left Win", "левый Win")
+            .replace("Right Win", "правый Win")
+            .replace("Left Super", "левый Super")
+            .replace("Right Super", "правый Super"),
         other if other.ends_with(" function key") => other.replace(" function key", " — функциональная клавиша"),
         other if other.starts_with("Numpad ") => other.replace("Numpad ", "Нампад "),
         other if other.starts_with("Shortcut: ") => other.replace("Shortcut: ", "Сочетание: ").replace("Right ", "Правый "),
