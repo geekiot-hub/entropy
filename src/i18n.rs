@@ -592,6 +592,7 @@ pub fn tr_static(language: Language, text: &'static str) -> &'static str {
         }
         "Clear" => "Очистить",
         "Undo" => "Отменить",
+        "↶ Undo" => "↶ Отменить",
         "LED brightness" => "Яркость подсветки",
         "Global LED brightness for layer color lighting" => "Общая яркость цветной подсветки слоёв",
         "LED timeout" => "Таймаут подсветки",
@@ -1460,7 +1461,7 @@ fn ru(key: Key) -> &'static str {
         Key::LockAction => "Заблокировать",
         Key::UnlockAction => "Разблокировать",
         Key::ComboTitle => "Комбо",
-        Key::AutoShiftTitle => "Авто-Shift",
+        Key::AutoShiftTitle => "Автошифт",
         Key::KeyOverridesTitle => "Переопределения клавиш",
         Key::MouseKeysTitle => "Клавиши мыши",
         Key::MatrixTesterTitle => "Тестер матрицы",
@@ -1470,14 +1471,14 @@ fn ru(key: Key) -> &'static str {
         Key::RgbTitle => "RGB",
         Key::LayerLedsTitle => "Подсветка слоёв",
         Key::EncodersTitle => "Энкодеры",
-        Key::DisplayPresetsTitle => "Пресеты дисплея",
+        Key::DisplayPresetsTitle => "Профили дисплея",
         Key::TouchpadTitle => "Тачпад",
-        Key::LiveFeaturesTitle => "Live-интеграции",
-        Key::MagicTitle => "Magic-настройки",
-        Key::TapHoldOneShotTitle => "Tap-Hold и One Shot",
-        Key::AltRepeatTitle => "Alt Repeat",
-        Key::AltRepeatDescription => "Configure alternate repeat keys and modifier behavior",
-        Key::AltRepeatUnavailable => "Alt Repeat is not supported by this keyboard",
+        Key::LiveFeaturesTitle => "Live-функции",
+        Key::MagicTitle => "Магия",
+        Key::TapHoldOneShotTitle => "Нажатие/удержание и одноразовые клавиши",
+        Key::AltRepeatTitle => "Alt-повтор",
+        Key::AltRepeatDescription => "Настройка альтернативного повтора клавиш и модификаторов",
+        Key::AltRepeatUnavailable => "Alt-повтор не поддерживается этой клавиатурой",
         Key::GraveEscapeTitle => "Grave Escape",
         Key::RgbUnavailableTooltip => "RGB-настройки недоступны в этой прошивке",
         Key::AppSettingsTitle => "Настройки приложения",
@@ -1513,10 +1514,10 @@ fn ru(key: Key) -> &'static str {
         Key::DisplayPresetsUnavailable => "Эта клавиатура не сообщает пресеты дисплея",
         Key::DisplayPresetsConnect => "Подключите Vial-клавиатуру, чтобы менять пресеты дисплея",
         Key::AutoShiftDescription => "Порог удержания и поведение при наборе",
-        Key::AutoShiftUnavailable => "Auto Shift не включён в этой прошивке",
+        Key::AutoShiftUnavailable => "Автошифт не включён в этой прошивке",
         Key::AutoShiftEnableHint => "Включите AUTO_SHIFT_ENABLE в rules.mk клавиатуры",
         Key::KeyboardLocked => "Клавиатура заблокирована",
-        Key::AutoShiftUnlockHint => "Разблокируйте её в меню устройства, чтобы менять Auto Shift",
+        Key::AutoShiftUnlockHint => "Разблокируйте её в меню устройства, чтобы менять автошифт",
         Key::LayerLedsDescription => "Яркость, таймаут и цвета подсветки по слоям",
         Key::LayerLedsUnavailable => "Подсветка слоёв недоступна в этой прошивке",
         Key::LayerLedsEnableHint => "Включите Ergohaven LED QMK_SETTINGS в прошивке клавиатуры",
@@ -1526,19 +1527,21 @@ fn ru(key: Key) -> &'static str {
         Key::GraveEscapeEnableHint => "Включите QMK_SETTINGS и поддержку Grave Escape в прошивке",
         Key::GraveEscapeConnect => "Подключите Vial-клавиатуру, чтобы менять Grave Escape",
         Key::MagicDescription => "Глобальные переключатели поведения QMK",
-        Key::MagicUnavailable => "Magic-настройки недоступны в этой прошивке",
+        Key::MagicUnavailable => "Магия недоступна в этой прошивке",
         Key::MagicEnableHint => "Включите QMK_SETTINGS и Magic в прошивке клавиатуры",
-        Key::MagicConnect => "Подключите Vial-клавиатуру, чтобы менять Magic-настройки",
+        Key::MagicConnect => "Подключите Vial-клавиатуру, чтобы менять магию QMK",
         Key::TapHoldOneShotDescription => {
             "Dual-role клавиши, one-shot модификаторы и one-shot слои"
         }
-        Key::TapHoldOneShotUnavailable => "Tap-Hold и One Shot недоступны в этой прошивке",
+        Key::TapHoldOneShotUnavailable => {
+            "Нажатие/удержание и одноразовые клавиши недоступны в этой прошивке"
+        }
         Key::QmkSettingsEnableHint => "Включите QMK_SETTINGS в rules.mk клавиатуры",
         Key::TapHoldOneShotConnect => {
-            "Подключите Vial-клавиатуру, чтобы менять Tap-Hold и One Shot"
+            "Подключите Vial-клавиатуру, чтобы менять нажатие/удержание и одноразовые клавиши"
         }
         Key::LiveFeaturesDescription => "Live-данные Entropy для функций прошивки",
-        Key::LiveFeaturesInactive => "Live-интеграции не активны для этой клавиатуры",
+        Key::LiveFeaturesInactive => "Live-функции не активны для этой клавиатуры",
         Key::LiveFeaturesSelectHint => {
             "Выберите пресет или подключите прошивку с live-данными Entropy"
         }

@@ -12450,7 +12450,7 @@ impl EntropyApp {
             self.draw_ui_scale_controls(ui, zoom_left_top);
 
             let undo_enabled = !self.undo_stack.is_empty();
-            let undo_label = "↶ Undo";
+            let undo_label = crate::i18n::tr_static(lang, "↶ Undo");
             let undo_font = FontId::proportional(14.0);
             let undo_text_w = ui.fonts(|f| {
                 f.layout_no_wrap(
