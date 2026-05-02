@@ -267,8 +267,8 @@ pub fn tr_static(language: Language, text: &'static str) -> &'static str {
         "Any one mod" => "Любой один модификатор",
         "No re-send" => "Не отправлять повторно",
         "Stay active" => "Оставаться активным",
-        "Input keys" => "Входные клавиши",
-        "Output key" => "Выходная клавиша",
+        "Input keys" => "Сочетание",
+        "Output key" => "Результат",
         "Select Key Override slot" => "Выберите слот Key Override",
         "Local name for this Key Override slot" => "Локальное имя этого слота Key Override",
         "Original key that can be overridden" => "Исходная клавиша, которую можно заменить",
@@ -297,16 +297,16 @@ pub fn tr_static(language: Language, text: &'static str) -> &'static str {
         "Stay active when another key is pressed" => {
             "Оставаться активным при нажатии другой клавиши"
         }
-        "Select Combo slot" => "Выберите слот Combo",
-        "Local name for this combo slot" => "Локальное имя этого слота Combo",
-        "Keys that must be pressed together" => "Клавиши, которые нужно нажать вместе",
-        "Keycode sent when the combo activates" => "Keycode, отправляемый при срабатывании Combo",
+        "Select Combo slot" => "Выберите ячейку комбо",
+        "Local name for this combo slot" => "Название для удобства — хранится только в Entropy",
+        "Keys that must be pressed together" => "Клавиши, которые нужно нажать одновременно",
+        "Keycode sent when the combo activates" => "Клавиша, которую отправит клавиатура при срабатывании комбо",
         "Maximum time between combo key presses" => {
-            "Максимальное время между нажатиями клавиш Combo"
+            "Сколько времени даётся между нажатиями, чтобы они считались одним комбо"
         }
-        "Press 2-4 keys" => "Нажмите 2–4 клавиши",
-        "Record 2-4 keys" => "Записать 2–4 клавиши",
-        "Pick output" => "Выбрать выход",
+        "Press 2-4 keys" => "Нажмите 2–4 клавиши вместе",
+        "Record 2-4 keys" => "Записать сочетание",
+        "Pick output" => "Выбрать результат",
         "Hold actions are limited to left/right modifiers and layers" => {
             "Hold-действия ограничены левыми/правыми модификаторами и слоями"
         }
@@ -1359,7 +1359,9 @@ fn ru(key: Key) -> &'static str {
         Key::RgbDescription => "Подсветка, эффекты, цвет и яркость",
         Key::RgbConnect => "Подключите Vial-клавиатуру, чтобы менять RGB-настройки",
         Key::KeyOverridesDescription => "Замена клавиш по правилам модификаторов",
-        Key::ComboDescription => "Несколько клавиш вместе отправляют отдельный keycode",
+        Key::ComboDescription => {
+            "Нажмите 2–4 клавиши вместе — клавиатура отправит выбранную клавишу"
+        }
         Key::EncodersDescription => "Показать или скрыть энкодеры для этого устройства",
         Key::EncodersUnavailable => "Для этого устройства нет доступных энкодеров",
         Key::DisplayPresetsDescription => "OLED и пресеты дисплея",
