@@ -23,3 +23,6 @@ The checker verifies:
 - every language has all keys from `en.toml`
 - no language has extra stale keys
 - placeholders such as `{layer}` and `{name}` match English
+- Rust catalog references point to existing `en.toml` keys
+- old `legacy_*` catalog sections are not reintroduced
+- dynamic `tr_text(...)` Russian strings stay in catalogs instead of Rust match arms
