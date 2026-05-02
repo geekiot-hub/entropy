@@ -199,6 +199,9 @@ pub fn tr_static(language: Language, text: &'static str) -> &'static str {
 
     match text {
         "Right-click or Esc to return to layout" => "ПКМ или Esc — вернуться к раскладке",
+        "Keyboard layout and connected devices" => "Раскладка клавиатуры и подключённые устройства",
+        "Advanced keyboard features" => "Дополнительные функции клавиатуры",
+        "Application and device settings" => "Настройки приложения и устройства",
         "Open Privacy Settings" => "Открыть настройки приватности",
         "Effect" => "Эффект",
         "Color" => "Цвет",

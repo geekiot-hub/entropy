@@ -145,7 +145,7 @@ def main():
         version="1.0.0",
         license="GPL-3.0-or-later",
         author="Ergohaven",
-        homepage="https://eh.industries",
+        homepage="https://eh.works",
         textdomain="entropy",
     )
     component.add_engine(

@@ -5808,8 +5808,8 @@ impl eframe::App for EntropyApp {
                             .color(muted),
                     );
                     ui.add(egui::Hyperlink::from_label_and_url(
-                        RichText::new("eh.industries").size(11.0),
-                        "https://eh.industries",
+                        RichText::new("eh.works").size(11.0),
+                        "https://eh.works",
                     ));
                 });
             });
@@ -12360,18 +12360,21 @@ impl EntropyApp {
                 (
                     MainMenuTab::Keyboard,
                     crate::i18n::tr(lang, TrKey::MainTabLayout),
+                    "Keyboard layout and connected devices",
                 ),
                 (
                     MainMenuTab::Advanced,
                     crate::i18n::tr(lang, TrKey::MainTabAdvanced),
+                    "Advanced keyboard features",
                 ),
                 (
                     MainMenuTab::Settings,
                     crate::i18n::tr(lang, TrKey::MainTabConfig),
+                    "Application and device settings",
                 ),
             ];
             let tab_widths = tabs
-                .map(|(_, label)| (top_menu_text_width(ui, label, tab_font_size) + 34.0).max(96.0));
+                .map(|(_, label, _)| (top_menu_text_width(ui, label, tab_font_size) + 34.0).max(96.0));
             let total_w = tab_widths.iter().sum::<f32>() + tab_gap * (tabs.len() - 1) as f32;
             let start_x = center_x - total_w / 2.0;
             let mut device_tab_rect = None;
@@ -12382,13 +12385,15 @@ impl EntropyApp {
             let mut settings_tab_hovered = false;
 
             let mut tab_x = start_x;
-            for (idx, (tab, label)) in tabs.iter().enumerate() {
+            for (idx, (tab, label, tooltip)) in tabs.iter().enumerate() {
                 let slot_rect = egui::Rect::from_min_size(
                     egui::pos2(tab_x, tabs_y),
                     Vec2::new(tab_widths[idx], tab_height),
                 );
                 tab_x += tab_widths[idx] + tab_gap;
                 let resp = ui.allocate_rect(slot_rect, Sense::CLICK);
+                resp.clone()
+                    .on_hover_text(crate::i18n::tr_static(lang, tooltip));
                 if matches!(tab, MainMenuTab::Keyboard) {
                     device_tab_rect = Some(slot_rect);
                     device_tab_hovered = resp.hovered();
@@ -12466,6 +12471,11 @@ impl EntropyApp {
                 Vec2::new(undo_text_w + 12.0, tab_height),
             );
             let undo_resp = ui.allocate_rect(undo_rect, Sense::CLICK);
+            if undo_enabled {
+                undo_resp
+                    .clone()
+                    .on_hover_text(crate::i18n::tr_static(lang, "Undo last change"));
+            }
             if undo_resp.hovered() && undo_enabled {
                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
             }
