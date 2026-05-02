@@ -7,7 +7,10 @@ Supported value format is intentionally simple for now:
 ```toml
 [section]
 key = "Text with {placeholder}"
+raw_key = 'Literal text with \\ or " characters'
 ```
+
+Use double-quoted strings by default. Escape `\\n`, `\\"`, and `\\\\` when needed. Single-quoted literal strings are also supported for values that should be read without escape processing.
 
 Run this before committing translation catalog changes:
 

@@ -2,6 +2,7 @@
 """Check Entropy translation catalogs for key and placeholder parity."""
 from __future__ import annotations
 
+import json
 import re
 import sys
 from pathlib import Path
@@ -28,10 +29,13 @@ def parse_catalog(path: Path) -> dict[str, str]:
         key, value = line.split("=", 1)
         key = key.strip()
         value = value.strip()
-        if not (value.startswith('"') and value.endswith('"')):
+        if not ((value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'"))):
             raise ValueError(f"{path}:{line_no}: only quoted string values are supported")
         full_key = f"{section}.{key}" if section else key
-        result[full_key] = value[1:-1]
+        if value.startswith('"'):
+            result[full_key] = json.loads(value)
+        else:
+            result[full_key] = value[1:-1]
     return result
 
 
