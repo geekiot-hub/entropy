@@ -4625,13 +4625,15 @@ impl EntropyApp {
                             continue;
                         };
                         let option = &options[row_idx];
+                        let translated_option_label =
+                            crate::i18n::tr_text(self.app_settings.language, &option.label);
                         if option.choices.is_empty() {
                             let mut enabled = values.get(row_idx).copied().unwrap_or(0) != 0;
                             crate::ui_style::settings_list_row_with_tooltip(
                                 ui,
                                 row_content_width,
                                 row_height,
-                                &option.label,
+                                translated_option_label.as_str(),
                                 true,
                                 Some(crate::i18n::tr_static(
                                     self.app_settings.language,
@@ -4661,10 +4663,11 @@ impl EntropyApp {
                                 .get(selected_idx)
                                 .map(|s| s.as_str())
                                 .unwrap_or("Unknown");
-                            let selected_text =
-                                Self::display_preset_choice_label(selected_raw_text);
-                            let translated_label =
-                                crate::i18n::tr_text(self.app_settings.language, &option.label);
+                            let selected_text = Self::display_preset_choice_label(
+                                self.app_settings.language,
+                                selected_raw_text,
+                            );
+                            let translated_label = translated_option_label.as_str();
                             let tooltip = if matches!(
                                 self.app_settings.language,
                                 crate::i18n::Language::Russian
@@ -4677,7 +4680,7 @@ impl EntropyApp {
                                 ui,
                                 row_content_width,
                                 row_height,
-                                &option.label,
+                                translated_label,
                                 true,
                                 Some(&tooltip),
                                 dropdown_width,
@@ -4740,6 +4743,7 @@ impl EntropyApp {
                                                         );
                                                         let display_label =
                                                             Self::display_preset_choice_label(
+                                                                self.app_settings.language,
                                                                 label,
                                                             );
                                                         ui.painter().text(
@@ -6461,10 +6465,22 @@ impl EntropyApp {
             .starts_with("hide encoder")
     }
 
-    fn display_preset_choice_label(label: &str) -> String {
-        label
+    fn display_preset_choice_label(language: crate::i18n::Language, label: &str) -> String {
+        let label = label
             .replace(" (qmk-hid-host)", " (Entropy)")
-            .replace("qmk-hid-host", "Entropy")
+            .replace("qmk-hid-host", "Entropy");
+        if matches!(language, crate::i18n::Language::Russian) {
+            let lower = label.to_ascii_lowercase();
+            for (prefix, translated) in [
+                ("oled master", "OLED мастер"),
+                ("oled slave", "OLED ведомый"),
+            ] {
+                if lower == prefix || lower.starts_with(&format!("{} ", prefix)) {
+                    return format!("{}{}", translated, &label[prefix.len()..]);
+                }
+            }
+        }
+        crate::i18n::tr_text(language, &label)
     }
 
     fn display_preset_needs_entropy(label: &str) -> bool {
@@ -10667,12 +10683,15 @@ impl EntropyApp {
                         metrics,
                         crate::i18n::tr_static(self.app_settings.language, "Volume sync"),
                         if volume.ok {
-                            volume.label
+                            crate::i18n::tr_static(self.app_settings.language, volume.label)
                         } else {
                             crate::i18n::tr_static(self.app_settings.language, "needs setup")
                         },
                         volume.ok,
-                        Some(volume.hint),
+                        Some(crate::i18n::tr_static(
+                            self.app_settings.language,
+                            volume.hint,
+                        )),
                     );
                 }
                 if mode.media {
@@ -10682,12 +10701,15 @@ impl EntropyApp {
                         metrics,
                         crate::i18n::tr_static(self.app_settings.language, "Media info"),
                         if media.ok {
-                            media.label
+                            crate::i18n::tr_static(self.app_settings.language, media.label)
                         } else {
                             crate::i18n::tr_static(self.app_settings.language, "needs setup")
                         },
                         media.ok,
-                        Some(media.hint),
+                        Some(crate::i18n::tr_static(
+                            self.app_settings.language,
+                            media.hint,
+                        )),
                     );
                 }
 
@@ -11042,23 +11064,33 @@ impl EntropyApp {
         }
     }
 
-    fn key_override_mod_mask_summary(mask: u8) -> String {
+    fn key_override_mod_mask_summary(language: crate::i18n::Language, mask: u8) -> String {
         match mask.count_ones() {
-            0 => "None".to_string(),
-            8 => "All mods".to_string(),
+            0 => crate::i18n::tr_static(language, "None").to_string(),
+            8 => crate::i18n::tr_static(language, "All mods").to_string(),
+            count if matches!(language, crate::i18n::Language::Russian) => {
+                format!("{} модиф.", count)
+            }
             count => format!("{} mods", count),
         }
     }
 
-    fn key_override_layers_summary(layers: u16) -> String {
+    fn key_override_layers_summary(language: crate::i18n::Language, layers: u16) -> String {
         match layers.count_ones() {
-            0 => "No layers".to_string(),
-            16 => "All layers".to_string(),
+            0 => crate::i18n::tr_static(language, "No layers").to_string(),
+            16 => crate::i18n::tr_static(language, "All layers").to_string(),
+            count if matches!(language, crate::i18n::Language::Russian) => {
+                format!("{} слоёв", count)
+            }
             count => format!("{} layers", count),
         }
     }
 
-    fn draw_key_override_layers_modern(ui: &mut egui::Ui, layers: &mut u16) -> bool {
+    fn draw_key_override_layers_modern(
+        ui: &mut egui::Ui,
+        layers: &mut u16,
+        language: crate::i18n::Language,
+    ) -> bool {
         let mut changed = false;
         let dark = ui.visuals().dark_mode;
 
@@ -11158,14 +11190,22 @@ impl EntropyApp {
         let action_inset = ((popup_width - action_width) * 0.5).max(0.0);
         ui.horizontal(|ui| {
             ui.add_space(action_inset);
-            let all_resp =
-                crate::ui_style::modern_button(ui, "Enable all", metrics.size(112.0, 30.0), true);
+            let all_resp = crate::ui_style::modern_button(
+                ui,
+                crate::i18n::tr_static(language, "Enable all"),
+                metrics.size(112.0, 30.0),
+                true,
+            );
             if all_resp.clicked() && *layers != u16::MAX {
                 *layers = u16::MAX;
                 changed = true;
             }
-            let none_resp =
-                crate::ui_style::modern_button(ui, "Disable all", metrics.size(112.0, 30.0), true);
+            let none_resp = crate::ui_style::modern_button(
+                ui,
+                crate::i18n::tr_static(language, "Disable all"),
+                metrics.size(112.0, 30.0),
+                true,
+            );
             if none_resp.clicked() && *layers != 0 {
                 *layers = 0;
                 changed = true;
@@ -11174,19 +11214,36 @@ impl EntropyApp {
         changed
     }
 
-    fn draw_key_override_mod_mask_modern(ui: &mut egui::Ui, mask: &mut u8) -> bool {
+    fn draw_key_override_mod_mask_modern(
+        ui: &mut egui::Ui,
+        mask: &mut u8,
+        language: crate::i18n::Language,
+    ) -> bool {
         let mut changed = false;
         let gui = crate::keycode::gui_mod_name();
-        let labels = [
-            "Left Ctrl".to_string(),
-            "Left Shift".to_string(),
-            "Left Alt".to_string(),
-            format!("Left {}", gui),
-            "Right Ctrl".to_string(),
-            "Right Shift".to_string(),
-            "Right Alt".to_string(),
-            format!("Right {}", gui),
-        ];
+        let labels = if matches!(language, crate::i18n::Language::Russian) {
+            [
+                "Левый Ctrl".to_string(),
+                "Левый Shift".to_string(),
+                "Левый Alt".to_string(),
+                format!("Левый {}", gui),
+                "Правый Ctrl".to_string(),
+                "Правый Shift".to_string(),
+                "Правый Alt".to_string(),
+                format!("Правый {}", gui),
+            ]
+        } else {
+            [
+                "Left Ctrl".to_string(),
+                "Left Shift".to_string(),
+                "Left Alt".to_string(),
+                format!("Left {}", gui),
+                "Right Ctrl".to_string(),
+                "Right Shift".to_string(),
+                "Right Alt".to_string(),
+                format!("Right {}", gui),
+            ]
+        };
 
         let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ui.ctx());
         let popup_width = metrics.value(244.0);
@@ -11291,7 +11348,7 @@ impl EntropyApp {
             ui.visuals().text_color()
         };
         let trigger_label = if edited.trigger == 0 {
-            "Pick trigger".to_string()
+            crate::i18n::tr_static(self.app_settings.language, "Pick trigger").to_string()
         } else {
             keycode_label_with_macro_names(
                 edited.trigger,
@@ -11303,7 +11360,7 @@ impl EntropyApp {
             .replace('\n', " ")
         };
         let replacement_label = if edited.replacement == 0 {
-            "Pick replacement".to_string()
+            crate::i18n::tr_static(self.app_settings.language, "Pick replacement").to_string()
         } else {
             keycode_label_with_macro_names(
                 edited.replacement,
@@ -11519,13 +11576,13 @@ impl EntropyApp {
                                                 control_width,
                                                 |ui| {
                                                     let popup_id = ui.make_persistent_id(("ko_suppressed_mods_popup", idx));
-                                                    let summary = Self::key_override_mod_mask_summary(edited.suppressed_mods);
+                                                    let summary = Self::key_override_mod_mask_summary(self.app_settings.language, edited.suppressed_mods);
                                                     let resp = crate::ui_style::modern_button_with_font(ui, summary.as_str(), Vec2::new(control_width, control_height), control_font_size, true);
                                                     if resp.clicked() { ui.memory_mut(|m| m.toggle_popup(popup_id)); }
                                                     ui.style_mut().visuals.window_stroke = crate::ui_style::modal_outline_stroke(dark);
                                                     ui.style_mut().visuals.window_fill = app_surface_fill(dark);
                                                     egui::popup_below_widget(ui, popup_id, &resp, egui::PopupCloseBehavior::CloseOnClickOutside, |ui| {
-                                                        Self::draw_key_override_mod_mask_modern(ui, &mut edited.suppressed_mods);
+                                                        Self::draw_key_override_mod_mask_modern(ui, &mut edited.suppressed_mods, self.app_settings.language);
                                                     });
                                                 },
                                             );
@@ -11541,13 +11598,13 @@ impl EntropyApp {
                                                 control_width,
                                                 |ui| {
                                                     let popup_id = ui.make_persistent_id(("ko_trigger_mods_popup", idx));
-                                                    let summary = Self::key_override_mod_mask_summary(edited.trigger_mods);
+                                                    let summary = Self::key_override_mod_mask_summary(self.app_settings.language, edited.trigger_mods);
                                                     let resp = crate::ui_style::modern_button_with_font(ui, summary.as_str(), Vec2::new(control_width, control_height), control_font_size, true);
                                                     if resp.clicked() { ui.memory_mut(|m| m.toggle_popup(popup_id)); }
                                                     ui.style_mut().visuals.window_stroke = crate::ui_style::modal_outline_stroke(dark);
                                                     ui.style_mut().visuals.window_fill = app_surface_fill(dark);
                                                     egui::popup_below_widget(ui, popup_id, &resp, egui::PopupCloseBehavior::CloseOnClickOutside, |ui| {
-                                                        Self::draw_key_override_mod_mask_modern(ui, &mut edited.trigger_mods);
+                                                        Self::draw_key_override_mod_mask_modern(ui, &mut edited.trigger_mods, self.app_settings.language);
                                                     });
                                                 },
                                             );
@@ -11563,13 +11620,13 @@ impl EntropyApp {
                                                 control_width,
                                                 |ui| {
                                                     let popup_id = ui.make_persistent_id(("ko_negative_mods_popup", idx));
-                                                    let summary = Self::key_override_mod_mask_summary(edited.negative_mod_mask);
+                                                    let summary = Self::key_override_mod_mask_summary(self.app_settings.language, edited.negative_mod_mask);
                                                     let resp = crate::ui_style::modern_button_with_font(ui, summary.as_str(), Vec2::new(control_width, control_height), control_font_size, true);
                                                     if resp.clicked() { ui.memory_mut(|m| m.toggle_popup(popup_id)); }
                                                     ui.style_mut().visuals.window_stroke = crate::ui_style::modal_outline_stroke(dark);
                                                     ui.style_mut().visuals.window_fill = app_surface_fill(dark);
                                                     egui::popup_below_widget(ui, popup_id, &resp, egui::PopupCloseBehavior::CloseOnClickOutside, |ui| {
-                                                        Self::draw_key_override_mod_mask_modern(ui, &mut edited.negative_mod_mask);
+                                                        Self::draw_key_override_mod_mask_modern(ui, &mut edited.negative_mod_mask, self.app_settings.language);
                                                     });
                                                 },
                                             );
@@ -11585,13 +11642,13 @@ impl EntropyApp {
                                                 control_width,
                                                 |ui| {
                                                     let popup_id = ui.make_persistent_id(("ko_layers_popup", idx));
-                                                    let summary = Self::key_override_layers_summary(edited.layers);
+                                                    let summary = Self::key_override_layers_summary(self.app_settings.language, edited.layers);
                                                     let resp = crate::ui_style::modern_button_with_font(ui, summary.as_str(), Vec2::new(control_width, control_height), control_font_size, true);
                                                     if resp.clicked() { ui.memory_mut(|m| m.toggle_popup(popup_id)); }
                                                     ui.style_mut().visuals.window_stroke = crate::ui_style::modal_outline_stroke(dark);
                                                     ui.style_mut().visuals.window_fill = app_surface_fill(dark);
                                                     egui::popup_below_widget(ui, popup_id, &resp, egui::PopupCloseBehavior::CloseOnClickOutside, |ui| {
-                                                        Self::draw_key_override_layers_modern(ui, &mut edited.layers);
+                                                        Self::draw_key_override_layers_modern(ui, &mut edited.layers, self.app_settings.language);
                                                     });
                                                 },
                                             );
@@ -11842,16 +11899,17 @@ impl EntropyApp {
             };
             if keys.is_empty() {
                 if self.combo_capture_open {
-                    "Press 2-4 keys".to_string()
+                    crate::i18n::tr_static(self.app_settings.language, "Press 2-4 keys").to_string()
                 } else {
-                    "Record 2-4 keys".to_string()
+                    crate::i18n::tr_static(self.app_settings.language, "Record 2-4 keys")
+                        .to_string()
                 }
             } else {
                 keys.join(" + ")
             }
         };
         let output_label = if self.combo_entries[combo_idx].output == 0 {
-            "Pick output".to_string()
+            crate::i18n::tr_static(self.app_settings.language, "Pick output").to_string()
         } else {
             keycode_label_with_macro_names(
                 self.combo_entries[combo_idx].output,

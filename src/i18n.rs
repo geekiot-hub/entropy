@@ -253,6 +253,14 @@ pub fn tr_static(language: Language, text: &'static str) -> &'static str {
         "Trigger mods" => "Триггер-модификаторы",
         "Negative mods" => "Блокирующие модификаторы",
         "Enable on layers" => "Активно на слоях",
+        "Pick trigger" => "Выбрать триггер",
+        "Pick replacement" => "Выбрать замену",
+        "None" => "Нет",
+        "All mods" => "Все модификаторы",
+        "No layers" => "Нет слоёв",
+        "All layers" => "Все слои",
+        "Enable all" => "Включить всё",
+        "Disable all" => "Отключить всё",
         "Trigger press" => "Нажатие триггера",
         "Required mod press" => "Нажатие требуемого модификатора",
         "Blocked mod release" => "Отпускание блокирующего модификатора",
@@ -296,6 +304,9 @@ pub fn tr_static(language: Language, text: &'static str) -> &'static str {
         "Maximum time between combo key presses" => {
             "Максимальное время между нажатиями клавиш Combo"
         }
+        "Press 2-4 keys" => "Нажмите 2–4 клавиши",
+        "Record 2-4 keys" => "Записать 2–4 клавиши",
+        "Pick output" => "Выбрать выход",
         "Hold actions are limited to left/right modifiers and layers" => {
             "Hold-действия ограничены левыми/правыми модификаторами и слоями"
         }
@@ -583,7 +594,7 @@ pub fn tr_static(language: Language, text: &'static str) -> &'static str {
         "Number of taps needed for TT layer toggle" => {
             "Количество taps для переключения слоя через TT"
         }
-        "Flow tap" => "Flow tap timeout",
+        "Flow tap" => "Таймаут flow tap",
         "Fast typing timeout that forces MT/LT keys to tap" => {
             "Таймаут быстрого набора, принудительно выбирающий tap для MT/LT"
         }
@@ -638,6 +649,37 @@ pub fn tr_static(language: Language, text: &'static str) -> &'static str {
         "Time sync" => "Синхронизация времени",
         "Uses the local system clock" => "Использует локальные системные часы",
         "Volume sync" => "Синхронизация громкости",
+        "native Windows audio" => "нативное аудио Windows",
+        "Uses the Windows default output device" => "Использует устройство вывода Windows по умолчанию",
+        "Uses PipeWire default sink volume" => "Использует громкость default sink PipeWire",
+        "Uses PulseAudio/PipeWire Pulse default sink volume" => {
+            "Использует громкость default sink PulseAudio/PipeWire Pulse"
+        }
+        "missing wpctl/pactl" => "нет wpctl/pactl",
+        "Install wireplumber or pulseaudio-utils/pavucontrol package for volume sync" => {
+            "Установите wireplumber или pulseaudio-utils/pavucontrol для синхронизации громкости"
+        }
+        "Uses macOS system output volume" => "Использует системную громкость вывода macOS",
+        "unsupported OS" => "ОС не поддерживается",
+        "Volume sync is implemented for Windows, Linux and macOS" => {
+            "Синхронизация громкости реализована для Windows, Linux и macOS"
+        }
+        "native Windows media session" => "нативная медиа-сессия Windows",
+        "Uses Windows global media session metadata" => {
+            "Использует метаданные глобальной медиа-сессии Windows"
+        }
+        "Uses MPRIS metadata from the active player" => "Использует MPRIS-метаданные активного плеера",
+        "missing playerctl" => "нет playerctl",
+        "Install playerctl and use an MPRIS-compatible player for media info" => {
+            "Установите playerctl и используйте MPRIS-совместимый плеер для медиа-информации"
+        }
+        "Spotify / Music via AppleScript" => "Spotify / Music через AppleScript",
+        "macOS may ask for Automation permission for Entropy, System Events, Spotify or Music" => {
+            "macOS может запросить Automation-разрешение для Entropy, System Events, Spotify или Music"
+        }
+        "Media sync is implemented for Windows, Linux and macOS" => {
+            "Медиа-синхронизация реализована для Windows, Linux и macOS"
+        }
         "Media info" => "Медиа-информация",
         "ready" => "готово",
         "needs setup" => "нужна настройка",
