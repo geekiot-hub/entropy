@@ -182,3 +182,12 @@ stop_repeat_after_timeout = "Остановить повтор после тай
 stop_repeat_after_timeout_tooltip = "Отключать повтор после превышения таймаута Auto Shift"
 timeout_tooltip = "Время удержания перед отправкой shifted-клавиши"
 timeout_field_tooltip = "Таймаут в миллисекундах"
+
+[connection]
+keyboard_locked_edit_macros = "Клавиатура заблокирована, разблокируйте её для редактирования макросов"
+waiting_for_keyboard = "Ожидание клавиатуры"
+connect_vial_device = "Подключите Vial-устройство"
+loading_keyboard = "Загрузка клавиатуры…"
+
+[navigation]
+return_to_layout_hint = "ПКМ или Esc — вернуться к раскладке"

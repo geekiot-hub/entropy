@@ -339,7 +339,6 @@ pub fn tr_static(language: Language, text: &'static str) -> &'static str {
     }
 
     match text {
-        "Right-click or Esc to return to layout" => "ПКМ или Esc — вернуться к раскладке",
         "Open Privacy Settings" => "Открыть настройки приватности",
         "Effect" => "Эффект",
         "Color" => "Цвет",
@@ -684,8 +683,6 @@ pub fn tr_static(language: Language, text: &'static str) -> &'static str {
             "Время удержания перед отправкой shifted-клавиши"
         }
         "Timeout is in milliseconds" => "Таймаут в миллисекундах",
-        "Waiting for a keyboard" => "Ожидание клавиатуры",
-        "Connect a Vial device" => "Подключите Vial-устройство",
         "Light" => "Светлая",
         "Dark" => "Тёмная",
         "☀ Light" => "☀ Светлая",
@@ -694,9 +691,6 @@ pub fn tr_static(language: Language, text: &'static str) -> &'static str {
         "Unlock Keyboard" => "Разблокировать клавиатуру",
         "Press and hold the highlighted keys one by one" => {
             "Нажмите и удерживайте подсвеченные клавиши по очереди"
-        }
-        "Keyboard is locked, unlock it to edit macros" => {
-            "Клавиатура заблокирована — разблокируйте её для редактирования макросов"
         }
         "Macros saved" => "Макросы сохранены",
         "Combos saved" => "Комбо сохранены",

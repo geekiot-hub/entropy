@@ -3338,9 +3338,9 @@ impl EntropyApp {
         ui.painter().text(
             egui::pos2(ui.max_rect().center().x, ui.max_rect().bottom() - 36.0),
             egui::Align2::CENTER_CENTER,
-            crate::i18n::tr_static(
+            crate::i18n::tr_catalog(
                 self.app_settings.language,
-                "Right-click or Esc to return to layout",
+                "navigation.return_to_layout_hint",
             ),
             FontId::proportional(11.0),
             hint_color,
@@ -5688,12 +5688,9 @@ impl eframe::App for EntropyApp {
             && self.is_vial_locked()
         {
             self.unlock_open = true;
-            self.status_msg = crate::i18n::tr_static(
+            self.status_msg = crate::i18n::tr_catalog(
                 self.app_settings.language,
-                crate::i18n::tr_static(
-                    self.app_settings.language,
-                    "Keyboard is locked, unlock it to edit macros",
-                ),
+                "connection.keyboard_locked_edit_macros",
             )
             .into();
         }
@@ -5733,12 +5730,9 @@ impl eframe::App for EntropyApp {
                         ui.label(RichText::new("✦").size(28.0).color(app_accent()));
                         ui.add_space(10.0);
                         ui.label(
-                            RichText::new(crate::i18n::tr_static(
+                            RichText::new(crate::i18n::tr_catalog(
                                 self.app_settings.language,
-                                crate::i18n::tr_static(
-                                    self.app_settings.language,
-                                    "Waiting for a keyboard",
-                                ),
+                                "connection.waiting_for_keyboard",
                             ))
                             .size(20.0)
                             .strong()
@@ -5750,12 +5744,9 @@ impl eframe::App for EntropyApp {
                         );
                         ui.add_space(7.0);
                         ui.label(
-                            RichText::new(crate::i18n::tr_static(
+                            RichText::new(crate::i18n::tr_catalog(
                                 self.app_settings.language,
-                                crate::i18n::tr_static(
-                                    self.app_settings.language,
-                                    "Connect a Vial device",
-                                ),
+                                "connection.connect_vial_device",
                             ))
                             .size(13.0)
                             .color(app_muted_text(self.dark_mode)),
@@ -5767,7 +5758,10 @@ impl eframe::App for EntropyApp {
 
             if is_loading {
                 let rect = ui.max_rect();
-                let text = "Loading keyboard…";
+                let text = crate::i18n::tr_catalog(
+                    self.app_settings.language,
+                    "connection.loading_keyboard",
+                );
                 let font_id = FontId::proportional(16.0);
                 let text_width = ui.fonts(|f| {
                     f.layout_no_wrap(text.to_owned(), font_id.clone(), Color32::GRAY)
