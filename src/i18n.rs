@@ -26,6 +26,63 @@ pub fn default_language() -> Language {
     Language::English
 }
 
+const EN_CATALOG: &str = include_str!("../i18n/en.toml");
+const RU_CATALOG: &str = include_str!("../i18n/ru.toml");
+
+pub fn tr_catalog(language: Language, key: &'static str) -> &'static str {
+    let translated = match language {
+        Language::English => catalog_lookup(EN_CATALOG, key),
+        Language::Russian => catalog_lookup(RU_CATALOG, key),
+    };
+
+    translated
+        .or_else(|| catalog_lookup(EN_CATALOG, key))
+        .unwrap_or(key)
+}
+
+pub fn tr_catalog_format(language: Language, key: &'static str, vars: &[(&str, &str)]) -> String {
+    let mut text = tr_catalog(language, key).to_owned();
+    for (name, value) in vars {
+        text = text.replace(&format!("{{{name}}}"), value);
+    }
+    text
+}
+
+fn catalog_lookup(catalog: &'static str, key: &str) -> Option<&'static str> {
+    let (wanted_section, wanted_name) = key.rsplit_once('.')?;
+    let mut section = "";
+
+    for raw_line in catalog.lines() {
+        let line = raw_line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+
+        if line.starts_with('[') && line.ends_with(']') {
+            section = line[1..line.len() - 1].trim();
+            continue;
+        }
+
+        if section != wanted_section {
+            continue;
+        }
+
+        let Some((name, value)) = line.split_once('=') else {
+            continue;
+        };
+        if name.trim() != wanted_name {
+            continue;
+        }
+
+        let value = value.trim();
+        if value.len() >= 2 && value.starts_with('"') && value.ends_with('"') {
+            return Some(&value[1..value.len() - 1]);
+        }
+    }
+
+    None
+}
+
 fn ru_smart_symbol_name(name: &str) -> &str {
     match name {
         "Left brace" => "левая фигурная скобка",
@@ -95,8 +152,7 @@ fn ru_smart_symbol_name(name: &str) -> &str {
 }
 
 fn ru_modifier_name(name: &str) -> String {
-    name.replace("Left ", "левый ")
-        .replace("Right ", "правый ")
+    name.replace("Left ", "левый ").replace("Right ", "правый ")
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -199,24 +255,6 @@ pub fn tr_static(language: Language, text: &'static str) -> &'static str {
 
     match text {
         "Right-click or Esc to return to layout" => "ПКМ или Esc — вернуться к раскладке",
-        "Keyboard layout and connected devices" => "Раскладка клавиатуры и подключённые устройства",
-        "Advanced keyboard features" => "Дополнительные функции клавиатуры",
-        "Application and device settings" => "Настройки приложения и устройства",
-        "Left click to change this key" => "Левый клик — изменить эту клавишу",
-        "Right click to go to layer" => "Правый клик — перейти на слой",
-        "Ctrl + Right click to change layer number" => "Ctrl + правый клик — изменить номер слоя",
-        "Esc to go back" => "Esc — назад",
-        "Right-click or Esc to go back" => "Правый клик или Esc — назад",
-        "Right click to change the modifier key" => "Правый клик — изменить клавишу-модификатор",
-        "Ctrl+right-click to switch left/right side" => "Ctrl + правый клик — переключить левую/правую сторону",
-        "Right click to edit macro" => "Правый клик — редактировать макрос",
-        "Right click to edit tap dance" => "Правый клик — редактировать Tap Dance",
-        "Right click to open Mouse Keys settings" => "Правый клик — открыть настройки клавиш мыши",
-        "Right click to open Alt Repeat settings" => "Правый клик — открыть настройки Alt Repeat",
-        "Right click to open Grave Escape settings" => "Правый клик — открыть настройки Grave Escape",
-        "Right click to go to that layer" => "Правый клик — перейти на этот слой",
-        "Ctrl+right-click to change layer target" => "Ctrl + правый клик — изменить целевой слой",
-        "Click to rename layer" => "Клик — переименовать слой",
         "Open Privacy Settings" => "Открыть настройки приватности",
         "Effect" => "Эффект",
         "Color" => "Цвет",

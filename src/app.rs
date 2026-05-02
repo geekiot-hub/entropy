@@ -5807,14 +5807,12 @@ impl eframe::App for EntropyApp {
                             .size(11.0)
                             .color(muted),
                     );
-                    let (site_label, site_url) = if matches!(
-                        self.app_settings.language,
-                        crate::i18n::Language::Russian
-                    ) {
-                        ("eh.works", "https://eh.works")
-                    } else {
-                        ("eh.industries", "https://eh.industries")
-                    };
+                    let (site_label, site_url) =
+                        if matches!(self.app_settings.language, crate::i18n::Language::Russian) {
+                            ("eh.works", "https://eh.works")
+                        } else {
+                            ("eh.industries", "https://eh.industries")
+                        };
                     ui.add(egui::Hyperlink::from_label_and_url(
                         RichText::new(site_label).size(11.0),
                         site_url,
@@ -12368,21 +12366,22 @@ impl EntropyApp {
                 (
                     MainMenuTab::Keyboard,
                     crate::i18n::tr(lang, TrKey::MainTabLayout),
-                    "Keyboard layout and connected devices",
+                    "main_menu.layout_tooltip",
                 ),
                 (
                     MainMenuTab::Advanced,
                     crate::i18n::tr(lang, TrKey::MainTabAdvanced),
-                    "Advanced keyboard features",
+                    "main_menu.advanced_tooltip",
                 ),
                 (
                     MainMenuTab::Settings,
                     crate::i18n::tr(lang, TrKey::MainTabConfig),
-                    "Application and device settings",
+                    "main_menu.settings_tooltip",
                 ),
             ];
-            let tab_widths = tabs
-                .map(|(_, label, _)| (top_menu_text_width(ui, label, tab_font_size) + 34.0).max(96.0));
+            let tab_widths = tabs.map(|(_, label, _)| {
+                (top_menu_text_width(ui, label, tab_font_size) + 34.0).max(96.0)
+            });
             let total_w = tab_widths.iter().sum::<f32>() + tab_gap * (tabs.len() - 1) as f32;
             let start_x = center_x - total_w / 2.0;
             let mut device_tab_rect = None;
@@ -12401,7 +12400,7 @@ impl EntropyApp {
                 tab_x += tab_widths[idx] + tab_gap;
                 let resp = ui.allocate_rect(slot_rect, Sense::CLICK);
                 resp.clone()
-                    .on_hover_text(crate::i18n::tr_static(lang, tooltip));
+                    .on_hover_text(crate::i18n::tr_catalog(lang, tooltip));
                 if matches!(tab, MainMenuTab::Keyboard) {
                     device_tab_rect = Some(slot_rect);
                     device_tab_hovered = resp.hovered();
@@ -13515,7 +13514,7 @@ impl EntropyApp {
                     let hint_y = ui.max_rect().bottom() - 36.0;
                     let any_hovered = self.prev_hovered_key.is_some() || self.prev_hovered_encoder;
                     let hint_language = self.app_settings.language;
-                    let tr_hint = |text: &'static str| crate::i18n::tr_static(hint_language, text);
+                    let tr_hint = |key: &'static str| crate::i18n::tr_catalog(hint_language, key);
                     if let Some(hl) = self.hover_layer {
                         let hl_name = self
                             .layer_names
@@ -13529,17 +13528,23 @@ impl EntropyApp {
                         ui.painter().text(
                             egui::pos2(center_x, base_y + line as f32 * line_h),
                             egui::Align2::CENTER_CENTER,
-                            tr_hint("Left click to change this key"),
+                            tr_hint("key_hints.change_key"),
                             hint_font.clone(),
                             hint_color,
                         );
                         line += 1;
                         // Line 2: go to layer (if not current)
                         if hl != self.selected_layer {
+                            let layer_index = hl.to_string();
+                            let go_to_layer_hint = crate::i18n::tr_catalog_format(
+                                hint_language,
+                                "key_hints.go_to_layer",
+                                &[("layer", layer_index.as_str()), ("name", hl_name.as_str())],
+                            );
                             ui.painter().text(
                                 egui::pos2(center_x, base_y + line as f32 * line_h),
                                 egui::Align2::CENTER_CENTER,
-                                &format!("{} {}: {}", tr_hint("Right click to go to layer"), hl, hl_name),
+                                go_to_layer_hint,
                                 hint_font.clone(),
                                 hint_color,
                             );
@@ -13549,7 +13554,7 @@ impl EntropyApp {
                         ui.painter().text(
                             egui::pos2(center_x, base_y + line as f32 * line_h),
                             egui::Align2::CENTER_CENTER,
-                            tr_hint("Ctrl + Right click to change layer number"),
+                            tr_hint("key_hints.change_layer_number"),
                             hint_font.clone(),
                             hint_color,
                         );
@@ -13559,7 +13564,7 @@ impl EntropyApp {
                             ui.painter().text(
                                 egui::pos2(center_x, base_y + line as f32 * line_h),
                                 egui::Align2::CENTER_CENTER,
-                                tr_hint("Esc to go back"),
+                                tr_hint("key_hints.esc_back"),
                                 hint_font.clone(),
                                 hint_color,
                             );
@@ -13570,7 +13575,7 @@ impl EntropyApp {
                             ui.painter().text(
                                 egui::pos2(center_x, hint_y - 9.0),
                                 egui::Align2::CENTER_CENTER,
-                                tr_hint("Left click to change this key"),
+                                tr_hint("key_hints.change_key"),
                                 hint_font.clone(),
                                 hint_color,
                             );
@@ -13578,7 +13583,7 @@ impl EntropyApp {
                         ui.painter().text(
                             egui::pos2(center_x, if any_hovered { hint_y + 5.0 } else { hint_y }),
                             egui::Align2::CENTER_CENTER,
-                            tr_hint("Right-click or Esc to go back"),
+                            tr_hint("key_hints.right_click_or_esc_back"),
                             hint_font,
                             hint_color,
                         );
@@ -13672,7 +13677,7 @@ impl EntropyApp {
                                         },
                                     ),
                                     egui::Align2::CENTER_CENTER,
-                                    tr_hint("Left click to change this key"),
+                                    tr_hint("key_hints.change_key"),
                                     hint_font.clone(),
                                     hint_color,
                                 );
@@ -13680,7 +13685,7 @@ impl EntropyApp {
                                     ui.painter().text(
                                         egui::pos2(center_x, hint_y - 4.0),
                                         egui::Align2::CENTER_CENTER,
-                                        tr_hint("Right click to change the modifier key"),
+                                        tr_hint("key_hints.change_modifier_key"),
                                         secondary_hint_font.clone(),
                                         hint_color,
                                     );
@@ -13695,7 +13700,7 @@ impl EntropyApp {
                                         },
                                     ),
                                     egui::Align2::CENTER_CENTER,
-                                    tr_hint("Ctrl+right-click to switch left/right side"),
+                                    tr_hint("key_hints.switch_modifier_side"),
                                     secondary_hint_font,
                                     hint_color,
                                 );
@@ -13703,14 +13708,14 @@ impl EntropyApp {
                                 ui.painter().text(
                                     egui::pos2(center_x, hint_y - 14.0),
                                     egui::Align2::CENTER_CENTER,
-                                    tr_hint("Left click to change this key"),
+                                    tr_hint("key_hints.change_key"),
                                     hint_font.clone(),
                                     hint_color,
                                 );
                                 ui.painter().text(
                                     egui::pos2(center_x, hint_y + 4.0),
                                     egui::Align2::CENTER_CENTER,
-                                    tr_hint("Right click to change the modifier key"),
+                                    tr_hint("key_hints.change_modifier_key"),
                                     secondary_hint_font,
                                     hint_color,
                                 );
@@ -13719,14 +13724,14 @@ impl EntropyApp {
                             ui.painter().text(
                                 egui::pos2(center_x, hint_y - 14.0),
                                 egui::Align2::CENTER_CENTER,
-                                tr_hint("Left click to change this key"),
+                                tr_hint("key_hints.change_key"),
                                 hint_font.clone(),
                                 hint_color,
                             );
                             ui.painter().text(
                                 egui::pos2(center_x, hint_y + 4.0),
                                 egui::Align2::CENTER_CENTER,
-                                tr_hint("Right click to edit macro"),
+                                tr_hint("key_hints.edit_macro"),
                                 secondary_hint_font.clone(),
                                 hint_color,
                             );
@@ -13734,14 +13739,14 @@ impl EntropyApp {
                             ui.painter().text(
                                 egui::pos2(center_x, hint_y - 14.0),
                                 egui::Align2::CENTER_CENTER,
-                                tr_hint("Left click to change this key"),
+                                tr_hint("key_hints.change_key"),
                                 hint_font.clone(),
                                 hint_color,
                             );
                             ui.painter().text(
                                 egui::pos2(center_x, hint_y + 4.0),
                                 egui::Align2::CENTER_CENTER,
-                                tr_hint("Right click to edit tap dance"),
+                                tr_hint("key_hints.edit_tap_dance"),
                                 secondary_hint_font,
                                 hint_color,
                             );
@@ -13749,14 +13754,14 @@ impl EntropyApp {
                             ui.painter().text(
                                 egui::pos2(center_x, hint_y - 14.0),
                                 egui::Align2::CENTER_CENTER,
-                                tr_hint("Left click to change this key"),
+                                tr_hint("key_hints.change_key"),
                                 hint_font.clone(),
                                 hint_color,
                             );
                             ui.painter().text(
                                 egui::pos2(center_x, hint_y + 4.0),
                                 egui::Align2::CENTER_CENTER,
-                                tr_hint("Right click to open Mouse Keys settings"),
+                                tr_hint("key_hints.open_mouse_keys"),
                                 secondary_hint_font.clone(),
                                 hint_color,
                             );
@@ -13764,14 +13769,14 @@ impl EntropyApp {
                             ui.painter().text(
                                 egui::pos2(center_x, hint_y - 14.0),
                                 egui::Align2::CENTER_CENTER,
-                                tr_hint("Left click to change this key"),
+                                tr_hint("key_hints.change_key"),
                                 hint_font.clone(),
                                 hint_color,
                             );
                             ui.painter().text(
                                 egui::pos2(center_x, hint_y + 4.0),
                                 egui::Align2::CENTER_CENTER,
-                                tr_hint("Right click to open Alt Repeat settings"),
+                                tr_hint("key_hints.open_alt_repeat"),
                                 secondary_hint_font,
                                 hint_color,
                             );
@@ -13779,14 +13784,14 @@ impl EntropyApp {
                             ui.painter().text(
                                 egui::pos2(center_x, hint_y - 14.0),
                                 egui::Align2::CENTER_CENTER,
-                                tr_hint("Left click to change this key"),
+                                tr_hint("key_hints.change_key"),
                                 hint_font.clone(),
                                 hint_color,
                             );
                             ui.painter().text(
                                 egui::pos2(center_x, hint_y + 4.0),
                                 egui::Align2::CENTER_CENTER,
-                                tr_hint("Right click to open Grave Escape settings"),
+                                tr_hint("key_hints.open_grave_escape"),
                                 secondary_hint_font,
                                 hint_color,
                             );
@@ -13794,21 +13799,21 @@ impl EntropyApp {
                             ui.painter().text(
                                 egui::pos2(center_x, hint_y - 22.0),
                                 egui::Align2::CENTER_CENTER,
-                                tr_hint("Left click to change this key"),
+                                tr_hint("key_hints.change_key"),
                                 hint_font.clone(),
                                 hint_color,
                             );
                             ui.painter().text(
                                 egui::pos2(center_x, hint_y - 4.0),
                                 egui::Align2::CENTER_CENTER,
-                                tr_hint("Right click to go to that layer"),
+                                tr_hint("key_hints.go_to_that_layer"),
                                 secondary_hint_font.clone(),
                                 hint_color,
                             );
                             ui.painter().text(
                                 egui::pos2(center_x, hint_y + 12.0),
                                 egui::Align2::CENTER_CENTER,
-                                tr_hint("Ctrl+right-click to change layer target"),
+                                tr_hint("key_hints.change_layer_target"),
                                 secondary_hint_font,
                                 hint_color,
                             );
@@ -13816,7 +13821,7 @@ impl EntropyApp {
                             ui.painter().text(
                                 egui::pos2(center_x, hint_y),
                                 egui::Align2::CENTER_CENTER,
-                                tr_hint("Left click to change this key"),
+                                tr_hint("key_hints.change_key"),
                                 hint_font,
                                 hint_color,
                             );
@@ -13825,7 +13830,7 @@ impl EntropyApp {
                         ui.painter().text(
                             egui::pos2(center_x, hint_y),
                             egui::Align2::CENTER_CENTER,
-                            tr_hint("Click to rename layer"),
+                            tr_hint("key_hints.rename_layer"),
                             hint_font,
                             hint_color,
                         );

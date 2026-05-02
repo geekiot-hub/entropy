@@ -1,0 +1,21 @@
+[main_menu]
+layout_tooltip = "Keyboard layout and connected devices"
+advanced_tooltip = "Advanced keyboard features"
+settings_tooltip = "Application and device settings"
+
+[key_hints]
+change_key = "Left click to change this key"
+go_to_layer = "Right click to go to layer {layer}: {name}"
+change_layer_number = "Ctrl + Right click to change layer number"
+esc_back = "Esc to go back"
+right_click_or_esc_back = "Right-click or Esc to go back"
+change_modifier_key = "Right click to change the modifier key"
+switch_modifier_side = "Ctrl+right-click to switch left/right side"
+edit_macro = "Right click to edit macro"
+edit_tap_dance = "Right click to edit tap dance"
+open_mouse_keys = "Right click to open Mouse Keys settings"
+open_alt_repeat = "Right click to open Alt Repeat settings"
+open_grave_escape = "Right click to open Grave Escape settings"
+go_to_that_layer = "Right click to go to that layer"
+change_layer_target = "Ctrl+right-click to change layer target"
+rename_layer = "Click to rename layer"

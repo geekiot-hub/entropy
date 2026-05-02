@@ -1,0 +1,21 @@
+[main_menu]
+layout_tooltip = "Раскладка клавиатуры и подключённые устройства"
+advanced_tooltip = "Дополнительные функции клавиатуры"
+settings_tooltip = "Настройки приложения и устройства"
+
+[key_hints]
+change_key = "Левый клик — изменить эту клавишу"
+go_to_layer = "Правый клик — перейти на слой {layer}: {name}"
+change_layer_number = "Ctrl + правый клик — изменить номер слоя"
+esc_back = "Esc — назад"
+right_click_or_esc_back = "Правый клик или Esc — назад"
+change_modifier_key = "Правый клик — изменить клавишу-модификатор"
+switch_modifier_side = "Ctrl + правый клик — переключить левую/правую сторону"
+edit_macro = "Правый клик — редактировать макрос"
+edit_tap_dance = "Правый клик — редактировать Tap Dance"
+open_mouse_keys = "Правый клик — открыть настройки клавиш мыши"
+open_alt_repeat = "Правый клик — открыть настройки Alt Repeat"
+open_grave_escape = "Правый клик — открыть настройки Grave Escape"
+go_to_that_layer = "Правый клик — перейти на этот слой"
+change_layer_target = "Ctrl + правый клик — изменить целевой слой"
+rename_layer = "Клик — переименовать слой"
