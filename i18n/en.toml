@@ -157,3 +157,28 @@ touchpad_description = "Tune K:03 Pro touchpad pointer, scroll and mode behavior
 touchpad_unavailable = "Touchpad settings are not available on this firmware"
 touchpad_enable_hint = "Connect a K:03 Pro firmware with Touchpad QMK_SETTINGS to use this page"
 touchpad_connect = "Connect a Vial keyboard to edit Touchpad settings"
+
+[common]
+enable = "Enable"
+effect = "Effect"
+color = "Color"
+speed = "Speed"
+brightness = "Brightness"
+timeout = "Timeout"
+
+[auto_shift]
+enable_tooltip = "Turn Auto Shift on or off"
+enable_for_modifiers = "Enable for modifiers"
+enable_for_modifiers_tooltip = "Allow Auto Shift behavior on modifier keys"
+no_special_keys = "No special keys"
+no_special_keys_tooltip = "Do not Auto Shift special keys such as Enter, Esc, Tab or Backspace"
+no_numeric_keys = "No numeric keys"
+no_numeric_keys_tooltip = "Do not Auto Shift number keys"
+no_alpha_keys = "No alpha keys"
+no_alpha_keys_tooltip = "Do not Auto Shift letter keys"
+enable_keyrepeat = "Enable keyrepeat"
+enable_keyrepeat_tooltip = "Allow held Auto Shift keys to repeat"
+stop_repeat_after_timeout = "Stop repeat after timeout"
+stop_repeat_after_timeout_tooltip = "Disable key repeat after the Auto Shift timeout is exceeded"
+timeout_tooltip = "Hold time before Auto Shift sends the shifted key"
+timeout_field_tooltip = "Timeout is in milliseconds"

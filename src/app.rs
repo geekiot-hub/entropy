@@ -5028,58 +5028,67 @@ impl EntropyApp {
     ) {
         let row = match row_idx {
             0 => (
-                crate::i18n::tr_static(self.app_settings.language, "Enable"),
-                crate::i18n::tr_static(self.app_settings.language, "Turn Auto Shift on or off"),
+                crate::i18n::tr_catalog(self.app_settings.language, "common.enable"),
+                crate::i18n::tr_catalog(self.app_settings.language, "auto_shift.enable_tooltip"),
                 true,
             ),
             1 => (
-                crate::i18n::tr_static(self.app_settings.language, "Enable for modifiers"),
-                crate::i18n::tr_static(
+                crate::i18n::tr_catalog(
                     self.app_settings.language,
-                    "Allow Auto Shift behavior on modifier keys",
+                    "auto_shift.enable_for_modifiers",
+                ),
+                crate::i18n::tr_catalog(
+                    self.app_settings.language,
+                    "auto_shift.enable_for_modifiers_tooltip",
                 ),
                 true,
             ),
             2 => (
-                crate::i18n::tr_static(self.app_settings.language, "No special keys"),
-                crate::i18n::tr_static(
+                crate::i18n::tr_catalog(self.app_settings.language, "auto_shift.no_special_keys"),
+                crate::i18n::tr_catalog(
                     self.app_settings.language,
-                    "Do not Auto Shift special keys such as Enter, Esc, Tab or Backspace",
+                    "auto_shift.no_special_keys_tooltip",
                 ),
                 true,
             ),
             3 => (
-                crate::i18n::tr_static(self.app_settings.language, "No numeric keys"),
-                crate::i18n::tr_static(self.app_settings.language, "Do not Auto Shift number keys"),
+                crate::i18n::tr_catalog(self.app_settings.language, "auto_shift.no_numeric_keys"),
+                crate::i18n::tr_catalog(
+                    self.app_settings.language,
+                    "auto_shift.no_numeric_keys_tooltip",
+                ),
                 true,
             ),
             4 => (
-                crate::i18n::tr_static(self.app_settings.language, "No alpha keys"),
-                crate::i18n::tr_static(self.app_settings.language, "Do not Auto Shift letter keys"),
+                crate::i18n::tr_catalog(self.app_settings.language, "auto_shift.no_alpha_keys"),
+                crate::i18n::tr_catalog(
+                    self.app_settings.language,
+                    "auto_shift.no_alpha_keys_tooltip",
+                ),
                 true,
             ),
             5 => (
-                crate::i18n::tr_static(self.app_settings.language, "Enable keyrepeat"),
-                crate::i18n::tr_static(
+                crate::i18n::tr_catalog(self.app_settings.language, "auto_shift.enable_keyrepeat"),
+                crate::i18n::tr_catalog(
                     self.app_settings.language,
-                    "Allow held Auto Shift keys to repeat",
+                    "auto_shift.enable_keyrepeat_tooltip",
                 ),
                 true,
             ),
             6 => (
-                crate::i18n::tr_static(self.app_settings.language, "Stop repeat after timeout"),
-                crate::i18n::tr_static(
+                crate::i18n::tr_catalog(
                     self.app_settings.language,
-                    "Disable key repeat after the Auto Shift timeout is exceeded",
+                    "auto_shift.stop_repeat_after_timeout",
+                ),
+                crate::i18n::tr_catalog(
+                    self.app_settings.language,
+                    "auto_shift.stop_repeat_after_timeout_tooltip",
                 ),
                 true,
             ),
             7 => (
-                crate::i18n::tr_static(self.app_settings.language, "Timeout"),
-                crate::i18n::tr_static(
-                    self.app_settings.language,
-                    "Hold time before Auto Shift sends the shifted key",
-                ),
+                crate::i18n::tr_catalog(self.app_settings.language, "common.timeout"),
+                crate::i18n::tr_catalog(self.app_settings.language, "auto_shift.timeout_tooltip"),
                 false,
             ),
             _ => return,
@@ -5148,9 +5157,9 @@ impl EntropyApp {
                         egui::Align::RIGHT,
                         enabled,
                     )
-                    .on_hover_text(crate::i18n::tr_static(
+                    .on_hover_text(crate::i18n::tr_catalog(
                         self.app_settings.language,
-                        "Timeout is in milliseconds",
+                        "auto_shift.timeout_field_tooltip",
                     ));
                     if resp.changed() {
                         let filtered: String = self
@@ -7333,7 +7342,7 @@ impl EntropyApp {
                 ui,
                 content_width,
                 layout.row_height,
-                crate::i18n::tr_static(self.app_settings.language, "Enable"),
+                crate::i18n::tr_catalog(self.app_settings.language, "common.enable"),
                 true,
                 46.0 * scale,
                 |ui| {
@@ -7361,7 +7370,7 @@ impl EntropyApp {
                 ui,
                 content_width,
                 layout.row_height,
-                crate::i18n::tr_static(self.app_settings.language, "Effect"),
+                crate::i18n::tr_catalog(self.app_settings.language, "common.effect"),
                 true,
                 rgb_slider_size.x,
                 |ui| {
@@ -7442,7 +7451,7 @@ impl EntropyApp {
                 ui,
                 content_width,
                 layout.color_row_height,
-                crate::i18n::tr_static(self.app_settings.language, "Color"),
+                crate::i18n::tr_catalog(self.app_settings.language, "common.color"),
                 color_enabled,
                 64.0 * scale,
                 |ui| {
@@ -7532,7 +7541,7 @@ impl EntropyApp {
                 ui,
                 content_width,
                 layout.row_height,
-                crate::i18n::tr_static(self.app_settings.language, "Speed"),
+                crate::i18n::tr_catalog(self.app_settings.language, "common.speed"),
                 speed_enabled,
                 rgb_control_width,
                 |ui| {
@@ -7588,7 +7597,7 @@ impl EntropyApp {
                 ui,
                 content_width,
                 layout.row_height,
-                crate::i18n::tr_static(self.app_settings.language, "Brightness"),
+                crate::i18n::tr_catalog(self.app_settings.language, "common.brightness"),
                 brightness_enabled,
                 rgb_control_width,
                 |ui| {
@@ -12150,7 +12159,7 @@ impl EntropyApp {
                         ui,
                         row_content_width,
                         row_height,
-                        crate::i18n::tr_static(self.app_settings.language, "Timeout"),
+                        crate::i18n::tr_catalog(self.app_settings.language, "common.timeout"),
                         true,
                         Some(crate::i18n::tr_static(
                             self.app_settings.language,
