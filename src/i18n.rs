@@ -1147,7 +1147,7 @@ App"# => Some("key_names.next_app"),
 }
 
 pub fn tr_text(language: Language, text: &str) -> String {
-    if let Some(key) = exact_text_catalog_key(text) {
+    if let Some(key) = static_catalog_key(text).or_else(|| exact_text_catalog_key(text)) {
         return tr_catalog_string(language, key);
     }
 
