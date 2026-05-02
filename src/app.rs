@@ -5802,23 +5802,22 @@ impl eframe::App for EntropyApp {
                 ui.horizontal(|ui| {
                     let muted = app_muted_text(self.dark_mode);
                     ui.spacing_mut().item_spacing.x = 3.0;
+                    let lang = self.app_settings.language;
                     ui.label(
-                        RichText::new("tools of the future by")
+                        RichText::new(crate::i18n::tr_static(lang, "tools of the future by"))
                             .size(11.0)
                             .color(muted),
                     );
-                    let (site_label, site_url) = if matches!(
-                        self.app_settings.language,
-                        crate::i18n::Language::Russian
-                    ) {
+                    let (site_label, site_url) = if matches!(lang, crate::i18n::Language::Russian) {
                         ("eh.works", "https://eh.works")
                     } else {
                         ("eh.industries", "https://eh.industries")
                     };
-                    ui.add(egui::Hyperlink::from_label_and_url(
+                    let site_resp = ui.add(egui::Hyperlink::from_label_and_url(
                         RichText::new(site_label).size(11.0),
                         site_url,
                     ));
+                    site_resp.on_hover_text(crate::i18n::tr_static(lang, "Open Ergohaven website"));
                 });
             });
 
@@ -5846,6 +5845,12 @@ impl eframe::App for EntropyApp {
                         .selectable(false)
                         .sense(egui::Sense::click()),
                     );
+                    light_resp
+                        .clone()
+                        .on_hover_text(crate::i18n::tr_static(
+                            self.app_settings.language,
+                            "Switch to light theme",
+                        ));
                     if light_resp.hovered() {
                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                     }
@@ -5874,6 +5879,12 @@ impl eframe::App for EntropyApp {
                         .selectable(false)
                         .sense(egui::Sense::click()),
                     );
+                    dark_resp
+                        .clone()
+                        .on_hover_text(crate::i18n::tr_static(
+                            self.app_settings.language,
+                            "Switch to dark theme",
+                        ));
                     if dark_resp.hovered() {
                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                     }
