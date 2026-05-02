@@ -1876,7 +1876,7 @@ impl KeycodePicker {
         if let Some(hint) = crate::smart_input::universal_output_setup_hint() {
             ui.add_space(3.0);
             ui.label(
-                RichText::new(hint)
+                RichText::new(crate::i18n::tr_text(self.language, hint))
                     .size(10.0)
                     .color(Color32::from_gray(120)),
             );

@@ -26,6 +26,79 @@ pub fn default_language() -> Language {
     Language::English
 }
 
+fn ru_smart_symbol_name(name: &str) -> &str {
+    match name {
+        "Left brace" => "левая фигурная скобка",
+        "Right brace" => "правая фигурная скобка",
+        "Left bracket" => "левая квадратная скобка",
+        "Right bracket" => "правая квадратная скобка",
+        "Left parenthesis" => "левая круглая скобка",
+        "Right parenthesis" => "правая круглая скобка",
+        "Less-than" => "знак «меньше»",
+        "Greater-than" => "знак «больше»",
+        "Number sign" => "решётка",
+        "At sign" => "собака",
+        "Numero sign" => "знак номера",
+        "Ruble sign" => "знак рубля",
+        "Exclamation mark" => "восклицательный знак",
+        "Quotation mark" => "двойная кавычка",
+        "Dollar sign" => "знак доллара",
+        "Percent sign" => "знак процента",
+        "Ampersand" => "амперсанд",
+        "Apostrophe" => "апостроф",
+        "Asterisk" => "звёздочка",
+        "Plus sign" => "плюс",
+        "Equals sign" => "знак равенства",
+        "Question mark" => "вопросительный знак",
+        "Vertical bar" => "вертикальная черта",
+        "Backslash" => "обратный слэш",
+        "Left guillemet" => "левая ёлочка",
+        "Right guillemet" => "правая ёлочка",
+        "Euro sign" => "знак евро",
+        "Em dash" => "длинное тире",
+        "En dash" => "среднее тире",
+        "Bullet" => "маркер списка",
+        "Multiplication sign" => "знак умножения",
+        "Plus-minus sign" => "плюс-минус",
+        "Not equal sign" => "знак неравенства",
+        "Almost equal sign" => "знак примерного равенства",
+        "Check mark" => "галочка",
+        "Section sign" => "знак параграфа",
+        "Full stop" => "точка",
+        "Comma" => "запятая",
+        "Semicolon" => "точка с запятой",
+        "Colon" => "двоеточие",
+        "Slash" => "слэш",
+        "Grave accent" => "гравис",
+        "Caret" => "карет",
+        "Cyrillic be" | "Cyrillic Be" => "кириллическая Б",
+        "Cyrillic yu" | "Cyrillic Yu" => "кириллическая Ю",
+        "Cyrillic zhe" | "Cyrillic Zhe" => "кириллическая Ж",
+        "Cyrillic e" | "Cyrillic E" => "кириллическая Э",
+        "Cyrillic ha" | "Cyrillic Ha" => "кириллическая Х",
+        "Cyrillic hard sign" | "Cyrillic Hard Sign" => "кириллический твёрдый знак",
+        "Cyrillic yo" | "Cyrillic Yo" => "кириллическая Ё",
+        "Degree sign" => "знак градуса",
+        "Per mille sign" => "промилле",
+        "Prime" => "штрих",
+        "Double prime" => "двойной штрих",
+        "Left single quotation mark" => "левая одинарная кавычка",
+        "Right single quotation mark" => "правая одинарная кавычка",
+        "Double low quotation mark" => "нижняя двойная кавычка",
+        "Left double quotation mark" => "левая двойная кавычка",
+        "Right double quotation mark" => "правая двойная кавычка",
+        "Trade mark sign" => "знак торговой марки",
+        "Tilde" => "тильда",
+        "Underscore" => "нижнее подчёркивание",
+        _ => name,
+    }
+}
+
+fn ru_modifier_name(name: &str) -> String {
+    name.replace("Left ", "левый ")
+        .replace("Right ", "правый ")
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Key {
     MainTabLayout,
@@ -180,7 +253,9 @@ pub fn tr_static(language: Language, text: &'static str) -> &'static str {
             "Удержание активирует слой, отпускание возвращает назад"
         }
         "Toggle layer on/off" => "Включить или выключить слой",
+        "Tap to toggle on/off" => "Нажатие включает или выключает слой",
         "Active for next keypress only" => "Активен только для следующего нажатия",
+        "Hold = MO, tap = toggle" => "Удержание = временно активировать, нажатие = переключить",
         "Tap multiple times to toggle layer" => "Нажмите несколько раз, чтобы переключить слой",
         "Switch and stay on this layer" => "Переключиться и остаться на этом слое",
         "Set as permanent base layer" => "Сделать постоянным базовым слоем",
@@ -748,19 +823,19 @@ pub fn tr_text(language: Language, text: &str) -> String {
         "Tab — indent / move focus forward" => "Tab — отступ / фокус вперёд".to_owned(),
         "Caps Lock — toggle uppercase input" => "Caps Lock — переключить верхний регистр".to_owned(),
         "Menu key — open right-click context menu" => "Menu — открыть контекстное меню".to_owned(),
-        "Minus — type -, Shift gives underscore (_)" => "Minus — вводит -, Shift даёт подчёркивание (_)".to_owned(),
-        "Equals — type =, Shift gives plus (+)" => "Equals — вводит =, Shift даёт плюс (+)".to_owned(),
+        "Minus — type -, Shift gives underscore (_)" => "Минус — вводит -, Shift даёт нижнее подчёркивание (_)".to_owned(),
+        "Equals — type =, Shift gives plus (+)" => "Равно — вводит =, Shift даёт плюс (+)".to_owned(),
         "Left bracket — type [, Shift gives left brace ({)" => "Левая скобка — вводит [, Shift даёт левую фигурную скобку ({)".to_owned(),
         "Right bracket — type ], Shift gives right brace (})" => "Правая скобка — вводит ], Shift даёт правую фигурную скобку (})".to_owned(),
-        "Backslash — type \\, Shift gives pipe (|)" => "Backslash — вводит \\, Shift даёт pipe (|)".to_owned(),
-        "Non-US hash key — type #, Shift gives tilde (~)" => "Non-US hash — вводит #, Shift даёт тильду (~)".to_owned(),
+        "Backslash — type \\, Shift gives pipe (|)" => "Обратный слэш — вводит \\, Shift даёт вертикальную черту (|)".to_owned(),
+        "Non-US hash key — type #, Shift gives tilde (~)" => "Non-US решётка — вводит #, Shift даёт тильду (~)".to_owned(),
         "Semicolon key — tap for semicolon (;), Shift gives colon (:)" => "Точка с запятой — tap вводит ;, Shift даёт двоеточие (:)".to_owned(),
-        "Quote — type apostrophe ('), Shift gives double quote (\")" => "Quote — вводит апостроф ('), Shift даёт двойную кавычку (\")".to_owned(),
-        "Grave accent — type `, Shift gives tilde (~)" => "Grave accent — вводит `, Shift даёт тильду (~)".to_owned(),
-        "Comma — type comma (,), Shift gives less-than (<)" => "Comma — вводит запятую (,), Shift даёт less-than (<)".to_owned(),
-        "Period — type dot (.), Shift gives greater-than (>)" => "Period — вводит точку (.), Shift даёт greater-than (>)".to_owned(),
-        "Slash — type /, Shift gives question mark (?)" => "Slash — вводит /, Shift даёт вопросительный знак (?)".to_owned(),
-        "Non-US backslash key — type \\, Shift gives pipe (|)" => "Non-US backslash — вводит \\, Shift даёт pipe (|)".to_owned(),
+        "Quote — type apostrophe ('), Shift gives double quote (\")" => "Кавычка — вводит апостроф ('), Shift даёт двойную кавычку (\")".to_owned(),
+        "Grave accent — type `, Shift gives tilde (~)" => "Гравис — вводит `, Shift даёт тильду (~)".to_owned(),
+        "Comma — type comma (,), Shift gives less-than (<)" => "Запятая — вводит запятую (,), Shift даёт знак «меньше» (<)".to_owned(),
+        "Period — type dot (.), Shift gives greater-than (>)" => "Точка — вводит точку (.), Shift даёт знак «больше» (>)".to_owned(),
+        "Slash — type /, Shift gives question mark (?)" => "Слэш — вводит /, Shift даёт вопросительный знак (?)".to_owned(),
+        "Non-US backslash key — type \\, Shift gives pipe (|)" => "Non-US обратный слэш — вводит \\, Shift даёт вертикальную черту (|)".to_owned(),
         "Home — jump to beginning of line" => "Home — перейти к началу строки".to_owned(),
         "End — jump to end of line" => "End — перейти к концу строки".to_owned(),
         "Page Up — scroll up one page" => "Page Up — прокрутить на страницу вверх".to_owned(),
@@ -979,35 +1054,107 @@ pub fn tr_text(language: Language, text: &str) -> String {
         other if other.starts_with("Right Super, ") => other
             .replace("Right Super, desktop modifier key and OS shortcuts", "Правый Super — модификатор рабочего стола и системные сочетания"),
         "Plain modifier — hold for left/right side, tap nothing" => "Обычный модификатор — удержание левой/правой стороны, tap ничего не отправляет".to_owned(),
-        other if other.starts_with("Use ") && other.contains(" by itself as a held modifier") => other
-            .replace("Use ", "Использовать ")
-            .replace(" by itself as a held modifier", " отдельно как удерживаемый модификатор")
-            .replace("Left click assigns Left ", "Левый клик назначает левый ")
-            .replace("Right click assigns Right ", "Правый клик назначает правый "),
-        other if other.starts_with("Hold ") && other.contains(" together with another key") => other
-            .replace("Hold ", "Удерживать ")
-            .replace(" together with another key", " вместе с другой клавишей")
-            .replace("Left click starts a Left ", "Левый клик начинает связку с левым ")
-            .replace("Right click starts a Right ", "Правый клик начинает связку с правым ")
-            .replace("+key binding", "+клавиша")
-            .replace("Then choose the key part", "Затем выберите клавишу")
-            .replace("Click to choose the key part", "Кликните, чтобы выбрать клавишу"),
+        other if other.starts_with("Use ") && other.contains(" by itself as a held modifier") => {
+            let modifier = other
+                .strip_prefix("Use ")
+                .and_then(|s| s.split(" by itself as a held modifier").next())
+                .unwrap_or("");
+            if other.contains("Left click assigns Left ") {
+                format!(
+                    "Использовать {} как обычный удерживаемый модификатор\nЛевый клик: левая клавиша {}\nПравый клик: правая клавиша {}",
+                    ru_modifier_name(modifier),
+                    modifier,
+                    modifier
+                )
+            } else {
+                format!(
+                    "Использовать {} как обычный удерживаемый модификатор",
+                    ru_modifier_name(modifier)
+                )
+            }
+        }
+        other if other.starts_with("Hold ") && other.contains(" together with another key") => {
+            let modifier = other
+                .strip_prefix("Hold ")
+                .and_then(|s| s.split(" together with another key").next())
+                .unwrap_or("");
+            if other.contains("Left click starts a Left ") {
+                format!(
+                    "Модификатор + клавиша: удерживать {} вместе с выбранной клавишей\nЛевый клик: левый {}\nПравый клик: правый {}\nЗатем выберите клавишу",
+                    ru_modifier_name(modifier),
+                    modifier,
+                    modifier
+                )
+            } else {
+                format!(
+                    "Модификатор + клавиша: удерживать {} вместе с выбранной клавишей\nКликните, чтобы выбрать клавишу",
+                    ru_modifier_name(modifier)
+                )
+            }
+        }
         other if other.starts_with("Hold ") && other.contains(" with the key you choose next") => other
             .replace("Hold ", "Удерживать ")
+            .replace("Left ", "левый ")
+            .replace("Right ", "правый ")
             .replace(" together with the key you choose next", " вместе со следующей выбранной клавишей"),
-        other if other.starts_with("Dual-role key: hold for ") => other
-            .replace("Dual-role key: hold for ", "Dual-role клавиша: hold для ")
-            .replace(", tap for another key", ", tap для другой клавиши")
-            .replace(", tap for the key you choose next", ", tap для следующей выбранной клавиши")
-            .replace("Left click uses Left ", "Левый клик использует левый ")
-            .replace("Right click uses Right ", "Правый клик использует правый ")
-            .replace("Then choose the tap key", "Затем выберите tap-клавишу")
-            .replace("Click to choose the tap key", "Кликните, чтобы выбрать tap-клавишу"),
-        other if other.starts_with("Applies ") && other.contains(" to the next keypress only") => other
-            .replace("Applies ", "Применяет ")
-            .replace(" to the next keypress only", " только к следующему нажатию")
-            .replace("Left click assigns One-Shot Left ", "Левый клик назначает One-Shot левый ")
-            .replace("Right click assigns One-Shot Right ", "Правый клик назначает One-Shot правый "),
+        other if other.starts_with("Dual-role key: hold for ") => {
+            let modifier = other
+                .strip_prefix("Dual-role key: hold for ")
+                .and_then(|s| s.split(',').next())
+                .unwrap_or("");
+            let tap_text = if other.contains("tap for the key you choose next") {
+                "следующая выбранная клавиша"
+            } else {
+                "другая клавиша"
+            };
+            if other.contains("Left click uses Left ") {
+                format!(
+                    "Двойная роль: удержание = {}, нажатие = {}\nЛевый клик: левый {}\nПравый клик: правый {}\nЗатем выберите клавишу для нажатия",
+                    ru_modifier_name(modifier),
+                    tap_text,
+                    modifier,
+                    modifier
+                )
+            } else {
+                format!(
+                    "Двойная роль: удержание = {}, нажатие = {}\nКликните, чтобы выбрать клавишу для нажатия",
+                    ru_modifier_name(modifier),
+                    tap_text
+                )
+            }
+        }
+        other if other.starts_with("Applies ") && other.contains(" to the next keypress only") => {
+            let modifier = other
+                .strip_prefix("Applies ")
+                .and_then(|s| s.split(" to the next keypress only").next())
+                .unwrap_or("");
+            if other.contains("Left click assigns One-Shot Left ") {
+                format!(
+                    "One-Shot модификатор: применит {} только к следующему нажатию\nЛевый клик: левый {}\nПравый клик: правый {}",
+                    ru_modifier_name(modifier),
+                    modifier,
+                    modifier
+                )
+            } else {
+                format!(
+                    "One-Shot модификатор: применит {} только к следующему нажатию",
+                    ru_modifier_name(modifier)
+                )
+            }
+        }
+        other if other.starts_with("Universal symbol: ") && other.contains(" — types ") => {
+            let rest = other.strip_prefix("Universal symbol: ").unwrap_or(other);
+            let (name, rest) = rest.split_once(" — types ").unwrap_or((rest, ""));
+            let symbol = rest
+                .split(" consistently regardless of the active keyboard language")
+                .next()
+                .unwrap_or(rest);
+            format!(
+                "Универсальный символ: {} — вводит {} одинаково при любом активном языке клавиатуры",
+                ru_smart_symbol_name(name),
+                symbol
+            )
+        }
         other if other.starts_with("One-Shot ") => other
             .replace("One-Shot ", "One-Shot ")
             .replace(" — active for the next keypress only", " — активен только для следующего нажатия")
