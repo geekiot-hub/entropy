@@ -191,3 +191,12 @@ loading_keyboard = "Loading keyboard…"
 
 [navigation]
 return_to_layout_hint = "Right-click or Esc to return to layout"
+
+[unlock]
+highlighted_keys_hint = "Press and hold the highlighted keys"
+
+[universal_symbols_setup]
+open_privacy_settings = "Open Privacy Settings"
+install_ibus = "Install IBus"
+install_fcitx5 = "Install Fcitx5"
+no_setup_action = "No setup action is available for this OS"

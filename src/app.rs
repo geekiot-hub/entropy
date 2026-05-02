@@ -3706,7 +3706,7 @@ impl EntropyApp {
             {
                 if crate::ui_style::modern_button(
                     ui,
-                    crate::i18n::tr_static(self.app_settings.language, "Open Privacy Settings"),
+                    crate::i18n::tr_catalog(self.app_settings.language, "universal_symbols_setup.open_privacy_settings"),
                     metrics.size(184.0, 34.0),
                     true,
                 )
@@ -3725,13 +3725,13 @@ impl EntropyApp {
 
             #[cfg(target_os = "linux")]
             {
-                if crate::ui_style::modern_button(ui, crate::i18n::tr_static(self.app_settings.language, "Install IBus"), metrics.size(132.0, 34.0), true)
+                if crate::ui_style::modern_button(ui, crate::i18n::tr_catalog(self.app_settings.language, "universal_symbols_setup.install_ibus"), metrics.size(132.0, 34.0), true)
                     .clicked()
                 {
                     self.run_linux_universal_symbols_setup("linux/ibus/install-user.sh", "IBus");
                 }
                 ui.add_space(metrics.value(8.0));
-                if crate::ui_style::modern_button(ui, crate::i18n::tr_static(self.app_settings.language, "Install Fcitx5"), metrics.size(142.0, 34.0), true)
+                if crate::ui_style::modern_button(ui, crate::i18n::tr_catalog(self.app_settings.language, "universal_symbols_setup.install_fcitx5"), metrics.size(142.0, 34.0), true)
                     .clicked()
                 {
                     self.run_linux_universal_symbols_setup("linux/fcitx5/install-user.sh", "Fcitx5");
@@ -3741,7 +3741,7 @@ impl EntropyApp {
             #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
             {
                 ui.label(
-                    RichText::new(crate::i18n::tr_static(self.app_settings.language, "No setup action is available for this OS"))
+                    RichText::new(crate::i18n::tr_catalog(self.app_settings.language, "universal_symbols_setup.no_setup_action"))
                         .size(11.0)
                         .color(app_muted_text(ui.visuals().dark_mode)),
                 );
@@ -5986,12 +5986,9 @@ impl eframe::App for EntropyApp {
                     ui.painter().text(
                         egui::pos2(center_x, top_y + 30.0),
                         egui::Align2::CENTER_CENTER,
-                        crate::i18n::tr_static(
+                        crate::i18n::tr_catalog(
                             self.app_settings.language,
-                            crate::i18n::tr_static(
-                                self.app_settings.language,
-                                "Press and hold the highlighted keys one by one",
-                            ),
+                            "unlock.highlighted_keys_hint",
                         ),
                         FontId::proportional(14.0),
                         subtitle_color,

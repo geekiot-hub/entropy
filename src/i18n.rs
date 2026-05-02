@@ -339,7 +339,6 @@ pub fn tr_static(language: Language, text: &'static str) -> &'static str {
     }
 
     match text {
-        "Open Privacy Settings" => "Открыть настройки приватности",
         "Effect" => "Эффект",
         "Color" => "Цвет",
         "Speed" => "Скорость",
@@ -638,9 +637,6 @@ pub fn tr_static(language: Language, text: &'static str) -> &'static str {
         "Clear all actions for this tap dance" => "Очистить все действия этого Tap Dance",
         "Undo last tap dance change" => "Отменить последнее изменение Tap Dance",
         "Tap Dance Editor" => "Редактор Tap Dance",
-        "No setup action is available for this OS" => "Для этой ОС нет действия настройки",
-        "Install IBus" => "Установить IBus",
-        "Install Fcitx5" => "Установить Fcitx5",
         "Keyboard is locked, unlock it to use Matrix Tester" => {
             "Клавиатура заблокирована — разблокируйте её для тестера матрицы"
         }
@@ -689,9 +685,6 @@ pub fn tr_static(language: Language, text: &'static str) -> &'static str {
         "🌙 Dark" => "🌙 Тёмная",
         "🔓 Unlock Keyboard" => "🔓 Разблокировать клавиатуру",
         "Unlock Keyboard" => "Разблокировать клавиатуру",
-        "Press and hold the highlighted keys one by one" => {
-            "Нажмите и удерживайте подсвеченные клавиши по очереди"
-        }
         "Macros saved" => "Макросы сохранены",
         "Combos saved" => "Комбо сохранены",
         "Combo timeout saved" => "Таймаут комбо сохранён",

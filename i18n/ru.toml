@@ -191,3 +191,12 @@ loading_keyboard = "Загрузка клавиатуры…"
 
 [navigation]
 return_to_layout_hint = "ПКМ или Esc — вернуться к раскладке"
+
+[unlock]
+highlighted_keys_hint = "Нажмите и удерживайте подсвеченные клавиши"
+
+[universal_symbols_setup]
+open_privacy_settings = "Открыть настройки приватности"
+install_ibus = "Установить IBus"
+install_fcitx5 = "Установить Fcitx5"
+no_setup_action = "Для этой ОС нет действия настройки"
