@@ -25,6 +25,30 @@ pub fn gui_mod_name() -> &'static str {
     #[cfg(not(any(target_os = "macos", target_os = "windows")))] { "Super" }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum KeyLegendLayout {
+    English,
+    Russian,
+}
+
+impl KeyLegendLayout {
+    pub const ALL: [KeyLegendLayout; 2] = [KeyLegendLayout::English, KeyLegendLayout::Russian];
+
+    pub fn i18n_key(self) -> &'static str {
+        match self {
+            KeyLegendLayout::English => "ui.key_legends_english",
+            KeyLegendLayout::Russian => "ui.key_legends_russian",
+        }
+    }
+}
+
+impl Default for KeyLegendLayout {
+    fn default() -> Self {
+        KeyLegendLayout::English
+    }
+}
+
 fn osm_mod_bits(value: u16) -> Option<u16> {
     (0x52A0..=0x52BF).contains(&value).then_some(value & 0x1F)
 }
@@ -569,6 +593,19 @@ pub fn keycode_label_with_custom(value: u16, custom: &[CustomKeycode]) -> String
     keycode_label_with_names(value, custom, &[])
 }
 
+pub fn keycode_label_with_names_and_layout(
+    value: u16,
+    custom: &[CustomKeycode],
+    layer_names: &[String],
+    key_legend_layout: KeyLegendLayout,
+) -> String {
+    apply_key_legend_layout(
+        value,
+        keycode_label_with_names(value, custom, layer_names),
+        key_legend_layout,
+    )
+}
+
 pub fn keycode_label_with_names(value: u16, custom: &[CustomKeycode], layer_names: &[String]) -> String {
     // Returns "OpName(n)\nLayerName" or "OpName(n)" if layer has no custom name
     let layer_label = |op: &str, n: u16| -> String {
@@ -739,6 +776,54 @@ fn decode_mods(mods: u16, _right: bool) -> String {
 
 pub fn keycode_label(value: u16) -> String {
     keycode_label_with_custom(value, &[])
+}
+
+fn apply_key_legend_layout(value: u16, label: String, key_legend_layout: KeyLegendLayout) -> String {
+    match key_legend_layout {
+        KeyLegendLayout::English => label,
+        KeyLegendLayout::Russian => russian_key_legend(value).unwrap_or(label),
+    }
+}
+
+fn russian_key_legend(value: u16) -> Option<String> {
+    let (latin, cyrillic) = match value {
+        0x0004 => ("A", "Ф"),
+        0x0005 => ("B", "И"),
+        0x0006 => ("C", "С"),
+        0x0007 => ("D", "В"),
+        0x0008 => ("E", "У"),
+        0x0009 => ("F", "А"),
+        0x000A => ("G", "П"),
+        0x000B => ("H", "Р"),
+        0x000C => ("I", "Ш"),
+        0x000D => ("J", "О"),
+        0x000E => ("K", "Л"),
+        0x000F => ("L", "Д"),
+        0x0010 => ("M", "Ь"),
+        0x0011 => ("N", "Т"),
+        0x0012 => ("O", "Щ"),
+        0x0013 => ("P", "З"),
+        0x0014 => ("Q", "Й"),
+        0x0015 => ("R", "К"),
+        0x0016 => ("S", "Ы"),
+        0x0017 => ("T", "Е"),
+        0x0018 => ("U", "Г"),
+        0x0019 => ("V", "М"),
+        0x001A => ("W", "Ц"),
+        0x001B => ("X", "Ч"),
+        0x001C => ("Y", "Н"),
+        0x001D => ("Z", "Я"),
+        0x002F => ("[", "Х"),
+        0x0030 => ("]", "Ъ"),
+        0x0033 => (";", "Ж"),
+        0x0034 => ("'", "Э"),
+        0x0035 => ("`", "Ё"),
+        0x0036 => (",", "Б"),
+        0x0037 => (".", "Ю"),
+        0x0038 => ("/", "."),
+        _ => return None,
+    };
+    Some(format!("{latin}\n{cyrillic}"))
 }
 
 /// Returns a human-readable tooltip for a keycode.

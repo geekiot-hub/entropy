@@ -9,8 +9,8 @@ fn inactive_picker_entry_text(dark: bool) -> egui::Color32 {
 }
 
 use crate::keycode::{
-    gui_label, gui_mod_name, gui_sym, key_label_font_sizes, keycode_label_with_names,
-    keycode_tooltip, modifier_label_from_bits, KeycodeCategory, KEYCODES,
+    gui_label, gui_mod_name, gui_sym, key_label_font_sizes, keycode_label_with_names_and_layout,
+    keycode_tooltip, modifier_label_from_bits, KeyLegendLayout, KeycodeCategory, KEYCODES,
 };
 use crate::popup_state::{PopupKey, PopupState};
 use egui::{Color32, Key, RichText, Vec2};
@@ -124,6 +124,7 @@ pub struct KeycodePicker {
     macro_key_pick: Option<(usize, usize)>,
     popup_state: PopupState,
     pub language: crate::i18n::Language,
+    pub key_legend_layout: KeyLegendLayout,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -467,6 +468,7 @@ impl Default for KeycodePicker {
             macros_dirty: false,
             popup_state: PopupState::default(),
             language: crate::i18n::default_language(),
+            key_legend_layout: KeyLegendLayout::default(),
         }
     }
 }
@@ -1801,7 +1803,14 @@ impl KeycodePicker {
                 0x002D => "_\n-".to_string(),
                 0x002E => "+\n=".to_string(),
                 _ => crate::keycode::find_keycode(assigned_value)
-                    .map(|_| keycode_label_with_names(assigned_value, &[], &self.layer_names))
+                    .map(|_| {
+                        keycode_label_with_names_and_layout(
+                            assigned_value,
+                            &[],
+                            &self.layer_names,
+                            self.key_legend_layout,
+                        )
+                    })
                     .unwrap_or_else(|| fallback_label.to_string()),
             };
             self.basic_key_button_at(
@@ -1935,7 +1944,12 @@ impl KeycodePicker {
                 if !self.selected_tab.vial_matches(kc) || !self.vial_keycode_supported(kc) {
                     continue;
                 }
-                let label = keycode_label_with_names(kc.value, &custom_pairs, &self.layer_names);
+                let label = keycode_label_with_names_and_layout(
+                    kc.value,
+                    &custom_pairs,
+                    &self.layer_names,
+                    self.key_legend_layout,
+                );
                 let resp = ui
                     .add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""))
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
@@ -2003,7 +2017,12 @@ impl KeycodePicker {
                 if !self.selected_tab.vial_matches(kc) || !self.vial_keycode_supported(kc) {
                     continue;
                 }
-                let label = keycode_label_with_names(kc.value, &custom_pairs, &self.layer_names);
+                let label = keycode_label_with_names_and_layout(
+                    kc.value,
+                    &custom_pairs,
+                    &self.layer_names,
+                    self.key_legend_layout,
+                );
                 let resp = ui
                     .add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""))
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
@@ -3224,7 +3243,7 @@ impl KeycodePicker {
                     let kc_label = if kc == 0 {
                         "None".to_string()
                     } else {
-                        crate::keycode::keycode_label_with_names(kc, &[], &self.layer_names)
+                        crate::keycode::keycode_label_with_names_and_layout(kc, &[], &self.layer_names, self.key_legend_layout)
                     };
                     if picker_button(ui, &kc_label, Vec2::new(120.0, 30.0), true, false)
                         .on_hover_text(if kc == 0 {
@@ -3504,7 +3523,7 @@ impl KeycodePicker {
                         let kc_label = if kc == 0 {
                             "None".to_string()
                         } else {
-                            crate::keycode::keycode_label_with_names(kc, &[], &self.layer_names)
+                            crate::keycode::keycode_label_with_names_and_layout(kc, &[], &self.layer_names, self.key_legend_layout)
                         };
                         if ui
                             .add(
@@ -3709,7 +3728,12 @@ impl KeycodePicker {
                 .map(|kc| {
                     (
                         kc.value,
-                        keycode_label_with_names(kc.value, &[], &self.layer_names),
+                        keycode_label_with_names_and_layout(
+                            kc.value,
+                            &[],
+                            &self.layer_names,
+                            self.key_legend_layout,
+                        ),
                         keycode_tooltip(kc.value, &[], &self.layer_names),
                     )
                 })
@@ -4368,7 +4392,12 @@ Repeat"
                     let resp = ui
                         .add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""))
                         .on_hover_cursor(egui::CursorIcon::PointingHand);
-                    let label = keycode_label_with_names(*value, &[], &self.layer_names);
+                    let label = keycode_label_with_names_and_layout(
+                        *value,
+                        &[],
+                        &self.layer_names,
+                        self.key_legend_layout,
+                    );
                     Self::paint_compact_picker_label(ui, &resp, &label);
                     if resp.clicked() {
                         self.assign_keycode_value(*value);
@@ -4431,7 +4460,12 @@ Repeat"
                 let resp = ui
                     .add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""))
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
-                let label = keycode_label_with_names(*value, &[], &self.layer_names);
+                let label = keycode_label_with_names_and_layout(
+                    *value,
+                    &[],
+                    &self.layer_names,
+                    self.key_legend_layout,
+                );
                 Self::paint_compact_picker_label(ui, &resp, &label);
                 if resp.clicked() {
                     self.assign_keycode_value(*value);

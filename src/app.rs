@@ -122,6 +122,8 @@ struct AppSettings {
     language: crate::i18n::Language,
     #[serde(default = "default_encoder_hover_enlarge")]
     encoder_hover_enlarge: bool,
+    #[serde(default)]
+    key_legend_layout: KeyLegendLayout,
     #[serde(default = "default_app_accent_color")]
     accent_color: AppAccentColor,
     #[serde(default = "default_ui_scale")]
@@ -200,6 +202,7 @@ impl Default for AppSettings {
             layer_hover_preview: default_layer_hover_preview(),
             language: crate::i18n::default_language(),
             encoder_hover_enlarge: default_encoder_hover_enlarge(),
+            key_legend_layout: KeyLegendLayout::default(),
             accent_color: default_app_accent_color(),
             ui_scale: default_ui_scale(),
         }
@@ -650,6 +653,7 @@ fn keycode_label_with_macro_names(
     layer_names: &[String],
     macro_names: &[String],
     tap_dance_names: &[String],
+    key_legend_layout: KeyLegendLayout,
 ) -> String {
     if (0x7700..=0x77FF).contains(&value) {
         let idx = (value - 0x7700) as usize;
@@ -665,7 +669,7 @@ fn keycode_label_with_macro_names(
         }
         return format!("TD{}", idx);
     }
-    keycode_label_with_names(value, custom, layer_names)
+    keycode_label_with_names_and_layout(value, custom, layer_names, key_legend_layout)
 }
 
 fn keycode_tooltip_with_macro_names(
@@ -688,7 +692,9 @@ fn keycode_tooltip_with_macro_names(
     keycode_tooltip(value, custom, layer_names)
 }
 use crate::keyboard::{KeyboardLayout, LayoutOption, PhysicalEncoder, PhysicalKey};
-use crate::keycode::{key_label_font_sizes, keycode_label_with_names, keycode_tooltip};
+use crate::keycode::{
+    key_label_font_sizes, keycode_label_with_names_and_layout, keycode_tooltip, KeyLegendLayout,
+};
 use crate::keycode_picker::{egui_key_to_qmk, KeycodePicker, KeycodeTab};
 use egui::{Color32, FontId, RichText, Sense, Stroke, Vec2};
 
@@ -3450,6 +3456,83 @@ impl EntropyApp {
                     save_app_settings(&self.app_settings);
                 }
 
+                let mut selected_key_legend_layout = self.app_settings.key_legend_layout;
+                crate::ui_style::settings_list_row_with_tooltip(
+                    ui,
+                    content_width,
+                    row_height,
+                    crate::i18n::tr_catalog(lang, "ui.key_legends_label"),
+                    true,
+                    Some(crate::i18n::tr_catalog(lang, "ui.key_legends_tooltip")),
+                    metrics.settings_control_width(),
+                    |ui| {
+                        let dropdown_id = ui.make_persistent_id("app_key_legends_dropdown");
+                        let dropdown_resp = crate::ui_style::modern_dropdown_button_sized(
+                            ui,
+                            dropdown_id,
+                            crate::i18n::tr_catalog(lang, selected_key_legend_layout.i18n_key()),
+                            ui.visuals().text_color(),
+                            metrics.settings_control_width(),
+                            metrics.settings_control_height(),
+                            metrics.settings_control_font_size(),
+                        );
+                        egui::popup_below_widget(
+                            ui,
+                            dropdown_id,
+                            &dropdown_resp,
+                            egui::PopupCloseBehavior::CloseOnClickOutside,
+                            |ui| {
+                                ui.set_min_width(metrics.settings_control_width());
+                                ui.spacing_mut().item_spacing = Vec2::new(0.0, 2.0);
+                                for key_legend_layout in KeyLegendLayout::ALL {
+                                    let selected = key_legend_layout == selected_key_legend_layout;
+                                    let (option_rect, option_resp) = ui.allocate_exact_size(
+                                        metrics.size(168.0, 28.0),
+                                        Sense::click(),
+                                    );
+                                    if option_resp.hovered() {
+                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                    }
+                                    let option_fill = if selected {
+                                        if dark {
+                                            Color32::from_rgb(58, 58, 61)
+                                        } else {
+                                            Color32::from_rgb(236, 236, 238)
+                                        }
+                                    } else if option_resp.hovered() {
+                                        crate::ui_style::hover_fill(dark)
+                                    } else {
+                                        Color32::TRANSPARENT
+                                    };
+                                    ui.painter().rect_filled(option_rect, 7.0, option_fill);
+                                    ui.painter().text(
+                                        egui::pos2(
+                                            option_rect.left() + metrics.value(10.0),
+                                            option_rect.center().y,
+                                        ),
+                                        egui::Align2::LEFT_CENTER,
+                                        crate::i18n::tr_catalog(lang, key_legend_layout.i18n_key()),
+                                        FontId::proportional(metrics.value(12.0)),
+                                        if selected {
+                                            ui.visuals().text_color()
+                                        } else {
+                                            app_muted_text(dark)
+                                        },
+                                    );
+                                    if option_resp.clicked() {
+                                        selected_key_legend_layout = key_legend_layout;
+                                        ui.memory_mut(|m| m.close_popup());
+                                    }
+                                }
+                            },
+                        );
+                    },
+                );
+                if selected_key_legend_layout != self.app_settings.key_legend_layout {
+                    self.app_settings.key_legend_layout = selected_key_legend_layout;
+                    save_app_settings(&self.app_settings);
+                }
+
                 let mut minimize_to_tray = self.app_settings.minimize_to_tray_on_close;
                 crate::ui_style::settings_list_row_with_tooltip(
                     ui,
@@ -6099,6 +6182,7 @@ impl eframe::App for EntropyApp {
 
         if !self.unlock_open && !self.vial_unlock_polling {
             self.keycode_picker.language = self.app_settings.language;
+            self.keycode_picker.key_legend_layout = self.app_settings.key_legend_layout;
             self.keycode_picker.show(ctx);
             self.apply_picker_results();
         }
@@ -7691,6 +7775,7 @@ impl EntropyApp {
                 &self.layer_names,
                 &self.keycode_picker.macro_names,
                 &self.keycode_picker.tap_dance_names,
+                self.app_settings.key_legend_layout,
             )
             .replace("\n", " ")
         };
@@ -7704,6 +7789,7 @@ impl EntropyApp {
                 &self.layer_names,
                 &self.keycode_picker.macro_names,
                 &self.keycode_picker.tap_dance_names,
+                self.app_settings.key_legend_layout,
             )
             .replace("\n", " ")
         };
@@ -11350,6 +11436,7 @@ impl EntropyApp {
                 &self.layer_names,
                 &self.keycode_picker.macro_names,
                 &self.keycode_picker.tap_dance_names,
+                self.app_settings.key_legend_layout,
             )
             .replace('\n', " ")
         };
@@ -11366,6 +11453,7 @@ impl EntropyApp {
                 &self.layer_names,
                 &self.keycode_picker.macro_names,
                 &self.keycode_picker.tap_dance_names,
+                self.app_settings.key_legend_layout,
             )
             .replace('\n', " ")
         };
@@ -11879,6 +11967,7 @@ impl EntropyApp {
                             &self.layer_names,
                             &self.keycode_picker.macro_names,
                             &self.keycode_picker.tap_dance_names,
+                            self.app_settings.key_legend_layout,
                         )
                         .replace('\n', " ")
                     })
@@ -11896,6 +11985,7 @@ impl EntropyApp {
                             &self.layer_names,
                             &self.keycode_picker.macro_names,
                             &self.keycode_picker.tap_dance_names,
+                            self.app_settings.key_legend_layout,
                         )
                         .replace('\n', " ")
                     })
@@ -11929,6 +12019,7 @@ impl EntropyApp {
                 &self.layer_names,
                 &self.keycode_picker.macro_names,
                 &self.keycode_picker.tap_dance_names,
+                self.app_settings.key_legend_layout,
             )
             .replace('\n', " ")
         };
@@ -14152,6 +14243,7 @@ impl EntropyApp {
                             &self.layer_names,
                             &self.keycode_picker.macro_names,
                             &self.keycode_picker.tap_dance_names,
+                            self.app_settings.key_legend_layout,
                         )
                     };
                     let label = number_row_shifted_label(
@@ -14209,6 +14301,7 @@ impl EntropyApp {
                         &self.layer_names,
                         &self.keycode_picker.macro_names,
                         &self.keycode_picker.tap_dance_names,
+                        self.app_settings.key_legend_layout,
                     ),
                     self.app_settings.show_shifted_number_symbols,
                 );
@@ -14220,6 +14313,7 @@ impl EntropyApp {
         let encoder_layer_names = self.layer_names.clone();
         let encoder_macro_names = self.keycode_picker.macro_names.clone();
         let encoder_tap_dance_names = self.keycode_picker.tap_dance_names.clone();
+        let encoder_key_legend_layout = self.app_settings.key_legend_layout;
         let encoder_label = |kc: u16| -> String {
             match kc {
                 0x0000 => "✕".to_string(),
@@ -14230,6 +14324,7 @@ impl EntropyApp {
                     &encoder_layer_names,
                     &encoder_macro_names,
                     &encoder_tap_dance_names,
+                    encoder_key_legend_layout,
                 )
                 .replace('\n', " "),
             }
@@ -14619,6 +14714,7 @@ impl EntropyApp {
                                 &self.layer_names,
                                 &self.keycode_picker.macro_names,
                                 &self.keycode_picker.tap_dance_names,
+                                self.app_settings.key_legend_layout,
                             )
                         }
                     } else if kc == 0x0001 {
@@ -14632,6 +14728,7 @@ impl EntropyApp {
                             &self.layer_names,
                             &self.keycode_picker.macro_names,
                             &self.keycode_picker.tap_dance_names,
+                            self.app_settings.key_legend_layout,
                         )
                     }
                 }
