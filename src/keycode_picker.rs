@@ -2672,7 +2672,7 @@ impl KeycodePicker {
             ui.label(
                 RichText::new(crate::i18n::tr_catalog(
                     self.language,
-                    "Select a macro above to edit",
+                    "macro_editor.select_a_macro_above_to_edit",
                 ))
                 .size(16.0)
                 .color(Color32::from_gray(140)),
@@ -2734,7 +2734,7 @@ impl KeycodePicker {
                             crate::ui_style::accent(),
                             crate::i18n::tr_catalog(
                                 self.language,
-                                "Types text characters one by one",
+                                "macro_editor.types_text_characters_one_by_one",
                             ),
                         ),
                         MacroAction::Tap(_) => (
@@ -2758,7 +2758,7 @@ impl KeycodePicker {
                             Color32::from_rgb(132, 150, 178),
                             crate::i18n::tr_catalog(
                                 self.language,
-                                "Release a previously pressed key",
+                                "macro_editor.release_a_previously_pressed_key",
                             ),
                         ),
                         MacroAction::Delay(_) => (
@@ -2801,7 +2801,7 @@ impl KeycodePicker {
                             )
                             .on_hover_text(crate::i18n::tr_catalog(
                                 self.language,
-                                "Characters to type when this macro runs",
+                                "macro_editor.characters_to_type_when_this_macro_runs",
                             ));
                         }
                         MacroAction::Tap(kc) => {
@@ -2819,7 +2819,7 @@ impl KeycodePicker {
                             )
                             .on_hover_text(crate::i18n::tr_catalog(
                                 self.language,
-                                "Click to change key — press and release this key",
+                                "macro_editor.click_to_change_key_press_and_release_this_key",
                             ))
                             .clicked()
                             {
@@ -2966,7 +2966,7 @@ impl KeycodePicker {
             )
             .on_hover_text(crate::i18n::tr_catalog(
                 self.language,
-                "Press and release a key",
+                "macro_editor.press_and_release_a_key",
             ))
             .clicked()
             {
@@ -3014,7 +3014,7 @@ impl KeycodePicker {
             )
             .on_hover_text(crate::i18n::tr_catalog(
                 self.language,
-                "Pause in milliseconds",
+                "macro_editor.pause_in_milliseconds",
             ))
             .clicked()
             {
@@ -3039,7 +3039,7 @@ impl KeycodePicker {
             )
             .on_hover_text(crate::i18n::tr_catalog(
                 self.language,
-                "Remove all actions from this macro",
+                "key_picker_text.remove_all_actions_from_this_macro",
             ))
             .clicked()
             {
@@ -3083,7 +3083,7 @@ impl KeycodePicker {
             ui.label(
                 RichText::new(crate::i18n::tr_catalog(
                     self.language,
-                    "No Tap Dance slots available on this keyboard",
+                    "tap_dance_editor.no_tap_dance_slots_available_on_this_keyboard",
                 ))
                 .size(16.0)
                 .color(Color32::from_gray(140)),
@@ -3259,7 +3259,7 @@ impl KeycodePicker {
                 )
                 .on_hover_text(crate::i18n::tr_catalog(
                     self.language,
-                    "Time in milliseconds to distinguish tap from hold (default: 200)",
+                    "tap_dance_editor.time_in_milliseconds_to_distinguish_tap_from_hold_default_200",
                 ));
                 ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                     ui.spacing_mut().item_spacing.x = 6.0;
@@ -3277,7 +3277,7 @@ impl KeycodePicker {
                     )
                     .on_hover_text(crate::i18n::tr_catalog(
                         self.language,
-                        "Tapping term is in milliseconds",
+                        "tap_dance_editor.tapping_term_is_in_milliseconds",
                     ))
                     .changed()
                     {
@@ -3321,7 +3321,7 @@ impl KeycodePicker {
             )
             .on_hover_text(crate::i18n::tr_catalog(
                 self.language,
-                "Clear all actions for this tap dance",
+                "tap_dance_editor.clear_all_actions_for_this_tap_dance",
             ))
             .clicked()
             {
@@ -3351,7 +3351,7 @@ impl KeycodePicker {
             )
             .on_hover_text(crate::i18n::tr_catalog(
                 self.language,
-                "Undo last tap dance change",
+                "tap_dance_editor.undo_last_tap_dance_change",
             ))
             .clicked()
             {
@@ -3423,7 +3423,7 @@ impl KeycodePicker {
                 ui.label(
                     RichText::new(crate::i18n::tr_catalog(
                         self.language,
-                        "No Tap Dance slots available on this keyboard",
+                        "tap_dance_editor.no_tap_dance_slots_available_on_this_keyboard",
                     ))
                     .size(16.0)
                     .color(Color32::from_gray(140)),
@@ -3435,7 +3435,7 @@ impl KeycodePicker {
                 ui.label(
                     RichText::new(crate::i18n::tr_catalog(
                         self.language,
-                        "Select a tap dance tab above to edit",
+                        "key_picker_text.select_a_tap_dance_tab_above_to_edit",
                     ))
                     .size(16.0)
                     .color(Color32::from_gray(140)),
@@ -3544,7 +3544,7 @@ impl KeycodePicker {
                     )
                     .on_hover_text(crate::i18n::tr_catalog(
                         self.language,
-                        "Time in milliseconds to distinguish tap from hold (default: 200)",
+                        "tap_dance_editor.time_in_milliseconds_to_distinguish_tap_from_hold_default_200",
                     ));
                     let mut term_str = self.tap_dance_entries[n].tapping_term.to_string();
                     ui.horizontal(|ui| {
@@ -3560,7 +3560,7 @@ impl KeycodePicker {
                         )
                         .on_hover_text(crate::i18n::tr_catalog(
                             self.language,
-                            "Tapping term is in milliseconds",
+                            "tap_dance_editor.tapping_term_is_in_milliseconds",
                         ))
                         .changed()
                         {
@@ -3618,7 +3618,7 @@ impl KeycodePicker {
         let helper_text = match field {
             0 => crate::i18n::tr_catalog(
                 self.language,
-                "Best for normal keys, navigation, media and special actions",
+                "key_picker_text.best_for_normal_keys_navigation_media_and_special_actions",
             ),
             1 => crate::i18n::tr_catalog(self.language, "key_picker_text.hold_actions_are_limited_to_left_right_modifiers_and_layers"),
             2 => crate::i18n::tr_catalog(self.language, "key_picker_text.best_for_a_second_tap_action_usually_another_normal_key_or_command"),

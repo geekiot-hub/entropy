@@ -3964,7 +3964,7 @@ impl EntropyApp {
                     self.app_settings.language,
                     crate::i18n::tr_catalog(
                         self.app_settings.language,
-                        "Keyboard is locked, unlock it to use Matrix Tester",
+                        "matrix_tester.keyboard_is_locked_unlock_it_to_use_matrix_tester",
                     ),
                 )
                 .into();
@@ -5827,7 +5827,7 @@ impl eframe::App for EntropyApp {
                         egui::Label::new(
                             RichText::new(crate::i18n::tr_catalog(
                                 self.app_settings.language,
-                                "☀ Light",
+                                "app_chrome.light_light",
                             ))
                             .size(11.0)
                             .color(if self.dark_mode {
@@ -5855,7 +5855,7 @@ impl eframe::App for EntropyApp {
                         egui::Label::new(
                             RichText::new(crate::i18n::tr_catalog(
                                 self.app_settings.language,
-                                "🌙 Dark",
+                                "app_chrome.dark_dark",
                             ))
                             .size(11.0)
                             .color(if self.dark_mode {
@@ -6130,7 +6130,7 @@ impl eframe::App for EntropyApp {
                 self.unlock_open = true;
                 self.status_msg = crate::i18n::tr_catalog(
                     self.app_settings.language,
-                    "Keyboard is locked, unlock it to save macros",
+                    "connection.keyboard_locked_edit_macros",
                 )
                 .into();
             } else {
@@ -7851,7 +7851,7 @@ impl EntropyApp {
                                     true,
                                     Some(crate::i18n::tr_catalog(
                                         self.app_settings.language,
-                                        "Select Alt Repeat slot",
+                                        "alt_repeat_editor.select_alt_repeat_slot",
                                     )),
                                     control_width,
                                     |ui| {
@@ -7994,7 +7994,7 @@ impl EntropyApp {
                                     true,
                                     Some(crate::i18n::tr_catalog(
                                         self.app_settings.language,
-                                        "Local name for this slot",
+                                        "alt_repeat_editor.local_name_for_this_slot",
                                     )),
                                     control_width,
                                     |ui| {
@@ -8031,7 +8031,7 @@ impl EntropyApp {
                                     true,
                                     Some(crate::i18n::tr_catalog(
                                         self.app_settings.language,
-                                        "Key that triggers alternate repeat behavior",
+                                        "alt_repeat_editor.key_that_triggers_alternate_repeat_behavior",
                                     )),
                                     control_width,
                                     |ui| {
@@ -8063,7 +8063,7 @@ impl EntropyApp {
                                     true,
                                     Some(crate::i18n::tr_catalog(
                                         self.app_settings.language,
-                                        "Key repeated when alternate repeat activates",
+                                        "alt_repeat_editor.key_repeated_when_alternate_repeat_activates",
                                     )),
                                     control_width,
                                     |ui| {
@@ -8571,7 +8571,7 @@ impl EntropyApp {
                         } else {
                             Some(crate::i18n::tr_catalog(
                                 self.app_settings.language,
-                                "Global LED brightness for layer color lighting",
+                                "advanced_settings.global_led_brightness_for_layer_color_lighting",
                             ))
                         },
                         slider_control_width,
@@ -8637,7 +8637,7 @@ impl EntropyApp {
                         } else {
                             Some(crate::i18n::tr_catalog(
                                 self.app_settings.language,
-                                "Minutes before LEDs turn off automatically, 0 disables timeout",
+                                "advanced_settings.minutes_before_leds_turn_off_automatically_0_disables_timeout",
                             ))
                         },
                         slider_control_width,
@@ -8992,7 +8992,7 @@ impl EntropyApp {
                         crate::i18n::tr_catalog(self.app_settings.language, "advanced_settings.alt_forces_esc")
                             .to_string(),
                         crate::i18n::tr_catalog(self.app_settings.language,
-                            "When Alt is held, Grave Escape sends Esc instead of ` or ~",
+                            "advanced_settings.when_alt_is_held_grave_escape_sends_esc_instead_of_grave_or_tilde",
                         )
                         .to_string(),
                     ),
@@ -9001,7 +9001,7 @@ impl EntropyApp {
                         crate::i18n::tr_catalog(self.app_settings.language, "advanced_settings.control_forces_esc")
                             .to_string(),
                         crate::i18n::tr_catalog(self.app_settings.language,
-                            "When Control is held, Grave Escape sends Esc instead of ` or ~",
+                            "advanced_settings.when_control_is_held_grave_escape_sends_esc_instead_of_grave_or_tilde",
                         )
                         .to_string(),
                     ),
@@ -9025,7 +9025,7 @@ impl EntropyApp {
                         crate::i18n::tr_catalog(self.app_settings.language, "advanced_settings.shift_forces_esc")
                             .to_string(),
                         crate::i18n::tr_catalog(self.app_settings.language,
-                            "When Shift is held, Grave Escape sends Esc instead of ` or ~",
+                            "advanced_settings.when_shift_is_held_grave_escape_sends_esc_instead_of_grave_or_tilde",
                         )
                         .to_string(),
                     ),
@@ -9267,7 +9267,7 @@ impl EntropyApp {
                     0,
                     crate::i18n::tr_catalog(
                         self.app_settings.language,
-                        "Swap Caps Lock and Left Control",
+                        "advanced_settings.swap_caps_lock_and_left_control",
                     )
                     .to_owned(),
                     crate::i18n::tr_catalog(self.app_settings.language, "advanced_settings.caps_lock_sends_left_control_and_left_control_sends_caps_lock")
@@ -9325,7 +9325,7 @@ impl EntropyApp {
                     .to_owned(),
                     crate::i18n::tr_catalog(
                         self.app_settings.language,
-                        "Grave sends Escape and Escape sends Grave",
+                        "advanced_settings.grave_sends_escape_and_escape_sends_grave",
                     )
                     .to_owned(),
                 ),
@@ -9335,7 +9335,7 @@ impl EntropyApp {
                     .to_owned(),
                     crate::i18n::tr_catalog(
                         self.app_settings.language,
-                        "Backslash sends Backspace and Backspace sends Backslash",
+                        "advanced_settings.backslash_sends_backspace_and_backspace_sends_backslash",
                     )
                     .to_owned(),
                 ),
@@ -9345,7 +9345,7 @@ impl EntropyApp {
                     .to_owned(),
                     crate::i18n::tr_catalog(
                         self.app_settings.language,
-                        "Allow more simultaneous key presses when the keyboard supports it",
+                        "advanced_settings.allow_more_simultaneous_key_presses_when_the_keyboard_supports_it",
                     )
                     .to_owned(),
                 ),
@@ -9635,7 +9635,7 @@ impl EntropyApp {
                     label: crate::i18n::tr_catalog(self.app_settings.language, "tap_hold_settings.tapping_term_label"),
                     tooltip: crate::i18n::tr_catalog(
                         self.app_settings.language,
-                        "Global tap-vs-hold decision window for dual-role keys",
+                        "tap_hold_settings.global_tap_vs_hold_decision_window_for_dual_role_keys",
                     ),
                     is_bool: false,
                     max: 10000,
@@ -9646,7 +9646,7 @@ impl EntropyApp {
                     label: crate::i18n::tr_catalog(self.app_settings.language, "tap_hold_settings.permissive_hold"),
                     tooltip: crate::i18n::tr_catalog(
                         self.app_settings.language,
-                        "Nested taps choose hold for Mod-Tap and Layer-Tap keys",
+                        "tap_hold_settings.nested_taps_choose_hold_for_mod_tap_and_layer_tap_keys",
                     ),
                     is_bool: true,
                     max: 1,
@@ -9657,7 +9657,7 @@ impl EntropyApp {
                     label: crate::i18n::tr_catalog(self.app_settings.language, "tap_hold_settings.hold_on_other_key"),
                     tooltip: crate::i18n::tr_catalog(
                         self.app_settings.language,
-                        "Pressing another key immediately chooses hold for dual-role keys",
+                        "tap_hold_settings.pressing_another_key_immediately_chooses_hold_for_dual_role_keys",
                     ),
                     is_bool: true,
                     max: 1,
@@ -9668,7 +9668,7 @@ impl EntropyApp {
                     label: crate::i18n::tr_catalog(self.app_settings.language, "tap_hold_settings.retro_tapping"),
                     tooltip: crate::i18n::tr_catalog(
                         self.app_settings.language,
-                        "A held-and-released-alone dual-role key still sends its tap action",
+                        "tap_hold_settings.a_held_and_released_alone_dual_role_key_still_sends_its_tap_action",
                     ),
                     is_bool: true,
                     max: 1,
@@ -9679,7 +9679,7 @@ impl EntropyApp {
                     label: crate::i18n::tr_catalog(self.app_settings.language, "tap_hold_settings.chordal_hold"),
                     tooltip: crate::i18n::tr_catalog(
                         self.app_settings.language,
-                        "Same-hand chords prefer tap to reduce home-row mod accidents",
+                        "tap_hold_settings.same_hand_chords_prefer_tap_to_reduce_home_row_mod_accidents",
                     ),
                     is_bool: true,
                     max: 1,
@@ -9690,7 +9690,7 @@ impl EntropyApp {
                     label: crate::i18n::tr_catalog(self.app_settings.language, "tap_hold_settings.quick_tap_term"),
                     tooltip: crate::i18n::tr_catalog(
                         self.app_settings.language,
-                        "Tap-then-hold repeat window for dual-role key tap actions",
+                        "tap_hold_settings.tap_then_hold_repeat_window_for_dual_role_key_tap_actions",
                     ),
                     is_bool: false,
                     max: 10000,
@@ -9701,7 +9701,7 @@ impl EntropyApp {
                     label: crate::i18n::tr_catalog(self.app_settings.language, "tap_hold_settings.tap_code_delay"),
                     tooltip: crate::i18n::tr_catalog(
                         self.app_settings.language,
-                        "Delay between register and unregister in tap_code",
+                        "tap_hold_settings.delay_between_register_and_unregister_in_tap_code",
                     ),
                     is_bool: false,
                     max: 1000,
@@ -9720,7 +9720,7 @@ impl EntropyApp {
                     label: crate::i18n::tr_catalog(self.app_settings.language, "tap_hold_settings.tapping_toggle"),
                     tooltip: crate::i18n::tr_catalog(
                         self.app_settings.language,
-                        "Number of taps needed for TT layer toggle",
+                        "tap_hold_settings.number_of_taps_needed_for_tt_layer_toggle",
                     ),
                     is_bool: false,
                     max: 100,
@@ -9731,7 +9731,7 @@ impl EntropyApp {
                     label: crate::i18n::tr_catalog(self.app_settings.language, "tap_hold_settings.flow_tap"),
                     tooltip: crate::i18n::tr_catalog(
                         self.app_settings.language,
-                        "Fast typing timeout that forces MT/LT keys to tap",
+                        "tap_hold_settings.fast_typing_timeout_that_forces_mt_lt_keys_to_tap",
                     ),
                     is_bool: false,
                     max: 10000,
@@ -9760,7 +9760,7 @@ impl EntropyApp {
                     label: crate::i18n::tr_catalog(self.app_settings.language, "tap_hold_settings.one_shot_timeout"),
                     tooltip: crate::i18n::tr_catalog(
                         self.app_settings.language,
-                        "How long one-shot state waits before it is released",
+                        "tap_hold_settings.how_long_one_shot_state_waits_before_it_is_released",
                     ),
                     is_bool: false,
                     max: 60000,
@@ -10201,7 +10201,7 @@ impl EntropyApp {
                         } else {
                             Some(crate::i18n::tr_catalog(
                                 self.app_settings.language,
-                                "Touchpad pointer resolution in dots per inch",
+                                "touchpad_settings.touchpad_pointer_resolution_in_dots_per_inch",
                             ))
                         },
                         dropdown_width,
@@ -10291,7 +10291,7 @@ impl EntropyApp {
                             ),
                             crate::i18n::tr_catalog(
                                 self.app_settings.language,
-                                "Sniper divisor: lower is faster, higher is more precise",
+                                "touchpad_settings.sniper_divisor_lower_is_faster_higher_is_more_precise",
                             ),
                         ),
                         2 => (
@@ -10302,7 +10302,7 @@ impl EntropyApp {
                             ),
                             crate::i18n::tr_catalog(
                                 self.app_settings.language,
-                                "Scroll divisor: lower is faster, higher is smoother",
+                                "touchpad_settings.scroll_divisor_lower_is_faster_higher_is_smoother",
                             ),
                         ),
                         3 => (
@@ -10313,7 +10313,7 @@ impl EntropyApp {
                             ),
                             crate::i18n::tr_catalog(
                                 self.app_settings.language,
-                                "Text mode divisor: lower is faster, higher is slower",
+                                "touchpad_settings.text_mode_divisor_lower_is_faster_higher_is_slower",
                             ),
                         ),
                         _ => unreachable!(),
@@ -10466,7 +10466,7 @@ impl EntropyApp {
                         } else {
                             Some(crate::i18n::tr_catalog(
                                 self.app_settings.language,
-                                "Layer selected automatically while the touchpad is active",
+                                "touchpad_settings.layer_selected_automatically_while_the_touchpad_is_active",
                             ))
                         },
                         dropdown_width,
@@ -10637,7 +10637,7 @@ impl EntropyApp {
                     bridge_active,
                     Some(crate::i18n::tr_catalog(
                         self.app_settings.language,
-                        "Keep Entropy running in the background for live firmware data",
+                        "live_features.keep_entropy_running_in_the_background_for_live_firmware_data",
                     )),
                 );
                 if mode.clock_volume {
@@ -10652,7 +10652,7 @@ impl EntropyApp {
                         true,
                         Some(crate::i18n::tr_catalog(
                             self.app_settings.language,
-                            "Uses the local system clock",
+                            "live_features.uses_the_local_system_clock",
                         )),
                     );
                     let volume = crate::qmk_hid_host::volume_check();
@@ -11946,7 +11946,7 @@ impl EntropyApp {
                     true,
                     Some(crate::i18n::tr_catalog(
                         self.app_settings.language,
-                        "Select Combo slot",
+                        "combo_editor.select_combo_slot",
                     )),
                     control_width,
                     |ui| {
@@ -12056,7 +12056,7 @@ impl EntropyApp {
                     true,
                     Some(crate::i18n::tr_catalog(
                         self.app_settings.language,
-                        "Local name for this combo slot",
+                        "combo_editor.local_name_for_this_combo_slot",
                     )),
                     control_width,
                     |ui| {
@@ -12077,7 +12077,7 @@ impl EntropyApp {
                             combo_name_changed = resp.changed();
                             resp.clone().on_hover_text(crate::i18n::tr_catalog(
                                 self.app_settings.language,
-                                "Stored locally in Entropy",
+                                "alt_repeat_editor.stored_locally_in_entropy",
                             ));
                         }
                     },
@@ -12095,7 +12095,7 @@ impl EntropyApp {
                     true,
                     Some(crate::i18n::tr_catalog(
                         self.app_settings.language,
-                        "Keys that must be pressed together",
+                        "combo_editor.keys_that_must_be_pressed_together",
                     )),
                     control_width,
                     |ui| {
@@ -12133,7 +12133,7 @@ impl EntropyApp {
                     true,
                     Some(crate::i18n::tr_catalog(
                         self.app_settings.language,
-                        "Keycode sent when the combo activates",
+                        "combo_editor.keycode_sent_when_the_combo_activates",
                     )),
                     control_width,
                     |ui| {
@@ -12163,7 +12163,7 @@ impl EntropyApp {
                         true,
                         Some(crate::i18n::tr_catalog(
                             self.app_settings.language,
-                            "Maximum time between combo key presses",
+                            "combo_editor.maximum_time_between_combo_key_presses",
                         )),
                         timeout_control_width,
                         |ui| {
@@ -12183,7 +12183,7 @@ impl EntropyApp {
                                     .on_hover_text(
                                         crate::i18n::tr_catalog(
                                             self.app_settings.language,
-                                            "Timeout is in milliseconds",
+                                            "auto_shift_settings.timeout_is_in_milliseconds",
                                         ),
                                     );
                                     if resp.changed() {

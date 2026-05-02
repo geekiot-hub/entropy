@@ -30,13 +30,14 @@ const EN_CATALOG: &str = include_str!("../i18n/en.toml");
 const RU_CATALOG: &str = include_str!("../i18n/ru.toml");
 
 pub fn tr_catalog(language: Language, key: &'static str) -> &'static str {
+    let lookup_key = static_catalog_key(key).unwrap_or(key);
     let translated = match language {
-        Language::English => catalog_lookup(EN_CATALOG, key),
-        Language::Russian => catalog_lookup(RU_CATALOG, key),
+        Language::English => catalog_lookup(EN_CATALOG, lookup_key),
+        Language::Russian => catalog_lookup(RU_CATALOG, lookup_key),
     };
 
     translated
-        .or_else(|| catalog_lookup(EN_CATALOG, key))
+        .or_else(|| catalog_lookup(EN_CATALOG, lookup_key))
         .unwrap_or(key)
 }
 
@@ -61,13 +62,14 @@ fn tr_catalog_string_format(
 }
 
 fn tr_catalog_string(language: Language, key: &'static str) -> String {
+    let lookup_key = static_catalog_key(key).unwrap_or(key);
     let translated = match language {
-        Language::English => catalog_lookup_owned(EN_CATALOG, key),
-        Language::Russian => catalog_lookup_owned(RU_CATALOG, key),
+        Language::English => catalog_lookup_owned(EN_CATALOG, lookup_key),
+        Language::Russian => catalog_lookup_owned(RU_CATALOG, lookup_key),
     };
 
     translated
-        .or_else(|| catalog_lookup_owned(EN_CATALOG, key))
+        .or_else(|| catalog_lookup_owned(EN_CATALOG, lookup_key))
         .unwrap_or_else(|| key.to_owned())
 }
 
