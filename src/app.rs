@@ -5807,9 +5807,17 @@ impl eframe::App for EntropyApp {
                             .size(11.0)
                             .color(muted),
                     );
+                    let (site_label, site_url) = if matches!(
+                        self.app_settings.language,
+                        crate::i18n::Language::Russian
+                    ) {
+                        ("eh.works", "https://eh.works")
+                    } else {
+                        ("eh.industries", "https://eh.industries")
+                    };
                     ui.add(egui::Hyperlink::from_label_and_url(
-                        RichText::new("eh.works").size(11.0),
-                        "https://eh.works",
+                        RichText::new(site_label).size(11.0),
+                        site_url,
                     ));
                 });
             });
