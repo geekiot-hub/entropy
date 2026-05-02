@@ -620,7 +620,12 @@ fn popup_key_group_title(kc: &crate::keycode::Keycode) -> &'static str {
     }
 }
 
-fn popup_key_button_label(kc: &crate::keycode::Keycode, friendly_mods: bool) -> String {
+fn popup_key_button_label(
+    kc: &crate::keycode::Keycode,
+    layer_names: &[String],
+    friendly_mods: bool,
+    key_legend_layout: KeyLegendLayout,
+) -> String {
     if friendly_mods {
         let gui = crate::keycode::gui_mod_name();
         match kc.value {
@@ -635,7 +640,7 @@ fn popup_key_button_label(kc: &crate::keycode::Keycode, friendly_mods: bool) -> 
             _ => {}
         }
     }
-    kc.label.to_string()
+    keycode_label_with_names_and_layout(kc.value, &[], layer_names, key_legend_layout)
 }
 
 fn popup_key_button_size(ui: &egui::Ui, _label: &str) -> Vec2 {
@@ -860,6 +865,7 @@ fn show_grouped_popup_key_buttons(
     layer_names: &[String],
     friendly_mods: bool,
     language: crate::i18n::Language,
+    key_legend_layout: KeyLegendLayout,
 ) -> Option<u16> {
     let group_order = [
         "Letters",
@@ -893,7 +899,8 @@ fn show_grouped_popup_key_buttons(
         ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| {
             for kc in &group {
-                let label = popup_key_button_label(kc, friendly_mods);
+                let label =
+                    popup_key_button_label(kc, layer_names, friendly_mods, key_legend_layout);
                 let size = popup_key_button_size(ui, &label);
                 let resp = picker_button(ui, &label, size, true, false);
                 if resp.clicked() {
@@ -1132,6 +1139,7 @@ impl KeycodePicker {
                             &self.layer_names,
                             false,
                             self.language,
+                            self.key_legend_layout,
                         ) {
                             if let Some(action) = self
                                 .macro_actions
@@ -1477,6 +1485,7 @@ impl KeycodePicker {
                             &self.layer_names,
                             false,
                             self.language,
+                            self.key_legend_layout,
                         ) {
                             self.finish_quantum_pending_key(base, value, is_mt);
                         }
@@ -2428,11 +2437,15 @@ impl KeycodePicker {
                         continue;
                     }
                     let resp = ui
-                        .add(
-                            egui::Button::new(RichText::new(kc.label).size(11.0))
-                                .min_size(Self::picker_key_size(ui.ctx())),
-                        )
+                        .add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""))
                         .on_hover_cursor(egui::CursorIcon::PointingHand);
+                    let label = keycode_label_with_names_and_layout(
+                        kc.value,
+                        &[],
+                        &self.layer_names,
+                        self.key_legend_layout,
+                    );
+                    Self::paint_compact_picker_label(ui, &resp, &label);
                     if resp.clicked() {
                         self.finish_quantum_pending_key(base, kc.value, false);
                     }
@@ -2477,11 +2490,15 @@ impl KeycodePicker {
                         continue;
                     }
                     let resp = ui
-                        .add(
-                            egui::Button::new(RichText::new(kc.label).size(11.0))
-                                .min_size(Self::picker_key_size(ui.ctx())),
-                        )
+                        .add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""))
                         .on_hover_cursor(egui::CursorIcon::PointingHand);
+                    let label = keycode_label_with_names_and_layout(
+                        kc.value,
+                        &[],
+                        &self.layer_names,
+                        self.key_legend_layout,
+                    );
+                    Self::paint_compact_picker_label(ui, &resp, &label);
                     if resp.clicked() {
                         self.finish_quantum_pending_key(base, kc.value, true);
                     }
@@ -2824,14 +2841,15 @@ impl KeycodePicker {
                             ));
                         }
                         MacroAction::Tap(kc) => {
-                            let label = crate::keycode::KEYCODES
-                                .iter()
-                                .find(|k| k.value == *kc as u16)
-                                .map(|k| k.label)
-                                .unwrap_or("?");
+                            let label = keycode_label_with_names_and_layout(
+                                *kc as u16,
+                                &[],
+                                &self.layer_names,
+                                self.key_legend_layout,
+                            );
                             if picker_button(
                                 ui,
-                                label,
+                                &label,
                                 picker_scaled_size(ui.ctx(), 100.0, 30.0),
                                 true,
                                 false,
@@ -2846,14 +2864,15 @@ impl KeycodePicker {
                             }
                         }
                         MacroAction::Down(kc) => {
-                            let label = crate::keycode::KEYCODES
-                                .iter()
-                                .find(|k| k.value == *kc as u16)
-                                .map(|k| k.label)
-                                .unwrap_or("?");
+                            let label = keycode_label_with_names_and_layout(
+                                *kc as u16,
+                                &[],
+                                &self.layer_names,
+                                self.key_legend_layout,
+                            );
                             if picker_button(
                                 ui,
-                                label,
+                                &label,
                                 picker_scaled_size(ui.ctx(), 100.0, 30.0),
                                 true,
                                 false,
@@ -2868,14 +2887,15 @@ impl KeycodePicker {
                             }
                         }
                         MacroAction::Up(kc) => {
-                            let label = crate::keycode::KEYCODES
-                                .iter()
-                                .find(|k| k.value == *kc as u16)
-                                .map(|k| k.label)
-                                .unwrap_or("?");
+                            let label = keycode_label_with_names_and_layout(
+                                *kc as u16,
+                                &[],
+                                &self.layer_names,
+                                self.key_legend_layout,
+                            );
                             if picker_button(
                                 ui,
-                                label,
+                                &label,
                                 picker_scaled_size(ui.ctx(), 100.0, 30.0),
                                 true,
                                 false,
@@ -3814,6 +3834,7 @@ impl KeycodePicker {
                             &self.layer_names,
                             false,
                             self.language,
+                            self.key_legend_layout,
                         ) {
                             self.set_tap_dance_field(td_idx, field, value);
                             self.td_key_pick = None;
