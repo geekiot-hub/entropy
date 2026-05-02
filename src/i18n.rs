@@ -172,6 +172,142 @@ pub fn tr_static(language: Language, text: &'static str) -> &'static str {
         "Numpad" => "Нампад",
         "Space Cadet" => "Space Cadet",
         "International" => "Международные",
+        "Backlight" => "Подсветка",
+        "RGB Underglow" => "RGB Underglow",
+        "RGB Matrix Modes" => "Режимы RGB Matrix",
+        "RGB Matrix Controls" => "Управление RGB Matrix",
+        "Hold to activate, release to return" => {
+            "Удержание активирует слой, отпускание возвращает назад"
+        }
+        "Toggle layer on/off" => "Включить или выключить слой",
+        "Active for next keypress only" => "Активен только для следующего нажатия",
+        "Tap multiple times to toggle layer" => "Нажмите несколько раз, чтобы переключить слой",
+        "Switch and stay on this layer" => "Переключиться и остаться на этом слое",
+        "Set as permanent base layer" => "Сделать постоянным базовым слоем",
+        "Hold = activate layer, tap = keycode (set key via right-click afterwards)" => {
+            "Hold активирует слой, tap отправляет keycode; keycode задаётся потом через правый клик"
+        }
+        "Toggle backlight on/off" => "Включить или выключить подсветку",
+        "Cycle through backlight brightness levels" => "Переключать уровни яркости подсветки",
+        "Toggle breathing effect on/off" => "Включить или выключить breathing-эффект",
+        "Turn backlight on" => "Включить подсветку",
+        "Turn backlight off" => "Выключить подсветку",
+        "Decrease backlight brightness" => "Уменьшить яркость подсветки",
+        "Increase backlight brightness" => "Увеличить яркость подсветки",
+        "Toggle RGB lighting on/off" => "Включить или выключить RGB-подсветку",
+        "Switch to previous RGB animation mode" => "Предыдущий режим RGB-анимации",
+        "Switch to next RGB animation mode" => "Следующий режим RGB-анимации",
+        "Decrease color hue" => "Уменьшить оттенок",
+        "Increase color hue" => "Увеличить оттенок",
+        "Decrease color saturation" => "Уменьшить насыщенность",
+        "Increase color saturation" => "Увеличить насыщенность",
+        "Decrease brightness" => "Уменьшить яркость",
+        "Increase brightness" => "Увеличить яркость",
+        "Decrease animation speed" => "Уменьшить скорость анимации",
+        "Increase animation speed" => "Увеличить скорость анимации",
+        "Previous RGB effect" => "Предыдущий RGB-эффект",
+        "Next RGB effect" => "Следующий RGB-эффект",
+        "Turn RGB Matrix on" => "Включить RGB Matrix",
+        "Turn RGB Matrix off" => "Выключить RGB Matrix",
+        "Toggle RGB Matrix on/off" => "Включить или выключить RGB Matrix",
+        "Previous RGB Matrix animation" => "Предыдущая RGB Matrix анимация",
+        "Next RGB Matrix animation" => "Следующая RGB Matrix анимация",
+        "Decrease RGB Matrix hue" => "Уменьшить оттенок RGB Matrix",
+        "Increase RGB Matrix hue" => "Увеличить оттенок RGB Matrix",
+        "Decrease RGB Matrix saturation" => "Уменьшить насыщенность RGB Matrix",
+        "Increase RGB Matrix saturation" => "Увеличить насыщенность RGB Matrix",
+        "Decrease RGB Matrix brightness" => "Уменьшить яркость RGB Matrix",
+        "Increase RGB Matrix brightness" => "Увеличить яркость RGB Matrix",
+        "Decrease RGB Matrix animation speed" => "Уменьшить скорость RGB Matrix анимации",
+        "Increase RGB Matrix animation speed" => "Увеличить скорость RGB Matrix анимации",
+        "Rose" => "Розовый",
+        "Violet" => "Фиолетовый",
+        "Blue" => "Синий",
+        "Amber" => "Янтарный",
+        "Copper" => "Медный",
+        "Teal" => "Бирюзовый",
+        "White" => "Белый",
+        "Red" => "Красный",
+        "Orange" => "Оранжевый",
+        "Goldenrod" => "Золотистый",
+        "Gold" => "Золотой",
+        "Yellow" => "Жёлтый",
+        "Chartreuse" => "Шартрез",
+        "Lime" => "Лайм",
+        "Green" => "Зелёный",
+        "Spring Green" => "Весенне-зелёный",
+        "Turquoise" => "Турквиз",
+        "Cyan" => "Циан",
+        "Azure" => "Лазурный",
+        "Sky" => "Небесный",
+        "Indigo" => "Индиго",
+        "Purple" => "Пурпурный",
+        "Magenta" => "Маджента",
+        "Pink" => "Розовый",
+        "Coral" => "Коралловый",
+        "Salmon" => "Лососевый",
+        "Warm White" => "Тёплый белый",
+        "Trigger" => "Триггер",
+        "Replacement" => "Замена",
+        "Suppressed mods" => "Подавляемые модификаторы",
+        "Trigger mods" => "Триггер-модификаторы",
+        "Negative mods" => "Блокирующие модификаторы",
+        "Enable on layers" => "Активно на слоях",
+        "Trigger press" => "Нажатие триггера",
+        "Required mod press" => "Нажатие требуемого модификатора",
+        "Blocked mod release" => "Отпускание блокирующего модификатора",
+        "Any one mod" => "Любой один модификатор",
+        "No re-send" => "Не отправлять повторно",
+        "Stay active" => "Оставаться активным",
+        "Input keys" => "Входные клавиши",
+        "Output key" => "Выходная клавиша",
+        "Select Key Override slot" => "Выберите слот Key Override",
+        "Local name for this Key Override slot" => "Локальное имя этого слота Key Override",
+        "Original key that can be overridden" => "Исходная клавиша, которую можно заменить",
+        "Keycode sent while override conditions match" => {
+            "Keycode, отправляемый при выполнении условий override"
+        }
+        "Modifiers hidden while the replacement is active" => {
+            "Модификаторы, скрываемые пока замена активна"
+        }
+        "Modifiers required for this override" => "Модификаторы, обязательные для этого override",
+        "Modifiers that block this override" => "Модификаторы, блокирующие этот override",
+        "Layers where this override can activate" => {
+            "Слои, на которых этот override может сработать"
+        }
+        "Activate when the trigger key is pressed" => "Активировать при нажатии клавиши-триггера",
+        "Activate when a required modifier is pressed" => {
+            "Активировать при нажатии требуемого модификатора"
+        }
+        "Activate when a blocking modifier is released" => {
+            "Активировать при отпускании блокирующего модификатора"
+        }
+        "Any one trigger modifier is enough" => "Достаточно любого одного триггер-модификатора",
+        "Do not resend the trigger after override ends" => {
+            "Не отправлять триггер повторно после окончания override"
+        }
+        "Stay active when another key is pressed" => {
+            "Оставаться активным при нажатии другой клавиши"
+        }
+        "Select Combo slot" => "Выберите слот Combo",
+        "Local name for this combo slot" => "Локальное имя этого слота Combo",
+        "Keys that must be pressed together" => "Клавиши, которые нужно нажать вместе",
+        "Keycode sent when the combo activates" => "Keycode, отправляемый при срабатывании Combo",
+        "Maximum time between combo key presses" => {
+            "Максимальное время между нажатиями клавиш Combo"
+        }
+        "Hold actions are limited to left/right modifiers and layers" => {
+            "Hold-действия ограничены левыми/правыми модификаторами и слоями"
+        }
+        "Tap-then-hold actions are limited to left/right modifiers and layers" => {
+            "Tap-then-hold действия ограничены левыми/правыми модификаторами и слоями"
+        }
+        "Left Control" => "Левый Control",
+        "Right Control" => "Правый Control",
+        "Left Shift" => "Левый Shift",
+        "Right Shift" => "Правый Shift",
+        "Left Alt" => "Левый Alt",
+        "Right Alt" => "Правый Alt",
         "Clear all" => "Очистить всё",
         "↩ Undo" => "↩ Отменить",
         "Undo last change" => "Отменить последнее изменение",
@@ -268,11 +404,11 @@ pub fn tr_static(language: Language, text: &'static str) -> &'static str {
         "On Double Tap" => "При Double Tap",
         "On Tap + Hold" => "При Tap + Hold",
         "Click to assign a key" => "Нажмите, чтобы назначить клавишу",
-        "Tapping Term" => "Tapping Term",
+        "Tapping Term" => "Окно tap/hold",
         "Time in milliseconds to distinguish tap from hold (default: 200)" => {
             "Время в миллисекундах для различения tap и hold (по умолчанию 200)"
         }
-        "Tapping term is in milliseconds" => "Tapping term в миллисекундах",
+        "Tapping term is in milliseconds" => "Окно tap/hold в миллисекундах",
         "Clear all actions for this tap dance" => "Очистить все действия этого Tap Dance",
         "Undo last tap dance change" => "Отменить последнее изменение Tap Dance",
         "Tap Dance Editor" => "Редактор Tap Dance",
@@ -717,6 +853,165 @@ pub fn tr_text(language: Language, text: &str) -> String {
         "Left Alt when held, ( when tapped" => "Левый Alt при hold, ( при tap".to_owned(),
         "Right Alt when held, ) when tapped" => "Правый Alt при hold, ) при tap".to_owned(),
         "Right Shift when held, Enter when tapped" => "Правый Shift при hold, Enter при tap".to_owned(),
+        "Plain modifier — hold for left/right side, tap nothing" => "Обычный модификатор — удержание левой/правой стороны, tap ничего не отправляет".to_owned(),
+        other if other.starts_with("Hold ") && other.contains(" with the key you choose next") => other
+            .replace("Hold ", "Удерживать ")
+            .replace(" together with the key you choose next", " вместе со следующей выбранной клавишей"),
+        other if other.starts_with("Dual-role key: hold for ") => other
+            .replace("Dual-role key: hold for ", "Dual-role клавиша: hold для ")
+            .replace(", tap for the key you choose next", ", tap для следующей выбранной клавиши"),
+        other if other.starts_with("One-Shot ") => other
+            .replace("One-Shot ", "One-Shot ")
+            .replace(" — active for the next keypress only", " — активен только для следующего нажатия")
+            .replace(" — applies ", " — применяет ")
+            .replace(" to the next keypress only", " только к следующему нажатию")
+            .replace(" — activates ", " — активирует ")
+            .replace(" for the very next keypress only", " только для следующего нажатия"),
+        other if other.starts_with("RGB Matrix: solid color") => "RGB Matrix: сплошной цвет без анимации".to_owned(),
+        other if other.starts_with("RGB Matrix: breathing effect") => "RGB Matrix: breathing-эффект с плавным изменением яркости".to_owned(),
+        other if other.starts_with("RGB Matrix: rainbow gradient") => "RGB Matrix: радужный градиент по всем клавишам".to_owned(),
+        other if other.starts_with("RGB Matrix: swirling rainbow") => "RGB Matrix: вращающийся радужный паттерн".to_owned(),
+        other if other.starts_with("RGB Matrix: snake animation") => "RGB Matrix: анимация змейки по клавишам".to_owned(),
+        other if other.starts_with("RGB Matrix: Knight Rider") => "RGB Matrix: сканирующий эффект Knight Rider".to_owned(),
+        other if other.starts_with("RGB Matrix: alternating red and green") => "RGB Matrix: чередование красного и зелёного как рождественская подсветка".to_owned(),
+        other if other.starts_with("RGB Matrix: static gradient") => "RGB Matrix: статичный градиент".to_owned(),
+        other if other.starts_with("RGB Matrix: test mode") => "RGB Matrix: тестовый режим, циклически R/G/B".to_owned(),
+        "Arrow Up" => "Стрелка вверх".to_owned(),
+        "Arrow Down" => "Стрелка вниз".to_owned(),
+        "Arrow Left" => "Стрелка влево".to_owned(),
+        "Arrow Right" => "Стрелка вправо".to_owned(),
+        "Left Control" => "Левый Control".to_owned(),
+        "Right Control" => "Правый Control".to_owned(),
+        "Left Shift" => "Левый Shift".to_owned(),
+        "Right Shift" => "Правый Shift".to_owned(),
+        "Left Alt" => "Левый Alt".to_owned(),
+        "Right Alt" => "Правый Alt".to_owned(),
+        "Swap Caps Lock and Left Control" => "Поменять Caps Lock и левый Control".to_owned(),
+        "Unswap Caps Lock and Left Control" => "Вернуть Caps Lock и левый Control".to_owned(),
+        "Toggle Caps Lock and Left Control swap" => "Переключить обмен Caps Lock и левого Control".to_owned(),
+        "Stop treating Caps Lock as Control" => "Перестать считать Caps Lock клавишей Control".to_owned(),
+        "Treat Caps Lock as Control" => "Считать Caps Lock клавишей Control".to_owned(),
+        "Swap ` and Escape" => "Поменять ` и Escape".to_owned(),
+        "Unswap ` and Escape" => "Вернуть ` и Escape".to_owned(),
+        "Swap \\ and Backspace" => "Поменять \\ и Backspace".to_owned(),
+        "Unswap \\ and Backspace" => "Вернуть \\ и Backspace".to_owned(),
+        "Toggle \\ and Backspace swap state" => "Переключить обмен \\ и Backspace".to_owned(),
+        "Enable N-key rollover" => "Включить N-key rollover".to_owned(),
+        "Disable N-key rollover" => "Отключить N-key rollover".to_owned(),
+        "Toggle N-key rollover" => "Переключить N-key rollover".to_owned(),
+        "Set the master half of a split keyboard as the left hand (for EE_HANDS)" => "Назначить мастер-половину сплита левой стороной (для EE_HANDS)".to_owned(),
+        "Set the master half of a split keyboard as the right hand (for EE_HANDS)" => "Назначить мастер-половину сплита правой стороной (для EE_HANDS)".to_owned(),
+        "Swap Caps Lock and Escape" => "Поменять Caps Lock и Escape".to_owned(),
+        "Unswap Caps Lock and Escape" => "Вернуть Caps Lock и Escape".to_owned(),
+        "Toggle Caps Lock and Escape swap" => "Переключить обмен Caps Lock и Escape".to_owned(),
+        other if other.starts_with("Swap Left Alt and ") => other
+            .replace("Swap Left Alt and ", "Поменять левый Alt и "),
+        other if other.starts_with("Unswap Left Alt and ") => other
+            .replace("Unswap Left Alt and ", "Вернуть левый Alt и "),
+        other if other.starts_with("Swap Right Alt and ") => other
+            .replace("Swap Right Alt and ", "Поменять правый Alt и "),
+        other if other.starts_with("Unswap Right Alt and ") => other
+            .replace("Unswap Right Alt and ", "Вернуть правый Alt и "),
+        other if other.starts_with("Enable the ") && other.ends_with(" keys") => other
+            .replace("Enable the ", "Включить клавиши ")
+            .replace(" keys", ""),
+        other if other.starts_with("Disable the ") && other.ends_with(" keys") => other
+            .replace("Disable the ", "Отключить клавиши ")
+            .replace(" keys", ""),
+        other if other.starts_with("Toggles the status of the ") => other
+            .replace("Toggles the status of the ", "Переключить состояние клавиш ")
+            .replace(" keys", ""),
+        other if other.starts_with("Swap Alt and ") && other.ends_with(" on both sides") => other
+            .replace("Swap Alt and ", "Поменять Alt и ")
+            .replace(" on both sides", " с обеих сторон"),
+        other if other.starts_with("Unswap Alt and ") && other.ends_with(" on both sides") => other
+            .replace("Unswap Alt and ", "Вернуть Alt и ")
+            .replace(" on both sides", " с обеих сторон"),
+        other if other.starts_with("Toggle Alt and ") && other.ends_with(" swap on both sides") => other
+            .replace("Toggle Alt and ", "Переключить обмен Alt и ")
+            .replace(" swap on both sides", " с обеих сторон"),
+        other if other.starts_with("Swap Left Control and ") => other
+            .replace("Swap Left Control and ", "Поменять левый Control и "),
+        other if other.starts_with("Unswap Left Control and ") => other
+            .replace("Unswap Left Control and ", "Вернуть левый Control и "),
+        other if other.starts_with("Swap Right Control and ") => other
+            .replace("Swap Right Control and ", "Поменять правый Control и "),
+        other if other.starts_with("Unswap Right Control and ") => other
+            .replace("Unswap Right Control and ", "Вернуть правый Control и "),
+        other if other.starts_with("Swap Control and ") && other.ends_with(" on both sides") => other
+            .replace("Swap Control and ", "Поменять Control и ")
+            .replace(" on both sides", " с обеих сторон"),
+        other if other.starts_with("Unswap Control and ") && other.ends_with(" on both sides") => other
+            .replace("Unswap Control and ", "Вернуть Control и ")
+            .replace(" on both sides", " с обеих сторон"),
+        other if other.starts_with("Toggle Control and ") && other.ends_with(" swap on both sides") => other
+            .replace("Toggle Control and ", "Переключить обмен Control и ")
+            .replace(" swap on both sides", " с обеих сторон"),
+        other if other.starts_with("Layer ") && other[6..].chars().all(|ch| ch.is_ascii_digit()) => {
+            other.replace("Layer ", "Слой ")
+        }
+        other if other.starts_with("Pick key for ") => other.replace("Pick key for ", "Выбрать клавишу для "),
+        other if other.starts_with("Momentarily activate layer ") => other
+            .replace("Momentarily activate layer ", "Моментально активировать слой ")
+            .replace(" while held", " при удержании"),
+        other if other.starts_with("Key: ") => other.replace("Key: ", "Клавиша: "),
+        other if other.ends_with(" function key") => other.replace(" function key", " — функциональная клавиша"),
+        other if other.starts_with("Numpad ") => other.replace("Numpad ", "Нампад "),
+        other if other.starts_with("Shortcut: ") => other.replace("Shortcut: ", "Сочетание: ").replace("Right ", "Правый "),
+        other if other.starts_with("Macro ") && other.contains(" — sends a sequence of keystrokes") => other
+            .replace("Macro ", "Макрос ")
+            .replace(" — sends a sequence of keystrokes", " — отправляет последовательность нажатий"),
+        other if other.starts_with("Tap Dance ") && other.contains(" — different actions on tap, hold, double tap") => other
+            .replace(" — different actions on tap, hold, double tap", " — разные действия на tap, hold и double tap"),
+        other if other.contains(" — macro ") => other.replace(" — macro ", " — макрос "),
+        other if other.contains(" — tap dance ") => other.replace(" — tap dance ", " — Tap Dance "),
+        other if other.starts_with("MO(") => other
+            .replace(" — activate layer ", " — активировать слой ")
+            .replace(" — activate ", " — активировать ")
+            .replace(" while held, return when released", " при удержании, вернуть при отпускании"),
+        other if other.starts_with("TO(") => other
+            .replace(" — switch to layer ", " — переключиться на слой ")
+            .replace(" — switch to ", " — переключиться на ")
+            .replace(" and stay there", " и остаться там"),
+        other if other.starts_with("TG(") => other
+            .replace(" — toggle layer ", " — переключить слой ")
+            .replace(" — toggle ", " — переключить ")
+            .replace(" on/off", " вкл/выкл"),
+        other if other.starts_with("DF(") || other.starts_with("PDF(") => other
+            .replace(" — set ", " — сделать ")
+            .replace(" — permanently set ", " — постоянно сделать ")
+            .replace(" as the default base layer", " базовым слоем по умолчанию")
+            .replace(" as the default layer", " слоем по умолчанию"),
+        other if other.starts_with("OSL(") => other
+            .replace(" — activate layer ", " — активировать слой ")
+            .replace(" — activate ", " — активировать ")
+            .replace(" for next keypress only", " только для следующего нажатия"),
+        other if other.starts_with("TT(") => other
+            .replace(" — tap to toggle layer ", " — tap переключает слой ")
+            .replace(" — tap to toggle ", " — tap переключает ")
+            .replace(", hold to activate while held", ", hold активирует при удержании"),
+        other if other.starts_with("Layer Tap — tap for ") => other
+            .replace("Layer Tap — tap for ", "Layer Tap — tap для ")
+            .replace(", hold to activate layer ", ", hold активирует слой ")
+            .replace(", hold to activate ", ", hold активирует "),
+        other if other.starts_with("LM(") => other
+            .replace(" — activate layer ", " — активировать слой ")
+            .replace(" with ", " с ")
+            .replace(" held while key is pressed", " при удержании во время нажатия клавиши"),
+        other if other.starts_with("Unknown layer op ") => {
+            other.replace("Unknown layer op", "Неизвестная операция слоя")
+        }
+        other if other.starts_with("Custom key ") => {
+            other.replace("Custom key", "Пользовательская клавиша")
+        }
+        other if other.starts_with("Unknown keycode ") => {
+            other.replace("Unknown keycode", "Неизвестный keycode")
+        }
+        other if other.starts_with("Mod Tap — tap for ") => other
+            .replace("Mod Tap — tap for ", "Mod Tap — tap для ")
+            .replace(", hold for Left ", ", hold для левого ")
+            .replace(", hold for Right ", ", hold для правого ")
+            .replace(", hold for ", ", hold для "),
         other if other.starts_with("Universal Cyrillic ") => other
             .replace("Universal Cyrillic", "Universal Cyrillic")
             .replace("types", "вводит")

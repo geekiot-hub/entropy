@@ -1356,7 +1356,7 @@ impl KeycodePicker {
                             true,
                             false,
                         );
-                        let resp = resp.on_hover_text(label.clone());
+                        let resp = resp.on_hover_text(crate::i18n::tr_text(self.language, &label));
                         if resp.clicked() {
                             let value = if base == 0x4000 {
                                 // LT: layer in bits 8..11, tap kc in bits 0..7 (default 0)
@@ -1578,7 +1578,10 @@ impl KeycodePicker {
             self.assign_keycode_value(value);
         }
         if resp.hovered() {
-            resp.on_hover_text(keycode_tooltip(value, &[], &self.layer_names));
+            resp.on_hover_text(crate::i18n::tr_text(
+                self.language,
+                &keycode_tooltip(value, &[], &self.layer_names),
+            ));
         }
     }
 
@@ -1928,7 +1931,10 @@ impl KeycodePicker {
                     self.assign_keycode_value(kc.value);
                 }
                 if resp.hovered() {
-                    resp.on_hover_text(self.picker_keycode_tooltip(kc.value, &custom_pairs));
+                    resp.on_hover_text(crate::i18n::tr_text(
+                        self.language,
+                        &self.picker_keycode_tooltip(kc.value, &custom_pairs),
+                    ));
                 }
             }
         });
@@ -1993,7 +1999,10 @@ impl KeycodePicker {
                     self.assign_keycode_value(kc.value);
                 }
                 if resp.hovered() {
-                    resp.on_hover_text(self.picker_keycode_tooltip(kc.value, &custom_pairs));
+                    resp.on_hover_text(crate::i18n::tr_text(
+                        self.language,
+                        &self.picker_keycode_tooltip(kc.value, &custom_pairs),
+                    ));
                 }
             }
         });
@@ -2060,7 +2069,7 @@ impl KeycodePicker {
                 if resp.clicked() {
                     self.vial_layer_pending = Some(*base);
                 }
-                resp.on_hover_text(*hint);
+                resp.on_hover_text(crate::i18n::tr_static(self.language, hint));
             }
             let lt_resp = ui
                 .add(egui::Button::new("").min_size(Self::picker_key_size(ui.ctx())))
@@ -2069,9 +2078,10 @@ impl KeycodePicker {
             if lt_resp.clicked() {
                 self.vial_layer_pending = Some(0x4000);
             }
-            lt_resp.on_hover_text(
+            lt_resp.on_hover_text(crate::i18n::tr_static(
+                self.language,
                 "Hold = activate layer, tap = keycode (set key via right-click afterwards)",
-            );
+            ));
         });
     }
 
@@ -2103,7 +2113,10 @@ impl KeycodePicker {
                 if resp.clicked_by(egui::PointerButton::Secondary) {
                     self.assign_keycode_value(*right_value);
                 }
-                resp.on_hover_text(plain_modifier_tooltip(mod_name));
+                resp.on_hover_text(crate::i18n::tr_text(
+                    self.language,
+                    &plain_modifier_tooltip(mod_name),
+                ));
             }
         });
 
@@ -2195,9 +2208,15 @@ impl KeycodePicker {
                     if resp.clicked_by(egui::PointerButton::Secondary) {
                         self.vial_quantum_pending_mod = Some(*right_value);
                     }
-                    resp.on_hover_text(mod_combo_tooltip(mod_name, true));
+                    resp.on_hover_text(crate::i18n::tr_text(
+                        self.language,
+                        &mod_combo_tooltip(mod_name, true),
+                    ));
                 } else {
-                    resp.on_hover_text(mod_combo_tooltip(mod_name, false));
+                    resp.on_hover_text(crate::i18n::tr_text(
+                        self.language,
+                        &mod_combo_tooltip(mod_name, false),
+                    ));
                 }
             }
         });
@@ -2281,9 +2300,15 @@ impl KeycodePicker {
                     if resp.clicked_by(egui::PointerButton::Secondary) {
                         self.vial_quantum_pending_mt = Some(*right_value);
                     }
-                    resp.on_hover_text(mod_tap_tooltip(mod_name, true));
+                    resp.on_hover_text(crate::i18n::tr_text(
+                        self.language,
+                        &mod_tap_tooltip(mod_name, true),
+                    ));
                 } else {
-                    resp.on_hover_text(mod_tap_tooltip(mod_name, false));
+                    resp.on_hover_text(crate::i18n::tr_text(
+                        self.language,
+                        &mod_tap_tooltip(mod_name, false),
+                    ));
                 }
             }
         });
@@ -2334,9 +2359,15 @@ impl KeycodePicker {
                     if resp.clicked_by(egui::PointerButton::Secondary) {
                         self.assign_keycode_value(*right_value);
                     }
-                    resp.on_hover_text(one_shot_modifier_tooltip(mod_name, true));
+                    resp.on_hover_text(crate::i18n::tr_text(
+                        self.language,
+                        &one_shot_modifier_tooltip(mod_name, true),
+                    ));
                 } else {
-                    resp.on_hover_text(one_shot_modifier_tooltip(mod_name, false));
+                    resp.on_hover_text(crate::i18n::tr_text(
+                        self.language,
+                        &one_shot_modifier_tooltip(mod_name, false),
+                    ));
                 }
             }
         });
@@ -2391,7 +2422,10 @@ impl KeycodePicker {
                     if resp.clicked() {
                         self.finish_quantum_pending_key(base, kc.value, false);
                     }
-                    resp.on_hover_text(kc.name);
+                    resp.on_hover_text(crate::i18n::tr_text(
+                        self.language,
+                        &keycode_tooltip(kc.value, &[], &self.layer_names),
+                    ));
                 }
             });
             return;
@@ -2440,7 +2474,10 @@ impl KeycodePicker {
                     if resp.clicked() {
                         self.finish_quantum_pending_key(base, kc.value, true);
                     }
-                    resp.on_hover_text(kc.name);
+                    resp.on_hover_text(crate::i18n::tr_text(
+                        self.language,
+                        &keycode_tooltip(kc.value, &[], &self.layer_names),
+                    ));
                 }
             });
             return;
@@ -3165,7 +3202,10 @@ impl KeycodePicker {
                             crate::i18n::tr_static(self.language, "Click to assign a key")
                                 .to_string()
                         } else {
-                            keycode_tooltip(kc, &[], &self.layer_names)
+                            crate::i18n::tr_text(
+                                self.language,
+                                &keycode_tooltip(kc, &[], &self.layer_names),
+                            )
                         })
                         .clicked()
                     {
@@ -3431,7 +3471,10 @@ impl KeycodePicker {
                                 crate::i18n::tr_static(self.language, "Click to assign a key")
                                     .to_string()
                             } else {
-                                keycode_tooltip(kc, &[], &self.layer_names)
+                                crate::i18n::tr_text(
+                                    self.language,
+                                    &keycode_tooltip(kc, &[], &self.layer_names),
+                                )
                             })
                             .clicked()
                         {
@@ -3527,12 +3570,18 @@ impl KeycodePicker {
                 self.language,
                 "Best for normal keys, navigation, media and special actions",
             ),
-            1 => "Hold actions are limited to left/right modifiers and layers",
+            1 => crate::i18n::tr_static(
+                self.language,
+                "Hold actions are limited to left/right modifiers and layers",
+            ),
             2 => crate::i18n::tr_static(
                 self.language,
                 "Best for a second tap action, usually another normal key or command",
             ),
-            3 => "Tap-then-hold actions are limited to left/right modifiers and layers",
+            3 => crate::i18n::tr_static(
+                self.language,
+                "Tap-then-hold actions are limited to left/right modifiers and layers",
+            ),
             _ => crate::i18n::tr_static(
                 self.language,
                 "Press a key on your keyboard, or click below (Esc to cancel)",
@@ -3541,14 +3590,46 @@ impl KeycodePicker {
         let td_choices: Vec<(u16, String, String)> = if matches!(field, 1 | 3) {
             let gui = gui_label(false).to_string();
             let mut out: Vec<(u16, String, String)> = vec![
-                (0x00E0, "Left\nCtrl".into(), "Left Control".into()),
-                (0x00E4, "Right\nCtrl".into(), "Right Control".into()),
-                (0x00E1, "Left\nShift".into(), "Left Shift".into()),
-                (0x00E5, "Right\nShift".into(), "Right Shift".into()),
-                (0x00E2, "Left\nAlt".into(), "Left Alt".into()),
-                (0x00E6, "Right\nAlt".into(), "Right Alt".into()),
-                (0x00E3, format!("Left\n{}", gui), format!("Left {}", gui)),
-                (0x00E7, format!("Right\n{}", gui), format!("Right {}", gui)),
+                (
+                    0x00E0,
+                    "Left\nCtrl".into(),
+                    crate::i18n::tr_static(self.language, "Left Control").into(),
+                ),
+                (
+                    0x00E4,
+                    "Right\nCtrl".into(),
+                    crate::i18n::tr_static(self.language, "Right Control").into(),
+                ),
+                (
+                    0x00E1,
+                    "Left\nShift".into(),
+                    crate::i18n::tr_static(self.language, "Left Shift").into(),
+                ),
+                (
+                    0x00E5,
+                    "Right\nShift".into(),
+                    crate::i18n::tr_static(self.language, "Right Shift").into(),
+                ),
+                (
+                    0x00E2,
+                    "Left\nAlt".into(),
+                    crate::i18n::tr_static(self.language, "Left Alt").into(),
+                ),
+                (
+                    0x00E6,
+                    "Right\nAlt".into(),
+                    crate::i18n::tr_static(self.language, "Right Alt").into(),
+                ),
+                (
+                    0x00E3,
+                    format!("Left\n{}", gui),
+                    crate::i18n::tr_text(self.language, &format!("Left {}", gui)),
+                ),
+                (
+                    0x00E7,
+                    format!("Right\n{}", gui),
+                    crate::i18n::tr_text(self.language, &format!("Right {}", gui)),
+                ),
             ];
             out.extend(
                 self.tap_dance_layer_choices()
@@ -3563,7 +3644,10 @@ impl KeycodePicker {
                         (
                             value,
                             format!("MO({})\n{}", layer, layer_name),
-                            format!("Momentarily activate layer {} while held", layer_name),
+                            crate::i18n::tr_text(
+                                self.language,
+                                &format!("Momentarily activate layer {} while held", layer_name),
+                            ),
                         )
                     }),
             );
@@ -3595,9 +3679,11 @@ impl KeycodePicker {
         };
         let mut still_open = true;
         let popup_size = key_picker_popup_size(ctx);
+        let window_title =
+            crate::i18n::tr_text(self.language, &format!("Pick key for {}", field_name));
         crate::ui_style::centered_modal_window(
             ctx,
-            &format!("Pick key for {}", field_name),
+            &window_title,
             self.popup_state.id(PopupKey::TdKeyPickWindow),
             &mut still_open,
             popup_size,
@@ -3839,7 +3925,7 @@ impl KeycodePicker {
     fn show_vial_rgb(&mut self, ui: &mut egui::Ui) {
         // Backlight
         ui.label(
-            RichText::new("Backlight")
+            RichText::new(crate::i18n::tr_static(self.language, "Backlight"))
                 .size(11.0)
                 .color(Color32::from_gray(150)),
         );
@@ -3863,14 +3949,14 @@ impl KeycodePicker {
                 if resp.clicked() {
                     self.assign_keycode_value(*value);
                 }
-                resp.on_hover_text(*tip);
+                resp.on_hover_text(crate::i18n::tr_static(self.language, tip));
             }
         });
 
         ui.add_space(10.0);
         // RGB Underglow (QMK rgblight)
         ui.label(
-            RichText::new("RGB Underglow")
+            RichText::new(crate::i18n::tr_static(self.language, "RGB Underglow"))
                 .size(11.0)
                 .color(Color32::from_gray(150)),
         );
@@ -3900,14 +3986,14 @@ impl KeycodePicker {
                 if resp.clicked() {
                     self.assign_keycode_value(*value);
                 }
-                resp.on_hover_text(*tip);
+                resp.on_hover_text(crate::i18n::tr_static(self.language, tip));
             }
         });
 
         ui.add_space(10.0);
         // RGB Matrix modes
         ui.label(
-            RichText::new("RGB Matrix Modes")
+            RichText::new(crate::i18n::tr_static(self.language, "RGB Matrix Modes"))
                 .size(11.0)
                 .color(Color32::from_gray(150)),
         );
@@ -3953,14 +4039,14 @@ impl KeycodePicker {
                 if resp.clicked() {
                     self.assign_keycode_value(*value);
                 }
-                resp.on_hover_text(*tip);
+                resp.on_hover_text(crate::i18n::tr_static(self.language, tip));
             }
         });
 
         ui.add_space(10.0);
         // RGB Matrix controls
         ui.label(
-            RichText::new("RGB Matrix Controls")
+            RichText::new(crate::i18n::tr_static(self.language, "RGB Matrix Controls"))
                 .size(11.0)
                 .color(Color32::from_gray(150)),
         );
@@ -3990,7 +4076,7 @@ impl KeycodePicker {
                 if resp.clicked() {
                     self.assign_keycode_value(*value);
                 }
-                resp.on_hover_text(*tip);
+                resp.on_hover_text(crate::i18n::tr_static(self.language, tip));
             }
         });
     }

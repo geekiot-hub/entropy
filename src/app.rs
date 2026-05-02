@@ -3579,7 +3579,7 @@ impl EntropyApp {
                                 };
                                 ui.painter().circle_filled(rect.center(), 8.5, color);
                                 ui.painter().circle_stroke(rect.center(), 11.0, stroke);
-                                resp.on_hover_text(accent.name());
+                                resp.on_hover_text(crate::i18n::tr_static(lang, accent.name()));
                             }
                         });
                     },
@@ -8023,7 +8023,10 @@ impl EntropyApp {
                                                 AltRepeatPickField::LastKey,
                                             );
                                         }
-                                        resp.on_hover_text(last_key_tip.trim_end_matches('.'));
+                                        resp.on_hover_text(crate::i18n::tr_text(
+                                            self.app_settings.language,
+                                            last_key_tip.trim_end_matches('.'),
+                                        ));
                                     },
                                 );
                             }
@@ -8050,7 +8053,10 @@ impl EntropyApp {
                                         if resp.clicked() {
                                             self.open_alt_repeat_picker(AltRepeatPickField::AltKey);
                                         }
-                                        resp.on_hover_text(alt_key_tip.trim_end_matches('.'));
+                                        resp.on_hover_text(crate::i18n::tr_text(
+                                            self.app_settings.language,
+                                            alt_key_tip.trim_end_matches('.'),
+                                        ));
                                     },
                                 );
                             }
@@ -8786,9 +8792,10 @@ impl EntropyApp {
                                     Stroke::new(1.2, app_muted_text(dark)),
                                 );
                             }
-                            swatch_resp
-                                .clone()
-                                .on_hover_text(layer_led_palette_name(current));
+                            swatch_resp.clone().on_hover_text(crate::i18n::tr_static(
+                                self.app_settings.language,
+                                layer_led_palette_name(current),
+                            ));
 
                             ui.style_mut().visuals.window_stroke =
                                 crate::ui_style::modal_outline_stroke(dark);
@@ -8867,7 +8874,12 @@ impl EntropyApp {
                                                         Stroke::new(1.1, app_muted_text(dark)),
                                                     );
                                                 }
-                                                cell_resp.clone().on_hover_text(*option_label);
+                                                cell_resp.clone().on_hover_text(
+                                                    crate::i18n::tr_static(
+                                                        self.app_settings.language,
+                                                        option_label,
+                                                    ),
+                                                );
                                                 if cell_resp.clicked() {
                                                     self.layer_led_settings.layer_colors[layer] =
                                                         color_idx_u8;
@@ -11349,7 +11361,7 @@ impl EntropyApp {
                                                 row_height,
                                                 crate::i18n::tr_static(self.app_settings.language, "Entry"),
                                                 true,
-                                                Some("Select Key Override slot"),
+                                                Some(crate::i18n::tr_static(self.app_settings.language, "Select Key Override slot")),
                                                 control_width,
                                                 |ui| {
                                                     let dropdown_id = ui.make_persistent_id("key_override_entry_dropdown");
@@ -11437,7 +11449,7 @@ impl EntropyApp {
                                                 row_height,
                                                 crate::i18n::tr_static(self.app_settings.language, "Name"),
                                                 true,
-                                                Some("Local name for this Key Override slot"),
+                                                Some(crate::i18n::tr_static(self.app_settings.language, "Local name for this Key Override slot")),
                                                 control_width,
                                                 |ui| {
                                                     if let Some(name) = self.key_override_names.get_mut(idx) {
@@ -11465,16 +11477,16 @@ impl EntropyApp {
                                                 ui,
                                                 row_content_width,
                                                 row_height,
-                                                "Trigger",
+                                                crate::i18n::tr_static(self.app_settings.language, "Trigger"),
                                                 true,
-                                                Some("Original key that can be overridden"),
+                                                Some(crate::i18n::tr_static(self.app_settings.language, "Original key that can be overridden")),
                                                 control_width,
                                                 |ui| {
                                                     let resp = crate::ui_style::modern_button_with_font(ui, trigger_label.as_str(), Vec2::new(control_width, control_height), control_font_size, true);
                                                     if resp.clicked() {
                                                         self.open_key_override_picker(KeyOverridePickField::Trigger);
                                                     }
-                                                    resp.on_hover_text(trigger_tip.clone());
+                                                    resp.on_hover_text(crate::i18n::tr_text(self.app_settings.language, &trigger_tip));
                                                 },
                                             );
                                         }
@@ -11483,16 +11495,16 @@ impl EntropyApp {
                                                 ui,
                                                 row_content_width,
                                                 row_height,
-                                                "Replacement",
+                                                crate::i18n::tr_static(self.app_settings.language, "Replacement"),
                                                 true,
-                                                Some("Keycode sent while override conditions match"),
+                                                Some(crate::i18n::tr_static(self.app_settings.language, "Keycode sent while override conditions match")),
                                                 control_width,
                                                 |ui| {
                                                     let resp = crate::ui_style::modern_button_with_font(ui, replacement_label.as_str(), Vec2::new(control_width, control_height), control_font_size, true);
                                                     if resp.clicked() {
                                                         self.open_key_override_picker(KeyOverridePickField::Replacement);
                                                     }
-                                                    resp.on_hover_text(replacement_tip.clone());
+                                                    resp.on_hover_text(crate::i18n::tr_text(self.app_settings.language, &replacement_tip));
                                                 },
                                             );
                                         }
@@ -11501,9 +11513,9 @@ impl EntropyApp {
                                                 ui,
                                                 row_content_width,
                                                 row_height,
-                                                "Suppressed mods",
+                                                crate::i18n::tr_static(self.app_settings.language, "Suppressed mods"),
                                                 true,
-                                                Some("Modifiers hidden while the replacement is active"),
+                                                Some(crate::i18n::tr_static(self.app_settings.language, "Modifiers hidden while the replacement is active")),
                                                 control_width,
                                                 |ui| {
                                                     let popup_id = ui.make_persistent_id(("ko_suppressed_mods_popup", idx));
@@ -11523,9 +11535,9 @@ impl EntropyApp {
                                                 ui,
                                                 row_content_width,
                                                 row_height,
-                                                "Trigger mods",
+                                                crate::i18n::tr_static(self.app_settings.language, "Trigger mods"),
                                                 true,
-                                                Some("Modifiers required for this override"),
+                                                Some(crate::i18n::tr_static(self.app_settings.language, "Modifiers required for this override")),
                                                 control_width,
                                                 |ui| {
                                                     let popup_id = ui.make_persistent_id(("ko_trigger_mods_popup", idx));
@@ -11545,9 +11557,9 @@ impl EntropyApp {
                                                 ui,
                                                 row_content_width,
                                                 row_height,
-                                                "Negative mods",
+                                                crate::i18n::tr_static(self.app_settings.language, "Negative mods"),
                                                 true,
-                                                Some("Modifiers that block this override"),
+                                                Some(crate::i18n::tr_static(self.app_settings.language, "Modifiers that block this override")),
                                                 control_width,
                                                 |ui| {
                                                     let popup_id = ui.make_persistent_id(("ko_negative_mods_popup", idx));
@@ -11567,9 +11579,9 @@ impl EntropyApp {
                                                 ui,
                                                 row_content_width,
                                                 row_height,
-                                                "Enable on layers",
+                                                crate::i18n::tr_static(self.app_settings.language, "Enable on layers"),
                                                 true,
-                                                Some("Layers where this override can activate"),
+                                                Some(crate::i18n::tr_static(self.app_settings.language, "Layers where this override can activate")),
                                                 control_width,
                                                 |ui| {
                                                     let popup_id = ui.make_persistent_id(("ko_layers_popup", idx));
@@ -11584,12 +11596,12 @@ impl EntropyApp {
                                                 },
                                             );
                                         }
-                                        8 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, "Trigger press", true, Some("Activate when the trigger key is pressed"), switch_width, |ui| { crate::ui_style::settings_switch_sized(ui, &mut edited.options.activation_trigger_down, switch_size); }),
-                                        9 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, "Required mod press", true, Some("Activate when a required modifier is pressed"), switch_width, |ui| { crate::ui_style::settings_switch_sized(ui, &mut edited.options.activation_required_mod_down, switch_size); }),
-                                        10 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, "Blocked mod release", true, Some("Activate when a blocking modifier is released"), switch_width, |ui| { crate::ui_style::settings_switch_sized(ui, &mut edited.options.activation_negative_mod_up, switch_size); }),
-                                        11 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, "Any one mod", true, Some("Any one trigger modifier is enough"), switch_width, |ui| { crate::ui_style::settings_switch_sized(ui, &mut edited.options.one_mod, switch_size); }),
-                                        12 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, "No re-send", true, Some("Do not resend the trigger after override ends"), switch_width, |ui| { crate::ui_style::settings_switch_sized(ui, &mut edited.options.no_reregister_trigger, switch_size); }),
-                                        13 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, "Stay active", true, Some("Stay active when another key is pressed"), switch_width, |ui| { crate::ui_style::settings_switch_sized(ui, &mut edited.options.no_unregister_on_other_key_down, switch_size); }),
+                                        8 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, crate::i18n::tr_static(self.app_settings.language, "Trigger press"), true, Some(crate::i18n::tr_static(self.app_settings.language, "Activate when the trigger key is pressed")), switch_width, |ui| { crate::ui_style::settings_switch_sized(ui, &mut edited.options.activation_trigger_down, switch_size); }),
+                                        9 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, crate::i18n::tr_static(self.app_settings.language, "Required mod press"), true, Some(crate::i18n::tr_static(self.app_settings.language, "Activate when a required modifier is pressed")), switch_width, |ui| { crate::ui_style::settings_switch_sized(ui, &mut edited.options.activation_required_mod_down, switch_size); }),
+                                        10 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, crate::i18n::tr_static(self.app_settings.language, "Blocked mod release"), true, Some(crate::i18n::tr_static(self.app_settings.language, "Activate when a blocking modifier is released")), switch_width, |ui| { crate::ui_style::settings_switch_sized(ui, &mut edited.options.activation_negative_mod_up, switch_size); }),
+                                        11 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, crate::i18n::tr_static(self.app_settings.language, "Any one mod"), true, Some(crate::i18n::tr_static(self.app_settings.language, "Any one trigger modifier is enough")), switch_width, |ui| { crate::ui_style::settings_switch_sized(ui, &mut edited.options.one_mod, switch_size); }),
+                                        12 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, crate::i18n::tr_static(self.app_settings.language, "No re-send"), true, Some(crate::i18n::tr_static(self.app_settings.language, "Do not resend the trigger after override ends")), switch_width, |ui| { crate::ui_style::settings_switch_sized(ui, &mut edited.options.no_reregister_trigger, switch_size); }),
+                                        13 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, crate::i18n::tr_static(self.app_settings.language, "Stay active"), true, Some(crate::i18n::tr_static(self.app_settings.language, "Stay active when another key is pressed")), switch_width, |ui| { crate::ui_style::settings_switch_sized(ui, &mut edited.options.no_unregister_on_other_key_down, switch_size); }),
                                         _ => {}
                                     }
                                 }
@@ -11862,7 +11874,10 @@ impl EntropyApp {
                     row_height,
                     crate::i18n::tr_static(self.app_settings.language, "Entry"),
                     true,
-                    Some("Select Combo slot"),
+                    Some(crate::i18n::tr_static(
+                        self.app_settings.language,
+                        "Select Combo slot",
+                    )),
                     control_width,
                     |ui| {
                         let dropdown_id = ui.make_persistent_id("combo_entry_dropdown");
@@ -11969,7 +11984,10 @@ impl EntropyApp {
                     row_height,
                     crate::i18n::tr_static(self.app_settings.language, "Name"),
                     true,
-                    Some("Local name for this combo slot"),
+                    Some(crate::i18n::tr_static(
+                        self.app_settings.language,
+                        "Local name for this combo slot",
+                    )),
                     control_width,
                     |ui| {
                         if let Some(name) = self.combo_names.get_mut(combo_idx) {
@@ -12000,9 +12018,12 @@ impl EntropyApp {
                     ui,
                     row_content_width,
                     row_height,
-                    "Input keys",
+                    crate::i18n::tr_static(self.app_settings.language, "Input keys"),
                     true,
-                    Some("Keys that must be pressed together"),
+                    Some(crate::i18n::tr_static(
+                        self.app_settings.language,
+                        "Keys that must be pressed together",
+                    )),
                     control_width,
                     |ui| {
                         let field_resp = crate::ui_style::modern_button_with_font(
@@ -12035,9 +12056,12 @@ impl EntropyApp {
                     ui,
                     row_content_width,
                     row_height,
-                    "Output key",
+                    crate::i18n::tr_static(self.app_settings.language, "Output key"),
                     true,
-                    Some("Keycode sent when the combo activates"),
+                    Some(crate::i18n::tr_static(
+                        self.app_settings.language,
+                        "Keycode sent when the combo activates",
+                    )),
                     control_width,
                     |ui| {
                         let resp = crate::ui_style::modern_button_with_font(
@@ -12064,7 +12088,10 @@ impl EntropyApp {
                         row_height,
                         crate::i18n::tr_static(self.app_settings.language, "Timeout"),
                         true,
-                        Some("Maximum time between combo key presses"),
+                        Some(crate::i18n::tr_static(
+                            self.app_settings.language,
+                            "Maximum time between combo key presses",
+                        )),
                         timeout_control_width,
                         |ui| {
                             ui.with_layout(
@@ -13900,7 +13927,9 @@ impl EntropyApp {
                             &self.keycode_picker.macro_names,
                             &self.keycode_picker.tap_dance_names,
                         );
-                        *response = response.clone().on_hover_text(tip);
+                        *response = response
+                            .clone()
+                            .on_hover_text(crate::i18n::tr_text(self.app_settings.language, &tip));
                     }
                 }
                 if response.secondary_clicked() && preview_layer_idx != self.selected_layer {
@@ -13918,7 +13947,9 @@ impl EntropyApp {
                     &self.keycode_picker.macro_names,
                     &self.keycode_picker.tap_dance_names,
                 );
-                *response = response.clone().on_hover_text(tip);
+                *response = response
+                    .clone()
+                    .on_hover_text(crate::i18n::tr_text(self.app_settings.language, &tip));
             }
         }
 
@@ -14238,7 +14269,9 @@ impl EntropyApp {
                         &self.keycode_picker.macro_names,
                         &self.keycode_picker.tap_dance_names,
                     );
-                    let _ = top_resp.clone().on_hover_text(tip);
+                    let _ = top_resp
+                        .clone()
+                        .on_hover_text(crate::i18n::tr_text(self.app_settings.language, &tip));
                 }
             }
             if top_resp.secondary_clicked() {
@@ -14266,7 +14299,9 @@ impl EntropyApp {
                         &self.keycode_picker.macro_names,
                         &self.keycode_picker.tap_dance_names,
                     );
-                    let _ = middle_resp.clone().on_hover_text(tip);
+                    let _ = middle_resp
+                        .clone()
+                        .on_hover_text(crate::i18n::tr_text(self.app_settings.language, &tip));
                 }
                 if middle_resp.secondary_clicked() {
                     let kc = layout.get_keycode(self.selected_layer, press_ki);
@@ -14287,7 +14322,9 @@ impl EntropyApp {
                         &self.keycode_picker.macro_names,
                         &self.keycode_picker.tap_dance_names,
                     );
-                    let _ = bottom_resp.clone().on_hover_text(tip);
+                    let _ = bottom_resp
+                        .clone()
+                        .on_hover_text(crate::i18n::tr_text(self.app_settings.language, &tip));
                 }
             }
             if bottom_resp.secondary_clicked() {
