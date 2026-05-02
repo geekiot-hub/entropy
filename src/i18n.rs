@@ -48,6 +48,18 @@ pub fn tr_catalog_format(language: Language, key: &'static str, vars: &[(&str, &
     text
 }
 
+fn tr_catalog_string_format(
+    language: Language,
+    key: &'static str,
+    vars: &[(&str, &str)],
+) -> String {
+    let mut text = tr_catalog_string(language, key);
+    for (name, value) in vars {
+        text = text.replace(&format!("{{{name}}}"), value);
+    }
+    text
+}
+
 fn tr_catalog_string(language: Language, key: &'static str) -> String {
     let translated = match language {
         Language::English => catalog_lookup_owned(EN_CATALOG, key),
@@ -1147,74 +1159,135 @@ pub fn tr_text(language: Language, text: &str) -> String {
         other if other.starts_with("Grave/Escape — sends Esc normally") => other
             .replace(
                 "Grave/Escape — sends Esc normally, ` when Shift or",
-                "Grave/Escape — обычно отправляет Esc, ` при удержании Shift или",
+                tr_catalog(language, "dynamic_tooltips.grave_escape_prefix"),
             )
             .replace("is held", ""),
         other if other.starts_with("Mouse cursor — move ") => other
-            .replace("Mouse cursor — move up", "Курсор мыши — вверх")
-            .replace("Mouse cursor — move down", "Курсор мыши — вниз")
-            .replace("Mouse cursor — move left", "Курсор мыши — влево")
-            .replace("Mouse cursor — move right", "Курсор мыши — вправо"),
+            .replace(
+                "Mouse cursor — move up",
+                tr_catalog(language, "dynamic_tooltips.mouse_cursor_move_up"),
+            )
+            .replace(
+                "Mouse cursor — move down",
+                tr_catalog(language, "dynamic_tooltips.mouse_cursor_move_down"),
+            )
+            .replace(
+                "Mouse cursor — move left",
+                tr_catalog(language, "dynamic_tooltips.mouse_cursor_move_left"),
+            )
+            .replace(
+                "Mouse cursor — move right",
+                tr_catalog(language, "dynamic_tooltips.mouse_cursor_move_right"),
+            ),
         other if other.starts_with("Mouse button ") => other
-            .replace("Mouse button", "Кнопка мыши")
-            .replace("left click", "левый клик")
-            .replace("right click", "правый клик")
-            .replace("middle click", "средний клик")
-            .replace("back", "назад")
-            .replace("forward", "вперёд"),
+            .replace(
+                "Mouse button",
+                tr_catalog(language, "dynamic_tooltips.mouse_button"),
+            )
+            .replace(
+                "left click",
+                tr_catalog(language, "dynamic_tooltips.left_click"),
+            )
+            .replace(
+                "right click",
+                tr_catalog(language, "dynamic_tooltips.right_click"),
+            )
+            .replace(
+                "middle click",
+                tr_catalog(language, "dynamic_tooltips.middle_click"),
+            )
+            .replace("back", tr_catalog(language, "dynamic_tooltips.back"))
+            .replace("forward", tr_catalog(language, "dynamic_tooltips.forward")),
         other if other.starts_with("Mouse wheel — scroll ") => other
-            .replace("Mouse wheel — scroll up", "Колесо мыши — вверх")
-            .replace("Mouse wheel — scroll down", "Колесо мыши — вниз")
-            .replace("Mouse wheel — scroll left", "Колесо мыши — влево")
-            .replace("Mouse wheel — scroll right", "Колесо мыши — вправо"),
+            .replace(
+                "Mouse wheel — scroll up",
+                tr_catalog(language, "dynamic_tooltips.mouse_wheel_scroll_up"),
+            )
+            .replace(
+                "Mouse wheel — scroll down",
+                tr_catalog(language, "dynamic_tooltips.mouse_wheel_scroll_down"),
+            )
+            .replace(
+                "Mouse wheel — scroll left",
+                tr_catalog(language, "dynamic_tooltips.mouse_wheel_scroll_left"),
+            )
+            .replace(
+                "Mouse wheel — scroll right",
+                tr_catalog(language, "dynamic_tooltips.mouse_wheel_scroll_right"),
+            ),
         other if other.starts_with("Browser ") => other
-            .replace("Browser search", "Поиск в браузере")
-            .replace("Browser home page", "Домашняя страница браузера")
-            .replace("Browser back", "Браузер назад")
-            .replace("Browser forward", "Браузер вперёд")
-            .replace("Browser stop loading", "Остановить загрузку в браузере")
-            .replace("Browser refresh", "Обновить страницу")
-            .replace("Browser favourites", "Избранное браузера"),
+            .replace(
+                "Browser search",
+                tr_catalog(language, "dynamic_tooltips.browser_search"),
+            )
+            .replace(
+                "Browser home page",
+                tr_catalog(language, "dynamic_tooltips.browser_home_page"),
+            )
+            .replace(
+                "Browser back",
+                tr_catalog(language, "dynamic_tooltips.browser_back"),
+            )
+            .replace(
+                "Browser forward",
+                tr_catalog(language, "dynamic_tooltips.browser_forward"),
+            )
+            .replace(
+                "Browser stop loading",
+                tr_catalog(language, "dynamic_tooltips.browser_stop_loading"),
+            )
+            .replace(
+                "Browser refresh",
+                tr_catalog(language, "dynamic_tooltips.browser_refresh"),
+            )
+            .replace(
+                "Browser favourites",
+                tr_catalog(language, "dynamic_tooltips.browser_favourites"),
+            ),
         other if other.starts_with("Left Cmd, ") => other.replace(
             "Left Cmd, macOS modifier key and app shortcuts",
-            "Левый Cmd — модификатор macOS и сочетания приложений",
+            tr_catalog(language, "dynamic_tooltips.left_cmd_desc"),
         ),
         other if other.starts_with("Right Cmd, ") => other.replace(
             "Right Cmd, macOS modifier key and app shortcuts",
-            "Правый Cmd — модификатор macOS и сочетания приложений",
+            tr_catalog(language, "dynamic_tooltips.right_cmd_desc"),
         ),
         other if other.starts_with("Left Win, ") => other.replace(
             "Left Win, Windows modifier key and OS shortcuts",
-            "Левый Win — модификатор Windows и системные сочетания",
+            tr_catalog(language, "dynamic_tooltips.left_win_desc"),
         ),
         other if other.starts_with("Right Win, ") => other.replace(
             "Right Win, Windows modifier key and OS shortcuts",
-            "Правый Win — модификатор Windows и системные сочетания",
+            tr_catalog(language, "dynamic_tooltips.right_win_desc"),
         ),
         other if other.starts_with("Left Super, ") => other.replace(
             "Left Super, desktop modifier key and OS shortcuts",
-            "Левый Super — модификатор рабочего стола и системные сочетания",
+            tr_catalog(language, "dynamic_tooltips.left_super_desc"),
         ),
         other if other.starts_with("Right Super, ") => other.replace(
             "Right Super, desktop modifier key and OS shortcuts",
-            "Правый Super — модификатор рабочего стола и системные сочетания",
+            tr_catalog(language, "dynamic_tooltips.right_super_desc"),
         ),
         other if other.starts_with("Use ") && other.contains(" by itself as a held modifier") => {
             let modifier = other
                 .strip_prefix("Use ")
                 .and_then(|s| s.split(" by itself as a held modifier").next())
                 .unwrap_or("");
+            let modifier_ru = ru_modifier_name(modifier);
             if other.contains("Left click assigns Left ") {
-                format!(
-                    "Использовать {} как обычный удерживаемый модификатор\nЛевый клик: левая клавиша {}\nПравый клик: правая клавиша {}",
-                    ru_modifier_name(modifier),
-                    modifier,
-                    modifier
+                tr_catalog_string_format(
+                    language,
+                    "dynamic_tooltips.plain_modifier_with_clicks",
+                    &[
+                        ("modifier_ru", modifier_ru.as_str()),
+                        ("modifier", modifier),
+                    ],
                 )
             } else {
-                format!(
-                    "Использовать {} как обычный удерживаемый модификатор",
-                    ru_modifier_name(modifier)
+                tr_catalog_string_format(
+                    language,
+                    "dynamic_tooltips.plain_modifier_simple",
+                    &[("modifier_ru", modifier_ru.as_str())],
                 )
             }
         }
@@ -1223,28 +1296,32 @@ pub fn tr_text(language: Language, text: &str) -> String {
                 .strip_prefix("Hold ")
                 .and_then(|s| s.split(" together with another key").next())
                 .unwrap_or("");
+            let modifier_ru = ru_modifier_name(modifier);
             if other.contains("Left click starts a Left ") {
-                format!(
-                    "Модификатор + клавиша: удерживать {} вместе с выбранной клавишей\nЛевый клик: левый {}\nПравый клик: правый {}\nЗатем выберите клавишу",
-                    ru_modifier_name(modifier),
-                    modifier,
-                    modifier
+                tr_catalog_string_format(
+                    language,
+                    "dynamic_tooltips.mod_plus_key_with_clicks",
+                    &[
+                        ("modifier_ru", modifier_ru.as_str()),
+                        ("modifier", modifier),
+                    ],
                 )
             } else {
-                format!(
-                    "Модификатор + клавиша: удерживать {} вместе с выбранной клавишей\nКликните, чтобы выбрать клавишу",
-                    ru_modifier_name(modifier)
+                tr_catalog_string_format(
+                    language,
+                    "dynamic_tooltips.mod_plus_key_simple",
+                    &[("modifier_ru", modifier_ru.as_str())],
                 )
             }
         }
         other if other.starts_with("Hold ") && other.contains(" with the key you choose next") => {
             other
-                .replace("Hold ", "Удерживать ")
-                .replace("Left ", "левый ")
-                .replace("Right ", "правый ")
+                .replace("Hold ", tr_catalog(language, "dynamic_tooltips.hold"))
+                .replace("Left ", tr_catalog(language, "dynamic_tooltips.left"))
+                .replace("Right ", tr_catalog(language, "dynamic_tooltips.right"))
                 .replace(
                     " together with the key you choose next",
-                    " вместе со следующей выбранной клавишей",
+                    tr_catalog(language, "dynamic_tooltips.hold_with_next_suffix"),
                 )
         }
         other if other.starts_with("Dual-role key: hold for ") => {
@@ -1253,23 +1330,29 @@ pub fn tr_text(language: Language, text: &str) -> String {
                 .and_then(|s| s.split(',').next())
                 .unwrap_or("");
             let tap_text = if other.contains("tap for the key you choose next") {
-                "следующая выбранная клавиша"
+                tr_catalog(language, "dynamic_tooltips.tap_text_next")
             } else {
-                "другая клавиша"
+                tr_catalog(language, "dynamic_tooltips.tap_text_other")
             };
+            let modifier_ru = ru_modifier_name(modifier);
             if other.contains("Left click uses Left ") {
-                format!(
-                    "Двойная роль: удержание = {}, нажатие = {}\nЛевый клик: левый {}\nПравый клик: правый {}\nЗатем выберите клавишу для нажатия",
-                    ru_modifier_name(modifier),
-                    tap_text,
-                    modifier,
-                    modifier
+                tr_catalog_string_format(
+                    language,
+                    "dynamic_tooltips.dual_role_with_clicks",
+                    &[
+                        ("modifier_ru", modifier_ru.as_str()),
+                        ("tap_text", tap_text),
+                        ("modifier", modifier),
+                    ],
                 )
             } else {
-                format!(
-                    "Двойная роль: удержание = {}, нажатие = {}\nКликните, чтобы выбрать клавишу для нажатия",
-                    ru_modifier_name(modifier),
-                    tap_text
+                tr_catalog_string_format(
+                    language,
+                    "dynamic_tooltips.dual_role_simple",
+                    &[
+                        ("modifier_ru", modifier_ru.as_str()),
+                        ("tap_text", tap_text),
+                    ],
                 )
             }
         }
@@ -1278,17 +1361,21 @@ pub fn tr_text(language: Language, text: &str) -> String {
                 .strip_prefix("Applies ")
                 .and_then(|s| s.split(" to the next keypress only").next())
                 .unwrap_or("");
+            let modifier_ru = ru_modifier_name(modifier);
             if other.contains("Left click assigns One-Shot Left ") {
-                format!(
-                    "One-Shot модификатор: применит {} только к следующему нажатию\nЛевый клик: левый {}\nПравый клик: правый {}",
-                    ru_modifier_name(modifier),
-                    modifier,
-                    modifier
+                tr_catalog_string_format(
+                    language,
+                    "dynamic_tooltips.one_shot_modifier_with_clicks",
+                    &[
+                        ("modifier_ru", modifier_ru.as_str()),
+                        ("modifier", modifier),
+                    ],
                 )
             } else {
-                format!(
-                    "One-Shot модификатор: применит {} только к следующему нажатию",
-                    ru_modifier_name(modifier)
+                tr_catalog_string_format(
+                    language,
+                    "dynamic_tooltips.one_shot_modifier_simple",
+                    &[("modifier_ru", modifier_ru.as_str())],
                 )
             }
         }
@@ -1299,160 +1386,267 @@ pub fn tr_text(language: Language, text: &str) -> String {
                 .split(" consistently regardless of the active keyboard language")
                 .next()
                 .unwrap_or(rest);
-            format!(
-                "Универсальный символ: {} — вводит {} одинаково при любом активном языке клавиатуры",
-                ru_smart_symbol_name(name),
-                symbol
+            tr_catalog_string_format(
+                language,
+                "dynamic_tooltips.universal_symbol",
+                &[("name", ru_smart_symbol_name(name)), ("symbol", symbol)],
             )
         }
         other if other.starts_with("One-Shot ") => other
             .replace("One-Shot ", "One-Shot ")
             .replace(
                 " — active for the next keypress only",
-                " — активен только для следующего нажатия",
+                tr_catalog(language, "dynamic_tooltips.one_shot_active_next"),
             )
-            .replace(" — applies ", " — применяет ")
-            .replace(" to the next keypress only", " только к следующему нажатию")
-            .replace(" — activates ", " — активирует ")
+            .replace(
+                " — applies ",
+                tr_catalog(language, "dynamic_tooltips.applies"),
+            )
+            .replace(
+                " to the next keypress only",
+                tr_catalog(language, "dynamic_tooltips.to_the_next_keypress_only"),
+            )
+            .replace(
+                " — activates ",
+                tr_catalog(language, "dynamic_tooltips.activates"),
+            )
             .replace(
                 " for the very next keypress only",
-                " только для следующего нажатия",
+                tr_catalog(language, "dynamic_tooltips.one_shot_active_next"),
             ),
         other if other.starts_with("RGB Matrix: solid color") => {
-            "RGB Matrix: сплошной цвет без анимации".to_owned()
+            tr_catalog_string(language, "dynamic_tooltips.literal_a8951ae549")
         }
         other if other.starts_with("RGB Matrix: breathing effect") => {
-            "RGB Matrix: breathing-эффект с плавным изменением яркости".to_owned()
+            tr_catalog_string(language, "dynamic_tooltips.literal_9476b3bedd")
         }
         other if other.starts_with("RGB Matrix: rainbow gradient") => {
-            "RGB Matrix: радужный градиент по всем клавишам".to_owned()
+            tr_catalog_string(language, "dynamic_tooltips.literal_1e7b2a6264")
         }
         other if other.starts_with("RGB Matrix: swirling rainbow") => {
-            "RGB Matrix: вращающийся радужный паттерн".to_owned()
+            tr_catalog_string(language, "dynamic_tooltips.literal_19ece435cc")
         }
         other if other.starts_with("RGB Matrix: snake animation") => {
-            "RGB Matrix: анимация змейки по клавишам".to_owned()
+            tr_catalog_string(language, "dynamic_tooltips.literal_9e1739f4da")
         }
         other if other.starts_with("RGB Matrix: Knight Rider") => {
-            "RGB Matrix: сканирующий эффект Knight Rider".to_owned()
+            tr_catalog_string(language, "dynamic_tooltips.literal_ad630cf4e0")
         }
         other if other.starts_with("RGB Matrix: alternating red and green") => {
-            "RGB Matrix: чередование красного и зелёного как рождественская подсветка".to_owned()
+            tr_catalog_string(language, "dynamic_tooltips.literal_9c94537d4d")
         }
         other if other.starts_with("RGB Matrix: static gradient") => {
-            "RGB Matrix: статичный градиент".to_owned()
+            tr_catalog_string(language, "dynamic_tooltips.literal_588f0e10ab")
         }
         other if other.starts_with("RGB Matrix: test mode") => {
-            "RGB Matrix: тестовый режим, циклически R/G/B".to_owned()
+            tr_catalog_string(language, "dynamic_tooltips.literal_6f81091fd7")
         }
-        other if other.starts_with("Swap Left Alt and ") => {
-            other.replace("Swap Left Alt and ", "Поменять левый Alt и ")
-        }
-        other if other.starts_with("Unswap Left Alt and ") => {
-            other.replace("Unswap Left Alt and ", "Вернуть левый Alt и ")
-        }
-        other if other.starts_with("Swap Right Alt and ") => {
-            other.replace("Swap Right Alt and ", "Поменять правый Alt и ")
-        }
-        other if other.starts_with("Unswap Right Alt and ") => {
-            other.replace("Unswap Right Alt and ", "Вернуть правый Alt и ")
-        }
+        other if other.starts_with("Swap Left Alt and ") => other.replace(
+            "Swap Left Alt and ",
+            tr_catalog(language, "dynamic_tooltips.swap_left_alt_and"),
+        ),
+        other if other.starts_with("Unswap Left Alt and ") => other.replace(
+            "Unswap Left Alt and ",
+            tr_catalog(language, "dynamic_tooltips.unswap_left_alt_and"),
+        ),
+        other if other.starts_with("Swap Right Alt and ") => other.replace(
+            "Swap Right Alt and ",
+            tr_catalog(language, "dynamic_tooltips.swap_right_alt_and"),
+        ),
+        other if other.starts_with("Unswap Right Alt and ") => other.replace(
+            "Unswap Right Alt and ",
+            tr_catalog(language, "dynamic_tooltips.unswap_right_alt_and"),
+        ),
         other if other.starts_with("Enable the ") && other.ends_with(" keys") => other
-            .replace("Enable the ", "Включить клавиши ")
+            .replace(
+                "Enable the ",
+                tr_catalog(language, "dynamic_tooltips.enable_the"),
+            )
             .replace(" keys", ""),
         other if other.starts_with("Disable the ") && other.ends_with(" keys") => other
-            .replace("Disable the ", "Отключить клавиши ")
+            .replace(
+                "Disable the ",
+                tr_catalog(language, "dynamic_tooltips.disable_the"),
+            )
             .replace(" keys", ""),
         other if other.starts_with("Toggles the status of the ") => other
             .replace(
                 "Toggles the status of the ",
-                "Переключить состояние клавиш ",
+                tr_catalog(language, "dynamic_tooltips.toggle_keys_prefix"),
             )
             .replace(" keys", ""),
         other if other.starts_with("Swap Alt and ") && other.ends_with(" on both sides") => other
-            .replace("Swap Alt and ", "Поменять Alt и ")
-            .replace(" on both sides", " с обеих сторон"),
+            .replace(
+                "Swap Alt and ",
+                tr_catalog(language, "dynamic_tooltips.swap_alt_and"),
+            )
+            .replace(
+                " on both sides",
+                tr_catalog(language, "dynamic_tooltips.on_both_sides"),
+            ),
         other if other.starts_with("Unswap Alt and ") && other.ends_with(" on both sides") => other
-            .replace("Unswap Alt and ", "Вернуть Alt и ")
-            .replace(" on both sides", " с обеих сторон"),
+            .replace(
+                "Unswap Alt and ",
+                tr_catalog(language, "dynamic_tooltips.unswap_alt_and"),
+            )
+            .replace(
+                " on both sides",
+                tr_catalog(language, "dynamic_tooltips.on_both_sides"),
+            ),
         other if other.starts_with("Toggle Alt and ") && other.ends_with(" swap on both sides") => {
             other
-                .replace("Toggle Alt and ", "Переключить обмен Alt и ")
-                .replace(" swap on both sides", " с обеих сторон")
+                .replace(
+                    "Toggle Alt and ",
+                    tr_catalog(language, "dynamic_tooltips.toggle_alt_and"),
+                )
+                .replace(
+                    " swap on both sides",
+                    tr_catalog(language, "dynamic_tooltips.swap_on_both_sides"),
+                )
         }
-        other if other.starts_with("Swap Left Control and ") => {
-            other.replace("Swap Left Control and ", "Поменять левый Control и ")
-        }
-        other if other.starts_with("Unswap Left Control and ") => {
-            other.replace("Unswap Left Control and ", "Вернуть левый Control и ")
-        }
-        other if other.starts_with("Swap Right Control and ") => {
-            other.replace("Swap Right Control and ", "Поменять правый Control и ")
-        }
-        other if other.starts_with("Unswap Right Control and ") => {
-            other.replace("Unswap Right Control and ", "Вернуть правый Control и ")
-        }
+        other if other.starts_with("Swap Left Control and ") => other.replace(
+            "Swap Left Control and ",
+            tr_catalog(language, "dynamic_tooltips.swap_left_control_and"),
+        ),
+        other if other.starts_with("Unswap Left Control and ") => other.replace(
+            "Unswap Left Control and ",
+            tr_catalog(language, "dynamic_tooltips.unswap_left_control_and"),
+        ),
+        other if other.starts_with("Swap Right Control and ") => other.replace(
+            "Swap Right Control and ",
+            tr_catalog(language, "dynamic_tooltips.swap_right_control_and"),
+        ),
+        other if other.starts_with("Unswap Right Control and ") => other.replace(
+            "Unswap Right Control and ",
+            tr_catalog(language, "dynamic_tooltips.unswap_right_control_and"),
+        ),
         other if other.starts_with("Swap Control and ") && other.ends_with(" on both sides") => {
             other
-                .replace("Swap Control and ", "Поменять Control и ")
-                .replace(" on both sides", " с обеих сторон")
+                .replace(
+                    "Swap Control and ",
+                    tr_catalog(language, "dynamic_tooltips.swap_control_and"),
+                )
+                .replace(
+                    " on both sides",
+                    tr_catalog(language, "dynamic_tooltips.on_both_sides"),
+                )
         }
         other if other.starts_with("Unswap Control and ") && other.ends_with(" on both sides") => {
             other
-                .replace("Unswap Control and ", "Вернуть Control и ")
-                .replace(" on both sides", " с обеих сторон")
+                .replace(
+                    "Unswap Control and ",
+                    tr_catalog(language, "dynamic_tooltips.unswap_control_and"),
+                )
+                .replace(
+                    " on both sides",
+                    tr_catalog(language, "dynamic_tooltips.on_both_sides"),
+                )
         }
         other
             if other.starts_with("Toggle Control and ")
                 && other.ends_with(" swap on both sides") =>
         {
             other
-                .replace("Toggle Control and ", "Переключить обмен Control и ")
-                .replace(" swap on both sides", " с обеих сторон")
+                .replace(
+                    "Toggle Control and ",
+                    tr_catalog(language, "dynamic_tooltips.toggle_control_and"),
+                )
+                .replace(
+                    " swap on both sides",
+                    tr_catalog(language, "dynamic_tooltips.swap_on_both_sides"),
+                )
         }
         other
             if other.starts_with("Layer ") && other[6..].chars().all(|ch| ch.is_ascii_digit()) =>
         {
-            other.replace("Layer ", "Слой ")
+            other.replace("Layer ", tr_catalog(language, "dynamic_tooltips.layer"))
         }
-        other if other.starts_with("Pick key for ") => {
-            other.replace("Pick key for ", "Выбрать клавишу для ")
-        }
+        other if other.starts_with("Pick key for ") => other.replace(
+            "Pick key for ",
+            tr_catalog(language, "dynamic_tooltips.pick_key_for"),
+        ),
         other if other.starts_with("Momentarily activate layer ") => other
             .replace(
                 "Momentarily activate layer ",
-                "Моментально активировать слой ",
+                tr_catalog(language, "dynamic_tooltips.momentary_layer_prefix"),
             )
-            .replace(" while held", " при удержании"),
+            .replace(
+                " while held",
+                tr_catalog(language, "dynamic_tooltips.while_held"),
+            ),
         other if other.starts_with("Key: ") => other
-            .replace("Key: ", "Клавиша: ")
-            .replace("Left Ctrl", "левый Ctrl")
-            .replace("Right Ctrl", "правый Ctrl")
-            .replace("Left Shift", "левый Shift")
-            .replace("Right Shift", "правый Shift")
-            .replace("Left Alt", "левый Alt")
-            .replace("Right Alt", "правый Alt")
-            .replace("Left Cmd", "левый Cmd")
-            .replace("Right Cmd", "правый Cmd")
-            .replace("Left Win", "левый Win")
-            .replace("Right Win", "правый Win")
-            .replace("Left Super", "левый Super")
-            .replace("Right Super", "правый Super"),
-        other if other.ends_with(" function key") => {
-            other.replace(" function key", " — функциональная клавиша")
+            .replace("Key: ", tr_catalog(language, "dynamic_tooltips.key"))
+            .replace(
+                "Left Ctrl",
+                tr_catalog(language, "dynamic_tooltips.left_ctrl"),
+            )
+            .replace(
+                "Right Ctrl",
+                tr_catalog(language, "dynamic_tooltips.right_ctrl"),
+            )
+            .replace(
+                "Left Shift",
+                tr_catalog(language, "dynamic_tooltips.left_shift"),
+            )
+            .replace(
+                "Right Shift",
+                tr_catalog(language, "dynamic_tooltips.right_shift"),
+            )
+            .replace(
+                "Left Alt",
+                tr_catalog(language, "dynamic_tooltips.left_alt"),
+            )
+            .replace(
+                "Right Alt",
+                tr_catalog(language, "dynamic_tooltips.right_alt"),
+            )
+            .replace(
+                "Left Cmd",
+                tr_catalog(language, "dynamic_tooltips.left_cmd"),
+            )
+            .replace(
+                "Right Cmd",
+                tr_catalog(language, "dynamic_tooltips.right_cmd"),
+            )
+            .replace(
+                "Left Win",
+                tr_catalog(language, "dynamic_tooltips.left_win"),
+            )
+            .replace(
+                "Right Win",
+                tr_catalog(language, "dynamic_tooltips.right_win"),
+            )
+            .replace(
+                "Left Super",
+                tr_catalog(language, "dynamic_tooltips.left_super"),
+            )
+            .replace(
+                "Right Super",
+                tr_catalog(language, "dynamic_tooltips.right_super"),
+            ),
+        other if other.ends_with(" function key") => other.replace(
+            " function key",
+            tr_catalog(language, "dynamic_tooltips.function_key"),
+        ),
+        other if other.starts_with("Numpad ") => {
+            other.replace("Numpad ", tr_catalog(language, "dynamic_tooltips.numpad"))
         }
-        other if other.starts_with("Numpad ") => other.replace("Numpad ", "Нампад "),
         other if other.starts_with("Shortcut: ") => other
-            .replace("Shortcut: ", "Сочетание: ")
-            .replace("Right ", "Правый "),
+            .replace(
+                "Shortcut: ",
+                tr_catalog(language, "dynamic_tooltips.shortcut"),
+            )
+            .replace("Right ", tr_catalog(language, "dynamic_tooltips.right")),
         other
             if other.starts_with("Macro ")
                 && other.contains(" — sends a sequence of keystrokes") =>
         {
-            other.replace("Macro ", "Макрос ").replace(
-                " — sends a sequence of keystrokes",
-                " — отправляет последовательность нажатий",
-            )
+            other
+                .replace("Macro ", tr_catalog(language, "dynamic_tooltips.macro"))
+                .replace(
+                    " — sends a sequence of keystrokes",
+                    tr_catalog(language, "dynamic_tooltips.macro_sends_suffix"),
+                )
         }
         other
             if other.starts_with("Tap Dance ")
@@ -1460,90 +1654,168 @@ pub fn tr_text(language: Language, text: &str) -> String {
         {
             other.replace(
                 " — different actions on tap, hold, double tap",
-                " — разные действия на tap, hold и double tap",
+                tr_catalog(language, "dynamic_tooltips.tap_dance_desc_suffix"),
             )
         }
-        other if other.contains(" — macro ") => other.replace(" — macro ", " — макрос "),
+        other if other.contains(" — macro ") => other.replace(
+            " — macro ",
+            tr_catalog(language, "dynamic_tooltips.macro_6715ba"),
+        ),
         other if other.contains(" — tap dance ") => {
             other.replace(" — tap dance ", " — Tap Dance ")
         }
         other if other.starts_with("MO(") => other
-            .replace(" — activate layer ", " — активировать слой ")
-            .replace(" — activate ", " — активировать ")
+            .replace(
+                " — activate layer ",
+                tr_catalog(language, "dynamic_tooltips.activate_layer"),
+            )
+            .replace(
+                " — activate ",
+                tr_catalog(language, "dynamic_tooltips.activate"),
+            )
             .replace(
                 " while held, return when released",
-                " при удержании, вернуть при отпускании",
+                tr_catalog(language, "dynamic_tooltips.layer_held_return_suffix"),
             ),
         other if other.starts_with("TO(") => other
-            .replace(" — switch to layer ", " — переключиться на слой ")
-            .replace(" — switch to ", " — переключиться на ")
-            .replace(" and stay there", " и остаться там"),
+            .replace(
+                " — switch to layer ",
+                tr_catalog(language, "dynamic_tooltips.switch_to_layer"),
+            )
+            .replace(
+                " — switch to ",
+                tr_catalog(language, "dynamic_tooltips.switch_to"),
+            )
+            .replace(
+                " and stay there",
+                tr_catalog(language, "dynamic_tooltips.and_stay_there"),
+            ),
         other if other.starts_with("TG(") => other
-            .replace(" — toggle layer ", " — переключить слой ")
-            .replace(" — toggle ", " — переключить ")
-            .replace(" on/off", " вкл/выкл"),
+            .replace(
+                " — toggle layer ",
+                tr_catalog(language, "dynamic_tooltips.toggle_layer"),
+            )
+            .replace(
+                " — toggle ",
+                tr_catalog(language, "dynamic_tooltips.toggle"),
+            )
+            .replace(" on/off", tr_catalog(language, "dynamic_tooltips.on_off")),
         other if other.starts_with("DF(") || other.starts_with("PDF(") => other
-            .replace(" — set ", " — сделать ")
-            .replace(" — permanently set ", " — постоянно сделать ")
-            .replace(" as the default base layer", " базовым слоем по умолчанию")
-            .replace(" as the default layer", " слоем по умолчанию"),
+            .replace(" — set ", tr_catalog(language, "dynamic_tooltips.set"))
+            .replace(
+                " — permanently set ",
+                tr_catalog(language, "dynamic_tooltips.permanently_set"),
+            )
+            .replace(
+                " as the default base layer",
+                tr_catalog(language, "dynamic_tooltips.as_the_default_base_layer"),
+            )
+            .replace(
+                " as the default layer",
+                tr_catalog(language, "dynamic_tooltips.as_the_default_layer"),
+            ),
         other if other.starts_with("OSL(") => other
-            .replace(" — activate layer ", " — активировать слой ")
-            .replace(" — activate ", " — активировать ")
-            .replace(" for next keypress only", " только для следующего нажатия"),
+            .replace(
+                " — activate layer ",
+                tr_catalog(language, "dynamic_tooltips.activate_layer"),
+            )
+            .replace(
+                " — activate ",
+                tr_catalog(language, "dynamic_tooltips.activate"),
+            )
+            .replace(
+                " for next keypress only",
+                tr_catalog(language, "dynamic_tooltips.for_next_keypress_only"),
+            ),
         other if other.starts_with("TT(") => other
-            .replace(" — tap to toggle layer ", " — tap переключает слой ")
-            .replace(" — tap to toggle ", " — tap переключает ")
+            .replace(
+                " — tap to toggle layer ",
+                tr_catalog(language, "dynamic_tooltips.tap_to_toggle_layer"),
+            )
+            .replace(
+                " — tap to toggle ",
+                tr_catalog(language, "dynamic_tooltips.tap_to_toggle"),
+            )
             .replace(
                 ", hold to activate while held",
-                ", hold активирует при удержании",
+                tr_catalog(language, "dynamic_tooltips.tt_hold_suffix"),
             ),
         other if other.starts_with("Layer Tap — tap for ") => other
-            .replace("Layer Tap — tap for ", "Layer Tap — tap для ")
-            .replace(", hold to activate layer ", ", hold активирует слой ")
-            .replace(", hold to activate ", ", hold активирует "),
+            .replace(
+                "Layer Tap — tap for ",
+                tr_catalog(language, "dynamic_tooltips.layer_tap_tap_for"),
+            )
+            .replace(
+                ", hold to activate layer ",
+                tr_catalog(language, "dynamic_tooltips.hold_to_activate_layer"),
+            )
+            .replace(
+                ", hold to activate ",
+                tr_catalog(language, "dynamic_tooltips.hold_to_activate"),
+            ),
         other if other.starts_with("LM(") => other
-            .replace(" — activate layer ", " — активировать слой ")
-            .replace(" with ", " с ")
+            .replace(
+                " — activate layer ",
+                tr_catalog(language, "dynamic_tooltips.activate_layer"),
+            )
+            .replace(" with ", tr_catalog(language, "dynamic_tooltips.with"))
             .replace(
                 " held while key is pressed",
-                " при удержании во время нажатия клавиши",
+                tr_catalog(language, "dynamic_tooltips.lm_held_suffix"),
             ),
-        other if other.starts_with("Unknown layer op ") => {
-            other.replace("Unknown layer op", "Неизвестная операция слоя")
-        }
-        other if other.starts_with("Custom key ") => {
-            other.replace("Custom key", "Пользовательская клавиша")
-        }
-        other if other.starts_with("Unknown keycode ") => {
-            other.replace("Unknown keycode", "Неизвестный keycode")
-        }
+        other if other.starts_with("Unknown layer op ") => other.replace(
+            "Unknown layer op",
+            tr_catalog(language, "dynamic_tooltips.unknown_layer_op"),
+        ),
+        other if other.starts_with("Custom key ") => other.replace(
+            "Custom key",
+            tr_catalog(language, "dynamic_tooltips.custom_key"),
+        ),
+        other if other.starts_with("Unknown keycode ") => other.replace(
+            "Unknown keycode",
+            tr_catalog(language, "dynamic_tooltips.unknown_keycode"),
+        ),
         other if other.starts_with("Mod Tap — tap for ") => other
-            .replace("Mod Tap — tap for ", "Mod Tap — tap для ")
-            .replace(", hold for Left ", ", hold для левого ")
-            .replace(", hold for Right ", ", hold для правого ")
-            .replace(", hold for ", ", hold для "),
+            .replace(
+                "Mod Tap — tap for ",
+                tr_catalog(language, "dynamic_tooltips.mod_tap_tap_for"),
+            )
+            .replace(
+                ", hold for Left ",
+                tr_catalog(language, "dynamic_tooltips.hold_for_left"),
+            )
+            .replace(
+                ", hold for Right ",
+                tr_catalog(language, "dynamic_tooltips.hold_for_right"),
+            )
+            .replace(
+                ", hold for ",
+                tr_catalog(language, "dynamic_tooltips.hold_for"),
+            ),
         other if other.starts_with("Universal Cyrillic ") => other
             .replace("Universal Cyrillic", "Universal Cyrillic")
-            .replace("types", "вводит")
+            .replace("types", tr_catalog(language, "dynamic_tooltips.types"))
             .replace(
                 "consistently regardless of the active keyboard language",
-                "одинаково независимо от активного языка клавиатуры",
+                tr_catalog(language, "dynamic_tooltips.universal_cyrillic_consistent"),
             )
-            .replace("hold Shift for", "удерживайте Shift для"),
+            .replace(
+                "hold Shift for",
+                tr_catalog(language, "dynamic_tooltips.hold_shift_for"),
+            ),
         other
             if other
                 .starts_with("Universal output backend: Wayland via IBus/Fcitx5 input method") =>
         {
             other.replacen(
                 "Universal output backend: Wayland via IBus/Fcitx5 input method",
-                "Бэкенд универсального вывода: Wayland через IBus/Fcitx5",
+                tr_catalog(language, "dynamic_tooltips.backend_wayland_ibus_fcitx5"),
                 1,
             )
         }
         other if other.starts_with("Universal output backend: Linux X11 native") => other.replacen(
             "Universal output backend: Linux X11 native; Wayland uses IBus/Fcitx5",
-            "Бэкенд универсального вывода: Linux X11 native; Wayland использует IBus/Fcitx5",
+            tr_catalog(language, "dynamic_tooltips.backend_linux_x11_native"),
             1,
         ),
         other
@@ -1552,7 +1824,7 @@ pub fn tr_text(language: Language, text: &str) -> String {
         {
             other.replacen(
                 "Universal output backend: Linux; use IBus/Fcitx5 for Wayland",
-                "Бэкенд универсального вывода: Linux; для Wayland используйте IBus/Fcitx5",
+                tr_catalog(language, "dynamic_tooltips.backend_linux_wayland_hint"),
                 1,
             )
         }
