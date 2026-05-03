@@ -4195,18 +4195,6 @@ impl EntropyApp {
         true
     }
 
-    fn remove_text_expander_blacklist_app(&mut self, remove_idx: usize) -> bool {
-        let mut entries =
-            parse_text_expander_blacklist(&self.app_settings.text_expander_app_blacklist);
-        if remove_idx >= entries.len() {
-            return false;
-        }
-        entries.remove(remove_idx);
-        self.app_settings.text_expander_app_blacklist = format_text_expander_blacklist(&entries);
-        self.save_text_expander_settings();
-        true
-    }
-
     fn text_expander_window_candidates(
         &self,
         blacklist_entries: &[String],
@@ -4259,13 +4247,7 @@ impl EntropyApp {
                 );
                 ui.add_space(metrics.value(18.0));
 
-                let blacklist_entries =
-                    parse_text_expander_blacklist(&self.app_settings.text_expander_app_blacklist);
-                let window_candidates = self.text_expander_window_candidates(&blacklist_entries);
-                let row_count = 3
-                    + window_candidates.len()
-                    + blacklist_entries.len()
-                    + self.app_settings.text_expansion_rules.len();
+                let row_count = 4 + self.app_settings.text_expansion_rules.len();
                 let list = allocate_adaptive_settings_list_viewport(
                     ui,
                     "text_expander_settings",
@@ -4409,6 +4391,121 @@ impl EntropyApp {
                 parse_text_expander_blacklist(&self.app_settings.text_expander_app_blacklist);
             let window_candidates = self.text_expander_window_candidates(&blacklist_entries);
             if row_idx == 2 {
+                let dropdown_width = metrics.value(250.0);
+                let selected_text = if window_candidates.is_empty() {
+                    crate::i18n::tr_catalog(lang, "text_expander.no_windows_hint")
+                } else {
+                    crate::i18n::tr_catalog(lang, "text_expander.select_window")
+                };
+                crate::ui_style::settings_list_row_with_tooltip(
+                    ui,
+                    content_width,
+                    row_height,
+                    crate::i18n::tr_catalog(lang, "text_expander.window_select_label"),
+                    true,
+                    tooltip(crate::i18n::tr_catalog(
+                        lang,
+                        "text_expander.window_select_tooltip",
+                    )),
+                    dropdown_width,
+                    |ui| {
+                        let dropdown_id =
+                            ui.make_persistent_id("text_expander_blacklist_window_dropdown");
+                        let dropdown_resp = crate::ui_style::modern_dropdown_button_sized(
+                            ui,
+                            dropdown_id,
+                            selected_text,
+                            if window_candidates.is_empty() {
+                                app_muted_text(ui.visuals().dark_mode)
+                            } else {
+                                ui.visuals().text_color()
+                            },
+                            dropdown_width,
+                            metrics.settings_control_height(),
+                            metrics.settings_control_font_size(),
+                        );
+                        egui::popup_below_widget(
+                            ui,
+                            dropdown_id,
+                            &dropdown_resp,
+                            egui::PopupCloseBehavior::CloseOnClickOutside,
+                            |ui| {
+                                ui.set_min_width(dropdown_width);
+                                ui.set_max_height(metrics.value(142.0));
+                                ui.spacing_mut().item_spacing = egui::vec2(0.0, 2.0);
+                                if window_candidates.is_empty() {
+                                    let (option_rect, _) = ui.allocate_exact_size(
+                                        egui::vec2(dropdown_width, metrics.value(28.0)),
+                                        Sense::hover(),
+                                    );
+                                    ui.painter().text(
+                                        egui::pos2(
+                                            option_rect.left() + metrics.value(10.0),
+                                            option_rect.center().y,
+                                        ),
+                                        egui::Align2::LEFT_CENTER,
+                                        crate::i18n::tr_catalog(
+                                            lang,
+                                            "text_expander.no_windows_hint",
+                                        ),
+                                        FontId::proportional(metrics.value(12.0)),
+                                        app_muted_text(ui.visuals().dark_mode),
+                                    );
+                                } else {
+                                    for candidate in window_candidates.iter() {
+                                        let title = if candidate.title.is_empty() {
+                                            candidate.exe.clone()
+                                        } else {
+                                            format!("{} — {}", candidate.title, candidate.exe)
+                                        };
+                                        let display = if title.chars().count() > 36 {
+                                            format!(
+                                                "{}…",
+                                                title.chars().take(35).collect::<String>()
+                                            )
+                                        } else {
+                                            title
+                                        };
+                                        let (option_rect, option_resp) = ui.allocate_exact_size(
+                                            egui::vec2(dropdown_width, metrics.value(28.0)),
+                                            Sense::click(),
+                                        );
+                                        if option_resp.hovered() {
+                                            ui.ctx()
+                                                .set_cursor_icon(egui::CursorIcon::PointingHand);
+                                        }
+                                        let option_fill = if option_resp.hovered() {
+                                            crate::ui_style::hover_fill(ui.visuals().dark_mode)
+                                        } else {
+                                            Color32::TRANSPARENT
+                                        };
+                                        ui.painter().rect_filled(option_rect, 7.0, option_fill);
+                                        ui.painter().text(
+                                            egui::pos2(
+                                                option_rect.left() + metrics.value(10.0),
+                                                option_rect.center().y,
+                                            ),
+                                            egui::Align2::LEFT_CENTER,
+                                            display,
+                                            FontId::proportional(metrics.value(12.0)),
+                                            ui.visuals().text_color(),
+                                        );
+                                        if option_resp.clicked() {
+                                            self.add_text_expander_blacklist_app(&candidate.exe);
+                                            ui.memory_mut(|m| m.close_popup());
+                                        }
+                                    }
+                                }
+                            },
+                        );
+                    },
+                );
+                continue;
+            }
+
+            if row_idx == 3 {
+                let mut blacklist = format_text_expander_blacklist(&blacklist_entries);
+                let field_width = metrics.value(250.0);
                 crate::ui_style::settings_list_row_with_tooltip(
                     ui,
                     content_width,
@@ -4419,139 +4516,31 @@ impl EntropyApp {
                         lang,
                         "text_expander.blacklist_tooltip",
                     )),
-                    metrics.value(250.0),
+                    field_width,
                     |ui| {
-                        ui.allocate_ui_with_layout(
-                            egui::vec2(metrics.value(250.0), row_height),
-                            egui::Layout::right_to_left(egui::Align::Center),
-                            |ui| {
-                                ui.label(
-                                    RichText::new(crate::i18n::tr_catalog(
-                                        lang,
-                                        if window_candidates.is_empty() {
-                                            "text_expander.no_windows_hint"
-                                        } else {
-                                            "text_expander.choose_window_hint"
-                                        },
-                                    ))
-                                    .size(metrics.value(12.0))
-                                    .color(app_muted_text(ui.visuals().dark_mode)),
-                                );
-                            },
+                        let resp = crate::ui_style::modern_text_field_sized(
+                            ui,
+                            ui.make_persistent_id("text_expander_blacklist"),
+                            &mut blacklist,
+                            field_width,
+                            metrics.settings_control_height(),
+                            crate::i18n::tr_catalog(lang, "text_expander.blacklist_hint"),
+                            180,
+                            egui::Align::Min,
                         );
+                        if resp.changed() {
+                            self.app_settings.text_expander_app_blacklist =
+                                format_text_expander_blacklist(&parse_text_expander_blacklist(
+                                    &blacklist,
+                                ));
+                            self.save_text_expander_settings();
+                        }
                     },
                 );
                 continue;
             }
 
-            let window_row_start = 3;
-            let window_row_end = window_row_start + window_candidates.len();
-            if (window_row_start..window_row_end).contains(&row_idx) {
-                let candidate_idx = row_idx - window_row_start;
-                let candidate = window_candidates[candidate_idx].clone();
-                let label = format!(
-                    "{} {}",
-                    crate::i18n::tr_catalog(lang, "text_expander.window_label"),
-                    candidate_idx + 1
-                );
-                crate::ui_style::settings_list_row_with_tooltip(
-                    ui,
-                    content_width,
-                    row_height,
-                    label.as_str(),
-                    true,
-                    tooltip(crate::i18n::tr_catalog(
-                        lang,
-                        "text_expander.window_tooltip",
-                    )),
-                    metrics.value(250.0),
-                    |ui| {
-                        ui.allocate_ui_with_layout(
-                            egui::vec2(metrics.value(250.0), row_height),
-                            egui::Layout::right_to_left(egui::Align::Center),
-                            |ui| {
-                                if crate::ui_style::modern_button(
-                                    ui,
-                                    "+",
-                                    metrics.size(30.0, metrics.settings_control_height()),
-                                    true,
-                                )
-                                .clicked()
-                                {
-                                    self.add_text_expander_blacklist_app(&candidate.exe);
-                                }
-                                ui.add_space(metrics.value(8.0));
-                                let title = if candidate.title.is_empty() {
-                                    candidate.exe.clone()
-                                } else {
-                                    format!("{} — {}", candidate.title, candidate.exe)
-                                };
-                                let display = if title.chars().count() > 34 {
-                                    format!("{}…", title.chars().take(33).collect::<String>())
-                                } else {
-                                    title
-                                };
-                                ui.label(
-                                    RichText::new(display)
-                                        .size(metrics.value(11.5))
-                                        .color(ui.visuals().text_color()),
-                                );
-                            },
-                        );
-                    },
-                );
-                continue;
-            }
-
-            let blacklist_row_start = window_row_end;
-            let blacklist_row_end = blacklist_row_start + blacklist_entries.len();
-            if (blacklist_row_start..blacklist_row_end).contains(&row_idx) {
-                let app_idx = row_idx - blacklist_row_start;
-                let app_name = blacklist_entries[app_idx].clone();
-                let label = format!(
-                    "{} {}",
-                    crate::i18n::tr_catalog(lang, "text_expander.blocked_app_label"),
-                    app_idx + 1
-                );
-                crate::ui_style::settings_list_row_with_tooltip(
-                    ui,
-                    content_width,
-                    row_height,
-                    label.as_str(),
-                    true,
-                    tooltip(crate::i18n::tr_catalog(
-                        lang,
-                        "text_expander.blocked_app_tooltip",
-                    )),
-                    metrics.value(250.0),
-                    |ui| {
-                        ui.allocate_ui_with_layout(
-                            egui::vec2(metrics.value(250.0), row_height),
-                            egui::Layout::right_to_left(egui::Align::Center),
-                            |ui| {
-                                if crate::ui_style::modern_button(
-                                    ui,
-                                    "×",
-                                    metrics.size(30.0, metrics.settings_control_height()),
-                                    true,
-                                )
-                                .clicked()
-                                {
-                                    self.remove_text_expander_blacklist_app(app_idx);
-                                }
-                                ui.add_space(metrics.value(8.0));
-                                ui.label(
-                                    RichText::new(app_name.as_str())
-                                        .size(metrics.value(12.5))
-                                        .color(ui.visuals().text_color()),
-                                );
-                            },
-                        );
-                    },
-                );
-                continue;
-            }
-
+            let blacklist_row_end = 4;
             let idx = row_idx - blacklist_row_end;
             let Some(original_rule) = self.app_settings.text_expansion_rules.get(idx).cloned()
             else {
