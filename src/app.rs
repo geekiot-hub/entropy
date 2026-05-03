@@ -290,6 +290,151 @@ fn responsive_settings_visible_rows(
     (BASE_ROWS + extra_rows).clamp(1, MAX_ROWS).min(total_rows)
 }
 
+struct AdaptiveSettingsListViewport {
+    viewport: egui::Rect,
+    content_rect: egui::Rect,
+    track_rect: egui::Rect,
+    handle_height: f32,
+    scroll_ratio: f32,
+    track_hovered: bool,
+    suppress_tooltips: bool,
+    first_visible_row: usize,
+    last_visible_row: usize,
+    row_content_width: f32,
+    row_height: f32,
+    has_scrollbar: bool,
+}
+
+fn allocate_adaptive_settings_list_viewport(
+    ui: &mut egui::Ui,
+    id_salt: &'static str,
+    metrics: crate::ui_style::ResponsiveMetrics,
+    total_rows: usize,
+    bottom_reserve: f32,
+) -> AdaptiveSettingsListViewport {
+    let viewport_width = metrics.settings_content_width();
+    let row_content_width = metrics.settings_row_content_width();
+    let row_height = metrics.settings_row_height();
+    let visible_rows = responsive_settings_visible_rows(
+        ui.ctx(),
+        ui.available_height(),
+        total_rows,
+        bottom_reserve,
+    );
+    let list_height = row_height * visible_rows as f32;
+    let content_height = row_height * total_rows as f32;
+    let max_offset = (content_height - list_height).max(0.0);
+    let offset_id = ui.id().with((id_salt, "smooth_offset"));
+    let target_id = ui.id().with((id_salt, "smooth_target"));
+    let mut scroll_offset = ui
+        .ctx()
+        .data_mut(|d| d.get_persisted::<f32>(offset_id).unwrap_or(0.0))
+        .clamp(0.0, max_offset);
+    let mut target_offset = ui
+        .ctx()
+        .data_mut(|d| d.get_persisted::<f32>(target_id).unwrap_or(scroll_offset))
+        .clamp(0.0, max_offset);
+    let (viewport, viewport_resp) =
+        ui.allocate_exact_size(egui::vec2(viewport_width, list_height), Sense::hover());
+
+    let track_width = metrics.value(6.0);
+    let track_rect = egui::Rect::from_min_max(
+        egui::pos2(viewport.right() - track_width, viewport.top()),
+        egui::pos2(viewport.right(), viewport.bottom()),
+    );
+    let scrollbar_resp = if max_offset > 0.0 {
+        Some(ui.interact(
+            track_rect.expand2(egui::vec2(metrics.value(5.0), 0.0)),
+            ui.id().with((id_salt, "scrollbar")),
+            Sense::click_and_drag(),
+        ))
+    } else {
+        None
+    };
+
+    let mut scroll_active = false;
+    let scroll_delta = if viewport_resp.hovered() {
+        ui.input(|i| {
+            if i.smooth_scroll_delta.y.abs() > 0.0 {
+                i.smooth_scroll_delta.y
+            } else {
+                i.raw_scroll_delta.y
+            }
+        })
+    } else {
+        0.0
+    };
+    if scroll_delta.abs() > 0.0 && max_offset > 0.0 {
+        scroll_active = true;
+        target_offset = (target_offset - scroll_delta * 0.72).clamp(0.0, max_offset);
+    }
+
+    let handle_height = if max_offset > 0.0 {
+        (list_height / content_height * viewport.height())
+            .clamp(metrics.value(42.0), viewport.height())
+    } else {
+        viewport.height()
+    };
+    if let Some(resp) = &scrollbar_resp {
+        if (resp.dragged() || resp.clicked()) && max_offset > 0.0 {
+            if let Some(pointer_pos) = ui.input(|i| i.pointer.interact_pos()) {
+                scroll_active = true;
+                let travel = (track_rect.height() - handle_height).max(1.0);
+                let t = ((pointer_pos.y - track_rect.top() - handle_height / 2.0) / travel)
+                    .clamp(0.0, 1.0);
+                target_offset = t * max_offset;
+                scroll_offset = target_offset;
+            }
+        }
+    }
+
+    if (scroll_offset - target_offset).abs() > 0.35 {
+        scroll_offset += (target_offset - scroll_offset) * 0.42;
+        scroll_active = true;
+        ui.ctx().request_repaint();
+    } else {
+        scroll_offset = target_offset;
+    }
+    scroll_offset = scroll_offset.clamp(0.0, max_offset);
+    target_offset = target_offset.clamp(0.0, max_offset);
+    ui.ctx().data_mut(|d| {
+        d.insert_persisted(offset_id, scroll_offset);
+        d.insert_persisted(target_id, target_offset);
+    });
+
+    let first_visible_row = (scroll_offset / row_height).floor() as usize;
+    let row_y_offset = scroll_offset - first_visible_row as f32 * row_height;
+    let last_visible_row = (first_visible_row + visible_rows + 1).min(total_rows);
+    let visible_row_count = last_visible_row.saturating_sub(first_visible_row);
+    let content_rect = egui::Rect::from_min_size(
+        egui::pos2(viewport.left(), viewport.top() - row_y_offset),
+        egui::vec2(row_content_width, row_height * visible_row_count as f32),
+    );
+    let track_hovered = scrollbar_resp
+        .as_ref()
+        .map(|resp| resp.hovered() || resp.dragged())
+        .unwrap_or(false);
+
+    AdaptiveSettingsListViewport {
+        viewport,
+        content_rect,
+        track_rect,
+        handle_height,
+        scroll_ratio: if max_offset > 0.0 {
+            scroll_offset / max_offset
+        } else {
+            0.0
+        },
+        track_hovered,
+        suppress_tooltips: scroll_active || ui.input(|i| i.pointer.primary_down()),
+        first_visible_row,
+        last_visible_row,
+        row_content_width,
+        row_height,
+        has_scrollbar: max_offset > 0.0,
+    }
+}
+
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
@@ -3460,8 +3605,6 @@ impl EntropyApp {
         let dark = ui.visuals().dark_mode;
         let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ui.ctx());
         let lang = self.app_settings.language;
-        let content_width = metrics.settings_content_width();
-        let row_height = metrics.settings_row_height();
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(metrics.value(18.0));
@@ -3479,130 +3622,36 @@ impl EntropyApp {
                 ui.add_space(metrics.value(24.0));
 
                 const TOTAL_APP_SETTINGS_ROWS: usize = 8;
-                let visible_rows = responsive_settings_visible_rows(
-                    ui.ctx(),
-                    ui.available_height(),
+                let list = allocate_adaptive_settings_list_viewport(
+                    ui,
+                    "app_settings",
+                    metrics,
                     TOTAL_APP_SETTINGS_ROWS,
                     metrics.value(44.0),
                 );
-                let list_height = row_height * visible_rows as f32;
-                let content_height = row_height * TOTAL_APP_SETTINGS_ROWS as f32;
-                let max_offset = (content_height - list_height).max(0.0);
-                let offset_id = ui.id().with("app_settings_smooth_offset");
-                let target_id = ui.id().with("app_settings_smooth_target");
-                let mut scroll_offset = ui
-                    .ctx()
-                    .data_mut(|d| d.get_persisted::<f32>(offset_id).unwrap_or(0.0))
-                    .clamp(0.0, max_offset);
-                let mut target_offset = ui
-                    .ctx()
-                    .data_mut(|d| d.get_persisted::<f32>(target_id).unwrap_or(scroll_offset))
-                    .clamp(0.0, max_offset);
-                let (viewport, viewport_resp) =
-                    ui.allocate_exact_size(egui::vec2(content_width, list_height), Sense::hover());
 
-                let track_width = metrics.value(6.0);
-                let track_rect = egui::Rect::from_min_max(
-                    egui::pos2(viewport.right() - track_width, viewport.top()),
-                    egui::pos2(viewport.right(), viewport.bottom()),
-                );
-                let scrollbar_resp = if max_offset > 0.0 {
-                    Some(ui.interact(
-                        track_rect.expand2(egui::vec2(metrics.value(5.0), 0.0)),
-                        ui.id().with("app_settings_scrollbar"),
-                        Sense::click_and_drag(),
-                    ))
-                } else {
-                    None
-                };
-
-                let mut scroll_active = false;
-                let scroll_delta = if viewport_resp.hovered() {
-                    ui.input(|i| {
-                        if i.smooth_scroll_delta.y.abs() > 0.0 {
-                            i.smooth_scroll_delta.y
-                        } else {
-                            i.raw_scroll_delta.y
-                        }
-                    })
-                } else {
-                    0.0
-                };
-                if scroll_delta.abs() > 0.0 && max_offset > 0.0 {
-                    scroll_active = true;
-                    target_offset = (target_offset - scroll_delta * 0.72).clamp(0.0, max_offset);
-                }
-
-                let handle_height = if max_offset > 0.0 {
-                    (list_height / content_height * viewport.height())
-                        .clamp(metrics.value(42.0), viewport.height())
-                } else {
-                    viewport.height()
-                };
-                if let Some(resp) = &scrollbar_resp {
-                    if (resp.dragged() || resp.clicked()) && max_offset > 0.0 {
-                        if let Some(pointer_pos) = ui.input(|i| i.pointer.interact_pos()) {
-                            scroll_active = true;
-                            let travel = (track_rect.height() - handle_height).max(1.0);
-                            let t = ((pointer_pos.y - track_rect.top() - handle_height / 2.0)
-                                / travel)
-                                .clamp(0.0, 1.0);
-                            target_offset = t * max_offset;
-                            scroll_offset = target_offset;
-                        }
-                    }
-                }
-
-                if (scroll_offset - target_offset).abs() > 0.35 {
-                    scroll_offset += (target_offset - scroll_offset) * 0.42;
-                    scroll_active = true;
-                    ui.ctx().request_repaint();
-                } else {
-                    scroll_offset = target_offset;
-                }
-                scroll_offset = scroll_offset.clamp(0.0, max_offset);
-                target_offset = target_offset.clamp(0.0, max_offset);
-                ui.ctx().data_mut(|d| {
-                    d.insert_persisted(offset_id, scroll_offset);
-                    d.insert_persisted(target_id, target_offset);
-                });
-
-                let first_visible_row = (scroll_offset / row_height).floor() as usize;
-                let row_y_offset = scroll_offset - first_visible_row as f32 * row_height;
-                let last_visible_row =
-                    (first_visible_row + visible_rows + 1).min(TOTAL_APP_SETTINGS_ROWS);
-                let visible_row_count = last_visible_row.saturating_sub(first_visible_row);
-                let list_content_rect = egui::Rect::from_min_size(
-                    egui::pos2(viewport.left(), viewport.top() - row_y_offset),
-                    egui::vec2(content_width, row_height * visible_row_count as f32),
-                );
-                let suppress_tooltips = scroll_active || ui.input(|i| i.pointer.primary_down());
-                ui.allocate_ui_at_rect(list_content_rect, |ui| {
-                    ui.set_clip_rect(viewport);
-                    ui.set_min_size(list_content_rect.size());
+                ui.allocate_ui_at_rect(list.content_rect, |ui| {
+                    ui.set_clip_rect(list.viewport);
+                    ui.set_min_size(list.content_rect.size());
                     ui.spacing_mut().item_spacing.y = 0.0;
                     self.draw_app_settings_editor_content(
                         ui,
-                        first_visible_row..last_visible_row,
-                        content_width,
-                        row_height,
+                        list.first_visible_row..list.last_visible_row,
+                        list.row_content_width,
+                        list.row_height,
                         metrics,
                         dark,
-                        suppress_tooltips,
+                        list.suppress_tooltips,
                     );
                 });
 
-                if max_offset > 0.0 {
-                    let track_hovered = scrollbar_resp
-                        .as_ref()
-                        .map(|resp| resp.hovered() || resp.dragged())
-                        .unwrap_or(false);
+                if list.has_scrollbar {
                     crate::ui_style::paint_floating_scrollbar_handle(
                         ui,
-                        track_rect,
-                        handle_height,
-                        scroll_offset / max_offset,
-                        track_hovered,
+                        list.track_rect,
+                        list.handle_height,
+                        list.scroll_ratio,
+                        list.track_hovered,
                     );
                 }
             });
