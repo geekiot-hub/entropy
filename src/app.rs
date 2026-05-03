@@ -342,7 +342,8 @@ fn allocate_adaptive_settings_list_viewport(
         .ctx()
         .data_mut(|d| d.get_persisted::<f32>(target_id).unwrap_or(scroll_offset))
         .clamp(0.0, max_offset);
-    let (viewport, _) = ui.allocate_exact_size(egui::vec2(viewport_width, list_height), Sense::hover());
+    let (viewport, _) =
+        ui.allocate_exact_size(egui::vec2(viewport_width, list_height), Sense::hover());
 
     let track_width = metrics.value(6.0);
     let track_rect = egui::Rect::from_min_max(
@@ -4222,8 +4223,8 @@ impl EntropyApp {
                     6,
                     metrics.value(44.0),
                 );
-                let action_anchor_bottom = list.viewport.top()
-                    + list.row_height * action_anchor_rows as f32;
+                let action_anchor_bottom =
+                    list.viewport.top() + list.row_height * action_anchor_rows as f32;
                 let button_size = metrics.size(126.0, 34.0);
                 let button_rect = egui::Rect::from_center_size(
                     egui::pos2(
@@ -4386,56 +4387,99 @@ impl EntropyApp {
                 tooltip(rule_tooltip),
                 control_width,
                 |ui| {
-                    ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing.x = metrics.value(6.0);
-                        let mut rule_enabled = rule.enabled;
-                        let resp = crate::ui_style::settings_switch_sized_stable(
+                    let control_rect = ui.max_rect();
+                    let field_height = metrics.settings_control_height();
+                    let switch_size = metrics.size(34.0, 20.0);
+                    let trigger_width = metrics.value(82.0);
+                    let delete_size = metrics.size(30.0, field_height);
+                    let gap = metrics.value(8.0);
+                    let switch_gap = metrics.value(8.0);
+                    let replacement_width = (control_width
+                        - switch_size.x
+                        - switch_gap
+                        - trigger_width
+                        - gap
+                        - delete_size.x
+                        - gap)
+                        .max(metrics.value(120.0));
+                    let top = control_rect.center().y - field_height / 2.0;
+                    let switch_top = control_rect.center().y - switch_size.y / 2.0;
+                    let mut x = control_rect.left();
+
+                    let switch_rect =
+                        egui::Rect::from_min_size(egui::pos2(x, switch_top), switch_size);
+                    x += switch_size.x + switch_gap;
+                    let trigger_rect = egui::Rect::from_min_size(
+                        egui::pos2(x, top),
+                        egui::vec2(trigger_width, field_height),
+                    );
+                    x += trigger_width + gap;
+                    let replacement_rect = egui::Rect::from_min_size(
+                        egui::pos2(x, top),
+                        egui::vec2(replacement_width, field_height),
+                    );
+                    let delete_rect = egui::Rect::from_min_size(
+                        egui::pos2(control_rect.right() - delete_size.x, top),
+                        delete_size,
+                    );
+
+                    let mut rule_enabled = rule.enabled;
+                    let mut switch_resp = None;
+                    ui.allocate_ui_at_rect(switch_rect, |ui| {
+                        switch_resp = Some(crate::ui_style::settings_switch_sized_stable(
                             ui,
                             ("text_expander_rule_enabled", idx),
                             &mut rule_enabled,
-                            metrics.size(34.0, 20.0),
-                        );
-                        if resp.changed() {
-                            rule.enabled = rule_enabled;
-                            changed = true;
-                        }
-                        let trigger_resp = crate::ui_style::modern_text_field_sized(
+                            switch_size,
+                        ));
+                    });
+                    if switch_resp.is_some_and(|resp| resp.changed()) {
+                        rule.enabled = rule_enabled;
+                        changed = true;
+                    }
+
+                    let mut trigger_resp = None;
+                    ui.allocate_ui_at_rect(trigger_rect, |ui| {
+                        trigger_resp = Some(crate::ui_style::modern_text_field_sized(
                             ui,
                             ui.make_persistent_id(("text_expander_trigger", idx)),
                             &mut rule.trigger,
-                            metrics.value(82.0),
-                            metrics.settings_control_height(),
+                            trigger_width,
+                            field_height,
                             crate::i18n::tr_catalog(lang, "text_expander.trigger_hint"),
                             32,
                             egui::Align::Center,
-                        );
-                        if trigger_resp.changed() {
-                            changed = true;
-                        }
-                        let replacement_resp = crate::ui_style::modern_text_field_sized(
+                        ));
+                    });
+                    if trigger_resp.is_some_and(|resp| resp.changed()) {
+                        changed = true;
+                    }
+
+                    let mut replacement_resp = None;
+                    ui.allocate_ui_at_rect(replacement_rect, |ui| {
+                        replacement_resp = Some(crate::ui_style::modern_text_field_sized(
                             ui,
                             ui.make_persistent_id(("text_expander_replacement", idx)),
                             &mut rule.replacement,
-                            metrics.value(166.0),
-                            metrics.settings_control_height(),
+                            replacement_width,
+                            field_height,
                             crate::i18n::tr_catalog(lang, "text_expander.replacement_hint"),
                             480,
                             egui::Align::Min,
-                        );
-                        if replacement_resp.changed() {
-                            changed = true;
-                        }
-                        if crate::ui_style::modern_button(
-                            ui,
-                            "×",
-                            metrics.size(30.0, metrics.settings_control_height()),
-                            true,
-                        )
-                        .clicked()
-                        {
-                            delete_rule = true;
-                        }
+                        ));
                     });
+                    if replacement_resp.is_some_and(|resp| resp.changed()) {
+                        changed = true;
+                    }
+
+                    let mut delete_clicked = false;
+                    ui.allocate_ui_at_rect(delete_rect, |ui| {
+                        delete_clicked =
+                            crate::ui_style::modern_button(ui, "×", delete_size, true).clicked();
+                    });
+                    if delete_clicked {
+                        delete_rule = true;
+                    }
                 },
             );
 
