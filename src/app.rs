@@ -6183,6 +6183,8 @@ impl eframe::App for EntropyApp {
         if !self.unlock_open && !self.vial_unlock_polling {
             self.keycode_picker.language = self.app_settings.language;
             self.keycode_picker.key_legend_layout = self.app_settings.key_legend_layout;
+            self.keycode_picker.show_shifted_number_symbols =
+                self.app_settings.show_shifted_number_symbols;
             self.keycode_picker.show(ctx);
             self.apply_picker_results();
         }
@@ -14281,6 +14283,7 @@ impl EntropyApp {
                     let label = number_row_shifted_label(
                         label,
                         self.app_settings.show_shifted_number_symbols,
+                        self.app_settings.key_legend_layout,
                     );
                     draw_key_label_dimmed(
                         &painter,
@@ -14336,6 +14339,7 @@ impl EntropyApp {
                         self.app_settings.key_legend_layout,
                     ),
                     self.app_settings.show_shifted_number_symbols,
+                    self.app_settings.key_legend_layout,
                 );
                 draw_key_label(&painter, draw_rect, &label, dark, key.rotation.to_radians());
             }
@@ -14889,24 +14893,49 @@ fn draw_key_label_dimmed(
     }
 }
 
-fn number_row_shifted_label(label: String, enabled: bool) -> String {
+fn number_row_shifted_label(
+    label: String,
+    enabled: bool,
+    key_legend_layout: KeyLegendLayout,
+) -> String {
     if !enabled {
         return label;
     }
 
-    match label.as_str() {
-        "1" => "!\n1".to_string(),
-        "2" => "@\n2".to_string(),
-        "3" => "#\n3".to_string(),
-        "4" => "$\n4".to_string(),
-        "5" => "%\n5".to_string(),
-        "6" => "^\n6".to_string(),
-        "7" => "&\n7".to_string(),
-        "8" => "*\n8".to_string(),
-        "9" => "(\n9".to_string(),
-        "0" => ")\n0".to_string(),
-        _ => label,
-    }
+    let Some((digit, english, russian)) = (match label.as_str() {
+        "1" => Some(("1", "!", "!")),
+        "2" => Some(("2", "@", "\"")),
+        "3" => Some(("3", "#", "№")),
+        "4" => Some(("4", "$", ";")),
+        "5" => Some(("5", "%", "%")),
+        "6" => Some(("6", "^", ":")),
+        "7" => Some(("7", "&", "?")),
+        "8" => Some(("8", "*", "*")),
+        "9" => Some(("9", "(", "(")),
+        "0" => Some(("0", ")", ")")),
+        _ => None,
+    }) else {
+        return label;
+    };
+
+    let shifted = match key_legend_layout {
+        KeyLegendLayout::English => english.to_string(),
+        KeyLegendLayout::Russian => {
+            if english == russian {
+                english.to_string()
+            } else {
+                format!("{}  {}", english, russian)
+            }
+        }
+        KeyLegendLayout::RussianPrimary => {
+            if english == russian {
+                russian.to_string()
+            } else {
+                format!("{}  {}", russian, english)
+            }
+        }
+    };
+    format!("{}\n{}", shifted, digit)
 }
 
 fn with_alpha(color: Color32, alpha: f32) -> Color32 {

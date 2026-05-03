@@ -125,6 +125,7 @@ pub struct KeycodePicker {
     popup_state: PopupState,
     pub language: crate::i18n::Language,
     pub key_legend_layout: KeyLegendLayout,
+    pub show_shifted_number_symbols: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -469,6 +470,7 @@ impl Default for KeycodePicker {
             popup_state: PopupState::default(),
             language: crate::i18n::default_language(),
             key_legend_layout: KeyLegendLayout::default(),
+            show_shifted_number_symbols: true,
         }
     }
 }
@@ -641,6 +643,30 @@ fn popup_key_button_label(
         }
     }
     keycode_label_with_names_and_layout(kc.value, &[], layer_names, key_legend_layout)
+}
+
+fn picker_shifted_number_label(value: u16, key_legend_layout: KeyLegendLayout) -> Option<String> {
+    let (digit, english, russian) = match value {
+        0x001E => ("1", "!", "!"),
+        0x001F => ("2", "@", "\""),
+        0x0020 => ("3", "#", "№"),
+        0x0021 => ("4", "$", ";"),
+        0x0022 => ("5", "%", "%"),
+        0x0023 => ("6", "^", ":"),
+        0x0024 => ("7", "&", "?"),
+        0x0025 => ("8", "*", "*"),
+        0x0026 => ("9", "(", "("),
+        0x0027 => ("0", ")", ")"),
+        _ => return None,
+    };
+    let shifted = match key_legend_layout {
+        KeyLegendLayout::English => english.to_string(),
+        KeyLegendLayout::Russian if english == russian => english.to_string(),
+        KeyLegendLayout::Russian => format!("{}  {}", english, russian),
+        KeyLegendLayout::RussianPrimary if english == russian => russian.to_string(),
+        KeyLegendLayout::RussianPrimary => format!("{}  {}", russian, english),
+    };
+    Some(format!("{}\n{}", shifted, digit))
 }
 
 fn popup_key_button_size(ui: &egui::Ui, _label: &str) -> Vec2 {
@@ -1798,32 +1824,25 @@ impl KeycodePicker {
         for &(row, col, span, fallback_label, value) in keys {
             let assigned_value = self.basic_layout.map_value(value);
             let display_label = if self.key_legend_layout != KeyLegendLayout::English {
-                crate::keycode::find_keycode(assigned_value)
-                    .map(|_| {
-                        keycode_label_with_names_and_layout(
-                            assigned_value,
-                            &[],
-                            &self.layer_names,
-                            self.key_legend_layout,
-                        )
-                    })
-                    .unwrap_or_else(|| fallback_label.to_string())
-            } else {
-                match assigned_value {
-                    0x0035 => "~\n`".to_string(),
-                    0x001E => "!\n1".to_string(),
-                    0x001F => "@\n2".to_string(),
-                    0x0020 => "#\n3".to_string(),
-                    0x0021 => "$\n4".to_string(),
-                    0x0022 => "%\n5".to_string(),
-                    0x0023 => "^\n6".to_string(),
-                    0x0024 => "&\n7".to_string(),
-                    0x0025 => "*\n8".to_string(),
-                    0x0026 => "(\n9".to_string(),
-                    0x0027 => ")\n0".to_string(),
-                    0x002D => "_\n-".to_string(),
-                    0x002E => "+\n=".to_string(),
-                    _ => crate::keycode::find_keycode(assigned_value)
+                if self.show_shifted_number_symbols {
+                    if let Some(label) =
+                        picker_shifted_number_label(assigned_value, self.key_legend_layout)
+                    {
+                        label
+                    } else {
+                        crate::keycode::find_keycode(assigned_value)
+                            .map(|_| {
+                                keycode_label_with_names_and_layout(
+                                    assigned_value,
+                                    &[],
+                                    &self.layer_names,
+                                    self.key_legend_layout,
+                                )
+                            })
+                            .unwrap_or_else(|| fallback_label.to_string())
+                    }
+                } else {
+                    crate::keycode::find_keycode(assigned_value)
                         .map(|_| {
                             keycode_label_with_names_and_layout(
                                 assigned_value,
@@ -1832,7 +1851,46 @@ impl KeycodePicker {
                                 self.key_legend_layout,
                             )
                         })
-                        .unwrap_or_else(|| fallback_label.to_string()),
+                        .unwrap_or_else(|| fallback_label.to_string())
+                }
+            } else {
+                if self.show_shifted_number_symbols {
+                    match assigned_value {
+                        0x0035 => "~\n`".to_string(),
+                        0x001E => "!\n1".to_string(),
+                        0x001F => "@\n2".to_string(),
+                        0x0020 => "#\n3".to_string(),
+                        0x0021 => "$\n4".to_string(),
+                        0x0022 => "%\n5".to_string(),
+                        0x0023 => "^\n6".to_string(),
+                        0x0024 => "&\n7".to_string(),
+                        0x0025 => "*\n8".to_string(),
+                        0x0026 => "(\n9".to_string(),
+                        0x0027 => ")\n0".to_string(),
+                        0x002D => "_\n-".to_string(),
+                        0x002E => "+\n=".to_string(),
+                        _ => crate::keycode::find_keycode(assigned_value)
+                            .map(|_| {
+                                keycode_label_with_names_and_layout(
+                                    assigned_value,
+                                    &[],
+                                    &self.layer_names,
+                                    self.key_legend_layout,
+                                )
+                            })
+                            .unwrap_or_else(|| fallback_label.to_string()),
+                    }
+                } else {
+                    crate::keycode::find_keycode(assigned_value)
+                        .map(|_| {
+                            keycode_label_with_names_and_layout(
+                                assigned_value,
+                                &[],
+                                &self.layer_names,
+                                self.key_legend_layout,
+                            )
+                        })
+                        .unwrap_or_else(|| fallback_label.to_string())
                 }
             };
             self.basic_key_button_at(
