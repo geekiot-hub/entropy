@@ -3853,8 +3853,9 @@ impl EntropyApp {
                         tooltip(crate::i18n::tr(lang, TrKey::CloseToTrayTooltip)),
                         switch_width,
                         |ui| {
-                            let _ = crate::ui_style::settings_switch_sized(
+                            let _ = crate::ui_style::settings_switch_sized_stable(
                                 ui,
+                                "app_settings_minimize_to_tray",
                                 &mut minimize_to_tray,
                                 switch_size,
                             );
@@ -3882,8 +3883,9 @@ impl EntropyApp {
                         tooltip(crate::i18n::tr(lang, TrKey::ShiftedNumberSymbolsTooltip)),
                         switch_width,
                         |ui| {
-                            let _ = crate::ui_style::settings_switch_sized(
+                            let _ = crate::ui_style::settings_switch_sized_stable(
                                 ui,
+                                "app_settings_shifted_symbols",
                                 &mut show_shifted_symbols,
                                 switch_size,
                             );
@@ -3905,8 +3907,9 @@ impl EntropyApp {
                         tooltip(crate::i18n::tr(lang, TrKey::LayerHoverPreviewTooltip)),
                         switch_width,
                         |ui| {
-                            let _ = crate::ui_style::settings_switch_sized(
+                            let _ = crate::ui_style::settings_switch_sized_stable(
                                 ui,
+                                "app_settings_layer_hover_preview",
                                 &mut layer_hover_preview,
                                 switch_size,
                             );
@@ -3931,8 +3934,9 @@ impl EntropyApp {
                         tooltip(crate::i18n::tr(lang, TrKey::EncoderHoverZoomTooltip)),
                         switch_width,
                         |ui| {
-                            let _ = crate::ui_style::settings_switch_sized(
+                            let _ = crate::ui_style::settings_switch_sized_stable(
                                 ui,
+                                "app_settings_encoder_hover_enlarge",
                                 &mut encoder_hover_enlarge,
                                 switch_size,
                             );

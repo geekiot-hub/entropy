@@ -738,7 +738,22 @@ pub fn settings_switch_sized(
     checked: &mut bool,
     desired_size: Vec2,
 ) -> egui::Response {
-    settings_switch_impl(ui, checked, desired_size, true)
+    settings_switch_impl(ui, checked, desired_size, true, None)
+}
+
+pub fn settings_switch_sized_stable(
+    ui: &mut Ui,
+    id_source: impl std::hash::Hash,
+    checked: &mut bool,
+    desired_size: Vec2,
+) -> egui::Response {
+    settings_switch_impl(
+        ui,
+        checked,
+        desired_size,
+        true,
+        Some(ui.id().with(id_source)),
+    )
 }
 
 pub fn settings_switch_interactive(
@@ -746,7 +761,7 @@ pub fn settings_switch_interactive(
     checked: &mut bool,
     interactive: bool,
 ) -> egui::Response {
-    settings_switch_impl(ui, checked, egui::vec2(46.0, 24.0), interactive)
+    settings_switch_impl(ui, checked, egui::vec2(46.0, 24.0), interactive, None)
 }
 
 fn settings_switch_impl(
@@ -754,13 +769,19 @@ fn settings_switch_impl(
     checked: &mut bool,
     desired_size: Vec2,
     interactive: bool,
+    stable_id: Option<egui::Id>,
 ) -> egui::Response {
     let sense = if interactive {
         egui::Sense::click()
     } else {
         egui::Sense::hover()
     };
-    let (rect, mut response) = ui.allocate_exact_size(desired_size, sense);
+    let (rect, mut response) = if let Some(id) = stable_id {
+        let (rect, _) = ui.allocate_exact_size(desired_size, egui::Sense::hover());
+        (rect, ui.interact(rect, id, sense))
+    } else {
+        ui.allocate_exact_size(desired_size, sense)
+    };
     if interactive && response.clicked() {
         *checked = !*checked;
         response.mark_changed();
