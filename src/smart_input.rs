@@ -415,12 +415,7 @@ pub fn set_text_expander_config(
 fn text_expander_enabled() -> bool {
     text_expander_config()
         .read()
-        .map(|config| {
-            config.enabled
-                && !config.paused
-                && config.rules.iter().any(crate::text_expander::rule_usable)
-                && !foreground_app_blacklisted(&config.app_blacklist)
-        })
+        .map(|config| config.enabled && config.rules.iter().any(|rule| rule.enabled))
         .unwrap_or(false)
 }
 
