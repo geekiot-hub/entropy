@@ -622,6 +622,10 @@ fn popup_key_group_title(kc: &crate::keycode::Keycode) -> &'static str {
     }
 }
 
+fn is_f13_to_f24(value: u16) -> bool {
+    (0x0068..=0x0073).contains(&value)
+}
+
 fn popup_key_button_label(
     kc: &crate::keycode::Keycode,
     layer_names: &[String],
@@ -671,6 +675,110 @@ fn picker_shifted_number_label(value: u16, key_legend_layout: KeyLegendLayout) -
 
 fn popup_key_button_size(ui: &egui::Ui, _label: &str) -> Vec2 {
     responsive_picker_key_size(ui.ctx())
+}
+
+fn picker_keycap_button_in_rect(
+    ui: &mut egui::Ui,
+    rect: egui::Rect,
+    label: &str,
+    enabled: bool,
+    active: bool,
+) -> egui::Response {
+    let sense = if enabled {
+        egui::Sense::click()
+    } else {
+        egui::Sense::hover()
+    };
+    let resp = ui.allocate_rect(rect, sense);
+    let dark = ui.visuals().dark_mode;
+    let hovered = enabled && resp.hovered();
+    let pressed = enabled && resp.is_pointer_button_down_on();
+    let stroke = crate::ui_style::modal_outline_stroke(dark);
+    let fill = if active {
+        crate::ui_style::accent()
+    } else if pressed {
+        if dark {
+            Color32::from_rgb(56, 56, 59)
+        } else {
+            Color32::from_rgb(232, 232, 235)
+        }
+    } else if hovered {
+        crate::ui_style::hover_fill(dark)
+    } else {
+        Color32::TRANSPARENT
+    };
+    ui.painter()
+        .rect(rect, 9.0, fill, stroke, egui::StrokeKind::Inside);
+
+    let text_color = if active {
+        Color32::WHITE
+    } else if enabled {
+        ui.visuals().text_color()
+    } else {
+        crate::ui_style::muted_text(dark)
+    };
+    let label_scale = (rect.height() / 54.0).clamp(1.0, 1.22);
+    let (top_size, bottom_size) = key_label_font_sizes(label);
+    let top_size = top_size.map(|size| size * label_scale);
+    let bottom_size = bottom_size * label_scale;
+    if let Some((top, bottom)) = label.split_once('\n') {
+        let top_color = text_color.gamma_multiply(0.75);
+        let top_galley = ui.painter().layout_no_wrap(
+            top.to_owned(),
+            egui::FontId::proportional(top_size.unwrap_or(9.0)),
+            top_color,
+        );
+        let bottom_galley = ui.painter().layout_no_wrap(
+            bottom.to_owned(),
+            egui::FontId::proportional(bottom_size),
+            text_color,
+        );
+        ui.painter().galley(
+            egui::pos2(
+                rect.center().x - top_galley.size().x / 2.0,
+                rect.center().y - 7.0 * label_scale - top_galley.size().y / 2.0,
+            ),
+            top_galley,
+            top_color,
+        );
+        ui.painter().galley(
+            egui::pos2(
+                rect.center().x - bottom_galley.size().x / 2.0,
+                rect.center().y + 6.0 * label_scale - bottom_galley.size().y / 2.0,
+            ),
+            bottom_galley,
+            text_color,
+        );
+    } else {
+        let galley = ui.painter().layout_no_wrap(
+            label.to_owned(),
+            egui::FontId::proportional(bottom_size),
+            text_color,
+        );
+        ui.painter().galley(
+            egui::pos2(
+                rect.center().x - galley.size().x / 2.0,
+                rect.center().y - galley.size().y / 2.0,
+            ),
+            galley,
+            text_color,
+        );
+    }
+    if hovered {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    resp
+}
+
+fn picker_keycap_button(
+    ui: &mut egui::Ui,
+    label: &str,
+    size: Vec2,
+    enabled: bool,
+    active: bool,
+) -> egui::Response {
+    let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
+    picker_keycap_button_in_rect(ui, rect, label, enabled, active)
 }
 
 const KEY_PICKER_POPUP_WIDTH: f32 = 760.0;
@@ -928,7 +1036,7 @@ fn show_grouped_popup_key_buttons(
                 let label =
                     popup_key_button_label(kc, layer_names, friendly_mods, key_legend_layout);
                 let size = popup_key_button_size(ui, &label);
-                let resp = picker_button(ui, &label, size, true, false);
+                let resp = picker_keycap_button(ui, &label, size, true, false);
                 if resp.clicked() {
                     selected = Some(kc.value);
                 }
@@ -968,7 +1076,7 @@ fn show_grouped_popup_choice_buttons(
         ui.horizontal_wrapped(|ui| {
             for (value, label, tooltip) in choices {
                 let size = popup_key_button_size(ui, &label);
-                let resp = picker_button(ui, &label, size, true, false);
+                let resp = picker_keycap_button(ui, &label, size, true, false);
                 if resp.clicked() {
                     selected = Some(value);
                 }
@@ -1153,6 +1261,7 @@ impl KeycodePicker {
                                     | KeycodeCategory::Special
                             )
                             && kc.value < 0x0100
+                            && !is_f13_to_f24(kc.value)
                     })
                     .collect();
                 egui::ScrollArea::vertical()
@@ -1499,7 +1608,9 @@ impl KeycodePicker {
                                 | KeycodeCategory::Navigation
                         )
                     })
-                    .filter(|kc| kc.value != 0 && kc.value < 0x0100)
+                    .filter(|kc| {
+                        kc.value != 0 && kc.value < 0x0100 && !is_f13_to_f24(kc.value)
+                    })
                     .collect();
                 egui::ScrollArea::vertical()
                     .max_height(key_picker_popup_scroll_height(popup_size))
@@ -1547,86 +1658,7 @@ impl KeycodePicker {
         let y = origin.y + row as f32 * (cell_h + gap) + right_nav_extra_gap;
         let width = span as f32 * cell_w + span.saturating_sub(1) as f32 * gap;
         let rect = egui::Rect::from_min_size(egui::pos2(x, y), Vec2::new(width, cell_h));
-        let inactive_stroke = if ui.visuals().dark_mode {
-            egui::Stroke::new(1.0, Color32::from_rgb(54, 54, 58))
-        } else {
-            egui::Stroke::new(1.0, Color32::from_rgb(230, 230, 233))
-        };
-        let hover_stroke = if ui.visuals().dark_mode {
-            egui::Stroke::new(1.0, Color32::from_rgb(54, 54, 58))
-        } else {
-            egui::Stroke::new(1.0, Color32::from_rgb(230, 230, 233))
-        };
-        let hover_fill = crate::ui_style::hover_fill(ui.visuals().dark_mode);
-        let resp = ui.put(
-            rect,
-            egui::Button::new("")
-                .min_size(Vec2::new(width, cell_h))
-                .fill(Color32::TRANSPARENT)
-                .stroke(inactive_stroke),
-        );
-        if resp.hovered() {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-            ui.painter().rect_filled(
-                resp.rect,
-                ui.visuals().widgets.hovered.corner_radius,
-                hover_fill,
-            );
-            ui.painter().rect_stroke(
-                resp.rect,
-                ui.visuals().widgets.hovered.corner_radius,
-                hover_stroke,
-                egui::StrokeKind::Outside,
-            );
-        }
-        let visuals = ui.style().interact(&resp);
-        let label_scale = (cell_h / 54.0).clamp(1.0, 1.22);
-        let (top_size, bottom_size) = key_label_font_sizes(label);
-        let top_size = top_size.map(|size| size * label_scale);
-        let bottom_size = bottom_size * label_scale;
-        if let Some((top, bottom)) = label.split_once('\n') {
-            let top_color = visuals.fg_stroke.color.gamma_multiply(0.75);
-            let top_galley = ui.painter().layout_no_wrap(
-                top.to_owned(),
-                egui::FontId::proportional(top_size.unwrap_or(9.0)),
-                top_color,
-            );
-            let bottom_galley = ui.painter().layout_no_wrap(
-                bottom.to_owned(),
-                egui::FontId::proportional(bottom_size),
-                visuals.fg_stroke.color,
-            );
-            ui.painter().galley(
-                egui::pos2(
-                    resp.rect.center().x - top_galley.size().x / 2.0,
-                    resp.rect.center().y - 7.0 * label_scale - top_galley.size().y / 2.0,
-                ),
-                top_galley,
-                top_color,
-            );
-            ui.painter().galley(
-                egui::pos2(
-                    resp.rect.center().x - bottom_galley.size().x / 2.0,
-                    resp.rect.center().y + 6.0 * label_scale - bottom_galley.size().y / 2.0,
-                ),
-                bottom_galley,
-                visuals.fg_stroke.color,
-            );
-        } else {
-            let galley = ui.painter().layout_no_wrap(
-                label.to_owned(),
-                egui::FontId::proportional(bottom_size),
-                visuals.fg_stroke.color,
-            );
-            ui.painter().galley(
-                egui::pos2(
-                    resp.rect.center().x - galley.size().x / 2.0,
-                    resp.rect.center().y - galley.size().y / 2.0,
-                ),
-                galley,
-                visuals.fg_stroke.color,
-            );
-        }
+        let resp = picker_keycap_button_in_rect(ui, rect, label, true, false);
         if resp.clicked() {
             self.assign_keycode_value(value);
         }
@@ -2504,19 +2536,22 @@ impl KeycodePicker {
                     ) {
                         continue;
                     }
-                    if kc.value >= 0x0200 {
+                    if kc.value >= 0x0200 || is_f13_to_f24(kc.value) {
                         continue;
                     }
-                    let resp = ui
-                        .add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""))
-                        .on_hover_cursor(egui::CursorIcon::PointingHand);
                     let label = keycode_label_with_names_and_layout(
                         kc.value,
                         &[],
                         &self.layer_names,
                         self.key_legend_layout,
                     );
-                    Self::paint_compact_picker_label(ui, &resp, &label);
+                    let resp = picker_keycap_button(
+                        ui,
+                        &label,
+                        Self::picker_key_size(ui.ctx()),
+                        true,
+                        false,
+                    );
                     if resp.clicked() {
                         self.finish_quantum_pending_key(base, kc.value, false);
                     }
@@ -2557,19 +2592,22 @@ impl KeycodePicker {
                     ) {
                         continue;
                     }
-                    if kc.value >= 0x0200 {
+                    if kc.value >= 0x0200 || is_f13_to_f24(kc.value) {
                         continue;
                     }
-                    let resp = ui
-                        .add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""))
-                        .on_hover_cursor(egui::CursorIcon::PointingHand);
                     let label = keycode_label_with_names_and_layout(
                         kc.value,
                         &[],
                         &self.layer_names,
                         self.key_legend_layout,
                     );
-                    Self::paint_compact_picker_label(ui, &resp, &label);
+                    let resp = picker_keycap_button(
+                        ui,
+                        &label,
+                        Self::picker_key_size(ui.ctx()),
+                        true,
+                        false,
+                    );
                     if resp.clicked() {
                         self.finish_quantum_pending_key(base, kc.value, true);
                     }
@@ -3815,6 +3853,7 @@ impl KeycodePicker {
                                 | KeycodeCategory::Media
                                 | KeycodeCategory::Special
                         )
+                        && !is_f13_to_f24(kc.value)
                 })
                 .map(|kc| {
                     (
@@ -3897,6 +3936,7 @@ impl KeycodePicker {
                                             | KeycodeCategory::Media
                                             | KeycodeCategory::Special
                                     )
+                                    && !is_f13_to_f24(kc.value)
                             })
                             .collect();
                         if let Some(value) = show_grouped_popup_key_buttons(
