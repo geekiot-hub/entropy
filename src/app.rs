@@ -3462,348 +3462,520 @@ impl EntropyApp {
         let lang = self.app_settings.language;
         let content_width = metrics.settings_content_width();
         let row_height = metrics.settings_row_height();
-        let switch_width = metrics.value(46.0);
-        let switch_size = metrics.size(46.0, 24.0);
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
-                ui.add_space(18.0);
+                ui.add_space(metrics.value(18.0));
                 ui.label(
                     RichText::new(crate::i18n::tr(lang, TrKey::AppSettingsTitle))
-                        .size(18.0)
+                        .size(metrics.value(18.0))
                         .strong(),
                 );
-                ui.add_space(6.0);
+                ui.add_space(metrics.value(6.0));
                 ui.label(
                     RichText::new(crate::i18n::tr(lang, TrKey::AppSettingsDescription))
-                        .size(13.0)
+                        .size(metrics.value(13.0))
                         .color(app_muted_text(dark)),
                 );
-                ui.add_space(24.0);
+                ui.add_space(metrics.value(24.0));
 
-                let mut selected_language = self.app_settings.language;
-                crate::ui_style::settings_list_row_with_tooltip(
-                    ui,
-                    content_width,
-                    row_height,
-                    crate::i18n::tr(lang, TrKey::LanguageLabel),
-                    true,
-                    Some(crate::i18n::tr(lang, TrKey::LanguageTooltip)),
-                    metrics.settings_control_width(),
-                    |ui| {
-                        let dropdown_id = ui.make_persistent_id("app_language_dropdown");
-                        let dropdown_resp = crate::ui_style::modern_dropdown_button_sized(
-                            ui,
-                            dropdown_id,
-                            selected_language.native_name(),
-                            ui.visuals().text_color(),
-                            metrics.settings_control_width(),
-                            metrics.settings_control_height(),
-                            metrics.settings_control_font_size(),
-                        );
-                        egui::popup_below_widget(
-                            ui,
-                            dropdown_id,
-                            &dropdown_resp,
-                            egui::PopupCloseBehavior::CloseOnClickOutside,
-                            |ui| {
-                                ui.set_min_width(metrics.settings_control_width());
-                                ui.spacing_mut().item_spacing = Vec2::new(0.0, 2.0);
-                                for language in crate::i18n::Language::ALL {
-                                    let selected = language == selected_language;
-                                    let (option_rect, option_resp) = ui.allocate_exact_size(
-                                        metrics.size(168.0, 28.0),
-                                        Sense::click(),
-                                    );
-                                    if option_resp.hovered() {
-                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                    }
-                                    let option_fill = if selected {
-                                        if dark {
-                                            Color32::from_rgb(58, 58, 61)
-                                        } else {
-                                            Color32::from_rgb(236, 236, 238)
-                                        }
-                                    } else if option_resp.hovered() {
-                                        crate::ui_style::hover_fill(dark)
-                                    } else {
-                                        Color32::TRANSPARENT
-                                    };
-                                    ui.painter().rect_filled(option_rect, 7.0, option_fill);
-                                    ui.painter().text(
-                                        egui::pos2(
-                                            option_rect.left() + metrics.value(10.0),
-                                            option_rect.center().y,
-                                        ),
-                                        egui::Align2::LEFT_CENTER,
-                                        language.native_name(),
-                                        FontId::proportional(metrics.value(12.0)),
-                                        if selected {
-                                            ui.visuals().text_color()
-                                        } else {
-                                            app_muted_text(dark)
-                                        },
-                                    );
-                                    if option_resp.clicked() {
-                                        selected_language = language;
-                                        ui.memory_mut(|m| m.close_popup());
-                                    }
-                                }
-                            },
-                        );
-                    },
+                const TOTAL_APP_SETTINGS_ROWS: usize = 8;
+                let visible_rows = responsive_settings_visible_rows(
+                    ui.ctx(),
+                    ui.available_height(),
+                    TOTAL_APP_SETTINGS_ROWS,
+                    metrics.value(44.0),
                 );
-                if selected_language != self.app_settings.language {
-                    self.app_settings.language = selected_language;
-                    save_app_settings(&self.app_settings);
+                let list_height = row_height * visible_rows as f32;
+                let content_height = row_height * TOTAL_APP_SETTINGS_ROWS as f32;
+                let max_offset = (content_height - list_height).max(0.0);
+                let offset_id = ui.id().with("app_settings_smooth_offset");
+                let target_id = ui.id().with("app_settings_smooth_target");
+                let mut scroll_offset = ui
+                    .ctx()
+                    .data_mut(|d| d.get_persisted::<f32>(offset_id).unwrap_or(0.0))
+                    .clamp(0.0, max_offset);
+                let mut target_offset = ui
+                    .ctx()
+                    .data_mut(|d| d.get_persisted::<f32>(target_id).unwrap_or(scroll_offset))
+                    .clamp(0.0, max_offset);
+                let (viewport, viewport_resp) =
+                    ui.allocate_exact_size(egui::vec2(content_width, list_height), Sense::hover());
+
+                let track_width = metrics.value(6.0);
+                let track_rect = egui::Rect::from_min_max(
+                    egui::pos2(viewport.right() - track_width, viewport.top()),
+                    egui::pos2(viewport.right(), viewport.bottom()),
+                );
+                let scrollbar_resp = if max_offset > 0.0 {
+                    Some(ui.interact(
+                        track_rect.expand2(egui::vec2(metrics.value(5.0), 0.0)),
+                        ui.id().with("app_settings_scrollbar"),
+                        Sense::click_and_drag(),
+                    ))
+                } else {
+                    None
+                };
+
+                let mut scroll_active = false;
+                let scroll_delta = if viewport_resp.hovered() {
+                    ui.input(|i| {
+                        if i.smooth_scroll_delta.y.abs() > 0.0 {
+                            i.smooth_scroll_delta.y
+                        } else {
+                            i.raw_scroll_delta.y
+                        }
+                    })
+                } else {
+                    0.0
+                };
+                if scroll_delta.abs() > 0.0 && max_offset > 0.0 {
+                    scroll_active = true;
+                    target_offset = (target_offset - scroll_delta * 0.72).clamp(0.0, max_offset);
                 }
 
-                let mut selected_key_legend_layout = self.app_settings.key_legend_layout;
-                crate::ui_style::settings_list_row_with_tooltip(
-                    ui,
-                    content_width,
-                    row_height,
-                    crate::i18n::tr_catalog(lang, "ui.key_legends_label"),
-                    true,
-                    Some(crate::i18n::tr_catalog(lang, "ui.key_legends_tooltip")),
-                    metrics.settings_control_width(),
-                    |ui| {
-                        let dropdown_id = ui.make_persistent_id("app_key_legends_dropdown");
-                        let dropdown_resp = crate::ui_style::modern_dropdown_button_sized(
-                            ui,
-                            dropdown_id,
-                            crate::i18n::tr_catalog(lang, selected_key_legend_layout.i18n_key()),
-                            ui.visuals().text_color(),
-                            metrics.settings_control_width(),
-                            metrics.settings_control_height(),
-                            metrics.settings_control_font_size(),
-                        );
-                        egui::popup_below_widget(
-                            ui,
-                            dropdown_id,
-                            &dropdown_resp,
-                            egui::PopupCloseBehavior::CloseOnClickOutside,
-                            |ui| {
-                                ui.set_min_width(metrics.settings_control_width());
-                                ui.spacing_mut().item_spacing = Vec2::new(0.0, 2.0);
-                                for key_legend_layout in KeyLegendLayout::ALL {
-                                    let selected = key_legend_layout == selected_key_legend_layout;
-                                    let (option_rect, option_resp) = ui.allocate_exact_size(
-                                        metrics.size(168.0, 28.0),
-                                        Sense::click(),
-                                    );
-                                    if option_resp.hovered() {
-                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                    }
-                                    let option_fill = if selected {
-                                        if dark {
-                                            Color32::from_rgb(58, 58, 61)
-                                        } else {
-                                            Color32::from_rgb(236, 236, 238)
-                                        }
-                                    } else if option_resp.hovered() {
-                                        crate::ui_style::hover_fill(dark)
-                                    } else {
-                                        Color32::TRANSPARENT
-                                    };
-                                    ui.painter().rect_filled(option_rect, 7.0, option_fill);
-                                    ui.painter().text(
-                                        egui::pos2(
-                                            option_rect.left() + metrics.value(10.0),
-                                            option_rect.center().y,
-                                        ),
-                                        egui::Align2::LEFT_CENTER,
-                                        crate::i18n::tr_catalog(lang, key_legend_layout.i18n_key()),
-                                        FontId::proportional(metrics.value(12.0)),
-                                        if selected {
-                                            ui.visuals().text_color()
-                                        } else {
-                                            app_muted_text(dark)
-                                        },
-                                    );
-                                    if option_resp.clicked() {
-                                        selected_key_legend_layout = key_legend_layout;
-                                        ui.memory_mut(|m| m.close_popup());
-                                    }
-                                }
-                            },
-                        );
-                    },
-                );
-                if selected_key_legend_layout != self.app_settings.key_legend_layout {
-                    self.app_settings.key_legend_layout = selected_key_legend_layout;
-                    save_app_settings(&self.app_settings);
+                let handle_height = if max_offset > 0.0 {
+                    (list_height / content_height * viewport.height())
+                        .clamp(metrics.value(42.0), viewport.height())
+                } else {
+                    viewport.height()
+                };
+                if let Some(resp) = &scrollbar_resp {
+                    if (resp.dragged() || resp.clicked()) && max_offset > 0.0 {
+                        if let Some(pointer_pos) = ui.input(|i| i.pointer.interact_pos()) {
+                            scroll_active = true;
+                            let travel = (track_rect.height() - handle_height).max(1.0);
+                            let t = ((pointer_pos.y - track_rect.top() - handle_height / 2.0)
+                                / travel)
+                                .clamp(0.0, 1.0);
+                            target_offset = t * max_offset;
+                            scroll_offset = target_offset;
+                        }
+                    }
                 }
 
-                let mut minimize_to_tray = self.app_settings.minimize_to_tray_on_close;
-                crate::ui_style::settings_list_row_with_tooltip(
-                    ui,
-                    content_width,
-                    row_height,
-                    crate::i18n::tr(lang, TrKey::CloseToTrayLabel),
-                    true,
-                    Some(crate::i18n::tr(lang, TrKey::CloseToTrayTooltip)),
-                    switch_width,
-                    |ui| {
-                        let _ = crate::ui_style::settings_switch_sized(
-                            ui,
-                            &mut minimize_to_tray,
-                            switch_size,
-                        );
-                    },
+                if (scroll_offset - target_offset).abs() > 0.35 {
+                    scroll_offset += (target_offset - scroll_offset) * 0.42;
+                    scroll_active = true;
+                    ui.ctx().request_repaint();
+                } else {
+                    scroll_offset = target_offset;
+                }
+                scroll_offset = scroll_offset.clamp(0.0, max_offset);
+                target_offset = target_offset.clamp(0.0, max_offset);
+                ui.ctx().data_mut(|d| {
+                    d.insert_persisted(offset_id, scroll_offset);
+                    d.insert_persisted(target_id, target_offset);
+                });
+
+                let first_visible_row = (scroll_offset / row_height).floor() as usize;
+                let row_y_offset = scroll_offset - first_visible_row as f32 * row_height;
+                let last_visible_row =
+                    (first_visible_row + visible_rows + 1).min(TOTAL_APP_SETTINGS_ROWS);
+                let visible_row_count = last_visible_row.saturating_sub(first_visible_row);
+                let list_content_rect = egui::Rect::from_min_size(
+                    egui::pos2(viewport.left(), viewport.top() - row_y_offset),
+                    egui::vec2(content_width, row_height * visible_row_count as f32),
                 );
-                if minimize_to_tray != self.app_settings.minimize_to_tray_on_close {
-                    self.app_settings.minimize_to_tray_on_close = minimize_to_tray;
-                    if !minimize_to_tray {
+                let suppress_tooltips = scroll_active || ui.input(|i| i.pointer.primary_down());
+                ui.allocate_ui_at_rect(list_content_rect, |ui| {
+                    ui.set_clip_rect(viewport);
+                    ui.set_min_size(list_content_rect.size());
+                    ui.spacing_mut().item_spacing.y = 0.0;
+                    self.draw_app_settings_editor_content(
+                        ui,
+                        first_visible_row..last_visible_row,
+                        content_width,
+                        row_height,
+                        metrics,
+                        dark,
+                        suppress_tooltips,
+                    );
+                });
+
+                if max_offset > 0.0 {
+                    let track_hovered = scrollbar_resp
+                        .as_ref()
+                        .map(|resp| resp.hovered() || resp.dragged())
+                        .unwrap_or(false);
+                    crate::ui_style::paint_floating_scrollbar_handle(
+                        ui,
+                        track_rect,
+                        handle_height,
+                        scroll_offset / max_offset,
+                        track_hovered,
+                    );
+                }
+            });
+        });
+    }
+
+    fn draw_app_settings_editor_content(
+        &mut self,
+        ui: &mut egui::Ui,
+        row_range: std::ops::Range<usize>,
+        content_width: f32,
+        row_height: f32,
+        metrics: crate::ui_style::ResponsiveMetrics,
+        dark: bool,
+        suppress_tooltips: bool,
+    ) {
+        use crate::i18n::Key as TrKey;
+
+        let lang = self.app_settings.language;
+        let switch_width = metrics.value(46.0);
+        let switch_size = metrics.size(46.0, 24.0);
+        let tooltip = |text: &'static str| (!suppress_tooltips).then_some(text);
+
+        for row_idx in row_range {
+            match row_idx {
+                0 => {
+                    let mut selected_language = self.app_settings.language;
+                    crate::ui_style::settings_list_row_with_tooltip(
+                        ui,
+                        content_width,
+                        row_height,
+                        crate::i18n::tr(lang, TrKey::LanguageLabel),
+                        true,
+                        tooltip(crate::i18n::tr(lang, TrKey::LanguageTooltip)),
+                        metrics.settings_control_width(),
+                        |ui| {
+                            let dropdown_id = ui.make_persistent_id("app_language_dropdown");
+                            let dropdown_resp = crate::ui_style::modern_dropdown_button_sized(
+                                ui,
+                                dropdown_id,
+                                selected_language.native_name(),
+                                ui.visuals().text_color(),
+                                metrics.settings_control_width(),
+                                metrics.settings_control_height(),
+                                metrics.settings_control_font_size(),
+                            );
+                            egui::popup_below_widget(
+                                ui,
+                                dropdown_id,
+                                &dropdown_resp,
+                                egui::PopupCloseBehavior::CloseOnClickOutside,
+                                |ui| {
+                                    ui.set_min_width(metrics.settings_control_width());
+                                    ui.spacing_mut().item_spacing = Vec2::new(0.0, 2.0);
+                                    for language in crate::i18n::Language::ALL {
+                                        let selected = language == selected_language;
+                                        let (option_rect, option_resp) = ui.allocate_exact_size(
+                                            metrics.size(168.0, 28.0),
+                                            Sense::click(),
+                                        );
+                                        if option_resp.hovered() {
+                                            ui.ctx()
+                                                .set_cursor_icon(egui::CursorIcon::PointingHand);
+                                        }
+                                        let option_fill = if selected {
+                                            if dark {
+                                                Color32::from_rgb(58, 58, 61)
+                                            } else {
+                                                Color32::from_rgb(236, 236, 238)
+                                            }
+                                        } else if option_resp.hovered() {
+                                            crate::ui_style::hover_fill(dark)
+                                        } else {
+                                            Color32::TRANSPARENT
+                                        };
+                                        ui.painter().rect_filled(option_rect, 7.0, option_fill);
+                                        ui.painter().text(
+                                            egui::pos2(
+                                                option_rect.left() + metrics.value(10.0),
+                                                option_rect.center().y,
+                                            ),
+                                            egui::Align2::LEFT_CENTER,
+                                            language.native_name(),
+                                            FontId::proportional(metrics.value(12.0)),
+                                            if selected {
+                                                ui.visuals().text_color()
+                                            } else {
+                                                app_muted_text(dark)
+                                            },
+                                        );
+                                        if option_resp.clicked() {
+                                            selected_language = language;
+                                            ui.memory_mut(|m| m.close_popup());
+                                        }
+                                    }
+                                },
+                            );
+                        },
+                    );
+                    if selected_language != self.app_settings.language {
+                        self.app_settings.language = selected_language;
+                        save_app_settings(&self.app_settings);
+                    }
+                }
+                1 => {
+                    let mut selected_key_legend_layout = self.app_settings.key_legend_layout;
+                    crate::ui_style::settings_list_row_with_tooltip(
+                        ui,
+                        content_width,
+                        row_height,
+                        crate::i18n::tr_catalog(lang, "ui.key_legends_label"),
+                        true,
+                        tooltip(crate::i18n::tr_catalog(lang, "ui.key_legends_tooltip")),
+                        metrics.settings_control_width(),
+                        |ui| {
+                            let dropdown_id = ui.make_persistent_id("app_key_legends_dropdown");
+                            let dropdown_resp = crate::ui_style::modern_dropdown_button_sized(
+                                ui,
+                                dropdown_id,
+                                crate::i18n::tr_catalog(
+                                    lang,
+                                    selected_key_legend_layout.i18n_key(),
+                                ),
+                                ui.visuals().text_color(),
+                                metrics.settings_control_width(),
+                                metrics.settings_control_height(),
+                                metrics.settings_control_font_size(),
+                            );
+                            egui::popup_below_widget(
+                                ui,
+                                dropdown_id,
+                                &dropdown_resp,
+                                egui::PopupCloseBehavior::CloseOnClickOutside,
+                                |ui| {
+                                    ui.set_min_width(metrics.settings_control_width());
+                                    ui.spacing_mut().item_spacing = Vec2::new(0.0, 2.0);
+                                    for key_legend_layout in KeyLegendLayout::ALL {
+                                        let selected =
+                                            key_legend_layout == selected_key_legend_layout;
+                                        let (option_rect, option_resp) = ui.allocate_exact_size(
+                                            metrics.size(168.0, 28.0),
+                                            Sense::click(),
+                                        );
+                                        if option_resp.hovered() {
+                                            ui.ctx()
+                                                .set_cursor_icon(egui::CursorIcon::PointingHand);
+                                        }
+                                        let option_fill = if selected {
+                                            if dark {
+                                                Color32::from_rgb(58, 58, 61)
+                                            } else {
+                                                Color32::from_rgb(236, 236, 238)
+                                            }
+                                        } else if option_resp.hovered() {
+                                            crate::ui_style::hover_fill(dark)
+                                        } else {
+                                            Color32::TRANSPARENT
+                                        };
+                                        ui.painter().rect_filled(option_rect, 7.0, option_fill);
+                                        ui.painter().text(
+                                            egui::pos2(
+                                                option_rect.left() + metrics.value(10.0),
+                                                option_rect.center().y,
+                                            ),
+                                            egui::Align2::LEFT_CENTER,
+                                            crate::i18n::tr_catalog(
+                                                lang,
+                                                key_legend_layout.i18n_key(),
+                                            ),
+                                            FontId::proportional(metrics.value(12.0)),
+                                            if selected {
+                                                ui.visuals().text_color()
+                                            } else {
+                                                app_muted_text(dark)
+                                            },
+                                        );
+                                        if option_resp.clicked() {
+                                            selected_key_legend_layout = key_legend_layout;
+                                            ui.memory_mut(|m| m.close_popup());
+                                        }
+                                    }
+                                },
+                            );
+                        },
+                    );
+                    if selected_key_legend_layout != self.app_settings.key_legend_layout {
+                        self.app_settings.key_legend_layout = selected_key_legend_layout;
+                        save_app_settings(&self.app_settings);
+                    }
+                }
+                2 => {
+                    let mut minimize_to_tray = self.app_settings.minimize_to_tray_on_close;
+                    crate::ui_style::settings_list_row_with_tooltip(
+                        ui,
+                        content_width,
+                        row_height,
+                        crate::i18n::tr(lang, TrKey::CloseToTrayLabel),
+                        true,
+                        tooltip(crate::i18n::tr(lang, TrKey::CloseToTrayTooltip)),
+                        switch_width,
+                        |ui| {
+                            let _ = crate::ui_style::settings_switch_sized(
+                                ui,
+                                &mut minimize_to_tray,
+                                switch_size,
+                            );
+                        },
+                    );
+                    if minimize_to_tray != self.app_settings.minimize_to_tray_on_close {
+                        self.app_settings.minimize_to_tray_on_close = minimize_to_tray;
+                        if !minimize_to_tray {
+                            #[cfg(target_os = "windows")]
+                            {
+                                self.tray_icon = None;
+                            }
+                        }
+                        save_app_settings(&self.app_settings);
+                    }
+                }
+                3 => {
+                    let mut show_shifted_symbols = self.app_settings.show_shifted_number_symbols;
+                    crate::ui_style::settings_list_row_with_tooltip(
+                        ui,
+                        content_width,
+                        row_height,
+                        crate::i18n::tr(lang, TrKey::ShiftedNumberSymbolsLabel),
+                        true,
+                        tooltip(crate::i18n::tr(lang, TrKey::ShiftedNumberSymbolsTooltip)),
+                        switch_width,
+                        |ui| {
+                            let _ = crate::ui_style::settings_switch_sized(
+                                ui,
+                                &mut show_shifted_symbols,
+                                switch_size,
+                            );
+                        },
+                    );
+                    if show_shifted_symbols != self.app_settings.show_shifted_number_symbols {
+                        self.app_settings.show_shifted_number_symbols = show_shifted_symbols;
+                        save_app_settings(&self.app_settings);
+                    }
+                }
+                4 => {
+                    let mut layer_hover_preview = self.app_settings.layer_hover_preview;
+                    crate::ui_style::settings_list_row_with_tooltip(
+                        ui,
+                        content_width,
+                        row_height,
+                        crate::i18n::tr(lang, TrKey::LayerHoverPreviewLabel),
+                        true,
+                        tooltip(crate::i18n::tr(lang, TrKey::LayerHoverPreviewTooltip)),
+                        switch_width,
+                        |ui| {
+                            let _ = crate::ui_style::settings_switch_sized(
+                                ui,
+                                &mut layer_hover_preview,
+                                switch_size,
+                            );
+                        },
+                    );
+                    if layer_hover_preview != self.app_settings.layer_hover_preview {
+                        self.app_settings.layer_hover_preview = layer_hover_preview;
+                        if !layer_hover_preview {
+                            self.hover_layer = None;
+                        }
+                        save_app_settings(&self.app_settings);
+                    }
+                }
+                5 => {
+                    let mut encoder_hover_enlarge = self.app_settings.encoder_hover_enlarge;
+                    crate::ui_style::settings_list_row_with_tooltip(
+                        ui,
+                        content_width,
+                        row_height,
+                        crate::i18n::tr(lang, TrKey::EncoderHoverZoomLabel),
+                        true,
+                        tooltip(crate::i18n::tr(lang, TrKey::EncoderHoverZoomTooltip)),
+                        switch_width,
+                        |ui| {
+                            let _ = crate::ui_style::settings_switch_sized(
+                                ui,
+                                &mut encoder_hover_enlarge,
+                                switch_size,
+                            );
+                        },
+                    );
+                    if encoder_hover_enlarge != self.app_settings.encoder_hover_enlarge {
+                        self.app_settings.encoder_hover_enlarge = encoder_hover_enlarge;
+                        save_app_settings(&self.app_settings);
+                    }
+                }
+                6 => {
+                    let mut selected_accent = self.app_settings.accent_color;
+                    crate::ui_style::settings_list_row_with_tooltip(
+                        ui,
+                        content_width,
+                        row_height,
+                        crate::i18n::tr(lang, TrKey::AccentColorLabel),
+                        true,
+                        tooltip(crate::i18n::tr(lang, TrKey::AccentColorTooltip)),
+                        metrics.value(218.0),
+                        |ui| {
+                            ui.horizontal(|ui| {
+                                ui.spacing_mut().item_spacing.x = 7.0;
+                                for accent in AppAccentColor::ALL {
+                                    let color = accent.color();
+                                    let selected = accent == selected_accent;
+                                    let (rect, resp) = ui.allocate_exact_size(
+                                        Vec2::new(26.0, 26.0),
+                                        egui::Sense::click(),
+                                    );
+                                    if resp.hovered() {
+                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                    }
+                                    if resp.clicked() {
+                                        selected_accent = accent;
+                                    }
+                                    let stroke = if selected {
+                                        Stroke::new(2.0, color)
+                                    } else {
+                                        crate::ui_style::modal_outline_stroke(dark)
+                                    };
+                                    ui.painter().circle_filled(rect.center(), 8.5, color);
+                                    ui.painter().circle_stroke(rect.center(), 11.0, stroke);
+                                    if !suppress_tooltips {
+                                        resp.on_hover_text(crate::i18n::tr_catalog(
+                                            lang,
+                                            accent.name(),
+                                        ));
+                                    }
+                                }
+                            });
+                        },
+                    );
+                    if selected_accent != self.app_settings.accent_color {
+                        self.app_settings.accent_color = selected_accent;
+                        crate::ui_style::set_accent(selected_accent.color());
                         #[cfg(target_os = "windows")]
                         {
                             self.tray_icon = None;
                         }
+                        save_app_settings(&self.app_settings);
                     }
-                    save_app_settings(&self.app_settings);
                 }
-
-                let mut show_shifted_symbols = self.app_settings.show_shifted_number_symbols;
-                crate::ui_style::settings_list_row_with_tooltip(
-                    ui,
-                    content_width,
-                    row_height,
-                    crate::i18n::tr(lang, TrKey::ShiftedNumberSymbolsLabel),
-                    true,
-                    Some(crate::i18n::tr(lang, TrKey::ShiftedNumberSymbolsTooltip)),
-                    switch_width,
-                    |ui| {
-                        let _ = crate::ui_style::settings_switch_sized(
-                            ui,
-                            &mut show_shifted_symbols,
-                            switch_size,
-                        );
-                    },
-                );
-                if show_shifted_symbols != self.app_settings.show_shifted_number_symbols {
-                    self.app_settings.show_shifted_number_symbols = show_shifted_symbols;
-                    save_app_settings(&self.app_settings);
-                }
-
-                let mut layer_hover_preview = self.app_settings.layer_hover_preview;
-                crate::ui_style::settings_list_row_with_tooltip(
-                    ui,
-                    content_width,
-                    row_height,
-                    crate::i18n::tr(lang, TrKey::LayerHoverPreviewLabel),
-                    true,
-                    Some(crate::i18n::tr(lang, TrKey::LayerHoverPreviewTooltip)),
-                    switch_width,
-                    |ui| {
-                        let _ = crate::ui_style::settings_switch_sized(
-                            ui,
-                            &mut layer_hover_preview,
-                            switch_size,
-                        );
-                    },
-                );
-                if layer_hover_preview != self.app_settings.layer_hover_preview {
-                    self.app_settings.layer_hover_preview = layer_hover_preview;
-                    if !layer_hover_preview {
-                        self.hover_layer = None;
-                    }
-                    save_app_settings(&self.app_settings);
-                }
-
-                let mut encoder_hover_enlarge = self.app_settings.encoder_hover_enlarge;
-                crate::ui_style::settings_list_row_with_tooltip(
-                    ui,
-                    content_width,
-                    row_height,
-                    crate::i18n::tr(lang, TrKey::EncoderHoverZoomLabel),
-                    true,
-                    Some(crate::i18n::tr(lang, TrKey::EncoderHoverZoomTooltip)),
-                    switch_width,
-                    |ui| {
-                        let _ = crate::ui_style::settings_switch_sized(
-                            ui,
-                            &mut encoder_hover_enlarge,
-                            switch_size,
-                        );
-                    },
-                );
-                if encoder_hover_enlarge != self.app_settings.encoder_hover_enlarge {
-                    self.app_settings.encoder_hover_enlarge = encoder_hover_enlarge;
-                    save_app_settings(&self.app_settings);
-                }
-
-                let mut selected_accent = self.app_settings.accent_color;
-                crate::ui_style::settings_list_row_with_tooltip(
-                    ui,
-                    content_width,
-                    row_height,
-                    crate::i18n::tr(lang, TrKey::AccentColorLabel),
-                    true,
-                    Some(crate::i18n::tr(lang, TrKey::AccentColorTooltip)),
-                    metrics.value(218.0),
-                    |ui| {
-                        ui.horizontal(|ui| {
-                            ui.spacing_mut().item_spacing.x = 7.0;
-                            for accent in AppAccentColor::ALL {
-                                let color = accent.color();
-                                let selected = accent == selected_accent;
-                                let (rect, resp) = ui.allocate_exact_size(
-                                    Vec2::new(26.0, 26.0),
-                                    egui::Sense::click(),
-                                );
-                                if resp.hovered() {
-                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                }
-                                if resp.clicked() {
-                                    selected_accent = accent;
-                                }
-                                let stroke = if selected {
-                                    Stroke::new(2.0, color)
-                                } else {
-                                    crate::ui_style::modal_outline_stroke(dark)
-                                };
-                                ui.painter().circle_filled(rect.center(), 8.5, color);
-                                ui.painter().circle_stroke(rect.center(), 11.0, stroke);
-                                resp.on_hover_text(crate::i18n::tr_catalog(lang, accent.name()));
+                7 => {
+                    crate::ui_style::settings_list_row_with_tooltip(
+                        ui,
+                        content_width,
+                        row_height,
+                        crate::i18n::tr_catalog(lang, "onboarding_tour.settings_row_label"),
+                        true,
+                        tooltip(crate::i18n::tr_catalog(
+                            lang,
+                            "onboarding_tour.settings_row_tooltip",
+                        )),
+                        metrics.settings_control_width(),
+                        |ui| {
+                            if crate::ui_style::modern_button(
+                                ui,
+                                crate::i18n::tr_catalog(lang, "onboarding_tour.show_again"),
+                                metrics.size(168.0, 32.0),
+                                true,
+                            )
+                            .clicked()
+                            {
+                                self.start_onboarding_tour(ui.ctx());
                             }
-                        });
-                    },
-                );
-                if selected_accent != self.app_settings.accent_color {
-                    self.app_settings.accent_color = selected_accent;
-                    crate::ui_style::set_accent(selected_accent.color());
-                    #[cfg(target_os = "windows")]
-                    {
-                        self.tray_icon = None;
-                    }
-                    save_app_settings(&self.app_settings);
+                        },
+                    );
                 }
-
-                crate::ui_style::settings_list_row_with_tooltip(
-                    ui,
-                    content_width,
-                    row_height,
-                    crate::i18n::tr_catalog(lang, "onboarding_tour.settings_row_label"),
-                    true,
-                    Some(crate::i18n::tr_catalog(
-                        lang,
-                        "onboarding_tour.settings_row_tooltip",
-                    )),
-                    metrics.settings_control_width(),
-                    |ui| {
-                        if crate::ui_style::modern_button(
-                            ui,
-                            crate::i18n::tr_catalog(lang, "onboarding_tour.show_again"),
-                            metrics.size(168.0, 32.0),
-                            true,
-                        )
-                        .clicked()
-                        {
-                            self.start_onboarding_tour(ui.ctx());
-                        }
-                    },
-                );
-            });
-        });
+                _ => {}
+            }
+        }
     }
 
     fn draw_universal_symbols_setup_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
