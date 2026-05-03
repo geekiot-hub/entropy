@@ -849,6 +849,17 @@ automatically_switch_to_the_selected_layer_while_the_touchpad_is_activ = "Авт
 auto_layer = "Автослой"
 layer_selected_automatically_while_the_touchpad_is_active = "Слой, выбираемый автоматически при активности тачпада"
 
+[text_expander]
+title = "Экспандер текста"
+description = "Базовые локальные сниппеты: набери триггер, и Entropy заменит его сохранённым текстом"
+enabled_label = "Включить экспандер"
+enabled_tooltip = "Локально отслеживать ввод и разворачивать совпавшие триггеры; хранится только короткий буфер в памяти"
+rule_label = "Правило"
+rule_tooltip = "Триггер и текст замены для одного правила"
+trigger_hint = ":addr"
+replacement_hint = "замена"
+add_rule = "Добавить"
+
 [modules_settings]
 title = "Настройки модулей"
 description = "Настройки тачпада, трекбола и мышиного автослоя, которые отдаёт прошивка клавиатуры"

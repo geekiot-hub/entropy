@@ -1,5 +1,8 @@
 #![allow(non_snake_case)]
 
+use crate::text_expander::{TextExpansionConfig, TextExpansionEngine, TextExpansionRule};
+use std::sync::{Mutex, OnceLock, RwLock};
+
 #[derive(Clone, Copy, Debug)]
 pub struct SmartSymbol {
     pub trigger_keycode: u16,
@@ -14,87 +17,357 @@ const MOD_ALT: u16 = 0x0400;
 
 pub const SMART_SYMBOLS: &[SmartSymbol] = &[
     // F13..F24
-    SmartSymbol { trigger_keycode: KC_F13,      symbol: '{', name: "Left brace" },
-    SmartSymbol { trigger_keycode: KC_F13 + 1,  symbol: '}', name: "Right brace" },
-    SmartSymbol { trigger_keycode: KC_F13 + 2,  symbol: '[', name: "Left bracket" },
-    SmartSymbol { trigger_keycode: KC_F13 + 3,  symbol: ']', name: "Right bracket" },
-    SmartSymbol { trigger_keycode: KC_F13 + 4,  symbol: '(', name: "Left parenthesis" },
-    SmartSymbol { trigger_keycode: KC_F13 + 5,  symbol: ')', name: "Right parenthesis" },
-    SmartSymbol { trigger_keycode: KC_F13 + 6,  symbol: '<', name: "Less-than" },
-    SmartSymbol { trigger_keycode: KC_F13 + 7,  symbol: '>', name: "Greater-than" },
-    SmartSymbol { trigger_keycode: KC_F13 + 8,  symbol: '#', name: "Number sign" },
-    SmartSymbol { trigger_keycode: KC_F13 + 9,  symbol: '@', name: "At sign" },
-    SmartSymbol { trigger_keycode: KC_F13 + 10, symbol: '№', name: "Numero sign" },
-    SmartSymbol { trigger_keycode: KC_F13 + 11, symbol: '₽', name: "Ruble sign" },
-
+    SmartSymbol {
+        trigger_keycode: KC_F13,
+        symbol: '{',
+        name: "Left brace",
+    },
+    SmartSymbol {
+        trigger_keycode: KC_F13 + 1,
+        symbol: '}',
+        name: "Right brace",
+    },
+    SmartSymbol {
+        trigger_keycode: KC_F13 + 2,
+        symbol: '[',
+        name: "Left bracket",
+    },
+    SmartSymbol {
+        trigger_keycode: KC_F13 + 3,
+        symbol: ']',
+        name: "Right bracket",
+    },
+    SmartSymbol {
+        trigger_keycode: KC_F13 + 4,
+        symbol: '(',
+        name: "Left parenthesis",
+    },
+    SmartSymbol {
+        trigger_keycode: KC_F13 + 5,
+        symbol: ')',
+        name: "Right parenthesis",
+    },
+    SmartSymbol {
+        trigger_keycode: KC_F13 + 6,
+        symbol: '<',
+        name: "Less-than",
+    },
+    SmartSymbol {
+        trigger_keycode: KC_F13 + 7,
+        symbol: '>',
+        name: "Greater-than",
+    },
+    SmartSymbol {
+        trigger_keycode: KC_F13 + 8,
+        symbol: '#',
+        name: "Number sign",
+    },
+    SmartSymbol {
+        trigger_keycode: KC_F13 + 9,
+        symbol: '@',
+        name: "At sign",
+    },
+    SmartSymbol {
+        trigger_keycode: KC_F13 + 10,
+        symbol: '№',
+        name: "Numero sign",
+    },
+    SmartSymbol {
+        trigger_keycode: KC_F13 + 11,
+        symbol: '₽',
+        name: "Ruble sign",
+    },
     // Shift+F13..F24
-    SmartSymbol { trigger_keycode: MOD_SHIFT | KC_F13,      symbol: '!', name: "Exclamation mark" },
-    SmartSymbol { trigger_keycode: MOD_SHIFT | (KC_F13 + 1),  symbol: '"', name: "Quotation mark" },
-    SmartSymbol { trigger_keycode: MOD_SHIFT | (KC_F13 + 2),  symbol: '$', name: "Dollar sign" },
-    SmartSymbol { trigger_keycode: MOD_SHIFT | (KC_F13 + 3),  symbol: '%', name: "Percent sign" },
-    SmartSymbol { trigger_keycode: MOD_SHIFT | (KC_F13 + 4),  symbol: '&', name: "Ampersand" },
-    SmartSymbol { trigger_keycode: MOD_SHIFT | (KC_F13 + 5),  symbol: '\'', name: "Apostrophe" },
-    SmartSymbol { trigger_keycode: MOD_SHIFT | (KC_F13 + 6),  symbol: '*', name: "Asterisk" },
-    SmartSymbol { trigger_keycode: MOD_SHIFT | (KC_F13 + 7),  symbol: '+', name: "Plus sign" },
-    SmartSymbol { trigger_keycode: MOD_SHIFT | (KC_F13 + 8),  symbol: '=', name: "Equals sign" },
-    SmartSymbol { trigger_keycode: MOD_SHIFT | (KC_F13 + 9),  symbol: '?', name: "Question mark" },
-    SmartSymbol { trigger_keycode: MOD_SHIFT | (KC_F13 + 10), symbol: '|', name: "Vertical bar" },
-    SmartSymbol { trigger_keycode: MOD_SHIFT | (KC_F13 + 11), symbol: '\\', name: "Backslash" },
-
+    SmartSymbol {
+        trigger_keycode: MOD_SHIFT | KC_F13,
+        symbol: '!',
+        name: "Exclamation mark",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_SHIFT | (KC_F13 + 1),
+        symbol: '"',
+        name: "Quotation mark",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_SHIFT | (KC_F13 + 2),
+        symbol: '$',
+        name: "Dollar sign",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_SHIFT | (KC_F13 + 3),
+        symbol: '%',
+        name: "Percent sign",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_SHIFT | (KC_F13 + 4),
+        symbol: '&',
+        name: "Ampersand",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_SHIFT | (KC_F13 + 5),
+        symbol: '\'',
+        name: "Apostrophe",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_SHIFT | (KC_F13 + 6),
+        symbol: '*',
+        name: "Asterisk",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_SHIFT | (KC_F13 + 7),
+        symbol: '+',
+        name: "Plus sign",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_SHIFT | (KC_F13 + 8),
+        symbol: '=',
+        name: "Equals sign",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_SHIFT | (KC_F13 + 9),
+        symbol: '?',
+        name: "Question mark",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_SHIFT | (KC_F13 + 10),
+        symbol: '|',
+        name: "Vertical bar",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_SHIFT | (KC_F13 + 11),
+        symbol: '\\',
+        name: "Backslash",
+    },
     // Ctrl+F13..F24
-    SmartSymbol { trigger_keycode: MOD_CTRL | KC_F13,      symbol: '«', name: "Left guillemet" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | (KC_F13 + 1),  symbol: '»', name: "Right guillemet" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | (KC_F13 + 2),  symbol: '€', name: "Euro sign" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | (KC_F13 + 3),  symbol: '—', name: "Em dash" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | (KC_F13 + 4),  symbol: '–', name: "En dash" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | (KC_F13 + 5),  symbol: '•', name: "Bullet" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | (KC_F13 + 6),  symbol: '×', name: "Multiplication sign" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | (KC_F13 + 7),  symbol: '±', name: "Plus-minus sign" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | (KC_F13 + 8),  symbol: '≠', name: "Not equal sign" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | (KC_F13 + 9),  symbol: '≈', name: "Almost equal sign" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | (KC_F13 + 10), symbol: '✓', name: "Check mark" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | (KC_F13 + 11), symbol: '§', name: "Section sign" },
-
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | KC_F13,
+        symbol: '«',
+        name: "Left guillemet",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | (KC_F13 + 1),
+        symbol: '»',
+        name: "Right guillemet",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | (KC_F13 + 2),
+        symbol: '€',
+        name: "Euro sign",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | (KC_F13 + 3),
+        symbol: '—',
+        name: "Em dash",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | (KC_F13 + 4),
+        symbol: '–',
+        name: "En dash",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | (KC_F13 + 5),
+        symbol: '•',
+        name: "Bullet",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | (KC_F13 + 6),
+        symbol: '×',
+        name: "Multiplication sign",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | (KC_F13 + 7),
+        symbol: '±',
+        name: "Plus-minus sign",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | (KC_F13 + 8),
+        symbol: '≠',
+        name: "Not equal sign",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | (KC_F13 + 9),
+        symbol: '≈',
+        name: "Almost equal sign",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | (KC_F13 + 10),
+        symbol: '✓',
+        name: "Check mark",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | (KC_F13 + 11),
+        symbol: '§',
+        name: "Section sign",
+    },
     // Alt+F13..F24
-    SmartSymbol { trigger_keycode: MOD_ALT | KC_F13,      symbol: '.', name: "Full stop" },
-    SmartSymbol { trigger_keycode: MOD_ALT | (KC_F13 + 1),  symbol: ',', name: "Comma" },
-    SmartSymbol { trigger_keycode: MOD_ALT | (KC_F13 + 2),  symbol: ';', name: "Semicolon" },
-    SmartSymbol { trigger_keycode: MOD_ALT | (KC_F13 + 3),  symbol: ':', name: "Colon" },
-    SmartSymbol { trigger_keycode: MOD_ALT | (KC_F13 + 4),  symbol: '/', name: "Slash" },
-    SmartSymbol { trigger_keycode: MOD_ALT | (KC_F13 + 5),  symbol: '`', name: "Grave accent" },
-    SmartSymbol { trigger_keycode: MOD_ALT | (KC_F13 + 6),  symbol: '^', name: "Caret" },
-
+    SmartSymbol {
+        trigger_keycode: MOD_ALT | KC_F13,
+        symbol: '.',
+        name: "Full stop",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_ALT | (KC_F13 + 1),
+        symbol: ',',
+        name: "Comma",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_ALT | (KC_F13 + 2),
+        symbol: ';',
+        name: "Semicolon",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_ALT | (KC_F13 + 3),
+        symbol: ':',
+        name: "Colon",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_ALT | (KC_F13 + 4),
+        symbol: '/',
+        name: "Slash",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_ALT | (KC_F13 + 5),
+        symbol: '`',
+        name: "Grave accent",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_ALT | (KC_F13 + 6),
+        symbol: '^',
+        name: "Caret",
+    },
     // Ctrl+Alt+F13..F19
-    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_ALT | KC_F13,      symbol: 'б', name: "Cyrillic be" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_ALT | (KC_F13 + 1),  symbol: 'ю', name: "Cyrillic yu" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_ALT | (KC_F13 + 2),  symbol: 'ж', name: "Cyrillic zhe" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_ALT | (KC_F13 + 3),  symbol: 'э', name: "Cyrillic e" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_ALT | (KC_F13 + 4),  symbol: 'х', name: "Cyrillic ha" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_ALT | (KC_F13 + 5),  symbol: 'ъ', name: "Cyrillic hard sign" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_ALT | (KC_F13 + 6),  symbol: 'ё', name: "Cyrillic yo" },
-
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | MOD_ALT | KC_F13,
+        symbol: 'б',
+        name: "Cyrillic be",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | MOD_ALT | (KC_F13 + 1),
+        symbol: 'ю',
+        name: "Cyrillic yu",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | MOD_ALT | (KC_F13 + 2),
+        symbol: 'ж',
+        name: "Cyrillic zhe",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | MOD_ALT | (KC_F13 + 3),
+        symbol: 'э',
+        name: "Cyrillic e",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | MOD_ALT | (KC_F13 + 4),
+        symbol: 'х',
+        name: "Cyrillic ha",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | MOD_ALT | (KC_F13 + 5),
+        symbol: 'ъ',
+        name: "Cyrillic hard sign",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | MOD_ALT | (KC_F13 + 6),
+        symbol: 'ё',
+        name: "Cyrillic yo",
+    },
     // Ctrl+Alt+Shift+F13..F19
-    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_ALT | MOD_SHIFT | KC_F13,      symbol: 'Б', name: "Cyrillic Be" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_ALT | MOD_SHIFT | (KC_F13 + 1),  symbol: 'Ю', name: "Cyrillic Yu" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_ALT | MOD_SHIFT | (KC_F13 + 2),  symbol: 'Ж', name: "Cyrillic Zhe" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_ALT | MOD_SHIFT | (KC_F13 + 3),  symbol: 'Э', name: "Cyrillic E" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_ALT | MOD_SHIFT | (KC_F13 + 4),  symbol: 'Х', name: "Cyrillic Ha" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_ALT | MOD_SHIFT | (KC_F13 + 5),  symbol: 'Ъ', name: "Cyrillic Hard Sign" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_ALT | MOD_SHIFT | (KC_F13 + 6),  symbol: 'Ё', name: "Cyrillic Yo" },
-
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | MOD_ALT | MOD_SHIFT | KC_F13,
+        symbol: 'Б',
+        name: "Cyrillic Be",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | MOD_ALT | MOD_SHIFT | (KC_F13 + 1),
+        symbol: 'Ю',
+        name: "Cyrillic Yu",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | MOD_ALT | MOD_SHIFT | (KC_F13 + 2),
+        symbol: 'Ж',
+        name: "Cyrillic Zhe",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | MOD_ALT | MOD_SHIFT | (KC_F13 + 3),
+        symbol: 'Э',
+        name: "Cyrillic E",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | MOD_ALT | MOD_SHIFT | (KC_F13 + 4),
+        symbol: 'Х',
+        name: "Cyrillic Ha",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | MOD_ALT | MOD_SHIFT | (KC_F13 + 5),
+        symbol: 'Ъ',
+        name: "Cyrillic Hard Sign",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | MOD_ALT | MOD_SHIFT | (KC_F13 + 6),
+        symbol: 'Ё',
+        name: "Cyrillic Yo",
+    },
     // Ctrl+Shift+F13..F24
-    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_SHIFT | KC_F13,      symbol: '°', name: "Degree sign" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_SHIFT | (KC_F13 + 1),  symbol: '‰', name: "Per mille sign" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_SHIFT | (KC_F13 + 2),  symbol: '′', name: "Prime" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_SHIFT | (KC_F13 + 3),  symbol: '″', name: "Double prime" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_SHIFT | (KC_F13 + 4),  symbol: '‘', name: "Left single quotation mark" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_SHIFT | (KC_F13 + 5),  symbol: '’', name: "Right single quotation mark" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_SHIFT | (KC_F13 + 6),  symbol: '„', name: "Double low quotation mark" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_SHIFT | (KC_F13 + 7),  symbol: '“', name: "Left double quotation mark" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_SHIFT | (KC_F13 + 8),  symbol: '”', name: "Right double quotation mark" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_SHIFT | (KC_F13 + 9),  symbol: '™', name: "Trade mark sign" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_SHIFT | (KC_F13 + 10), symbol: '~', name: "Tilde" },
-    SmartSymbol { trigger_keycode: MOD_CTRL | MOD_SHIFT | (KC_F13 + 11), symbol: '_', name: "Underscore" },
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | MOD_SHIFT | KC_F13,
+        symbol: '°',
+        name: "Degree sign",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | MOD_SHIFT | (KC_F13 + 1),
+        symbol: '‰',
+        name: "Per mille sign",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | MOD_SHIFT | (KC_F13 + 2),
+        symbol: '′',
+        name: "Prime",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | MOD_SHIFT | (KC_F13 + 3),
+        symbol: '″',
+        name: "Double prime",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | MOD_SHIFT | (KC_F13 + 4),
+        symbol: '‘',
+        name: "Left single quotation mark",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | MOD_SHIFT | (KC_F13 + 5),
+        symbol: '’',
+        name: "Right single quotation mark",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | MOD_SHIFT | (KC_F13 + 6),
+        symbol: '„',
+        name: "Double low quotation mark",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | MOD_SHIFT | (KC_F13 + 7),
+        symbol: '“',
+        name: "Left double quotation mark",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | MOD_SHIFT | (KC_F13 + 8),
+        symbol: '”',
+        name: "Right double quotation mark",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | MOD_SHIFT | (KC_F13 + 9),
+        symbol: '™',
+        name: "Trade mark sign",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | MOD_SHIFT | (KC_F13 + 10),
+        symbol: '~',
+        name: "Tilde",
+    },
+    SmartSymbol {
+        trigger_keycode: MOD_CTRL | MOD_SHIFT | (KC_F13 + 11),
+        symbol: '_',
+        name: "Underscore",
+    },
 ];
 
 pub fn smart_symbol_for_keycode(keycode: u16) -> Option<SmartSymbol> {
@@ -102,6 +375,37 @@ pub fn smart_symbol_for_keycode(keycode: u16) -> Option<SmartSymbol> {
         .iter()
         .copied()
         .find(|symbol| symbol.trigger_keycode == keycode)
+}
+
+static TEXT_EXPANDER_CONFIG: OnceLock<RwLock<TextExpansionConfig>> = OnceLock::new();
+static TEXT_EXPANDER_ENGINE: OnceLock<Mutex<TextExpansionEngine>> = OnceLock::new();
+
+fn text_expander_config() -> &'static RwLock<TextExpansionConfig> {
+    TEXT_EXPANDER_CONFIG.get_or_init(|| RwLock::new(TextExpansionConfig::default()))
+}
+
+fn text_expander_engine() -> &'static Mutex<TextExpansionEngine> {
+    TEXT_EXPANDER_ENGINE.get_or_init(|| Mutex::new(TextExpansionEngine::default()))
+}
+
+pub fn set_text_expander_config(enabled: bool, rules: Vec<TextExpansionRule>) {
+    let config = TextExpansionConfig {
+        enabled,
+        rules: rules.clone(),
+    };
+    if let Ok(mut guard) = text_expander_config().write() {
+        *guard = config;
+    }
+    if let Ok(mut engine) = text_expander_engine().lock() {
+        engine.set_rules(rules);
+    }
+}
+
+fn text_expander_enabled() -> bool {
+    text_expander_config()
+        .read()
+        .map(|config| config.enabled && config.rules.iter().any(|rule| rule.enabled))
+        .unwrap_or(false)
 }
 
 #[cfg(target_os = "windows")]
@@ -274,6 +578,27 @@ unsafe extern "system" fn keyboard_proc(n_code: i32, w_param: usize, l_param: is
         let is_key_up = w_param == WM_KEYUP || w_param == WM_SYSKEYUP;
         let injected = info.flags & LLKHF_INJECTED != 0;
         if !injected {
+            if is_key_down && text_expander_enabled() {
+                if info.vkCode == VK_BACK as u32 {
+                    if let Ok(mut engine) = text_expander_engine().lock() {
+                        engine.backspace();
+                    }
+                } else if should_reset_text_expander_for_vk(info.vkCode) {
+                    if let Ok(mut engine) = text_expander_engine().lock() {
+                        engine.reset();
+                    }
+                } else if let Some(ch) = text_expander_char_for_key(info) {
+                    let expansion = text_expander_engine()
+                        .lock()
+                        .ok()
+                        .and_then(|mut engine| engine.push_char(ch));
+                    if let Some(expansion) = expansion {
+                        send_text_expansion(&expansion);
+                        return 1;
+                    }
+                }
+            }
+
             if let Some((symbol, trigger_keycode)) = symbol_for_vk(info.vkCode) {
                 if is_key_down {
                     send_unicode_char(symbol, trigger_keycode);
@@ -285,6 +610,96 @@ unsafe extern "system" fn keyboard_proc(n_code: i32, w_param: usize, l_param: is
         }
     }
     CallNextHookEx(std::ptr::null_mut(), n_code, w_param, l_param)
+}
+
+#[cfg(target_os = "windows")]
+unsafe fn text_expander_char_for_key(info: &KBDLLHOOKSTRUCT) -> Option<char> {
+    if modifier_down(VK_CONTROL)
+        || modifier_down(VK_MENU)
+        || modifier_down(VK_LWIN)
+        || modifier_down(VK_RWIN)
+    {
+        return None;
+    }
+
+    let mut keyboard_state = [0u8; 256];
+    if GetKeyboardState(keyboard_state.as_mut_ptr()) == 0 {
+        return None;
+    }
+    if (info.vkCode as usize) < keyboard_state.len() {
+        keyboard_state[info.vkCode as usize] = 0x80;
+    }
+
+    let mut buffer = [0u16; 8];
+    let len = ToUnicode(
+        info.vkCode,
+        info.scanCode,
+        keyboard_state.as_ptr(),
+        buffer.as_mut_ptr(),
+        buffer.len() as i32,
+        0,
+    );
+    if len <= 0 {
+        return None;
+    }
+
+    char::decode_utf16(buffer[..len as usize].iter().copied())
+        .next()
+        .and_then(Result::ok)
+        .filter(|ch| !ch.is_control())
+}
+
+#[cfg(target_os = "windows")]
+fn should_reset_text_expander_for_vk(vk: u32) -> bool {
+    matches!(
+        vk as i32,
+        VK_RETURN | VK_TAB | VK_ESCAPE | VK_LEFT | VK_UP | VK_RIGHT | VK_DOWN
+    )
+}
+
+#[cfg(target_os = "windows")]
+unsafe fn send_text_expansion(expansion: &crate::text_expander::TextExpansionMatch) {
+    for _ in 0..expansion.typed_trigger_chars.saturating_sub(1) {
+        send_vk_tap(VK_BACK as u16);
+    }
+    send_unicode_text(&expansion.replacement);
+}
+
+#[cfg(target_os = "windows")]
+unsafe fn send_unicode_text(text: &str) {
+    for ch in text.chars() {
+        for unit in ch.encode_utf16(&mut [0; 2]) {
+            let down = INPUT::keyboard_unicode(*unit, false);
+            let up = INPUT::keyboard_unicode(*unit, true);
+            let inputs = [down, up];
+            let sent = SendInput(
+                inputs.len() as u32,
+                inputs.as_ptr(),
+                std::mem::size_of::<INPUT>() as i32,
+            );
+            if sent != inputs.len() as u32 {
+                log::warn!(
+                    "Smart Input: SendInput failed for text expansion unit U+{:04X}",
+                    *unit as u32
+                );
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+unsafe fn send_vk_tap(vk: u16) {
+    let down = INPUT::keyboard_vk(vk, false);
+    let up = INPUT::keyboard_vk(vk, true);
+    let inputs = [down, up];
+    let sent = SendInput(
+        inputs.len() as u32,
+        inputs.as_ptr(),
+        std::mem::size_of::<INPUT>() as i32,
+    );
+    if sent != inputs.len() as u32 {
+        log::warn!("Smart Input: SendInput failed for VK tap 0x{vk:02X}");
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -349,6 +764,26 @@ const VK_SHIFT: i32 = 0x10;
 const VK_CONTROL: i32 = 0x11;
 #[cfg(target_os = "windows")]
 const VK_MENU: i32 = 0x12;
+#[cfg(target_os = "windows")]
+const VK_BACK: i32 = 0x08;
+#[cfg(target_os = "windows")]
+const VK_TAB: i32 = 0x09;
+#[cfg(target_os = "windows")]
+const VK_RETURN: i32 = 0x0D;
+#[cfg(target_os = "windows")]
+const VK_ESCAPE: i32 = 0x1B;
+#[cfg(target_os = "windows")]
+const VK_LEFT: i32 = 0x25;
+#[cfg(target_os = "windows")]
+const VK_UP: i32 = 0x26;
+#[cfg(target_os = "windows")]
+const VK_RIGHT: i32 = 0x27;
+#[cfg(target_os = "windows")]
+const VK_DOWN: i32 = 0x28;
+#[cfg(target_os = "windows")]
+const VK_LWIN: i32 = 0x5B;
+#[cfg(target_os = "windows")]
+const VK_RWIN: i32 = 0x5C;
 #[cfg(target_os = "windows")]
 const LLKHF_INJECTED: u32 = 0x10;
 #[cfg(target_os = "windows")]
@@ -484,6 +919,15 @@ extern "system" {
     fn DispatchMessageW(lpMsg: *const MSG) -> isize;
     fn SendInput(cInputs: u32, pInputs: *const INPUT, cbSize: i32) -> u32;
     fn GetAsyncKeyState(vKey: i32) -> i16;
+    fn GetKeyboardState(lpKeyState: *mut u8) -> i32;
+    fn ToUnicode(
+        wVirtKey: u32,
+        wScanCode: u32,
+        lpKeyState: *const u8,
+        pwszBuff: *mut u16,
+        cchBuff: i32,
+        wFlags: u32,
+    ) -> i32;
 }
 
 #[cfg(target_os = "windows")]

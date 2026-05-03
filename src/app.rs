@@ -224,6 +224,10 @@ struct AppSettings {
     ui_scale: f32,
     #[serde(default)]
     onboarding_tour_seen_version: u16,
+    #[serde(default)]
+    text_expander_enabled: bool,
+    #[serde(default)]
+    text_expansion_rules: Vec<crate::text_expander::TextExpansionRule>,
 }
 
 fn default_show_shifted_number_symbols() -> bool {
@@ -447,6 +451,8 @@ impl Default for AppSettings {
             accent_color: default_app_accent_color(),
             ui_scale: default_ui_scale(),
             onboarding_tour_seen_version: 0,
+            text_expander_enabled: false,
+            text_expansion_rules: Vec::new(),
         }
     }
 }
@@ -2186,6 +2192,7 @@ enum SettingsTab {
     AppSettings,
     MatrixTester,
     UniversalSymbolsSetup,
+    TextExpander,
     AutoShift,
     Rgb,
     LayerLeds,
@@ -2325,6 +2332,10 @@ impl EntropyApp {
         app_settings.ui_scale = clamp_ui_scale(app_settings.ui_scale);
         cc.egui_ctx.set_zoom_factor(app_settings.ui_scale);
         crate::ui_style::set_accent(app_settings.accent_color.color());
+        crate::smart_input::set_text_expander_config(
+            app_settings.text_expander_enabled,
+            app_settings.text_expansion_rules.clone(),
+        );
 
         let mut app = Self {
             #[cfg(not(target_arch = "wasm32"))]
@@ -3584,6 +3595,9 @@ impl EntropyApp {
             SettingsTab::UniversalSymbolsSetup => {
                 self.draw_universal_symbols_setup_page(ui, content_rect);
             }
+            SettingsTab::TextExpander => {
+                self.draw_text_expander_settings_page(ui, content_rect);
+            }
             SettingsTab::AutoShift => {
                 self.draw_auto_shift_settings_page(ui, content_rect, dark);
             }
@@ -4082,6 +4096,218 @@ impl EntropyApp {
                     );
                 }
                 _ => {}
+            }
+        }
+    }
+
+    fn save_text_expander_settings(&self) {
+        save_app_settings(&self.app_settings);
+        crate::smart_input::set_text_expander_config(
+            self.app_settings.text_expander_enabled,
+            self.app_settings.text_expansion_rules.clone(),
+        );
+    }
+
+    fn draw_text_expander_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
+        let lang = self.app_settings.language;
+        let dark = ui.visuals().dark_mode;
+        let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ui.ctx());
+        ui.allocate_ui_at_rect(content_rect, |ui| {
+            ui.vertical_centered(|ui| {
+                ui.add_space(metrics.value(18.0));
+                ui.label(
+                    RichText::new(crate::i18n::tr_catalog(lang, "text_expander.title"))
+                        .size(metrics.value(18.0))
+                        .strong(),
+                );
+                ui.add_space(metrics.value(6.0));
+                ui.label(
+                    RichText::new(crate::i18n::tr_catalog(lang, "text_expander.description"))
+                        .size(metrics.value(13.0))
+                        .color(app_muted_text(dark)),
+                );
+                ui.add_space(metrics.value(24.0));
+
+                let row_count = 1 + self.app_settings.text_expansion_rules.len();
+                let list = allocate_adaptive_settings_list_viewport(
+                    ui,
+                    "text_expander_settings",
+                    metrics,
+                    row_count,
+                    metrics.value(44.0),
+                );
+                ui.allocate_ui_at_rect(list.content_rect, |ui| {
+                    ui.set_clip_rect(list.viewport);
+                    ui.set_min_size(list.content_rect.size());
+                    ui.spacing_mut().item_spacing.y = 0.0;
+                    self.draw_text_expander_editor_content(
+                        ui,
+                        list.first_visible_row..list.last_visible_row,
+                        list.row_content_width,
+                        list.row_height,
+                        metrics,
+                        list.suppress_tooltips,
+                    );
+                });
+
+                if list.has_scrollbar {
+                    crate::ui_style::paint_floating_scrollbar_handle(
+                        ui,
+                        list.track_rect,
+                        list.handle_height,
+                        list.scroll_ratio,
+                        list.track_hovered,
+                    );
+                }
+
+                ui.add_space(metrics.value(10.0));
+                ui.horizontal_centered(|ui| {
+                    if crate::ui_style::modern_button(
+                        ui,
+                        crate::i18n::tr_catalog(lang, "text_expander.add_rule"),
+                        metrics.size(126.0, 34.0),
+                        true,
+                    )
+                    .clicked()
+                    {
+                        self.app_settings
+                            .text_expansion_rules
+                            .push(crate::text_expander::TextExpansionRule::default());
+                        self.save_text_expander_settings();
+                    }
+                });
+            });
+        });
+    }
+
+    fn draw_text_expander_editor_content(
+        &mut self,
+        ui: &mut egui::Ui,
+        row_range: std::ops::Range<usize>,
+        content_width: f32,
+        row_height: f32,
+        metrics: crate::ui_style::ResponsiveMetrics,
+        suppress_tooltips: bool,
+    ) {
+        let lang = self.app_settings.language;
+        let switch_size = metrics.size(46.0, 24.0);
+        let switch_width = metrics.value(46.0);
+        let tooltip = |text: &'static str| (!suppress_tooltips).then_some(text);
+
+        for row_idx in row_range {
+            if row_idx == 0 {
+                let mut enabled = self.app_settings.text_expander_enabled;
+                crate::ui_style::settings_list_row_with_tooltip(
+                    ui,
+                    content_width,
+                    row_height,
+                    crate::i18n::tr_catalog(lang, "text_expander.enabled_label"),
+                    true,
+                    tooltip(crate::i18n::tr_catalog(
+                        lang,
+                        "text_expander.enabled_tooltip",
+                    )),
+                    switch_width,
+                    |ui| {
+                        crate::ui_style::settings_switch_sized_stable(
+                            ui,
+                            "text_expander_enabled",
+                            &mut enabled,
+                            switch_size,
+                        );
+                    },
+                );
+                if enabled != self.app_settings.text_expander_enabled {
+                    self.app_settings.text_expander_enabled = enabled;
+                    self.save_text_expander_settings();
+                }
+                continue;
+            }
+
+            let idx = row_idx - 1;
+            let Some(original_rule) = self.app_settings.text_expansion_rules.get(idx).cloned()
+            else {
+                continue;
+            };
+            let mut rule = original_rule.clone();
+            let mut delete_rule = false;
+            let mut changed = false;
+            let label = format!(
+                "{} {}",
+                crate::i18n::tr_catalog(lang, "text_expander.rule_label"),
+                idx + 1
+            );
+            let control_width = metrics.value(344.0);
+            crate::ui_style::settings_list_row_with_tooltip(
+                ui,
+                content_width,
+                row_height,
+                label.as_str(),
+                true,
+                tooltip(crate::i18n::tr_catalog(lang, "text_expander.rule_tooltip")),
+                control_width,
+                |ui| {
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = metrics.value(6.0);
+                        let mut rule_enabled = rule.enabled;
+                        let resp = crate::ui_style::settings_switch_sized_stable(
+                            ui,
+                            ("text_expander_rule_enabled", idx),
+                            &mut rule_enabled,
+                            metrics.size(34.0, 20.0),
+                        );
+                        if resp.changed() {
+                            rule.enabled = rule_enabled;
+                            changed = true;
+                        }
+                        let trigger_resp = crate::ui_style::modern_text_field_sized(
+                            ui,
+                            ui.make_persistent_id(("text_expander_trigger", idx)),
+                            &mut rule.trigger,
+                            metrics.value(82.0),
+                            metrics.settings_control_height(),
+                            crate::i18n::tr_catalog(lang, "text_expander.trigger_hint"),
+                            32,
+                            egui::Align::Center,
+                        );
+                        if trigger_resp.changed() {
+                            changed = true;
+                        }
+                        let replacement_resp = crate::ui_style::modern_text_field_sized(
+                            ui,
+                            ui.make_persistent_id(("text_expander_replacement", idx)),
+                            &mut rule.replacement,
+                            metrics.value(166.0),
+                            metrics.settings_control_height(),
+                            crate::i18n::tr_catalog(lang, "text_expander.replacement_hint"),
+                            220,
+                            egui::Align::Min,
+                        );
+                        if replacement_resp.changed() {
+                            changed = true;
+                        }
+                        if crate::ui_style::modern_button(
+                            ui,
+                            "×",
+                            metrics.size(30.0, metrics.settings_control_height()),
+                            true,
+                        )
+                        .clicked()
+                        {
+                            delete_rule = true;
+                        }
+                    });
+                },
+            );
+
+            if delete_rule {
+                self.app_settings.text_expansion_rules.remove(idx);
+                self.save_text_expander_settings();
+            } else if changed && rule != original_rule {
+                if let Some(stored_rule) = self.app_settings.text_expansion_rules.get_mut(idx) {
+                    *stored_rule = rule;
+                }
+                self.save_text_expander_settings();
             }
         }
     }
@@ -6934,6 +7160,11 @@ impl EntropyApp {
 
     fn open_universal_symbols_setup_page(&mut self) {
         self.settings_tab = SettingsTab::UniversalSymbolsSetup;
+        self.main_menu_tab = MainMenuTab::Settings;
+    }
+
+    fn open_text_expander_settings_page(&mut self) {
+        self.settings_tab = SettingsTab::TextExpander;
         self.main_menu_tab = MainMenuTab::Settings;
     }
 
@@ -13397,7 +13628,7 @@ impl EntropyApp {
                 let show_tap_hold_item =
                     self.tap_hold_settings.supported || self.one_shot_settings.supported;
                 let show_matrix_item = self.firmware == FirmwareProtocol::Vial;
-                let settings_item_count = 2
+                let settings_item_count = 3
                     + show_matrix_item as usize
                     + show_rgb_item as usize
                     + show_layer_leds_item as usize
@@ -13414,6 +13645,7 @@ impl EntropyApp {
                 let mut settings_menu_labels = vec![
                     crate::i18n::tr(lang, TrKey::AppSettingsTitle),
                     crate::i18n::tr(lang, TrKey::UniversalSymbolsTitle),
+                    crate::i18n::tr_catalog(lang, "text_expander.title"),
                 ];
                 if show_matrix_item {
                     settings_menu_labels.push(crate::i18n::tr(lang, TrKey::MatrixTesterTitle));
@@ -13472,6 +13704,7 @@ impl EntropyApp {
                         app_hovered,
                         matrix_hovered,
                         universal_symbols_hovered,
+                        text_expander_hovered,
                         rgb_hovered,
                         layer_leds_hovered,
                         encoders_hovered,
@@ -13516,6 +13749,14 @@ impl EntropyApp {
                                         self.main_menu_tab == MainMenuTab::Settings
                                             && self.settings_tab
                                                 == SettingsTab::UniversalSymbolsSetup,
+                                    );
+                                    let text_expander_resp = top_dropdown_item(
+                                        ui,
+                                        item_width,
+                                        crate::i18n::tr_catalog(lang, "text_expander.title"),
+                                        true,
+                                        self.main_menu_tab == MainMenuTab::Settings
+                                            && self.settings_tab == SettingsTab::TextExpander,
                                     );
                                     let rgb_resp = if show_rgb_item {
                                         Some(top_dropdown_item(
@@ -13627,6 +13868,10 @@ impl EntropyApp {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.open_universal_symbols_setup_page();
                                     }
+                                    if text_expander_resp.clicked() {
+                                        self.close_top_dropdowns(ui.ctx());
+                                        self.open_text_expander_settings_page();
+                                    }
                                     if let Some(rgb_resp) = &rgb_resp {
                                         if rgb_resp.clicked() && rgb_available {
                                             self.close_top_dropdowns(ui.ctx());
@@ -13691,6 +13936,7 @@ impl EntropyApp {
                                         app_resp.hovered(),
                                         matrix_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         universal_symbols_resp.hovered(),
+                                        text_expander_resp.hovered(),
                                         rgb_resp
                                             .as_ref()
                                             .map(|resp| resp.hovered())
@@ -13727,6 +13973,7 @@ impl EntropyApp {
                                                 .map(|r| r.clicked())
                                                 .unwrap_or(false)
                                             || universal_symbols_resp.clicked()
+                                            || text_expander_resp.clicked()
                                             || rgb_resp
                                                 .as_ref()
                                                 .map(|resp| resp.clicked() && rgb_available)
@@ -13776,6 +14023,7 @@ impl EntropyApp {
                                     || app_hovered
                                     || matrix_hovered
                                     || universal_symbols_hovered
+                                    || text_expander_hovered
                                     || rgb_hovered
                                     || layer_leds_hovered
                                     || encoders_hovered

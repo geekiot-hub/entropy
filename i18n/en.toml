@@ -849,6 +849,17 @@ automatically_switch_to_the_selected_layer_while_the_touchpad_is_activ = "Automa
 auto_layer = "Auto layer"
 layer_selected_automatically_while_the_touchpad_is_active = "Layer selected automatically while the touchpad is active"
 
+[text_expander]
+title = "Text Expander"
+description = "Basic local text snippets: type a trigger and Entropy replaces it with saved text"
+enabled_label = "Enable expander"
+enabled_tooltip = "Watch typed text locally and expand matching triggers; only a short in-memory buffer is kept"
+rule_label = "Rule"
+rule_tooltip = "Trigger and replacement text for one expansion rule"
+trigger_hint = ":addr"
+replacement_hint = "replacement"
+add_rule = "Add rule"
+
 [modules_settings]
 title = "Modules settings"
 description = "Touchpad, trackball and mouse auto-layer settings exposed by the keyboard firmware"
