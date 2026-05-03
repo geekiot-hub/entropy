@@ -11004,59 +11004,60 @@ impl EntropyApp {
         suppress_tooltips: bool,
     ) {
         // Limits match Vial GUI qmk_settings.json.
-        let rows: [(u16, &str, &str, u32); 9] = [
+        let lang = self.app_settings.language;
+        let rows: [(u16, &'static str, &'static str, u32); 9] = [
             (
                 9,
-                "Delay",
-                "How long to wait after a mouse key is pressed before cursor movement starts",
+                "mouse_keys_settings.delay_label",
+                "mouse_keys_settings.delay_tooltip",
                 10000,
             ),
             (
                 10,
-                "Interval",
-                "Delay between repeated cursor movement steps while a mouse key is held",
+                "mouse_keys_settings.interval_label",
+                "mouse_keys_settings.interval_tooltip",
                 10000,
             ),
             (
                 11,
-                "Move delta",
-                "Base cursor movement distance for each step before acceleration is applied",
+                "mouse_keys_settings.move_delta_label",
+                "mouse_keys_settings.move_delta_tooltip",
                 1000,
             ),
             (
                 12,
-                "Max speed",
-                "Maximum cursor movement speed reached after acceleration ramps up",
+                "mouse_keys_settings.max_speed_label",
+                "mouse_keys_settings.max_speed_tooltip",
                 1000,
             ),
             (
                 13,
-                "Time to max",
-                "How long the cursor takes to accelerate from base movement to maximum speed",
+                "mouse_keys_settings.time_to_max_label",
+                "mouse_keys_settings.time_to_max_tooltip",
                 1000,
             ),
             (
                 14,
-                "Wheel delay",
-                "How long to wait after a wheel key is pressed before scrolling starts",
+                "mouse_keys_settings.wheel_delay_label",
+                "mouse_keys_settings.wheel_delay_tooltip",
                 10000,
             ),
             (
                 15,
-                "Wheel interval",
-                "Delay between repeated wheel scroll steps while a wheel key is held",
+                "mouse_keys_settings.wheel_interval_label",
+                "mouse_keys_settings.wheel_interval_tooltip",
                 10000,
             ),
             (
                 16,
-                "Wheel max speed",
-                "Maximum wheel scrolling speed reached after acceleration ramps up",
+                "mouse_keys_settings.wheel_max_speed_label",
+                "mouse_keys_settings.wheel_max_speed_tooltip",
                 1000,
             ),
             (
                 17,
-                "Wheel time to max",
-                "How long wheel scrolling takes to accelerate from base speed to maximum speed",
+                "mouse_keys_settings.wheel_time_to_max_label",
+                "mouse_keys_settings.wheel_time_to_max_tooltip",
                 1000,
             ),
         ];
@@ -11083,12 +11084,12 @@ impl EntropyApp {
                 ui,
                 content_width,
                 row_height,
-                label,
+                crate::i18n::tr_catalog(lang, label),
                 true,
                 if suppress_tooltips {
                     None
                 } else {
-                    Some(tooltip)
+                    Some(crate::i18n::tr_catalog(lang, tooltip))
                 },
                 field_width,
                 |ui| {
