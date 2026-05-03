@@ -227,6 +227,10 @@ struct AppSettings {
     #[serde(default)]
     text_expander_enabled: bool,
     #[serde(default)]
+    text_expander_paused: bool,
+    #[serde(default)]
+    text_expander_app_blacklist: String,
+    #[serde(default)]
     text_expansion_rules: Vec<crate::text_expander::TextExpansionRule>,
 }
 
@@ -452,6 +456,8 @@ impl Default for AppSettings {
             ui_scale: default_ui_scale(),
             onboarding_tour_seen_version: 0,
             text_expander_enabled: false,
+            text_expander_paused: false,
+            text_expander_app_blacklist: String::new(),
             text_expansion_rules: Vec::new(),
         }
     }
@@ -474,6 +480,14 @@ fn save_app_settings(settings: &AppSettings) {
         }
         Err(e) => log::warn!("save_app_settings serialize failed: {e}"),
     }
+}
+
+fn parse_text_expander_blacklist(raw: &str) -> Vec<String> {
+    raw.split([',', ';', '\n'])
+        .map(str::trim)
+        .filter(|entry| !entry.is_empty())
+        .map(str::to_owned)
+        .collect()
 }
 
 fn load_saved_layer_names(device_name: &str) -> Option<Vec<String>> {
@@ -2334,7 +2348,9 @@ impl EntropyApp {
         crate::ui_style::set_accent(app_settings.accent_color.color());
         crate::smart_input::set_text_expander_config(
             app_settings.text_expander_enabled,
+            app_settings.text_expander_paused,
             app_settings.text_expansion_rules.clone(),
+            parse_text_expander_blacklist(&app_settings.text_expander_app_blacklist),
         );
 
         let mut app = Self {
@@ -4100,11 +4116,42 @@ impl EntropyApp {
         }
     }
 
+    fn text_expander_rule_issue(
+        &self,
+        idx: usize,
+        rule: &crate::text_expander::TextExpansionRule,
+    ) -> Option<&'static str> {
+        if rule.trigger.is_empty() {
+            return Some("text_expander.issue_empty_trigger");
+        }
+        if !crate::text_expander::valid_trigger(&rule.trigger) {
+            return Some("text_expander.issue_invalid_trigger");
+        }
+        if crate::text_expander::prepare_replacement(&rule.replacement)
+            .0
+            .is_empty()
+        {
+            return Some("text_expander.issue_empty_replacement");
+        }
+        if self
+            .app_settings
+            .text_expansion_rules
+            .iter()
+            .enumerate()
+            .any(|(other_idx, other)| other_idx != idx && other.trigger == rule.trigger)
+        {
+            return Some("text_expander.issue_duplicate_trigger");
+        }
+        None
+    }
+
     fn save_text_expander_settings(&self) {
         save_app_settings(&self.app_settings);
         crate::smart_input::set_text_expander_config(
             self.app_settings.text_expander_enabled,
+            self.app_settings.text_expander_paused,
             self.app_settings.text_expansion_rules.clone(),
+            parse_text_expander_blacklist(&self.app_settings.text_expander_app_blacklist),
         );
     }
 
@@ -4128,7 +4175,7 @@ impl EntropyApp {
                 );
                 ui.add_space(metrics.value(24.0));
 
-                let row_count = 1 + self.app_settings.text_expansion_rules.len();
+                let row_count = 3 + self.app_settings.text_expansion_rules.len();
                 let list = allocate_adaptive_settings_list_viewport(
                     ui,
                     "text_expander_settings",
@@ -4224,7 +4271,69 @@ impl EntropyApp {
                 continue;
             }
 
-            let idx = row_idx - 1;
+            if row_idx == 1 {
+                let mut paused = self.app_settings.text_expander_paused;
+                crate::ui_style::settings_list_row_with_tooltip(
+                    ui,
+                    content_width,
+                    row_height,
+                    crate::i18n::tr_catalog(lang, "text_expander.paused_label"),
+                    true,
+                    tooltip(crate::i18n::tr_catalog(
+                        lang,
+                        "text_expander.paused_tooltip",
+                    )),
+                    switch_width,
+                    |ui| {
+                        crate::ui_style::settings_switch_sized_stable(
+                            ui,
+                            "text_expander_paused",
+                            &mut paused,
+                            switch_size,
+                        );
+                    },
+                );
+                if paused != self.app_settings.text_expander_paused {
+                    self.app_settings.text_expander_paused = paused;
+                    self.save_text_expander_settings();
+                }
+                continue;
+            }
+
+            if row_idx == 2 {
+                let mut blacklist = self.app_settings.text_expander_app_blacklist.clone();
+                crate::ui_style::settings_list_row_with_tooltip(
+                    ui,
+                    content_width,
+                    row_height,
+                    crate::i18n::tr_catalog(lang, "text_expander.blacklist_label"),
+                    true,
+                    tooltip(crate::i18n::tr_catalog(
+                        lang,
+                        "text_expander.blacklist_tooltip",
+                    )),
+                    metrics.value(250.0),
+                    |ui| {
+                        let resp = crate::ui_style::modern_text_field_sized(
+                            ui,
+                            ui.make_persistent_id("text_expander_blacklist"),
+                            &mut blacklist,
+                            metrics.value(250.0),
+                            metrics.settings_control_height(),
+                            crate::i18n::tr_catalog(lang, "text_expander.blacklist_hint"),
+                            160,
+                            egui::Align::Min,
+                        );
+                        if resp.changed() {
+                            self.app_settings.text_expander_app_blacklist = blacklist.clone();
+                            self.save_text_expander_settings();
+                        }
+                    },
+                );
+                continue;
+            }
+
+            let idx = row_idx - 3;
             let Some(original_rule) = self.app_settings.text_expansion_rules.get(idx).cloned()
             else {
                 continue;
@@ -4232,19 +4341,24 @@ impl EntropyApp {
             let mut rule = original_rule.clone();
             let mut delete_rule = false;
             let mut changed = false;
+            let issue = self.text_expander_rule_issue(idx, &rule);
             let label = format!(
-                "{} {}",
+                "{}{} {}",
+                if issue.is_some() { "⚠ " } else { "" },
                 crate::i18n::tr_catalog(lang, "text_expander.rule_label"),
                 idx + 1
             );
             let control_width = metrics.value(344.0);
+            let rule_tooltip = issue
+                .map(|key| crate::i18n::tr_catalog(lang, key))
+                .unwrap_or_else(|| crate::i18n::tr_catalog(lang, "text_expander.rule_tooltip"));
             crate::ui_style::settings_list_row_with_tooltip(
                 ui,
                 content_width,
                 row_height,
                 label.as_str(),
                 true,
-                tooltip(crate::i18n::tr_catalog(lang, "text_expander.rule_tooltip")),
+                tooltip(rule_tooltip),
                 control_width,
                 |ui| {
                     ui.horizontal(|ui| {
@@ -4280,7 +4394,7 @@ impl EntropyApp {
                             metrics.value(166.0),
                             metrics.settings_control_height(),
                             crate::i18n::tr_catalog(lang, "text_expander.replacement_hint"),
-                            220,
+                            480,
                             egui::Align::Min,
                         );
                         if replacement_resp.changed() {

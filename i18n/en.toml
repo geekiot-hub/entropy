@@ -851,14 +851,23 @@ layer_selected_automatically_while_the_touchpad_is_active = "Layer selected auto
 
 [text_expander]
 title = "Text Expander"
-description = "Basic local text snippets: type a trigger and Entropy replaces it with saved text"
+description = "Basic local text snippets: type a trigger and Entropy replaces it with saved text. Use \n for new lines and $|$ for cursor position"
 enabled_label = "Enable expander"
 enabled_tooltip = "Watch typed text locally and expand matching triggers; only a short in-memory buffer is kept"
 rule_label = "Rule"
 rule_tooltip = "Trigger and replacement text for one expansion rule"
 trigger_hint = ":addr"
-replacement_hint = "replacement"
+replacement_hint = "text, \n, $|$"
 add_rule = "Add rule"
+paused_label = "Pause expander"
+paused_tooltip = "Temporarily stop expanding rules without disabling or deleting them"
+blacklist_label = "App blacklist"
+blacklist_tooltip = "Comma-separated executable names where Text Expander should stay silent"
+blacklist_hint = "KeePass.exe, Code.exe"
+issue_empty_trigger = "Trigger is empty"
+issue_invalid_trigger = "Trigger must start with : or ; and contain no spaces"
+issue_empty_replacement = "Replacement is empty"
+issue_duplicate_trigger = "Another rule already uses this trigger"
 
 [modules_settings]
 title = "Modules settings"

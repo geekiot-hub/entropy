@@ -388,10 +388,21 @@ fn text_expander_engine() -> &'static Mutex<TextExpansionEngine> {
     TEXT_EXPANDER_ENGINE.get_or_init(|| Mutex::new(TextExpansionEngine::default()))
 }
 
-pub fn set_text_expander_config(enabled: bool, rules: Vec<TextExpansionRule>) {
+pub fn set_text_expander_config(
+    enabled: bool,
+    paused: bool,
+    rules: Vec<TextExpansionRule>,
+    app_blacklist: Vec<String>,
+) {
     let config = TextExpansionConfig {
         enabled,
+        paused,
         rules: rules.clone(),
+        app_blacklist: app_blacklist
+            .into_iter()
+            .map(|name| name.trim().to_ascii_lowercase())
+            .filter(|name| !name.is_empty())
+            .collect(),
     };
     if let Ok(mut guard) = text_expander_config().write() {
         *guard = config;
@@ -404,8 +415,66 @@ pub fn set_text_expander_config(enabled: bool, rules: Vec<TextExpansionRule>) {
 fn text_expander_enabled() -> bool {
     text_expander_config()
         .read()
-        .map(|config| config.enabled && config.rules.iter().any(|rule| rule.enabled))
+        .map(|config| {
+            config.enabled
+                && !config.paused
+                && config.rules.iter().any(crate::text_expander::rule_usable)
+                && !foreground_app_blacklisted(&config.app_blacklist)
+        })
         .unwrap_or(false)
+}
+
+#[cfg(target_os = "windows")]
+fn foreground_app_blacklisted(app_blacklist: &[String]) -> bool {
+    if app_blacklist.is_empty() {
+        return false;
+    }
+    foreground_process_name_lower()
+        .map(|name| {
+            app_blacklist.iter().any(|blocked| {
+                name == *blocked
+                    || name.ends_with(blocked)
+                    || blocked
+                        .strip_suffix(".exe")
+                        .is_some_and(|stem| name == stem)
+            })
+        })
+        .unwrap_or(false)
+}
+
+#[cfg(not(target_os = "windows"))]
+fn foreground_app_blacklisted(_app_blacklist: &[String]) -> bool {
+    false
+}
+
+#[cfg(target_os = "windows")]
+fn foreground_process_name_lower() -> Option<String> {
+    unsafe {
+        let hwnd = GetForegroundWindow();
+        if hwnd.is_null() {
+            return None;
+        }
+        let mut process_id = 0u32;
+        if GetWindowThreadProcessId(hwnd, &mut process_id as *mut u32) == 0 || process_id == 0 {
+            return None;
+        }
+        let process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, process_id);
+        if process.is_null() {
+            return None;
+        }
+        let mut buffer = [0u16; 1024];
+        let mut size = buffer.len() as u32;
+        let ok = QueryFullProcessImageNameW(process, 0, buffer.as_mut_ptr(), &mut size) != 0;
+        CloseHandle(process);
+        if !ok || size == 0 {
+            return None;
+        }
+        let path = String::from_utf16_lossy(&buffer[..size as usize]);
+        std::path::Path::new(&path)
+            .file_name()
+            .and_then(|name| name.to_str())
+            .map(|name| name.to_ascii_lowercase())
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -689,7 +758,114 @@ unsafe fn send_text_expansion(expansion: &crate::text_expander::TextExpansionMat
     for _ in 0..expansion.typed_trigger_chars {
         send_vk_tap(VK_BACK as u16);
     }
-    send_unicode_text(&expansion.replacement);
+
+    let pasted = should_use_clipboard_paste(&expansion.replacement)
+        && paste_text_with_clipboard_restore(&expansion.replacement);
+    if !pasted {
+        send_unicode_text(&expansion.replacement);
+    }
+
+    for _ in 0..expansion.cursor_back_chars {
+        send_vk_tap(VK_LEFT as u16);
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn should_use_clipboard_paste(text: &str) -> bool {
+    text.chars().count() > 64 || text.contains(['\n', '\r', '\t'])
+}
+
+#[cfg(target_os = "windows")]
+unsafe fn paste_text_with_clipboard_restore(text: &str) -> bool {
+    let Some(previous_text) = read_clipboard_text() else {
+        return false;
+    };
+    if !set_clipboard_text(text) {
+        return false;
+    }
+    std::thread::sleep(std::time::Duration::from_millis(12));
+    send_ctrl_v();
+    std::thread::sleep(std::time::Duration::from_millis(80));
+    set_clipboard_text(&previous_text)
+}
+
+#[cfg(target_os = "windows")]
+unsafe fn read_clipboard_text() -> Option<String> {
+    if OpenClipboard(std::ptr::null_mut()) == 0 {
+        return None;
+    }
+    let handle = GetClipboardData(CF_UNICODETEXT);
+    if handle.is_null() {
+        CloseClipboard();
+        return None;
+    }
+    let locked = GlobalLock(handle) as *const u16;
+    if locked.is_null() {
+        CloseClipboard();
+        return None;
+    }
+    let mut len = 0usize;
+    while *locked.add(len) != 0 {
+        len += 1;
+    }
+    let text = String::from_utf16_lossy(std::slice::from_raw_parts(locked, len));
+    GlobalUnlock(handle);
+    CloseClipboard();
+    Some(text)
+}
+
+#[cfg(target_os = "windows")]
+unsafe fn set_clipboard_text(text: &str) -> bool {
+    if OpenClipboard(std::ptr::null_mut()) == 0 {
+        return false;
+    }
+    if EmptyClipboard() == 0 {
+        CloseClipboard();
+        return false;
+    }
+    let utf16 = text
+        .encode_utf16()
+        .chain(std::iter::once(0))
+        .collect::<Vec<_>>();
+    let bytes = utf16.len() * std::mem::size_of::<u16>();
+    let handle = GlobalAlloc(GMEM_MOVEABLE, bytes);
+    if handle.is_null() {
+        CloseClipboard();
+        return false;
+    }
+    let locked = GlobalLock(handle) as *mut u16;
+    if locked.is_null() {
+        GlobalFree(handle);
+        CloseClipboard();
+        return false;
+    }
+    std::ptr::copy_nonoverlapping(utf16.as_ptr(), locked, utf16.len());
+    GlobalUnlock(handle);
+    if SetClipboardData(CF_UNICODETEXT, handle).is_null() {
+        GlobalFree(handle);
+        CloseClipboard();
+        return false;
+    }
+    CloseClipboard();
+    true
+}
+
+#[cfg(target_os = "windows")]
+unsafe fn send_ctrl_v() {
+    let inputs = [
+        INPUT::keyboard_vk(VK_CONTROL as u16, false),
+        INPUT::keyboard_vk(VK_V as u16, false),
+        INPUT::keyboard_vk(VK_V as u16, true),
+        INPUT::keyboard_vk(VK_CONTROL as u16, true),
+    ];
+    let sent = SendInput(
+        inputs.len() as u32,
+        inputs.as_ptr(),
+        std::mem::size_of::<INPUT>() as i32,
+    );
+    if sent != inputs.len() as u32 {
+        log::warn!("Smart Input: SendInput failed for Ctrl+V");
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -814,6 +990,8 @@ const VK_LWIN: i32 = 0x5B;
 #[cfg(target_os = "windows")]
 const VK_RWIN: i32 = 0x5C;
 #[cfg(target_os = "windows")]
+const VK_V: i32 = 0x56;
+#[cfg(target_os = "windows")]
 const LLKHF_INJECTED: u32 = 0x10;
 #[cfg(target_os = "windows")]
 const INPUT_KEYBOARD: u32 = 1;
@@ -821,6 +999,12 @@ const INPUT_KEYBOARD: u32 = 1;
 const KEYEVENTF_KEYUP: u32 = 0x0002;
 #[cfg(target_os = "windows")]
 const KEYEVENTF_UNICODE: u32 = 0x0004;
+#[cfg(target_os = "windows")]
+const CF_UNICODETEXT: u32 = 13;
+#[cfg(target_os = "windows")]
+const GMEM_MOVEABLE: u32 = 0x0002;
+#[cfg(target_os = "windows")]
+const PROCESS_QUERY_LIMITED_INFORMATION: u32 = 0x1000;
 
 #[cfg(target_os = "windows")]
 type HHOOK = *mut core::ffi::c_void;
@@ -828,6 +1012,8 @@ type HHOOK = *mut core::ffi::c_void;
 type HINSTANCE = *mut core::ffi::c_void;
 #[cfg(target_os = "windows")]
 type HWND = *mut core::ffi::c_void;
+#[cfg(target_os = "windows")]
+type HANDLE = *mut core::ffi::c_void;
 
 #[cfg(target_os = "windows")]
 #[repr(C)]
@@ -960,12 +1146,31 @@ extern "system" {
         wFlags: u32,
         dwhkl: *mut core::ffi::c_void,
     ) -> i32;
+    fn GetForegroundWindow() -> HWND;
+    fn GetWindowThreadProcessId(hWnd: HWND, lpdwProcessId: *mut u32) -> u32;
+    fn OpenClipboard(hWndNewOwner: HWND) -> i32;
+    fn CloseClipboard() -> i32;
+    fn EmptyClipboard() -> i32;
+    fn GetClipboardData(uFormat: u32) -> HANDLE;
+    fn SetClipboardData(uFormat: u32, hMem: HANDLE) -> HANDLE;
 }
 
 #[cfg(target_os = "windows")]
 #[link(name = "kernel32")]
 extern "system" {
     fn GetModuleHandleW(lpModuleName: *const u16) -> HINSTANCE;
+    fn OpenProcess(dwDesiredAccess: u32, bInheritHandle: i32, dwProcessId: u32) -> HANDLE;
+    fn QueryFullProcessImageNameW(
+        hProcess: HANDLE,
+        dwFlags: u32,
+        lpExeName: *mut u16,
+        lpdwSize: *mut u32,
+    ) -> i32;
+    fn CloseHandle(hObject: HANDLE) -> i32;
+    fn GlobalAlloc(uFlags: u32, dwBytes: usize) -> HANDLE;
+    fn GlobalLock(hMem: HANDLE) -> *mut core::ffi::c_void;
+    fn GlobalUnlock(hMem: HANDLE) -> i32;
+    fn GlobalFree(hMem: HANDLE) -> HANDLE;
 }
 
 #[cfg(target_os = "macos")]
