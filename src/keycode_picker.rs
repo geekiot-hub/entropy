@@ -1797,21 +1797,8 @@ impl KeycodePicker {
         let origin = egui::pos2(rect.min.x + x_offset, rect.min.y);
         for &(row, col, span, fallback_label, value) in keys {
             let assigned_value = self.basic_layout.map_value(value);
-            let display_label = match assigned_value {
-                0x0035 => "~\n`".to_string(),
-                0x001E => "!\n1".to_string(),
-                0x001F => "@\n2".to_string(),
-                0x0020 => "#\n3".to_string(),
-                0x0021 => "$\n4".to_string(),
-                0x0022 => "%\n5".to_string(),
-                0x0023 => "^\n6".to_string(),
-                0x0024 => "&\n7".to_string(),
-                0x0025 => "*\n8".to_string(),
-                0x0026 => "(\n9".to_string(),
-                0x0027 => ")\n0".to_string(),
-                0x002D => "_\n-".to_string(),
-                0x002E => "+\n=".to_string(),
-                _ => crate::keycode::find_keycode(assigned_value)
+            let display_label = if self.key_legend_layout != KeyLegendLayout::English {
+                crate::keycode::find_keycode(assigned_value)
                     .map(|_| {
                         keycode_label_with_names_and_layout(
                             assigned_value,
@@ -1820,7 +1807,33 @@ impl KeycodePicker {
                             self.key_legend_layout,
                         )
                     })
-                    .unwrap_or_else(|| fallback_label.to_string()),
+                    .unwrap_or_else(|| fallback_label.to_string())
+            } else {
+                match assigned_value {
+                    0x0035 => "~\n`".to_string(),
+                    0x001E => "!\n1".to_string(),
+                    0x001F => "@\n2".to_string(),
+                    0x0020 => "#\n3".to_string(),
+                    0x0021 => "$\n4".to_string(),
+                    0x0022 => "%\n5".to_string(),
+                    0x0023 => "^\n6".to_string(),
+                    0x0024 => "&\n7".to_string(),
+                    0x0025 => "*\n8".to_string(),
+                    0x0026 => "(\n9".to_string(),
+                    0x0027 => ")\n0".to_string(),
+                    0x002D => "_\n-".to_string(),
+                    0x002E => "+\n=".to_string(),
+                    _ => crate::keycode::find_keycode(assigned_value)
+                        .map(|_| {
+                            keycode_label_with_names_and_layout(
+                                assigned_value,
+                                &[],
+                                &self.layer_names,
+                                self.key_legend_layout,
+                            )
+                        })
+                        .unwrap_or_else(|| fallback_label.to_string()),
+                }
             };
             self.basic_key_button_at(
                 ui,
