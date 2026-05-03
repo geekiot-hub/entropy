@@ -145,9 +145,12 @@ impl TextExpansionEngine {
 }
 
 pub fn rule_usable(rule: &TextExpansionRule) -> bool {
-    rule.enabled
-        && valid_trigger(&rule.trigger)
-        && !prepare_replacement(&rule.replacement).0.is_empty()
+    rule.enabled && runtime_trigger_usable(&rule.trigger) && !prepare_replacement(&rule.replacement).0.is_empty()
+}
+
+fn runtime_trigger_usable(trigger: &str) -> bool {
+    let trimmed = trigger.trim();
+    trimmed == trigger && !trigger.is_empty() && !trigger.chars().any(char::is_control)
 }
 
 pub fn valid_trigger(trigger: &str) -> bool {
@@ -246,11 +249,17 @@ mod tests {
     }
 
     #[test]
-    fn rejects_word_triggers_without_prefix() {
+    fn still_expands_legacy_word_triggers_with_boundary() {
         let mut engine = TextExpansionEngine::new(vec![rule("addr", "Earth")]);
-        for ch in " addr".chars() {
+        for ch in "xaddr".chars() {
             assert!(engine.push_char(ch).is_none());
         }
+        engine.reset();
+        let mut matched = None;
+        for ch in " addr".chars() {
+            matched = engine.push_char(ch);
+        }
+        assert_eq!(matched.unwrap().replacement, "Earth");
     }
 
     #[test]
