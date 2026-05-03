@@ -342,8 +342,7 @@ fn allocate_adaptive_settings_list_viewport(
         .ctx()
         .data_mut(|d| d.get_persisted::<f32>(target_id).unwrap_or(scroll_offset))
         .clamp(0.0, max_offset);
-    let (viewport, viewport_resp) =
-        ui.allocate_exact_size(egui::vec2(viewport_width, list_height), Sense::hover());
+    let (viewport, _) = ui.allocate_exact_size(egui::vec2(viewport_width, list_height), Sense::hover());
 
     let track_width = metrics.value(6.0);
     let track_rect = egui::Rect::from_min_max(
@@ -361,7 +360,12 @@ fn allocate_adaptive_settings_list_viewport(
     };
 
     let mut scroll_active = false;
-    let scroll_delta = if viewport_resp.hovered() {
+    let viewport_hovered = ui.input(|i| {
+        i.pointer
+            .hover_pos()
+            .is_some_and(|pos| viewport.contains(pos))
+    });
+    let scroll_delta = if viewport_hovered {
         ui.input(|i| {
             if i.smooth_scroll_delta.y.abs() > 0.0 {
                 i.smooth_scroll_delta.y
