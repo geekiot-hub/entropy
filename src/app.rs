@@ -41,6 +41,38 @@ fn single_instance_signal_path() -> std::path::PathBuf {
     dir.join("single_instance_signal")
 }
 
+#[derive(Clone, Copy)]
+enum SettingsFieldUnit {
+    Milliseconds,
+    Minutes,
+    CursorSteps,
+    SpeedSteps,
+}
+
+impl SettingsFieldUnit {
+    fn tooltip_key(self) -> &'static str {
+        match self {
+            SettingsFieldUnit::Milliseconds => "field_units.milliseconds",
+            SettingsFieldUnit::Minutes => "field_units.minutes",
+            SettingsFieldUnit::CursorSteps => "field_units.cursor_steps",
+            SettingsFieldUnit::SpeedSteps => "field_units.speed_steps",
+        }
+    }
+}
+
+fn settings_field_unit_tooltip(
+    response: egui::Response,
+    language: crate::i18n::Language,
+    suppress_tooltip: bool,
+    unit: SettingsFieldUnit,
+) -> egui::Response {
+    if suppress_tooltip {
+        response
+    } else {
+        response.on_hover_text(crate::i18n::tr_catalog(language, unit.tooltip_key()))
+    }
+}
+
 fn read_single_instance_signal() -> String {
     std::fs::read_to_string(single_instance_signal_path())
         .unwrap_or_default()
@@ -5231,11 +5263,13 @@ impl EntropyApp {
                         5,
                         egui::Align::RIGHT,
                         enabled,
-                    )
-                    .on_hover_text(crate::i18n::tr_catalog(
+                    );
+                    let resp = settings_field_unit_tooltip(
+                        resp,
                         self.app_settings.language,
-                        "auto_shift.timeout_field_tooltip",
-                    ));
+                        suppress_tooltips,
+                        SettingsFieldUnit::Milliseconds,
+                    );
                     if resp.changed() {
                         let filtered: String = self
                             .auto_shift_timeout_text
@@ -8773,6 +8807,12 @@ impl EntropyApp {
                                         .show_value(false)
                                         .trailing_fill(true);
                                     let resp = ui.add_sized(slider_size, slider);
+                                    let resp = settings_field_unit_tooltip(
+                                        resp,
+                                        self.app_settings.language,
+                                        suppress_tooltips,
+                                        SettingsFieldUnit::Minutes,
+                                    );
                                     if resp.changed() {
                                         let new_value = value.round().clamp(0.0, 255.0) as u8;
                                         if new_value != self.layer_led_settings.timeout_mins {
@@ -9950,18 +9990,16 @@ impl EntropyApp {
                             5,
                             egui::Align::RIGHT,
                         );
-                        if !suppress_tooltips {
-                            match (kind, qsid) {
-                                (SettingsRowKind::TapHold, 7 | 25 | 18 | 19 | 27)
-                                | (SettingsRowKind::OneShot, 6) => {
-                                    resp.clone().on_hover_text(crate::i18n::tr_catalog(
-                                        self.app_settings.language,
-                                        "tap_hold_settings.value_is_in_milliseconds",
-                                    ));
-                                }
-                                _ => {}
-                            }
-                        }
+                        let resp = match (kind, qsid) {
+                            (SettingsRowKind::TapHold, 7 | 25 | 18 | 19 | 27)
+                            | (SettingsRowKind::OneShot, 6) => settings_field_unit_tooltip(
+                                resp,
+                                self.app_settings.language,
+                                suppress_tooltips,
+                                SettingsFieldUnit::Milliseconds,
+                            ),
+                            _ => resp,
+                        };
                         if resp.changed() {
                             let filtered: String =
                                 text.chars().filter(|c: &char| c.is_ascii_digit()).collect();
@@ -11005,66 +11043,75 @@ impl EntropyApp {
     ) {
         // Limits match Vial GUI qmk_settings.json.
         let lang = self.app_settings.language;
-        let rows: [(u16, &'static str, &'static str, u32); 9] = [
+        let rows: [(u16, &'static str, &'static str, SettingsFieldUnit, u32); 9] = [
             (
                 9,
                 "mouse_keys_settings.delay_label",
                 "mouse_keys_settings.delay_tooltip",
+                SettingsFieldUnit::Milliseconds,
                 10000,
             ),
             (
                 10,
                 "mouse_keys_settings.interval_label",
                 "mouse_keys_settings.interval_tooltip",
+                SettingsFieldUnit::Milliseconds,
                 10000,
             ),
             (
                 11,
                 "mouse_keys_settings.move_delta_label",
                 "mouse_keys_settings.move_delta_tooltip",
+                SettingsFieldUnit::CursorSteps,
                 1000,
             ),
             (
                 12,
                 "mouse_keys_settings.max_speed_label",
                 "mouse_keys_settings.max_speed_tooltip",
+                SettingsFieldUnit::SpeedSteps,
                 1000,
             ),
             (
                 13,
                 "mouse_keys_settings.time_to_max_label",
                 "mouse_keys_settings.time_to_max_tooltip",
+                SettingsFieldUnit::Milliseconds,
                 1000,
             ),
             (
                 14,
                 "mouse_keys_settings.wheel_delay_label",
                 "mouse_keys_settings.wheel_delay_tooltip",
+                SettingsFieldUnit::Milliseconds,
                 10000,
             ),
             (
                 15,
                 "mouse_keys_settings.wheel_interval_label",
                 "mouse_keys_settings.wheel_interval_tooltip",
+                SettingsFieldUnit::Milliseconds,
                 10000,
             ),
             (
                 16,
                 "mouse_keys_settings.wheel_max_speed_label",
                 "mouse_keys_settings.wheel_max_speed_tooltip",
+                SettingsFieldUnit::SpeedSteps,
                 1000,
             ),
             (
                 17,
                 "mouse_keys_settings.wheel_time_to_max_label",
                 "mouse_keys_settings.wheel_time_to_max_tooltip",
+                SettingsFieldUnit::Milliseconds,
                 1000,
             ),
         ];
         let control_height = (row_height / 54.0).clamp(1.0, 1.12) * 32.0;
 
         for row_idx in row_range {
-            let Some((qsid, label, tooltip, max)) = rows.get(row_idx).copied() else {
+            let Some((qsid, label, tooltip, unit, max)) = rows.get(row_idx).copied() else {
                 continue;
             };
             let current = match qsid {
@@ -11114,6 +11161,7 @@ impl EntropyApp {
                         5,
                         egui::Align::RIGHT,
                     );
+                    let resp = settings_field_unit_tooltip(resp, lang, suppress_tooltips, unit);
 
                     if resp.changed() {
                         let filtered: String =
@@ -12273,12 +12321,12 @@ impl EntropyApp {
                                         "",
                                         4,
                                         egui::Align::RIGHT,
-                                    )
-                                    .on_hover_text(
-                                        crate::i18n::tr_catalog(
-                                            self.app_settings.language,
-                                            "auto_shift_settings.timeout_is_in_milliseconds",
-                                        ),
+                                    );
+                                    let resp = settings_field_unit_tooltip(
+                                        resp,
+                                        self.app_settings.language,
+                                        false,
+                                        SettingsFieldUnit::Milliseconds,
                                     );
                                     if resp.changed() {
                                         let filtered: String = combo_term_text

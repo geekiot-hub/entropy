@@ -1054,3 +1054,9 @@ wheel_max_speed_label = "Wheel max speed"
 wheel_max_speed_tooltip = "Maximum wheel scrolling speed reached after acceleration ramps up"
 wheel_time_to_max_label = "Wheel time to max"
 wheel_time_to_max_tooltip = "How long wheel scrolling takes to accelerate from base speed to maximum speed"
+
+[field_units]
+milliseconds = "Value is in milliseconds"
+minutes = "Value is in minutes"
+cursor_steps = "Value is in cursor movement steps"
+speed_steps = "Value is in firmware speed steps"
