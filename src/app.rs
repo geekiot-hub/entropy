@@ -320,26 +320,8 @@ fn allocate_adaptive_settings_list_viewport(
     total_rows: usize,
     bottom_reserve: f32,
 ) -> AdaptiveSettingsListViewport {
-    allocate_adaptive_settings_list_viewport_sized(
-        ui,
-        id_salt,
-        metrics,
-        metrics.settings_content_width(),
-        metrics.settings_row_content_width(),
-        total_rows,
-        bottom_reserve,
-    )
-}
-
-fn allocate_adaptive_settings_list_viewport_sized(
-    ui: &mut egui::Ui,
-    id_salt: &'static str,
-    metrics: crate::ui_style::ResponsiveMetrics,
-    viewport_width: f32,
-    row_content_width: f32,
-    total_rows: usize,
-    bottom_reserve: f32,
-) -> AdaptiveSettingsListViewport {
+    let viewport_width = metrics.settings_content_width();
+    let row_content_width = metrics.settings_row_content_width();
     let row_height = metrics.settings_row_height();
     let visible_rows = responsive_settings_visible_rows(
         ui.ctx(),
@@ -4185,11 +4167,9 @@ impl EntropyApp {
                         .size(metrics.value(18.0))
                         .strong(),
                 );
-                let page_width = metrics.value(660.0);
-                let row_content_width = metrics.value(640.0);
                 ui.add_space(metrics.value(6.0));
                 ui.add_sized(
-                    Vec2::new(page_width, metrics.value(34.0)),
+                    Vec2::new(metrics.settings_content_width(), metrics.value(34.0)),
                     egui::Label::new(
                         RichText::new(crate::i18n::tr_catalog(lang, "text_expander.description"))
                             .size(metrics.value(13.0))
@@ -4200,15 +4180,13 @@ impl EntropyApp {
                 );
                 ui.add_space(metrics.value(18.0));
 
-                let row_count = 4 + self.app_settings.text_expansion_rules.len();
-                let list = allocate_adaptive_settings_list_viewport_sized(
+                let row_count = 3 + self.app_settings.text_expansion_rules.len();
+                let list = allocate_adaptive_settings_list_viewport(
                     ui,
                     "text_expander_settings",
                     metrics,
-                    page_width,
-                    row_content_width,
                     row_count,
-                    0.0,
+                    metrics.value(44.0),
                 );
                 ui.allocate_ui_at_rect(list.content_rect, |ui| {
                     ui.set_clip_rect(list.viewport);
@@ -4233,6 +4211,30 @@ impl EntropyApp {
                         list.track_hovered,
                     );
                 }
+
+                let button_size = metrics.size(126.0, 34.0);
+                let button_rect = egui::Rect::from_center_size(
+                    egui::pos2(
+                        list.viewport.center().x,
+                        list.viewport.bottom() + metrics.value(26.0),
+                    ),
+                    button_size,
+                );
+                ui.allocate_ui_at_rect(button_rect, |ui| {
+                    if crate::ui_style::modern_button(
+                        ui,
+                        crate::i18n::tr_catalog(lang, "text_expander.add_rule"),
+                        button_size,
+                        true,
+                    )
+                    .clicked()
+                    {
+                        self.app_settings
+                            .text_expansion_rules
+                            .push(crate::text_expander::TextExpansionRule::default());
+                        self.save_text_expander_settings();
+                    }
+                });
             });
         });
     }
@@ -4312,7 +4314,7 @@ impl EntropyApp {
 
             if row_idx == 2 {
                 let mut blacklist = self.app_settings.text_expander_app_blacklist.clone();
-                let blacklist_width = metrics.value(360.0);
+                let blacklist_width = metrics.value(250.0);
                 crate::ui_style::settings_list_row_with_tooltip(
                     ui,
                     content_width,
@@ -4344,35 +4346,7 @@ impl EntropyApp {
                 continue;
             }
 
-            if row_idx == 3 {
-                crate::ui_style::settings_list_row_with_tooltip(
-                    ui,
-                    content_width,
-                    row_height,
-                    crate::i18n::tr_catalog(lang, "text_expander.rules_label"),
-                    true,
-                    tooltip(crate::i18n::tr_catalog(lang, "text_expander.rules_tooltip")),
-                    metrics.value(126.0),
-                    |ui| {
-                        if crate::ui_style::modern_button(
-                            ui,
-                            crate::i18n::tr_catalog(lang, "text_expander.add_rule"),
-                            metrics.size(126.0, metrics.settings_control_height()),
-                            true,
-                        )
-                        .clicked()
-                        {
-                            self.app_settings
-                                .text_expansion_rules
-                                .push(crate::text_expander::TextExpansionRule::default());
-                            self.save_text_expander_settings();
-                        }
-                    },
-                );
-                continue;
-            }
-
-            let idx = row_idx - 4;
+            let idx = row_idx - 3;
             let Some(original_rule) = self.app_settings.text_expansion_rules.get(idx).cloned()
             else {
                 continue;
@@ -4387,9 +4361,7 @@ impl EntropyApp {
                 crate::i18n::tr_catalog(lang, "text_expander.rule_label"),
                 idx + 1
             );
-            let control_width = metrics
-                .value(474.0)
-                .min((content_width - metrics.value(118.0)).max(0.0));
+            let control_width = metrics.value(344.0);
             let rule_tooltip = issue
                 .map(|key| crate::i18n::tr_catalog(lang, key))
                 .unwrap_or_else(|| crate::i18n::tr_catalog(lang, "text_expander.rule_tooltip"));
@@ -4415,22 +4387,14 @@ impl EntropyApp {
                             rule.enabled = rule_enabled;
                             changed = true;
                         }
-                        let trigger_width = metrics.value(116.0);
-                        let delete_width = metrics.value(30.0);
-                        let replacement_width = (control_width
-                            - metrics.value(34.0)
-                            - trigger_width
-                            - delete_width
-                            - metrics.value(18.0))
-                        .max(metrics.value(180.0));
                         let trigger_resp = crate::ui_style::modern_text_field_sized(
                             ui,
                             ui.make_persistent_id(("text_expander_trigger", idx)),
                             &mut rule.trigger,
-                            trigger_width,
+                            metrics.value(82.0),
                             metrics.settings_control_height(),
                             crate::i18n::tr_catalog(lang, "text_expander.trigger_hint"),
-                            48,
+                            32,
                             egui::Align::Center,
                         );
                         if trigger_resp.changed() {
@@ -4440,7 +4404,7 @@ impl EntropyApp {
                             ui,
                             ui.make_persistent_id(("text_expander_replacement", idx)),
                             &mut rule.replacement,
-                            replacement_width,
+                            metrics.value(166.0),
                             metrics.settings_control_height(),
                             crate::i18n::tr_catalog(lang, "text_expander.replacement_hint"),
                             480,
