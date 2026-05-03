@@ -4216,11 +4216,19 @@ impl EntropyApp {
                     );
                 }
 
+                let action_anchor_rows = responsive_settings_visible_rows(
+                    ui.ctx(),
+                    ui.available_height(),
+                    6,
+                    metrics.value(44.0),
+                );
+                let action_anchor_bottom = list.viewport.top()
+                    + list.row_height * action_anchor_rows as f32;
                 let button_size = metrics.size(126.0, 34.0);
                 let button_rect = egui::Rect::from_center_size(
                     egui::pos2(
                         list.viewport.center().x,
-                        list.viewport.bottom() + metrics.value(26.0),
+                        action_anchor_bottom + metrics.value(26.0),
                     ),
                     button_size,
                 );
