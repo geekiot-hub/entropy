@@ -7165,7 +7165,7 @@ impl EntropyApp {
 
     fn open_text_expander_settings_page(&mut self) {
         self.settings_tab = SettingsTab::TextExpander;
-        self.main_menu_tab = MainMenuTab::Settings;
+        self.main_menu_tab = MainMenuTab::Advanced;
     }
 
     fn open_layer_led_settings_page(&mut self) {
@@ -13455,10 +13455,12 @@ impl EntropyApp {
                 let combo_supported = !self.combo_entries.is_empty();
                 let key_override_supported = !self.key_override_entries.is_empty();
                 let auto_shift_supported = self.auto_shift_timeout.is_some();
-                let advanced_item_count = combo_supported as usize
+                let advanced_item_count = 1
+                    + combo_supported as usize
                     + auto_shift_supported as usize
                     + key_override_supported as usize;
-                let mut advanced_menu_labels = Vec::new();
+                let mut advanced_menu_labels =
+                    vec![crate::i18n::tr_catalog(lang, "text_expander.title")];
                 if combo_supported {
                     advanced_menu_labels.push(crate::i18n::tr(lang, TrKey::ComboTitle));
                 }
@@ -13494,107 +13496,122 @@ impl EntropyApp {
                 if show_dropdown {
                     let dark = ui.visuals().dark_mode;
                     let item_width = dropdown_rect.width() - 16.0;
-                    let (combo_hovered, auto_shift_hovered, key_override_hovered, advanced_clicked) =
-                        egui::Area::new(egui::Id::new("advanced_dropdown_area"))
-                            .order(egui::Order::Foreground)
-                            .fixed_pos(dropdown_rect.min)
-                            .show(ui.ctx(), |ui| {
-                                top_dropdown_frame(dark)
-                                    .show(ui, |ui| {
-                                        ui.set_min_width(item_width);
-                                        let combo_resp = combo_supported.then(|| {
-                                            top_dropdown_item(
-                                                ui,
-                                                item_width,
-                                                crate::i18n::tr(lang, TrKey::ComboTitle),
-                                                true,
-                                                self.main_menu_tab == MainMenuTab::Advanced
-                                                    && self.settings_tab == SettingsTab::Combo,
-                                            )
-                                        });
-                                        let auto_shift_resp = auto_shift_supported.then(|| {
-                                            top_dropdown_item(
-                                                ui,
-                                                item_width,
-                                                crate::i18n::tr(lang, TrKey::AutoShiftTitle),
-                                                true,
-                                                self.main_menu_tab == MainMenuTab::Advanced
-                                                    && self.settings_tab == SettingsTab::AutoShift,
-                                            )
-                                        });
-                                        let key_override_resp = key_override_supported.then(|| {
-                                            top_dropdown_item(
-                                                ui,
-                                                item_width,
-                                                crate::i18n::tr(lang, TrKey::KeyOverridesTitle),
-                                                true,
-                                                self.main_menu_tab == MainMenuTab::Advanced
-                                                    && self.settings_tab
-                                                        == SettingsTab::KeyOverrides,
-                                            )
-                                        });
-                                        if combo_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
-                                        {
-                                            self.close_top_dropdowns(ui.ctx());
-                                            self.settings_tab = SettingsTab::Combo;
-                                            self.main_menu_tab = MainMenuTab::Advanced;
-                                            if self.combo_visible_count == 0 {
-                                                self.combo_visible_count = 1;
-                                            }
+                    let (
+                        text_expander_hovered,
+                        combo_hovered,
+                        auto_shift_hovered,
+                        key_override_hovered,
+                        advanced_clicked,
+                    ) = egui::Area::new(egui::Id::new("advanced_dropdown_area"))
+                        .order(egui::Order::Foreground)
+                        .fixed_pos(dropdown_rect.min)
+                        .show(ui.ctx(), |ui| {
+                            top_dropdown_frame(dark)
+                                .show(ui, |ui| {
+                                    ui.set_min_width(item_width);
+                                    let text_expander_resp = top_dropdown_item(
+                                        ui,
+                                        item_width,
+                                        crate::i18n::tr_catalog(lang, "text_expander.title"),
+                                        true,
+                                        self.main_menu_tab == MainMenuTab::Advanced
+                                            && self.settings_tab == SettingsTab::TextExpander,
+                                    );
+                                    let combo_resp = combo_supported.then(|| {
+                                        top_dropdown_item(
+                                            ui,
+                                            item_width,
+                                            crate::i18n::tr(lang, TrKey::ComboTitle),
+                                            true,
+                                            self.main_menu_tab == MainMenuTab::Advanced
+                                                && self.settings_tab == SettingsTab::Combo,
+                                        )
+                                    });
+                                    let auto_shift_resp = auto_shift_supported.then(|| {
+                                        top_dropdown_item(
+                                            ui,
+                                            item_width,
+                                            crate::i18n::tr(lang, TrKey::AutoShiftTitle),
+                                            true,
+                                            self.main_menu_tab == MainMenuTab::Advanced
+                                                && self.settings_tab == SettingsTab::AutoShift,
+                                        )
+                                    });
+                                    let key_override_resp = key_override_supported.then(|| {
+                                        top_dropdown_item(
+                                            ui,
+                                            item_width,
+                                            crate::i18n::tr(lang, TrKey::KeyOverridesTitle),
+                                            true,
+                                            self.main_menu_tab == MainMenuTab::Advanced
+                                                && self.settings_tab == SettingsTab::KeyOverrides,
+                                        )
+                                    });
+                                    if text_expander_resp.clicked() {
+                                        self.close_top_dropdowns(ui.ctx());
+                                        self.open_text_expander_settings_page();
+                                    }
+                                    if combo_resp.as_ref().map(|r| r.clicked()).unwrap_or(false) {
+                                        self.close_top_dropdowns(ui.ctx());
+                                        self.settings_tab = SettingsTab::Combo;
+                                        self.main_menu_tab = MainMenuTab::Advanced;
+                                        if self.combo_visible_count == 0 {
+                                            self.combo_visible_count = 1;
                                         }
-                                        if auto_shift_resp
+                                    }
+                                    if auto_shift_resp
+                                        .as_ref()
+                                        .map(|r| r.clicked())
+                                        .unwrap_or(false)
+                                    {
+                                        self.close_top_dropdowns(ui.ctx());
+                                        self.settings_tab = SettingsTab::AutoShift;
+                                        self.main_menu_tab = MainMenuTab::Advanced;
+                                    }
+                                    if key_override_resp
+                                        .as_ref()
+                                        .map(|r| r.clicked())
+                                        .unwrap_or(false)
+                                    {
+                                        self.close_top_dropdowns(ui.ctx());
+                                        self.settings_tab = SettingsTab::KeyOverrides;
+                                        self.main_menu_tab = MainMenuTab::Advanced;
+                                    }
+                                    (
+                                        text_expander_resp.hovered(),
+                                        combo_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
+                                        auto_shift_resp
                                             .as_ref()
-                                            .map(|r| r.clicked())
-                                            .unwrap_or(false)
-                                        {
-                                            self.close_top_dropdowns(ui.ctx());
-                                            self.settings_tab = SettingsTab::AutoShift;
-                                            self.main_menu_tab = MainMenuTab::Advanced;
-                                        }
-                                        if key_override_resp
+                                            .map(|r| r.hovered())
+                                            .unwrap_or(false),
+                                        key_override_resp
                                             .as_ref()
-                                            .map(|r| r.clicked())
-                                            .unwrap_or(false)
-                                        {
-                                            self.close_top_dropdowns(ui.ctx());
-                                            self.settings_tab = SettingsTab::KeyOverrides;
-                                            self.main_menu_tab = MainMenuTab::Advanced;
-                                        }
-                                        (
-                                            combo_resp
-                                                .as_ref()
-                                                .map(|r| r.hovered())
-                                                .unwrap_or(false),
-                                            auto_shift_resp
-                                                .as_ref()
-                                                .map(|r| r.hovered())
-                                                .unwrap_or(false),
-                                            key_override_resp
-                                                .as_ref()
-                                                .map(|r| r.hovered())
-                                                .unwrap_or(false),
-                                            combo_resp
+                                            .map(|r| r.hovered())
+                                            .unwrap_or(false),
+                                        text_expander_resp.clicked()
+                                            || combo_resp
                                                 .as_ref()
                                                 .map(|r| r.clicked())
                                                 .unwrap_or(false)
-                                                || auto_shift_resp
-                                                    .as_ref()
-                                                    .map(|r| r.clicked())
-                                                    .unwrap_or(false)
-                                                || key_override_resp
-                                                    .as_ref()
-                                                    .map(|r| r.clicked())
-                                                    .unwrap_or(false),
-                                        )
-                                    })
-                                    .inner
-                            })
-                            .inner;
+                                            || auto_shift_resp
+                                                .as_ref()
+                                                .map(|r| r.clicked())
+                                                .unwrap_or(false)
+                                            || key_override_resp
+                                                .as_ref()
+                                                .map(|r| r.clicked())
+                                                .unwrap_or(false),
+                                    )
+                                })
+                                .inner
+                        })
+                        .inner;
                     ui.ctx().data_mut(|d| {
                         d.insert_temp(
                             dropdown_id,
                             !advanced_clicked
                                 && (advanced_tab_hovered
+                                    || text_expander_hovered
                                     || combo_hovered
                                     || auto_shift_hovered
                                     || key_override_hovered
@@ -13628,7 +13645,7 @@ impl EntropyApp {
                 let show_tap_hold_item =
                     self.tap_hold_settings.supported || self.one_shot_settings.supported;
                 let show_matrix_item = self.firmware == FirmwareProtocol::Vial;
-                let settings_item_count = 3
+                let settings_item_count = 2
                     + show_matrix_item as usize
                     + show_rgb_item as usize
                     + show_layer_leds_item as usize
@@ -13645,7 +13662,6 @@ impl EntropyApp {
                 let mut settings_menu_labels = vec![
                     crate::i18n::tr(lang, TrKey::AppSettingsTitle),
                     crate::i18n::tr(lang, TrKey::UniversalSymbolsTitle),
-                    crate::i18n::tr_catalog(lang, "text_expander.title"),
                 ];
                 if show_matrix_item {
                     settings_menu_labels.push(crate::i18n::tr(lang, TrKey::MatrixTesterTitle));
@@ -13704,7 +13720,6 @@ impl EntropyApp {
                         app_hovered,
                         matrix_hovered,
                         universal_symbols_hovered,
-                        text_expander_hovered,
                         rgb_hovered,
                         layer_leds_hovered,
                         encoders_hovered,
@@ -13749,14 +13764,6 @@ impl EntropyApp {
                                         self.main_menu_tab == MainMenuTab::Settings
                                             && self.settings_tab
                                                 == SettingsTab::UniversalSymbolsSetup,
-                                    );
-                                    let text_expander_resp = top_dropdown_item(
-                                        ui,
-                                        item_width,
-                                        crate::i18n::tr_catalog(lang, "text_expander.title"),
-                                        true,
-                                        self.main_menu_tab == MainMenuTab::Settings
-                                            && self.settings_tab == SettingsTab::TextExpander,
                                     );
                                     let rgb_resp = if show_rgb_item {
                                         Some(top_dropdown_item(
@@ -13868,10 +13875,6 @@ impl EntropyApp {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.open_universal_symbols_setup_page();
                                     }
-                                    if text_expander_resp.clicked() {
-                                        self.close_top_dropdowns(ui.ctx());
-                                        self.open_text_expander_settings_page();
-                                    }
                                     if let Some(rgb_resp) = &rgb_resp {
                                         if rgb_resp.clicked() && rgb_available {
                                             self.close_top_dropdowns(ui.ctx());
@@ -13936,7 +13939,6 @@ impl EntropyApp {
                                         app_resp.hovered(),
                                         matrix_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         universal_symbols_resp.hovered(),
-                                        text_expander_resp.hovered(),
                                         rgb_resp
                                             .as_ref()
                                             .map(|resp| resp.hovered())
@@ -13973,7 +13975,6 @@ impl EntropyApp {
                                                 .map(|r| r.clicked())
                                                 .unwrap_or(false)
                                             || universal_symbols_resp.clicked()
-                                            || text_expander_resp.clicked()
                                             || rgb_resp
                                                 .as_ref()
                                                 .map(|resp| resp.clicked() && rgb_available)
@@ -14023,7 +14024,6 @@ impl EntropyApp {
                                     || app_hovered
                                     || matrix_hovered
                                     || universal_symbols_hovered
-                                    || text_expander_hovered
                                     || rgb_hovered
                                     || layer_leds_hovered
                                     || encoders_hovered

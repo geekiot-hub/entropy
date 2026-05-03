@@ -593,8 +593,7 @@ unsafe extern "system" fn keyboard_proc(n_code: i32, w_param: usize, l_param: is
                         .ok()
                         .and_then(|mut engine| engine.push_char(ch));
                     if let Some(expansion) = expansion {
-                        send_text_expansion(&expansion);
-                        return 1;
+                        schedule_text_expansion(expansion);
                     }
                 }
             }
@@ -626,18 +625,27 @@ unsafe fn text_expander_char_for_key(info: &KBDLLHOOKSTRUCT) -> Option<char> {
     if GetKeyboardState(keyboard_state.as_mut_ptr()) == 0 {
         return None;
     }
+    set_keyboard_state_down(&mut keyboard_state, VK_SHIFT, modifier_down(VK_SHIFT));
+    set_keyboard_state_down(&mut keyboard_state, VK_CONTROL, false);
+    set_keyboard_state_down(&mut keyboard_state, VK_MENU, false);
+    set_keyboard_state_down(&mut keyboard_state, VK_LWIN, false);
+    set_keyboard_state_down(&mut keyboard_state, VK_RWIN, false);
+    if GetKeyState(VK_CAPITAL) & 1 != 0 {
+        keyboard_state[VK_CAPITAL as usize] |= 1;
+    }
     if (info.vkCode as usize) < keyboard_state.len() {
         keyboard_state[info.vkCode as usize] = 0x80;
     }
 
     let mut buffer = [0u16; 8];
-    let len = ToUnicode(
+    let len = ToUnicodeEx(
         info.vkCode,
         info.scanCode,
         keyboard_state.as_ptr(),
         buffer.as_mut_ptr(),
         buffer.len() as i32,
         0,
+        GetKeyboardLayout(0),
     );
     if len <= 0 {
         return None;
@@ -650,6 +658,17 @@ unsafe fn text_expander_char_for_key(info: &KBDLLHOOKSTRUCT) -> Option<char> {
 }
 
 #[cfg(target_os = "windows")]
+fn set_keyboard_state_down(keyboard_state: &mut [u8; 256], vk: i32, down: bool) {
+    if vk >= 0 && (vk as usize) < keyboard_state.len() {
+        if down {
+            keyboard_state[vk as usize] |= 0x80;
+        } else {
+            keyboard_state[vk as usize] &= !0x80;
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
 fn should_reset_text_expander_for_vk(vk: u32) -> bool {
     matches!(
         vk as i32,
@@ -658,8 +677,16 @@ fn should_reset_text_expander_for_vk(vk: u32) -> bool {
 }
 
 #[cfg(target_os = "windows")]
+fn schedule_text_expansion(expansion: crate::text_expander::TextExpansionMatch) {
+    std::thread::spawn(move || unsafe {
+        std::thread::sleep(std::time::Duration::from_millis(8));
+        send_text_expansion(&expansion);
+    });
+}
+
+#[cfg(target_os = "windows")]
 unsafe fn send_text_expansion(expansion: &crate::text_expander::TextExpansionMatch) {
-    for _ in 0..expansion.typed_trigger_chars.saturating_sub(1) {
+    for _ in 0..expansion.typed_trigger_chars {
         send_vk_tap(VK_BACK as u16);
     }
     send_unicode_text(&expansion.replacement);
@@ -764,6 +791,8 @@ const VK_SHIFT: i32 = 0x10;
 const VK_CONTROL: i32 = 0x11;
 #[cfg(target_os = "windows")]
 const VK_MENU: i32 = 0x12;
+#[cfg(target_os = "windows")]
+const VK_CAPITAL: i32 = 0x14;
 #[cfg(target_os = "windows")]
 const VK_BACK: i32 = 0x08;
 #[cfg(target_os = "windows")]
@@ -920,13 +949,16 @@ extern "system" {
     fn SendInput(cInputs: u32, pInputs: *const INPUT, cbSize: i32) -> u32;
     fn GetAsyncKeyState(vKey: i32) -> i16;
     fn GetKeyboardState(lpKeyState: *mut u8) -> i32;
-    fn ToUnicode(
+    fn GetKeyState(nVirtKey: i32) -> i16;
+    fn GetKeyboardLayout(idThread: u32) -> *mut core::ffi::c_void;
+    fn ToUnicodeEx(
         wVirtKey: u32,
         wScanCode: u32,
         lpKeyState: *const u8,
         pwszBuff: *mut u16,
         cchBuff: i32,
         wFlags: u32,
+        dwhkl: *mut core::ffi::c_void,
     ) -> i32;
 }
 
