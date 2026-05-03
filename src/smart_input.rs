@@ -419,6 +419,13 @@ fn text_expander_enabled() -> bool {
         .unwrap_or(false)
 }
 
+fn text_expander_suppressed_for_context() -> bool {
+    text_expander_config()
+        .read()
+        .map(|config| config.paused || foreground_app_blacklisted(&config.app_blacklist))
+        .unwrap_or(false)
+}
+
 #[cfg(target_os = "windows")]
 fn foreground_app_blacklisted(app_blacklist: &[String]) -> bool {
     if app_blacklist.is_empty() {
@@ -426,12 +433,10 @@ fn foreground_app_blacklisted(app_blacklist: &[String]) -> bool {
     }
     foreground_process_name_lower()
         .map(|name| {
+            let name_stem = name.strip_suffix(".exe").unwrap_or(&name);
             app_blacklist.iter().any(|blocked| {
-                name == *blocked
-                    || name.ends_with(blocked)
-                    || blocked
-                        .strip_suffix(".exe")
-                        .is_some_and(|stem| name == stem)
+                let blocked_stem = blocked.strip_suffix(".exe").unwrap_or(blocked);
+                name == *blocked || name_stem == blocked_stem
             })
         })
         .unwrap_or(false)
@@ -643,7 +648,11 @@ unsafe extern "system" fn keyboard_proc(n_code: i32, w_param: usize, l_param: is
         let injected = info.flags & LLKHF_INJECTED != 0;
         if !injected {
             if is_key_down && text_expander_enabled() {
-                if info.vkCode == VK_BACK as u32 {
+                if text_expander_suppressed_for_context() {
+                    if let Ok(mut engine) = text_expander_engine().lock() {
+                        engine.reset();
+                    }
+                } else if info.vkCode == VK_BACK as u32 {
                     if let Ok(mut engine) = text_expander_engine().lock() {
                         engine.backspace();
                     }
