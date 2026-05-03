@@ -379,6 +379,7 @@ pub fn smart_symbol_for_keycode(keycode: u16) -> Option<SmartSymbol> {
 
 static TEXT_EXPANDER_CONFIG: OnceLock<RwLock<TextExpansionConfig>> = OnceLock::new();
 static TEXT_EXPANDER_ENGINE: OnceLock<Mutex<TextExpansionEngine>> = OnceLock::new();
+static RECENT_FOREGROUND_APPS: OnceLock<Mutex<Vec<String>>> = OnceLock::new();
 
 fn text_expander_config() -> &'static RwLock<TextExpansionConfig> {
     TEXT_EXPANDER_CONFIG.get_or_init(|| RwLock::new(TextExpansionConfig::default()))
@@ -386,6 +387,29 @@ fn text_expander_config() -> &'static RwLock<TextExpansionConfig> {
 
 fn text_expander_engine() -> &'static Mutex<TextExpansionEngine> {
     TEXT_EXPANDER_ENGINE.get_or_init(|| Mutex::new(TextExpansionEngine::default()))
+}
+
+fn recent_foreground_apps() -> &'static Mutex<Vec<String>> {
+    RECENT_FOREGROUND_APPS.get_or_init(|| Mutex::new(Vec::new()))
+}
+
+fn remember_foreground_app_name(name: &str) {
+    let normalized = name.trim().to_ascii_lowercase();
+    if normalized.is_empty() {
+        return;
+    }
+    if let Ok(mut apps) = recent_foreground_apps().lock() {
+        apps.retain(|app| app != &normalized);
+        apps.insert(0, normalized);
+        apps.truncate(12);
+    }
+}
+
+pub fn recent_foreground_app_names() -> Vec<String> {
+    recent_foreground_apps()
+        .lock()
+        .map(|apps| apps.clone())
+        .unwrap_or_default()
 }
 
 pub fn set_text_expander_config(
@@ -427,12 +451,20 @@ fn text_expander_suppressed_for_context() -> bool {
 }
 
 #[cfg(target_os = "windows")]
+fn remember_current_foreground_app() {
+    if let Some(name) = foreground_process_name_lower() {
+        remember_foreground_app_name(&name);
+    }
+}
+
+#[cfg(target_os = "windows")]
 fn foreground_app_blacklisted(app_blacklist: &[String]) -> bool {
     if app_blacklist.is_empty() {
         return false;
     }
     foreground_process_name_lower()
         .map(|name| {
+            remember_foreground_app_name(&name);
             let name_stem = name.strip_suffix(".exe").unwrap_or(&name);
             app_blacklist.iter().any(|blocked| {
                 let blocked_stem = blocked.strip_suffix(".exe").unwrap_or(blocked);
@@ -647,6 +679,9 @@ unsafe extern "system" fn keyboard_proc(n_code: i32, w_param: usize, l_param: is
         let is_key_up = w_param == WM_KEYUP || w_param == WM_SYSKEYUP;
         let injected = info.flags & LLKHF_INJECTED != 0;
         if !injected {
+            if is_key_down {
+                remember_current_foreground_app();
+            }
             if is_key_down && text_expander_enabled() {
                 if text_expander_suppressed_for_context() {
                     if let Ok(mut engine) = text_expander_engine().lock() {

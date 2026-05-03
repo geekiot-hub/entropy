@@ -487,12 +487,32 @@ fn save_app_settings(settings: &AppSettings) {
     }
 }
 
+fn normalize_text_expander_app_name(raw: &str) -> Option<String> {
+    let trimmed = raw.trim().trim_matches(['\'', '"']);
+    let name = trimmed
+        .rsplit(['\\', '/'])
+        .next()
+        .unwrap_or(trimmed)
+        .trim()
+        .to_ascii_lowercase();
+    (!name.is_empty()).then_some(name)
+}
+
 fn parse_text_expander_blacklist(raw: &str) -> Vec<String> {
-    raw.split([',', ';', '\n'])
-        .map(str::trim)
-        .filter(|entry| !entry.is_empty())
-        .map(str::to_owned)
-        .collect()
+    let mut entries = Vec::new();
+    for entry in raw.split([',', ';', '\n']) {
+        let Some(name) = normalize_text_expander_app_name(entry) else {
+            continue;
+        };
+        if !entries.iter().any(|existing| existing == &name) {
+            entries.push(name);
+        }
+    }
+    entries
+}
+
+fn format_text_expander_blacklist(entries: &[String]) -> String {
+    entries.join(", ")
 }
 
 fn load_saved_layer_names(device_name: &str) -> Option<Vec<String>> {
@@ -4160,6 +4180,33 @@ impl EntropyApp {
         );
     }
 
+    fn add_text_expander_blacklist_app(&mut self, app_name: &str) -> bool {
+        let Some(app_name) = normalize_text_expander_app_name(app_name) else {
+            return false;
+        };
+        let mut entries =
+            parse_text_expander_blacklist(&self.app_settings.text_expander_app_blacklist);
+        if entries.iter().any(|entry| entry == &app_name) {
+            return false;
+        }
+        entries.push(app_name);
+        self.app_settings.text_expander_app_blacklist = format_text_expander_blacklist(&entries);
+        self.save_text_expander_settings();
+        true
+    }
+
+    fn remove_text_expander_blacklist_app(&mut self, remove_idx: usize) -> bool {
+        let mut entries =
+            parse_text_expander_blacklist(&self.app_settings.text_expander_app_blacklist);
+        if remove_idx >= entries.len() {
+            return false;
+        }
+        entries.remove(remove_idx);
+        self.app_settings.text_expander_app_blacklist = format_text_expander_blacklist(&entries);
+        self.save_text_expander_settings();
+        true
+    }
+
     fn draw_text_expander_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
         let lang = self.app_settings.language;
         let dark = ui.visuals().dark_mode;
@@ -4185,7 +4232,10 @@ impl EntropyApp {
                 );
                 ui.add_space(metrics.value(18.0));
 
-                let row_count = 3 + self.app_settings.text_expansion_rules.len();
+                let blacklist_entries =
+                    parse_text_expander_blacklist(&self.app_settings.text_expander_app_blacklist);
+                let row_count =
+                    3 + blacklist_entries.len() + self.app_settings.text_expansion_rules.len();
                 let list = allocate_adaptive_settings_list_viewport(
                     ui,
                     "text_expander_settings",
@@ -4325,9 +4375,15 @@ impl EntropyApp {
                 continue;
             }
 
+            let blacklist_entries =
+                parse_text_expander_blacklist(&self.app_settings.text_expander_app_blacklist);
             if row_idx == 2 {
-                let mut blacklist = self.app_settings.text_expander_app_blacklist.clone();
-                let blacklist_width = metrics.value(250.0);
+                let recent_apps = crate::smart_input::recent_foreground_app_names();
+                let add_app = recent_apps
+                    .iter()
+                    .find(|app| !blacklist_entries.iter().any(|blocked| blocked == *app))
+                    .cloned();
+                let add_enabled = add_app.is_some();
                 crate::ui_style::settings_list_row_with_tooltip(
                     ui,
                     content_width,
@@ -4338,28 +4394,75 @@ impl EntropyApp {
                         lang,
                         "text_expander.blacklist_tooltip",
                     )),
-                    blacklist_width,
+                    metrics.value(136.0),
                     |ui| {
-                        let resp = crate::ui_style::modern_text_field_sized(
+                        if crate::ui_style::modern_button(
                             ui,
-                            ui.make_persistent_id("text_expander_blacklist"),
-                            &mut blacklist,
-                            blacklist_width,
-                            metrics.settings_control_height(),
-                            crate::i18n::tr_catalog(lang, "text_expander.blacklist_hint"),
-                            160,
-                            egui::Align::Min,
-                        );
-                        if resp.changed() {
-                            self.app_settings.text_expander_app_blacklist = blacklist.clone();
-                            self.save_text_expander_settings();
+                            crate::i18n::tr_catalog(lang, "text_expander.add_recent_app"),
+                            metrics.size(136.0, metrics.settings_control_height()),
+                            add_enabled,
+                        )
+                        .clicked()
+                        {
+                            if let Some(app) = add_app.as_deref() {
+                                self.add_text_expander_blacklist_app(app);
+                            }
                         }
                     },
                 );
                 continue;
             }
 
-            let idx = row_idx - 3;
+            let blacklist_row_start = 3;
+            let blacklist_row_end = blacklist_row_start + blacklist_entries.len();
+            if (blacklist_row_start..blacklist_row_end).contains(&row_idx) {
+                let app_idx = row_idx - blacklist_row_start;
+                let app_name = blacklist_entries[app_idx].clone();
+                let label = format!(
+                    "{} {}",
+                    crate::i18n::tr_catalog(lang, "text_expander.blocked_app_label"),
+                    app_idx + 1
+                );
+                crate::ui_style::settings_list_row_with_tooltip(
+                    ui,
+                    content_width,
+                    row_height,
+                    label.as_str(),
+                    true,
+                    tooltip(crate::i18n::tr_catalog(
+                        lang,
+                        "text_expander.blocked_app_tooltip",
+                    )),
+                    metrics.value(250.0),
+                    |ui| {
+                        ui.allocate_ui_with_layout(
+                            egui::vec2(metrics.value(250.0), row_height),
+                            egui::Layout::right_to_left(egui::Align::Center),
+                            |ui| {
+                                if crate::ui_style::modern_button(
+                                    ui,
+                                    "×",
+                                    metrics.size(30.0, metrics.settings_control_height()),
+                                    true,
+                                )
+                                .clicked()
+                                {
+                                    self.remove_text_expander_blacklist_app(app_idx);
+                                }
+                                ui.add_space(metrics.value(8.0));
+                                ui.label(
+                                    RichText::new(app_name.as_str())
+                                        .size(metrics.value(12.5))
+                                        .color(ui.visuals().text_color()),
+                                );
+                            },
+                        );
+                    },
+                );
+                continue;
+            }
+
+            let idx = row_idx - blacklist_row_end;
             let Some(original_rule) = self.app_settings.text_expansion_rules.get(idx).cloned()
             else {
                 continue;
