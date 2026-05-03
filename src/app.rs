@@ -5850,6 +5850,7 @@ impl EntropyApp {
             crate::i18n::tr_catalog(lang, "onboarding_tour.next").to_owned()
         };
         let skip_label = crate::i18n::tr_catalog(lang, "onboarding_tour.skip").to_owned();
+        let sample_hint = crate::i18n::tr_catalog(lang, "onboarding_tour.sample_hint").to_owned();
 
         egui::Area::new(egui::Id::new("onboarding_tour_overlay"))
             .order(egui::Order::Tooltip)
@@ -5881,10 +5882,19 @@ impl EntropyApp {
                         Stroke::new(2.0, app_accent()),
                         egui::StrokeKind::Inside,
                     );
+                    if matches!(step.target, Some(TourTarget::BottomHints)) {
+                        painter.text(
+                            rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            sample_hint.as_str(),
+                            FontId::proportional(12.0),
+                            Color32::from_rgb(245, 245, 245),
+                        );
+                    }
                 }
 
                 let card_w = 382.0_f32.min(local_screen.width() - 32.0).max(280.0);
-                let card_h = 224.0_f32;
+                let card_h = 244.0_f32;
                 let margin = 18.0;
                 let card_x = local_target
                     .map(|rect| rect.center().x - card_w / 2.0)
@@ -5960,48 +5970,53 @@ impl EntropyApp {
                             ))
                             .wrap(),
                         );
-                        ui.add_space(18.0);
-                        ui.with_layout(egui::Layout::bottom_up(egui::Align::RIGHT), |ui| {
-                            ui.horizontal(|ui| {
-                                if crate::ui_style::modern_button(
-                                    ui,
-                                    skip_label.as_str(),
-                                    Vec2::new(86.0, 32.0),
-                                    true,
-                                )
-                                .clicked()
-                                {
+                        ui.add_space(10.0);
+                        let button_row_height = 32.0;
+                        let spacer_height = (ui.available_height() - button_row_height).max(0.0);
+                        ui.add_space(spacer_height);
+                        ui.horizontal(|ui| {
+                            if crate::ui_style::modern_button(
+                                ui,
+                                skip_label.as_str(),
+                                Vec2::new(96.0, button_row_height),
+                                true,
+                            )
+                            .clicked()
+                            {
+                                self.complete_onboarding_tour();
+                            }
+
+                            let trailing_width = 88.0 + 94.0 + ui.spacing().item_spacing.x;
+                            ui.add_space((ui.available_width() - trailing_width).max(0.0));
+
+                            let prev_enabled = self.tour_state.step > 0;
+                            if crate::ui_style::modern_button(
+                                ui,
+                                prev_label.as_str(),
+                                Vec2::new(88.0, button_row_height),
+                                prev_enabled,
+                            )
+                            .clicked()
+                                && prev_enabled
+                            {
+                                self.tour_state.step -= 1;
+                                ctx.request_repaint();
+                            }
+                            if crate::ui_style::modern_button(
+                                ui,
+                                next_label.as_str(),
+                                Vec2::new(94.0, button_row_height),
+                                true,
+                            )
+                            .clicked()
+                            {
+                                if self.tour_state.step + 1 >= step_count {
                                     self.complete_onboarding_tour();
-                                }
-                                let prev_enabled = self.tour_state.step > 0;
-                                if crate::ui_style::modern_button(
-                                    ui,
-                                    prev_label.as_str(),
-                                    Vec2::new(88.0, 32.0),
-                                    prev_enabled,
-                                )
-                                .clicked()
-                                    && prev_enabled
-                                {
-                                    self.tour_state.step -= 1;
+                                } else {
+                                    self.tour_state.step += 1;
                                     ctx.request_repaint();
                                 }
-                                if crate::ui_style::modern_button(
-                                    ui,
-                                    next_label.as_str(),
-                                    Vec2::new(94.0, 32.0),
-                                    true,
-                                )
-                                .clicked()
-                                {
-                                    if self.tour_state.step + 1 >= step_count {
-                                        self.complete_onboarding_tour();
-                                    } else {
-                                        self.tour_state.step += 1;
-                                        ctx.request_repaint();
-                                    }
-                                }
-                            });
+                            }
                         });
                     });
                 });
