@@ -9,6 +9,7 @@ const MATRIX_TESTER_POLL_INTERVAL: std::time::Duration = std::time::Duration::fr
 const UI_SCALE_MIN: f32 = 0.5;
 const UI_SCALE_MAX: f32 = 2.0;
 const UI_SCALE_STEP: f32 = 0.1;
+const ONBOARDING_TOUR_VERSION: u16 = 1;
 
 /// Sanitize a device name into a filesystem-safe slug.
 fn device_id_slug(device_name: &str) -> String {
@@ -71,6 +72,67 @@ fn settings_field_unit_tooltip(
     } else {
         response.on_hover_text(crate::i18n::tr_catalog(language, unit.tooltip_key()))
     }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TourTarget {
+    MainNavigation,
+    DeviceSelector,
+    LayerSwitcher,
+    KeyboardArea,
+    SettingsMenu,
+    BottomHints,
+}
+
+#[derive(Clone, Copy)]
+struct TourStep {
+    target: Option<TourTarget>,
+    title_key: &'static str,
+    body_key: &'static str,
+}
+
+const ONBOARDING_TOUR_STEPS: [TourStep; 7] = [
+    TourStep {
+        target: None,
+        title_key: "onboarding_tour.welcome_title",
+        body_key: "onboarding_tour.welcome_body",
+    },
+    TourStep {
+        target: Some(TourTarget::MainNavigation),
+        title_key: "onboarding_tour.navigation_title",
+        body_key: "onboarding_tour.navigation_body",
+    },
+    TourStep {
+        target: Some(TourTarget::DeviceSelector),
+        title_key: "onboarding_tour.device_title",
+        body_key: "onboarding_tour.device_body",
+    },
+    TourStep {
+        target: Some(TourTarget::LayerSwitcher),
+        title_key: "onboarding_tour.layers_title",
+        body_key: "onboarding_tour.layers_body",
+    },
+    TourStep {
+        target: Some(TourTarget::KeyboardArea),
+        title_key: "onboarding_tour.keyboard_title",
+        body_key: "onboarding_tour.keyboard_body",
+    },
+    TourStep {
+        target: Some(TourTarget::SettingsMenu),
+        title_key: "onboarding_tour.settings_title",
+        body_key: "onboarding_tour.settings_body",
+    },
+    TourStep {
+        target: Some(TourTarget::BottomHints),
+        title_key: "onboarding_tour.hints_title",
+        body_key: "onboarding_tour.hints_body",
+    },
+];
+
+#[derive(Default)]
+struct TourState {
+    active: bool,
+    step: usize,
 }
 
 fn read_single_instance_signal() -> String {
@@ -160,6 +222,8 @@ struct AppSettings {
     accent_color: AppAccentColor,
     #[serde(default = "default_ui_scale")]
     ui_scale: f32,
+    #[serde(default)]
+    onboarding_tour_seen_version: u16,
 }
 
 fn default_show_shifted_number_symbols() -> bool {
@@ -237,6 +301,7 @@ impl Default for AppSettings {
             key_legend_layout: KeyLegendLayout::default(),
             accent_color: default_app_accent_color(),
             ui_scale: default_ui_scale(),
+            onboarding_tour_seen_version: 0,
         }
     }
 }
@@ -2053,6 +2118,8 @@ pub struct EntropyApp {
     current_device_name: String,
     /// Friendly names learned from firmware/device info, keyed by device path.
     device_display_names: std::collections::HashMap<String, String>,
+    tour_state: TourState,
+    tour_target_rects: Vec<(TourTarget, egui::Rect)>,
     /// Vial unlock dialog open
     unlock_open: bool,
     vial_unlock_keys: Vec<(u8, u8)>,
@@ -2154,6 +2221,8 @@ impl EntropyApp {
             editing_layer_focus_requested: false,
             current_device_name: String::new(),
             device_display_names: std::collections::HashMap::new(),
+            tour_state: TourState::default(),
+            tour_target_rects: Vec::new(),
             unlock_open: false,
             vial_unlock_keys: vec![],
             vial_unlock_polling: false,
@@ -3708,6 +3777,31 @@ impl EntropyApp {
                     }
                     save_app_settings(&self.app_settings);
                 }
+
+                crate::ui_style::settings_list_row_with_tooltip(
+                    ui,
+                    content_width,
+                    row_height,
+                    crate::i18n::tr_catalog(lang, "onboarding_tour.settings_row_label"),
+                    true,
+                    Some(crate::i18n::tr_catalog(
+                        lang,
+                        "onboarding_tour.settings_row_tooltip",
+                    )),
+                    metrics.settings_control_width(),
+                    |ui| {
+                        if crate::ui_style::modern_button(
+                            ui,
+                            crate::i18n::tr_catalog(lang, "onboarding_tour.show_again"),
+                            metrics.size(168.0, 32.0),
+                            true,
+                        )
+                        .clicked()
+                        {
+                            self.start_onboarding_tour(ui.ctx());
+                        }
+                    },
+                );
             });
         });
     }
@@ -5660,6 +5754,259 @@ impl EntropyApp {
             _ => {}
         }
     }
+
+    fn start_onboarding_tour(&mut self, ctx: &egui::Context) {
+        self.close_top_dropdowns(ctx);
+        self.keycode_picker.open = false;
+        if self.layout.is_some() {
+            self.main_menu_tab = MainMenuTab::Keyboard;
+        }
+        self.tour_state.active = true;
+        self.tour_state.step = 0;
+        ctx.request_repaint();
+    }
+
+    fn complete_onboarding_tour(&mut self) {
+        self.tour_state.active = false;
+        self.tour_state.step = 0;
+        self.app_settings.onboarding_tour_seen_version = ONBOARDING_TOUR_VERSION;
+        save_app_settings(&self.app_settings);
+    }
+
+    fn maybe_start_onboarding_tour(&mut self, ctx: &egui::Context) {
+        if self.tour_state.active
+            || self.app_settings.onboarding_tour_seen_version >= ONBOARDING_TOUR_VERSION
+            || self.layout.is_none()
+            || self.unlock_open
+            || self.vial_unlock_polling
+            || self.keycode_picker.open
+        {
+            return;
+        }
+        self.start_onboarding_tour(ctx);
+    }
+
+    fn register_tour_target(&mut self, target: TourTarget, rect: egui::Rect) {
+        if rect.is_positive() {
+            self.tour_target_rects.retain(|(t, _)| *t != target);
+            self.tour_target_rects.push((target, rect));
+        }
+    }
+
+    fn tour_target_rect(&self, target: TourTarget) -> Option<egui::Rect> {
+        self.tour_target_rects
+            .iter()
+            .find_map(|(registered, rect)| (*registered == target).then_some(*rect))
+    }
+
+    fn draw_onboarding_tour(&mut self, ctx: &egui::Context) {
+        if !self.tour_state.active || self.unlock_open || self.vial_unlock_polling {
+            return;
+        }
+        if self.keycode_picker.open {
+            return;
+        }
+
+        let step_count = ONBOARDING_TOUR_STEPS.len();
+        if self.tour_state.step >= step_count {
+            self.complete_onboarding_tour();
+            return;
+        }
+
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            self.complete_onboarding_tour();
+            return;
+        }
+        if ctx.input(|i| i.key_pressed(egui::Key::ArrowRight) || i.key_pressed(egui::Key::Enter)) {
+            if self.tour_state.step + 1 >= step_count {
+                self.complete_onboarding_tour();
+            } else {
+                self.tour_state.step += 1;
+            }
+            ctx.request_repaint();
+        }
+        if ctx.input(|i| i.key_pressed(egui::Key::ArrowLeft)) && self.tour_state.step > 0 {
+            self.tour_state.step -= 1;
+            ctx.request_repaint();
+        }
+
+        let step = ONBOARDING_TOUR_STEPS[self.tour_state.step];
+        let target_rect = step.target.and_then(|target| self.tour_target_rect(target));
+        let lang = self.app_settings.language;
+        let title = crate::i18n::tr_catalog(lang, step.title_key).to_owned();
+        let body = crate::i18n::tr_catalog(lang, step.body_key).to_owned();
+        let progress = crate::i18n::tr_catalog_format(
+            lang,
+            "onboarding_tour.progress",
+            &[
+                ("current", &(self.tour_state.step + 1).to_string()),
+                ("total", &step_count.to_string()),
+            ],
+        );
+        let prev_label = crate::i18n::tr_catalog(lang, "onboarding_tour.previous").to_owned();
+        let next_label = if self.tour_state.step + 1 >= step_count {
+            crate::i18n::tr_catalog(lang, "onboarding_tour.done").to_owned()
+        } else {
+            crate::i18n::tr_catalog(lang, "onboarding_tour.next").to_owned()
+        };
+        let skip_label = crate::i18n::tr_catalog(lang, "onboarding_tour.skip").to_owned();
+
+        egui::Area::new(egui::Id::new("onboarding_tour_overlay"))
+            .order(egui::Order::Tooltip)
+            .fixed_pos(ctx.screen_rect().min)
+            .show(ctx, |ui| {
+                let screen = ctx.screen_rect();
+                let local_screen = egui::Rect::from_min_size(egui::Pos2::ZERO, screen.size());
+                ui.set_min_size(screen.size());
+                let _block = ui.interact(
+                    local_screen,
+                    ui.make_persistent_id("onboarding_tour_blocker"),
+                    Sense::click(),
+                );
+                let dark = ui.visuals().dark_mode;
+                let painter = ui.painter();
+                painter.rect_filled(
+                    local_screen,
+                    0.0,
+                    Color32::from_black_alpha(if dark { 176 } else { 128 }),
+                );
+
+                let local_target = target_rect.map(|rect| rect.translate(-screen.min.to_vec2()));
+                if let Some(rect) = local_target {
+                    let highlight = rect.expand(8.0);
+                    painter.rect(
+                        highlight,
+                        15.0,
+                        Color32::from_rgba_unmultiplied(255, 255, 255, 22),
+                        Stroke::new(2.0, app_accent()),
+                        egui::StrokeKind::Inside,
+                    );
+                }
+
+                let card_w = 382.0_f32.min(local_screen.width() - 32.0).max(280.0);
+                let card_h = 224.0_f32;
+                let margin = 18.0;
+                let card_x = local_target
+                    .map(|rect| rect.center().x - card_w / 2.0)
+                    .unwrap_or_else(|| local_screen.center().x - card_w / 2.0)
+                    .clamp(
+                        local_screen.left() + margin,
+                        local_screen.right() - card_w - margin,
+                    );
+                let card_y = if let Some(rect) = local_target {
+                    let below = rect.bottom() + 18.0;
+                    let above = rect.top() - card_h - 18.0;
+                    if below + card_h <= local_screen.bottom() - margin {
+                        below
+                    } else if above >= local_screen.top() + margin {
+                        above
+                    } else {
+                        local_screen.center().y - card_h / 2.0
+                    }
+                } else {
+                    local_screen.center().y - card_h / 2.0
+                };
+                let card_rect = egui::Rect::from_min_size(
+                    egui::pos2(card_x, card_y),
+                    Vec2::new(card_w, card_h),
+                );
+
+                painter.rect(
+                    card_rect,
+                    18.0,
+                    app_window_fill(dark),
+                    Stroke::new(1.0, app_border_color(dark)),
+                    egui::StrokeKind::Inside,
+                );
+                ui.allocate_ui_at_rect(card_rect.shrink2(Vec2::new(18.0, 16.0)), |ui| {
+                    ui.vertical(|ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                RichText::new(progress.as_str())
+                                    .size(11.5)
+                                    .color(app_muted_text(dark)),
+                            );
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    let close = ui.add(
+                                        egui::Label::new(
+                                            RichText::new("×")
+                                                .size(18.0)
+                                                .color(app_muted_text(dark)),
+                                        )
+                                        .selectable(false)
+                                        .sense(Sense::click()),
+                                    );
+                                    if close.hovered() {
+                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                    }
+                                    if close.clicked() {
+                                        self.complete_onboarding_tour();
+                                    }
+                                },
+                            );
+                        });
+                        ui.add_space(10.0);
+                        ui.label(RichText::new(title.as_str()).size(20.0).strong());
+                        ui.add_space(8.0);
+                        ui.add(
+                            egui::Label::new(RichText::new(body.as_str()).size(13.5).color(
+                                if dark {
+                                    Color32::from_gray(205)
+                                } else {
+                                    Color32::from_gray(66)
+                                },
+                            ))
+                            .wrap(),
+                        );
+                        ui.add_space(18.0);
+                        ui.with_layout(egui::Layout::bottom_up(egui::Align::RIGHT), |ui| {
+                            ui.horizontal(|ui| {
+                                if crate::ui_style::modern_button(
+                                    ui,
+                                    skip_label.as_str(),
+                                    Vec2::new(86.0, 32.0),
+                                    true,
+                                )
+                                .clicked()
+                                {
+                                    self.complete_onboarding_tour();
+                                }
+                                let prev_enabled = self.tour_state.step > 0;
+                                if crate::ui_style::modern_button(
+                                    ui,
+                                    prev_label.as_str(),
+                                    Vec2::new(88.0, 32.0),
+                                    prev_enabled,
+                                )
+                                .clicked()
+                                    && prev_enabled
+                                {
+                                    self.tour_state.step -= 1;
+                                    ctx.request_repaint();
+                                }
+                                if crate::ui_style::modern_button(
+                                    ui,
+                                    next_label.as_str(),
+                                    Vec2::new(94.0, 32.0),
+                                    true,
+                                )
+                                .clicked()
+                                {
+                                    if self.tour_state.step + 1 >= step_count {
+                                        self.complete_onboarding_tour();
+                                    } else {
+                                        self.tour_state.step += 1;
+                                        ctx.request_repaint();
+                                    }
+                                }
+                            });
+                        });
+                    });
+                });
+            });
+    }
 }
 
 impl eframe::App for EntropyApp {
@@ -5680,6 +6027,8 @@ impl eframe::App for EntropyApp {
         self.poll_tray_events(ctx);
         #[cfg(target_os = "windows")]
         self.handle_tray_quit_request();
+
+        self.tour_target_rects.clear();
 
         let combo_capture_open_at_frame_start = self.combo_capture_open;
         let keyboard_input_wanted_at_frame_start = ctx.wants_keyboard_input();
@@ -5805,7 +6154,7 @@ impl eframe::App for EntropyApp {
         }
 
         // Arrow keys Left/Right switch layers (when picker is closed and no text field is focused)
-        if !self.keycode_picker.open && !ctx.wants_keyboard_input() {
+        if !self.tour_state.active && !self.keycode_picker.open && !ctx.wants_keyboard_input() {
             let layer_count = self.layer_count;
             ctx.input(|i| {
                 if i.key_pressed(egui::Key::ArrowLeft) && self.selected_layer > 0 {
@@ -6243,6 +6592,9 @@ impl eframe::App for EntropyApp {
         }
 
         // Write macros to device if changed
+        self.maybe_start_onboarding_tour(ctx);
+        self.draw_onboarding_tour(ctx);
+
         if self.keycode_picker.macros_dirty {
             if self.unlock_open || self.vial_unlock_polling {
                 // Defer macro write until unlock flow fully finishes.
@@ -12608,6 +12960,20 @@ impl EntropyApp {
                 );
             }
 
+            self.register_tour_target(
+                TourTarget::MainNavigation,
+                egui::Rect::from_min_size(
+                    egui::pos2(start_x, tabs_y),
+                    Vec2::new(total_w, tab_height),
+                ),
+            );
+            if let Some(device_rect) = device_tab_rect {
+                self.register_tour_target(TourTarget::DeviceSelector, device_rect);
+            }
+            if let Some(settings_rect) = settings_tab_rect {
+                self.register_tour_target(TourTarget::SettingsMenu, settings_rect);
+            }
+
             let zoom_width = 108.0;
             let zoom_left_top = egui::pos2(ui.min_rect().right() - 18.0 - zoom_width, tabs_y);
             self.draw_ui_scale_controls(ui, zoom_left_top);
@@ -13486,6 +13852,10 @@ impl EntropyApp {
                     egui::pos2(center_x - 85.0, bar_y),
                     Vec2::new(170.0, 52.0),
                 );
+                self.register_tour_target(
+                    TourTarget::LayerSwitcher,
+                    name_rect.expand2(Vec2::new(72.0, 8.0)),
+                );
 
                 let display_name_len = visible_raw_name.chars().count();
                 let display_label_size = if display_name_len > 10 {
@@ -14056,6 +14426,21 @@ impl EntropyApp {
                 (ei, rect)
             })
             .collect();
+        let keyboard_target_rect = key_rects
+            .iter()
+            .map(|(_, rect)| *rect)
+            .chain(encoder_rects.iter().map(|(_, rect)| *rect))
+            .reduce(|acc, rect| acc.union(rect));
+        if let Some(rect) = keyboard_target_rect {
+            self.register_tour_target(TourTarget::KeyboardArea, rect.expand(10.0));
+        }
+        self.register_tour_target(
+            TourTarget::BottomHints,
+            egui::Rect::from_center_size(
+                egui::pos2(ui.max_rect().center().x, ui.max_rect().bottom() - 34.0),
+                Vec2::new(ui.max_rect().width().min(560.0), 52.0),
+            ),
+        );
         let mut encoder_groups: Vec<(u8, egui::Rect, Option<(usize, u16)>, Option<(usize, u16)>)> =
             Vec::new();
         for (ei, rect) in &encoder_rects {
