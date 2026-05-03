@@ -393,9 +393,19 @@ fn recent_foreground_apps() -> &'static Mutex<Vec<String>> {
     RECENT_FOREGROUND_APPS.get_or_init(|| Mutex::new(Vec::new()))
 }
 
+fn current_process_name_lower() -> Option<String> {
+    std::env::current_exe()
+        .ok()
+        .and_then(|path| path.file_name().map(|name| name.to_owned()))
+        .and_then(|name| name.to_str().map(|name| name.to_ascii_lowercase()))
+}
+
 fn remember_foreground_app_name(name: &str) {
     let normalized = name.trim().to_ascii_lowercase();
     if normalized.is_empty() {
+        return;
+    }
+    if current_process_name_lower().as_deref() == Some(normalized.as_str()) {
         return;
     }
     if let Ok(mut apps) = recent_foreground_apps().lock() {
@@ -481,32 +491,34 @@ fn foreground_app_blacklisted(_app_blacklist: &[String]) -> bool {
 
 #[cfg(target_os = "windows")]
 fn foreground_process_name_lower() -> Option<String> {
-    unsafe {
-        let hwnd = GetForegroundWindow();
-        if hwnd.is_null() {
-            return None;
-        }
-        let mut process_id = 0u32;
-        if GetWindowThreadProcessId(hwnd, &mut process_id as *mut u32) == 0 || process_id == 0 {
-            return None;
-        }
-        let process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, process_id);
-        if process.is_null() {
-            return None;
-        }
-        let mut buffer = [0u16; 1024];
-        let mut size = buffer.len() as u32;
-        let ok = QueryFullProcessImageNameW(process, 0, buffer.as_mut_ptr(), &mut size) != 0;
-        CloseHandle(process);
-        if !ok || size == 0 {
-            return None;
-        }
-        let path = String::from_utf16_lossy(&buffer[..size as usize]);
-        std::path::Path::new(&path)
-            .file_name()
-            .and_then(|name| name.to_str())
-            .map(|name| name.to_ascii_lowercase())
+    unsafe { process_name_lower_for_hwnd(GetForegroundWindow()) }
+}
+
+#[cfg(target_os = "windows")]
+unsafe fn process_name_lower_for_hwnd(hwnd: HWND) -> Option<String> {
+    if hwnd.is_null() {
+        return None;
     }
+    let mut process_id = 0u32;
+    if GetWindowThreadProcessId(hwnd, &mut process_id as *mut u32) == 0 || process_id == 0 {
+        return None;
+    }
+    let process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, process_id);
+    if process.is_null() {
+        return None;
+    }
+    let mut buffer = [0u16; 1024];
+    let mut size = buffer.len() as u32;
+    let ok = QueryFullProcessImageNameW(process, 0, buffer.as_mut_ptr(), &mut size) != 0;
+    CloseHandle(process);
+    if !ok || size == 0 {
+        return None;
+    }
+    let path = String::from_utf16_lossy(&buffer[..size as usize]);
+    std::path::Path::new(&path)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .map(|name| name.to_ascii_lowercase())
 }
 
 #[cfg(target_os = "windows")]
@@ -662,13 +674,47 @@ unsafe fn run_windows_keyboard_hook_loop() {
         return;
     }
 
+    remember_current_foreground_app();
+    let foreground_hook = SetWinEventHook(
+        EVENT_SYSTEM_FOREGROUND,
+        EVENT_SYSTEM_FOREGROUND,
+        std::ptr::null_mut(),
+        Some(foreground_event_proc),
+        0,
+        0,
+        WINEVENT_OUTOFCONTEXT,
+    );
+    if foreground_hook.is_null() {
+        log::warn!("Smart Input: failed to install foreground app tracker");
+    }
+
     let mut msg = MSG::default();
     while GetMessageW(&mut msg as *mut MSG, std::ptr::null_mut(), 0, 0) > 0 {
         TranslateMessage(&msg as *const MSG);
         DispatchMessageW(&msg as *const MSG);
     }
 
+    if !foreground_hook.is_null() {
+        UnhookWinEvent(foreground_hook);
+    }
     UnhookWindowsHookEx(hook);
+}
+
+#[cfg(target_os = "windows")]
+unsafe extern "system" fn foreground_event_proc(
+    _hook: HWINEVENTHOOK,
+    event: u32,
+    hwnd: HWND,
+    _id_object: i32,
+    _id_child: i32,
+    _event_thread: u32,
+    _event_time: u32,
+) {
+    if event == EVENT_SYSTEM_FOREGROUND {
+        if let Some(name) = process_name_lower_for_hwnd(hwnd) {
+            remember_foreground_app_name(&name);
+        }
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -1044,9 +1090,15 @@ const CF_UNICODETEXT: u32 = 13;
 const GMEM_MOVEABLE: u32 = 0x0002;
 #[cfg(target_os = "windows")]
 const PROCESS_QUERY_LIMITED_INFORMATION: u32 = 0x1000;
+#[cfg(target_os = "windows")]
+const EVENT_SYSTEM_FOREGROUND: u32 = 0x0003;
+#[cfg(target_os = "windows")]
+const WINEVENT_OUTOFCONTEXT: u32 = 0x0000;
 
 #[cfg(target_os = "windows")]
 type HHOOK = *mut core::ffi::c_void;
+#[cfg(target_os = "windows")]
+type HWINEVENTHOOK = *mut core::ffi::c_void;
 #[cfg(target_os = "windows")]
 type HINSTANCE = *mut core::ffi::c_void;
 #[cfg(target_os = "windows")]
@@ -1168,6 +1220,18 @@ extern "system" {
     ) -> HHOOK;
     fn CallNextHookEx(hhk: HHOOK, nCode: i32, wParam: usize, lParam: isize) -> isize;
     fn UnhookWindowsHookEx(hhk: HHOOK) -> i32;
+    fn SetWinEventHook(
+        eventMin: u32,
+        eventMax: u32,
+        hmodWinEventProc: HINSTANCE,
+        pfnWinEventProc: Option<
+            unsafe extern "system" fn(HWINEVENTHOOK, u32, HWND, i32, i32, u32, u32),
+        >,
+        idProcess: u32,
+        idThread: u32,
+        dwFlags: u32,
+    ) -> HWINEVENTHOOK;
+    fn UnhookWinEvent(hWinEventHook: HWINEVENTHOOK) -> i32;
     fn GetMessageW(lpMsg: *mut MSG, hWnd: HWND, wMsgFilterMin: u32, wMsgFilterMax: u32) -> i32;
     fn TranslateMessage(lpMsg: *const MSG) -> i32;
     fn DispatchMessageW(lpMsg: *const MSG) -> isize;
