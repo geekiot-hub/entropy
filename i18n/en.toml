@@ -2,6 +2,8 @@
 layout_tooltip = "Keyboard layout and connected devices"
 advanced_tooltip = "Advanced keyboard features"
 settings_tooltip = "Application and device settings"
+key_legends_english_first = "Legends: EN / RU"
+key_legends_russian_first = "Legends: RU / EN"
 
 [key_hints]
 change_key = "Left click to change this key"
@@ -110,7 +112,6 @@ key_legends_label = "Key legends"
 key_legends_tooltip = "Choose which printed keyboard legends are shown on keycaps"
 key_legends_english = "English"
 key_legends_russian = "English + Russian"
-key_legends_russian_primary = "Russian + English"
 close_to_tray_label = "Close to tray"
 close_to_tray_tooltip = "Hide Entropy in the system tray instead of quitting when the window is closed"
 shifted_number_symbols_label = "Shifted number symbols"

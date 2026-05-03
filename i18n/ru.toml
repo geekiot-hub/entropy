@@ -2,6 +2,8 @@
 layout_tooltip = "Раскладка клавиатуры и подключённые устройства"
 advanced_tooltip = "Дополнительные функции клавиатуры"
 settings_tooltip = "Настройки приложения и устройства"
+key_legends_english_first = "Легенды: EN / RU"
+key_legends_russian_first = "Легенды: RU / EN"
 
 [key_hints]
 change_key = "Левый клик — изменить эту клавишу"
@@ -110,7 +112,6 @@ key_legends_label = "Легенды клавиш"
 key_legends_tooltip = "Какие печатные раскладки показывать на клавишах"
 key_legends_english = "Английская"
 key_legends_russian = "Английская + русская"
-key_legends_russian_primary = "Русская + английская"
 close_to_tray_label = "Закрывать в трей"
 close_to_tray_tooltip = "Прятать Entropy в системный трей вместо выхода при закрытии окна"
 shifted_number_symbols_label = "Символы Shift на цифрах"

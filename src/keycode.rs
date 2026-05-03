@@ -34,17 +34,32 @@ pub enum KeyLegendLayout {
 }
 
 impl KeyLegendLayout {
-    pub const ALL: [KeyLegendLayout; 3] = [
-        KeyLegendLayout::English,
-        KeyLegendLayout::Russian,
-        KeyLegendLayout::RussianPrimary,
-    ];
+    pub const ALL: [KeyLegendLayout; 2] = [KeyLegendLayout::English, KeyLegendLayout::Russian];
 
     pub fn i18n_key(self) -> &'static str {
         match self {
             KeyLegendLayout::English => "ui.key_legends_english",
-            KeyLegendLayout::Russian => "ui.key_legends_russian",
-            KeyLegendLayout::RussianPrimary => "ui.key_legends_russian_primary",
+            KeyLegendLayout::Russian | KeyLegendLayout::RussianPrimary => "ui.key_legends_russian",
+        }
+    }
+
+    pub fn is_multilingual(self) -> bool {
+        !matches!(self, KeyLegendLayout::English)
+    }
+
+    pub fn order_i18n_key(self) -> Option<&'static str> {
+        match self {
+            KeyLegendLayout::English => None,
+            KeyLegendLayout::Russian => Some("main_menu.key_legends_english_first"),
+            KeyLegendLayout::RussianPrimary => Some("main_menu.key_legends_russian_first"),
+        }
+    }
+
+    pub fn toggled_order(self) -> Self {
+        match self {
+            KeyLegendLayout::English => KeyLegendLayout::English,
+            KeyLegendLayout::Russian => KeyLegendLayout::RussianPrimary,
+            KeyLegendLayout::RussianPrimary => KeyLegendLayout::Russian,
         }
     }
 }

@@ -12652,6 +12652,9 @@ impl EntropyApp {
                 let device_rows = device_count.max(1) as f32;
                 let devices_h = 12.0 + device_rows * 30.0;
                 let lock_h = if has_lock_button { 36.0 } else { 0.0 };
+                let show_key_legend_switcher =
+                    self.app_settings.key_legend_layout.is_multilingual();
+                let key_legend_switcher_h = if show_key_legend_switcher { 36.0 } else { 0.0 };
                 let mut device_menu_labels: Vec<String> =
                     if self.device_manager.devices().is_empty() {
                         vec![crate::i18n::tr(lang, TrKey::NoDevicesFound).to_owned()]
@@ -12676,13 +12679,19 @@ impl EntropyApp {
                     let icon = if is_unlocked { "🔓" } else { "🔒" };
                     device_menu_labels.push(format!("{icon} {action}"));
                 }
+                if show_key_legend_switcher {
+                    if let Some(order_key) = self.app_settings.key_legend_layout.order_i18n_key() {
+                        device_menu_labels
+                            .push(crate::i18n::tr_catalog(lang, order_key).to_owned());
+                    }
+                }
                 let dropdown_size = Vec2::new(
                     adaptive_top_dropdown_width(
                         ui,
                         device_menu_labels.iter().map(String::as_str),
                         152.0,
                     ),
-                    devices_h + lock_h + 12.0,
+                    devices_h + lock_h + key_legend_switcher_h + 12.0,
                 );
                 let dropdown_rect = egui::Rect::from_min_size(
                     egui::pos2(
@@ -12791,6 +12800,29 @@ impl EntropyApp {
                                             }
                                         } else {
                                             self.unlock_open = true;
+                                        }
+                                    }
+                                }
+
+                                if show_key_legend_switcher {
+                                    if let Some(order_key) =
+                                        self.app_settings.key_legend_layout.order_i18n_key()
+                                    {
+                                        ui.add_space(6.0);
+                                        let order_label = crate::i18n::tr_catalog(lang, order_key);
+                                        if top_dropdown_item(
+                                            ui,
+                                            dropdown_size.x - 16.0,
+                                            order_label,
+                                            true,
+                                            false,
+                                        )
+                                        .clicked()
+                                        {
+                                            self.app_settings.key_legend_layout =
+                                                self.app_settings.key_legend_layout.toggled_order();
+                                            save_app_settings(&self.app_settings);
+                                            ctx.request_repaint();
                                         }
                                     }
                                 }
