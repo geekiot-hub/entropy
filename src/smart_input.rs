@@ -10,6 +10,12 @@ pub struct SmartSymbol {
     pub name: &'static str,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TextExpanderAppCandidate {
+    pub exe: String,
+    pub title: String,
+}
+
 const KC_F13: u16 = 0x0068;
 const MOD_CTRL: u16 = 0x0100;
 const MOD_SHIFT: u16 = 0x0200;
@@ -379,7 +385,7 @@ pub fn smart_symbol_for_keycode(keycode: u16) -> Option<SmartSymbol> {
 
 static TEXT_EXPANDER_CONFIG: OnceLock<RwLock<TextExpansionConfig>> = OnceLock::new();
 static TEXT_EXPANDER_ENGINE: OnceLock<Mutex<TextExpansionEngine>> = OnceLock::new();
-static RECENT_FOREGROUND_APPS: OnceLock<Mutex<Vec<String>>> = OnceLock::new();
+static RECENT_FOREGROUND_APPS: OnceLock<Mutex<Vec<TextExpanderAppCandidate>>> = OnceLock::new();
 
 fn text_expander_config() -> &'static RwLock<TextExpansionConfig> {
     TEXT_EXPANDER_CONFIG.get_or_init(|| RwLock::new(TextExpansionConfig::default()))
@@ -389,7 +395,7 @@ fn text_expander_engine() -> &'static Mutex<TextExpansionEngine> {
     TEXT_EXPANDER_ENGINE.get_or_init(|| Mutex::new(TextExpansionEngine::default()))
 }
 
-fn recent_foreground_apps() -> &'static Mutex<Vec<String>> {
+fn recent_foreground_apps() -> &'static Mutex<Vec<TextExpanderAppCandidate>> {
     RECENT_FOREGROUND_APPS.get_or_init(|| Mutex::new(Vec::new()))
 }
 
@@ -400,26 +406,33 @@ fn current_process_name_lower() -> Option<String> {
         .and_then(|name| name.to_str().map(|name| name.to_ascii_lowercase()))
 }
 
-fn remember_foreground_app_name(name: &str) {
-    let normalized = name.trim().to_ascii_lowercase();
-    if normalized.is_empty() {
+fn remember_foreground_app(candidate: TextExpanderAppCandidate) {
+    let exe = candidate.exe.trim().to_ascii_lowercase();
+    if exe.is_empty() {
         return;
     }
-    if current_process_name_lower().as_deref() == Some(normalized.as_str()) {
+    if current_process_name_lower().as_deref() == Some(exe.as_str()) {
         return;
     }
+    let title = candidate.title.trim().to_owned();
     if let Ok(mut apps) = recent_foreground_apps().lock() {
-        apps.retain(|app| app != &normalized);
-        apps.insert(0, normalized);
+        apps.retain(|app| app.exe != exe);
+        apps.insert(0, TextExpanderAppCandidate { exe, title });
         apps.truncate(12);
     }
 }
 
-pub fn recent_foreground_app_names() -> Vec<String> {
-    recent_foreground_apps()
-        .lock()
-        .map(|apps| apps.clone())
-        .unwrap_or_default()
+pub fn text_expander_app_candidates() -> Vec<TextExpanderAppCandidate> {
+    let mut apps = platform_open_window_candidates();
+    if let Ok(recent) = recent_foreground_apps().lock() {
+        for candidate in recent.iter().rev() {
+            if !apps.iter().any(|app| app.exe == candidate.exe) {
+                apps.insert(0, candidate.clone());
+            }
+        }
+    }
+    apps.truncate(16);
+    apps
 }
 
 pub fn set_text_expander_config(
@@ -462,8 +475,8 @@ fn text_expander_suppressed_for_context() -> bool {
 
 #[cfg(target_os = "windows")]
 fn remember_current_foreground_app() {
-    if let Some(name) = foreground_process_name_lower() {
-        remember_foreground_app_name(&name);
+    if let Some(candidate) = foreground_app_candidate() {
+        remember_foreground_app(candidate);
     }
 }
 
@@ -474,7 +487,6 @@ fn foreground_app_blacklisted(app_blacklist: &[String]) -> bool {
     }
     foreground_process_name_lower()
         .map(|name| {
-            remember_foreground_app_name(&name);
             let name_stem = name.strip_suffix(".exe").unwrap_or(&name);
             app_blacklist.iter().any(|blocked| {
                 let blocked_stem = blocked.strip_suffix(".exe").unwrap_or(blocked);
@@ -519,6 +531,70 @@ unsafe fn process_name_lower_for_hwnd(hwnd: HWND) -> Option<String> {
         .file_name()
         .and_then(|name| name.to_str())
         .map(|name| name.to_ascii_lowercase())
+}
+#[cfg(target_os = "windows")]
+fn foreground_app_candidate() -> Option<TextExpanderAppCandidate> {
+    unsafe { app_candidate_for_hwnd(GetForegroundWindow()) }
+}
+
+#[cfg(target_os = "windows")]
+unsafe fn app_candidate_for_hwnd(hwnd: HWND) -> Option<TextExpanderAppCandidate> {
+    let exe = process_name_lower_for_hwnd(hwnd)?;
+    let title = window_title(hwnd).unwrap_or_default();
+    Some(TextExpanderAppCandidate { exe, title })
+}
+
+#[cfg(target_os = "windows")]
+unsafe fn window_title(hwnd: HWND) -> Option<String> {
+    let len = GetWindowTextLengthW(hwnd);
+    if len <= 0 {
+        return None;
+    }
+    let mut buffer = vec![0u16; len as usize + 1];
+    let copied = GetWindowTextW(hwnd, buffer.as_mut_ptr(), buffer.len() as i32);
+    if copied <= 0 {
+        return None;
+    }
+    Some(
+        String::from_utf16_lossy(&buffer[..copied as usize])
+            .trim()
+            .to_owned(),
+    )
+}
+
+#[cfg(target_os = "windows")]
+pub fn platform_open_window_candidates() -> Vec<TextExpanderAppCandidate> {
+    unsafe extern "system" fn enum_proc(hwnd: HWND, lparam: isize) -> i32 {
+        let apps = &mut *(lparam as *mut Vec<TextExpanderAppCandidate>);
+        if IsWindowVisible(hwnd) == 0 {
+            return 1;
+        }
+        let Some(candidate) = app_candidate_for_hwnd(hwnd) else {
+            return 1;
+        };
+        if candidate.title.is_empty() {
+            return 1;
+        }
+        if current_process_name_lower().as_deref() == Some(candidate.exe.as_str()) {
+            return 1;
+        }
+        if !apps.iter().any(|app| app.exe == candidate.exe) {
+            apps.push(candidate);
+        }
+        1
+    }
+
+    let mut apps: Vec<TextExpanderAppCandidate> = Vec::new();
+    unsafe {
+        EnumWindows(Some(enum_proc), &mut apps as *mut _ as isize);
+    }
+    apps.sort_by(|a, b| a.exe.cmp(&b.exe));
+    apps
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn platform_open_window_candidates() -> Vec<TextExpanderAppCandidate> {
+    Vec::new()
 }
 
 #[cfg(target_os = "windows")]
@@ -711,8 +787,8 @@ unsafe extern "system" fn foreground_event_proc(
     _event_time: u32,
 ) {
     if event == EVENT_SYSTEM_FOREGROUND {
-        if let Some(name) = process_name_lower_for_hwnd(hwnd) {
-            remember_foreground_app_name(&name);
+        if let Some(candidate) = app_candidate_for_hwnd(hwnd) {
+            remember_foreground_app(candidate);
         }
     }
 }
@@ -1251,6 +1327,13 @@ extern "system" {
     ) -> i32;
     fn GetForegroundWindow() -> HWND;
     fn GetWindowThreadProcessId(hWnd: HWND, lpdwProcessId: *mut u32) -> u32;
+    fn EnumWindows(
+        lpEnumFunc: Option<unsafe extern "system" fn(HWND, isize) -> i32>,
+        lParam: isize,
+    ) -> i32;
+    fn IsWindowVisible(hWnd: HWND) -> i32;
+    fn GetWindowTextLengthW(hWnd: HWND) -> i32;
+    fn GetWindowTextW(hWnd: HWND, lpString: *mut u16, nMaxCount: i32) -> i32;
     fn OpenClipboard(hWndNewOwner: HWND) -> i32;
     fn CloseClipboard() -> i32;
     fn EmptyClipboard() -> i32;

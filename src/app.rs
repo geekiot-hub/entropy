@@ -4207,6 +4207,33 @@ impl EntropyApp {
         true
     }
 
+    fn text_expander_window_candidates(
+        &self,
+        blacklist_entries: &[String],
+    ) -> Vec<crate::smart_input::TextExpanderAppCandidate> {
+        let mut candidates = Vec::new();
+        for candidate in crate::smart_input::text_expander_app_candidates() {
+            let Some(exe) = normalize_text_expander_app_name(&candidate.exe) else {
+                continue;
+            };
+            if blacklist_entries.iter().any(|blocked| blocked == &exe) {
+                continue;
+            }
+            if candidates
+                .iter()
+                .any(|existing: &crate::smart_input::TextExpanderAppCandidate| existing.exe == exe)
+            {
+                continue;
+            }
+            candidates.push(crate::smart_input::TextExpanderAppCandidate {
+                exe,
+                title: candidate.title,
+            });
+        }
+        candidates.truncate(8);
+        candidates
+    }
+
     fn draw_text_expander_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
         let lang = self.app_settings.language;
         let dark = ui.visuals().dark_mode;
@@ -4234,8 +4261,11 @@ impl EntropyApp {
 
                 let blacklist_entries =
                     parse_text_expander_blacklist(&self.app_settings.text_expander_app_blacklist);
-                let row_count =
-                    3 + blacklist_entries.len() + self.app_settings.text_expansion_rules.len();
+                let window_candidates = self.text_expander_window_candidates(&blacklist_entries);
+                let row_count = 3
+                    + window_candidates.len()
+                    + blacklist_entries.len()
+                    + self.app_settings.text_expansion_rules.len();
                 let list = allocate_adaptive_settings_list_viewport(
                     ui,
                     "text_expander_settings",
@@ -4377,13 +4407,8 @@ impl EntropyApp {
 
             let blacklist_entries =
                 parse_text_expander_blacklist(&self.app_settings.text_expander_app_blacklist);
+            let window_candidates = self.text_expander_window_candidates(&blacklist_entries);
             if row_idx == 2 {
-                let recent_apps = crate::smart_input::recent_foreground_app_names();
-                let add_app = recent_apps
-                    .iter()
-                    .find(|app| !blacklist_entries.iter().any(|blocked| blocked == *app))
-                    .cloned();
-                let add_enabled = add_app.is_some();
                 crate::ui_style::settings_list_row_with_tooltip(
                     ui,
                     content_width,
@@ -4394,26 +4419,91 @@ impl EntropyApp {
                         lang,
                         "text_expander.blacklist_tooltip",
                     )),
-                    metrics.value(136.0),
+                    metrics.value(250.0),
                     |ui| {
-                        if crate::ui_style::modern_button(
-                            ui,
-                            crate::i18n::tr_catalog(lang, "text_expander.add_recent_app"),
-                            metrics.size(136.0, metrics.settings_control_height()),
-                            add_enabled,
-                        )
-                        .clicked()
-                        {
-                            if let Some(app) = add_app.as_deref() {
-                                self.add_text_expander_blacklist_app(app);
-                            }
-                        }
+                        ui.allocate_ui_with_layout(
+                            egui::vec2(metrics.value(250.0), row_height),
+                            egui::Layout::right_to_left(egui::Align::Center),
+                            |ui| {
+                                ui.label(
+                                    RichText::new(crate::i18n::tr_catalog(
+                                        lang,
+                                        if window_candidates.is_empty() {
+                                            "text_expander.no_windows_hint"
+                                        } else {
+                                            "text_expander.choose_window_hint"
+                                        },
+                                    ))
+                                    .size(metrics.value(12.0))
+                                    .color(app_muted_text(ui.visuals().dark_mode)),
+                                );
+                            },
+                        );
                     },
                 );
                 continue;
             }
 
-            let blacklist_row_start = 3;
+            let window_row_start = 3;
+            let window_row_end = window_row_start + window_candidates.len();
+            if (window_row_start..window_row_end).contains(&row_idx) {
+                let candidate_idx = row_idx - window_row_start;
+                let candidate = window_candidates[candidate_idx].clone();
+                let label = format!(
+                    "{} {}",
+                    crate::i18n::tr_catalog(lang, "text_expander.window_label"),
+                    candidate_idx + 1
+                );
+                crate::ui_style::settings_list_row_with_tooltip(
+                    ui,
+                    content_width,
+                    row_height,
+                    label.as_str(),
+                    true,
+                    tooltip(crate::i18n::tr_catalog(
+                        lang,
+                        "text_expander.window_tooltip",
+                    )),
+                    metrics.value(250.0),
+                    |ui| {
+                        ui.allocate_ui_with_layout(
+                            egui::vec2(metrics.value(250.0), row_height),
+                            egui::Layout::right_to_left(egui::Align::Center),
+                            |ui| {
+                                if crate::ui_style::modern_button(
+                                    ui,
+                                    "+",
+                                    metrics.size(30.0, metrics.settings_control_height()),
+                                    true,
+                                )
+                                .clicked()
+                                {
+                                    self.add_text_expander_blacklist_app(&candidate.exe);
+                                }
+                                ui.add_space(metrics.value(8.0));
+                                let title = if candidate.title.is_empty() {
+                                    candidate.exe.clone()
+                                } else {
+                                    format!("{} — {}", candidate.title, candidate.exe)
+                                };
+                                let display = if title.chars().count() > 34 {
+                                    format!("{}…", title.chars().take(33).collect::<String>())
+                                } else {
+                                    title
+                                };
+                                ui.label(
+                                    RichText::new(display)
+                                        .size(metrics.value(11.5))
+                                        .color(ui.visuals().text_color()),
+                                );
+                            },
+                        );
+                    },
+                );
+                continue;
+            }
+
+            let blacklist_row_start = window_row_end;
             let blacklist_row_end = blacklist_row_start + blacklist_entries.len();
             if (blacklist_row_start..blacklist_row_end).contains(&row_idx) {
                 let app_idx = row_idx - blacklist_row_start;
