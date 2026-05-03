@@ -747,11 +747,21 @@ pub fn settings_switch_sized_stable(
     checked: &mut bool,
     desired_size: Vec2,
 ) -> egui::Response {
+    settings_switch_sized_stable_interactive(ui, id_source, checked, desired_size, true)
+}
+
+pub fn settings_switch_sized_stable_interactive(
+    ui: &mut Ui,
+    id_source: impl std::hash::Hash,
+    checked: &mut bool,
+    desired_size: Vec2,
+    interactive: bool,
+) -> egui::Response {
     settings_switch_impl(
         ui,
         checked,
         desired_size,
-        true,
+        interactive,
         Some(ui.id().with(id_source)),
     )
 }
