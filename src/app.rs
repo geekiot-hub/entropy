@@ -4780,7 +4780,6 @@ impl EntropyApp {
     fn draw_layout_options_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
         let lang = self.app_settings.language;
         let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ui.ctx());
-        let content_width = metrics.settings_content_width();
         let row_content_width = metrics.settings_row_content_width();
         let row_height = metrics.settings_row_height();
         let dropdown_width = metrics.value(220.0);
@@ -4847,108 +4846,22 @@ impl EntropyApp {
                 }
 
                 let total_rows = display_option_indices.len();
-                let visible_rows = responsive_settings_visible_rows(
-                    ui.ctx(),
-                    ui.available_height(),
+                let list = allocate_adaptive_settings_list_viewport(
+                    ui,
+                    "layout_options",
+                    metrics,
                     total_rows,
                     0.0,
-                )
-                .max(1);
-                let list_height = row_height * visible_rows as f32;
-                let content_height = row_height * total_rows as f32;
-                let max_offset = (content_height - list_height).max(0.0);
-                let offset_id = ui.id().with("layout_options_smooth_offset");
-                let target_id = ui.id().with("layout_options_smooth_target");
-                let mut scroll_offset = ui
-                    .ctx()
-                    .data_mut(|d| d.get_persisted::<f32>(offset_id).unwrap_or(0.0))
-                    .clamp(0.0, max_offset);
-                let mut target_offset = ui
-                    .ctx()
-                    .data_mut(|d| d.get_persisted::<f32>(target_id).unwrap_or(scroll_offset))
-                    .clamp(0.0, max_offset);
-                let (viewport, viewport_resp) =
-                    ui.allocate_exact_size(egui::vec2(content_width, list_height), Sense::hover());
-                let track_width = 6.0;
-                let track_rect = egui::Rect::from_min_max(
-                    egui::pos2(viewport.right() - track_width, viewport.top()),
-                    egui::pos2(viewport.right(), viewport.bottom()),
                 );
-                let scrollbar_resp = if max_offset > 0.0 {
-                    Some(ui.interact(
-                        track_rect.expand2(egui::vec2(5.0, 0.0)),
-                        ui.id().with("layout_options_scrollbar"),
-                        Sense::click_and_drag(),
-                    ))
-                } else {
-                    None
-                };
-
-                let scroll_delta = if viewport_resp.hovered() {
-                    ui.input(|i| {
-                        if i.smooth_scroll_delta.y.abs() > 0.0 {
-                            i.smooth_scroll_delta.y
-                        } else {
-                            i.raw_scroll_delta.y
-                        }
-                    })
-                } else {
-                    0.0
-                };
-                if scroll_delta.abs() > 0.0 && max_offset > 0.0 {
-                    target_offset = (target_offset - scroll_delta * 0.72).clamp(0.0, max_offset);
-                }
-
-                let handle_height = if max_offset > 0.0 {
-                    (list_height / content_height * viewport.height())
-                        .clamp(42.0, viewport.height())
-                } else {
-                    viewport.height()
-                };
-                if let Some(resp) = &scrollbar_resp {
-                    if (resp.dragged() || resp.clicked()) && max_offset > 0.0 {
-                        if let Some(pointer_pos) = ui.input(|i| i.pointer.interact_pos()) {
-                            let travel = (track_rect.height() - handle_height).max(1.0);
-                            let t = ((pointer_pos.y - track_rect.top() - handle_height / 2.0)
-                                / travel)
-                                .clamp(0.0, 1.0);
-                            target_offset = t * max_offset;
-                            scroll_offset = target_offset;
-                        }
-                    }
-                }
-
-                if (scroll_offset - target_offset).abs() > 0.35 {
-                    scroll_offset += (target_offset - scroll_offset) * 0.42;
-                    ui.ctx().request_repaint();
-                } else {
-                    scroll_offset = target_offset;
-                }
-                scroll_offset = scroll_offset.clamp(0.0, max_offset);
-                target_offset = target_offset.clamp(0.0, max_offset);
-                ui.ctx().data_mut(|d| {
-                    d.insert_persisted(offset_id, scroll_offset);
-                    d.insert_persisted(target_id, target_offset);
-                });
-
                 let values = Self::unpack_layout_option_values(
                     &options,
                     self.layout_options_value.unwrap_or(0),
                 );
-                let first_visible_row = (scroll_offset / row_height).floor() as usize;
-                let row_y_offset = scroll_offset - first_visible_row as f32 * row_height;
-                let last_visible_row = (first_visible_row + visible_rows + 1).min(total_rows);
-                let visible_row_count = last_visible_row.saturating_sub(first_visible_row);
-                let content_rect = egui::Rect::from_min_size(
-                    egui::pos2(viewport.left(), viewport.top() - row_y_offset),
-                    egui::vec2(content_width, row_height * visible_row_count as f32),
-                );
-
-                ui.allocate_ui_at_rect(content_rect, |ui| {
-                    ui.set_clip_rect(viewport);
-                    ui.set_min_size(content_rect.size());
+                ui.allocate_ui_at_rect(list.content_rect, |ui| {
+                    ui.set_clip_rect(list.viewport);
+                    ui.set_min_size(list.content_rect.size());
                     ui.spacing_mut().item_spacing.y = 0.0;
-                    for display_row_idx in first_visible_row..last_visible_row {
+                    for display_row_idx in list.first_visible_row..list.last_visible_row {
                         let Some(&row_idx) = display_option_indices.get(display_row_idx) else {
                             continue;
                         };
@@ -4969,8 +4882,9 @@ impl EntropyApp {
                                 )),
                                 switch_width,
                                 |ui| {
-                                    let resp = crate::ui_style::settings_switch_sized(
+                                    let resp = crate::ui_style::settings_switch_sized_stable(
                                         ui,
+                                        ("layout_options", row_idx),
                                         &mut enabled,
                                         switch_size,
                                     );
@@ -5108,17 +5022,13 @@ impl EntropyApp {
                     }
                 });
 
-                if max_offset > 0.0 {
-                    let track_hovered = scrollbar_resp
-                        .as_ref()
-                        .map(|resp| resp.hovered() || resp.dragged())
-                        .unwrap_or(false);
+                if list.has_scrollbar {
                     crate::ui_style::paint_floating_scrollbar_handle(
                         ui,
-                        track_rect,
-                        handle_height,
-                        scroll_offset / max_offset,
-                        track_hovered,
+                        list.track_rect,
+                        list.handle_height,
+                        list.scroll_ratio,
+                        list.track_hovered,
                     );
                 }
             });
@@ -8273,102 +8183,18 @@ impl EntropyApp {
             ui,
             crate::ui_style::ModalLayout::new(content_width).with_top_padding(4.0),
             |ui| {
-                let visible_rows = responsive_settings_visible_rows(
-                    ui.ctx(),
-                    ui.available_height(),
+                let list = allocate_adaptive_settings_list_viewport(
+                    ui,
+                    "alt_repeat_settings",
+                    metrics,
                     TOTAL_ROWS,
                     metrics.value(86.0),
                 );
-                let list_height = row_height * visible_rows as f32;
-                let content_height = row_height * TOTAL_ROWS as f32;
-                let max_offset = (content_height - list_height).max(0.0);
-                let offset_id = ui.id().with("alt_repeat_settings_smooth_offset");
-                let target_id = ui.id().with("alt_repeat_settings_smooth_target");
-                let mut scroll_offset = ui
-                    .ctx()
-                    .data_mut(|d| d.get_persisted::<f32>(offset_id).unwrap_or(0.0))
-                    .clamp(0.0, max_offset);
-                let mut target_offset = ui
-                    .ctx()
-                    .data_mut(|d| d.get_persisted::<f32>(target_id).unwrap_or(scroll_offset))
-                    .clamp(0.0, max_offset);
-                let (viewport, viewport_resp) =
-                    ui.allocate_exact_size(egui::vec2(content_width, list_height), Sense::hover());
-                let track_width = 6.0;
-                let track_rect = egui::Rect::from_min_max(
-                    egui::pos2(viewport.right() - track_width, viewport.top()),
-                    egui::pos2(viewport.right(), viewport.bottom()),
-                );
-                let scrollbar_resp = if max_offset > 0.0 {
-                    Some(ui.interact(
-                        track_rect.expand2(egui::vec2(5.0, 0.0)),
-                        ui.id().with("alt_repeat_settings_scrollbar"),
-                        Sense::click_and_drag(),
-                    ))
-                } else {
-                    None
-                };
-
-                let scroll_delta = if viewport_resp.hovered() {
-                    ui.input(|i| {
-                        if i.smooth_scroll_delta.y.abs() > 0.0 {
-                            i.smooth_scroll_delta.y
-                        } else {
-                            i.raw_scroll_delta.y
-                        }
-                    })
-                } else {
-                    0.0
-                };
-                if scroll_delta.abs() > 0.0 && max_offset > 0.0 {
-                    target_offset = (target_offset - scroll_delta * 0.72).clamp(0.0, max_offset);
-                }
-
-                let handle_height = if max_offset > 0.0 {
-                    (list_height / content_height * viewport.height())
-                        .clamp(42.0, viewport.height())
-                } else {
-                    viewport.height()
-                };
-                if let Some(resp) = &scrollbar_resp {
-                    if (resp.dragged() || resp.clicked()) && max_offset > 0.0 {
-                        if let Some(pointer_pos) = ui.input(|i| i.pointer.interact_pos()) {
-                            let travel = (track_rect.height() - handle_height).max(1.0);
-                            let t = ((pointer_pos.y - track_rect.top() - handle_height / 2.0)
-                                / travel)
-                                .clamp(0.0, 1.0);
-                            target_offset = t * max_offset;
-                            scroll_offset = target_offset;
-                        }
-                    }
-                }
-
-                if (scroll_offset - target_offset).abs() > 0.35 {
-                    scroll_offset += (target_offset - scroll_offset) * 0.42;
-                    ui.ctx().request_repaint();
-                } else {
-                    scroll_offset = target_offset;
-                }
-                scroll_offset = scroll_offset.clamp(0.0, max_offset);
-                target_offset = target_offset.clamp(0.0, max_offset);
-                ui.ctx().data_mut(|d| {
-                    d.insert_persisted(offset_id, scroll_offset);
-                    d.insert_persisted(target_id, target_offset);
-                });
-
-                let first_visible_row = (scroll_offset / row_height).floor() as usize;
-                let row_y_offset = scroll_offset - first_visible_row as f32 * row_height;
-                let last_visible_row = (first_visible_row + visible_rows + 1).min(TOTAL_ROWS);
-                let visible_row_count = last_visible_row.saturating_sub(first_visible_row);
-                let content_rect = egui::Rect::from_min_size(
-                    egui::pos2(viewport.left(), viewport.top() - row_y_offset),
-                    egui::vec2(content_width, row_height * visible_row_count as f32),
-                );
-                ui.allocate_ui_at_rect(content_rect, |ui| {
-                    ui.set_clip_rect(viewport);
-                    ui.set_min_size(content_rect.size());
+                ui.allocate_ui_at_rect(list.content_rect, |ui| {
+                    ui.set_clip_rect(list.viewport);
+                    ui.set_min_size(list.content_rect.size());
                     ui.spacing_mut().item_spacing.y = 0.0;
-                    for row_idx in first_visible_row..last_visible_row {
+                    for row_idx in list.first_visible_row..list.last_visible_row {
                         match row_idx {
                             0 => {
                                 crate::ui_style::settings_list_row_with_tooltip(
@@ -8788,24 +8614,20 @@ impl EntropyApp {
                     }
                 });
 
-                if max_offset > 0.0 {
-                    let track_hovered = scrollbar_resp
-                        .as_ref()
-                        .map(|resp| resp.hovered() || resp.dragged())
-                        .unwrap_or(false);
+                if list.has_scrollbar {
                     crate::ui_style::paint_floating_scrollbar_handle(
                         ui,
-                        track_rect,
-                        handle_height,
-                        scroll_offset / max_offset,
-                        track_hovered,
+                        list.track_rect,
+                        list.handle_height,
+                        list.scroll_ratio,
+                        list.track_hovered,
                     );
                 }
 
                 let action_size = metrics.size(104.0, 32.0);
                 let action_width = action_size.x * 2.0 + ui.spacing().item_spacing.x;
                 let actions_rect = egui::Rect::from_min_size(
-                    egui::pos2(viewport.left(), viewport.bottom() + 24.0),
+                    egui::pos2(list.viewport.left(), list.viewport.bottom() + 24.0),
                     egui::vec2(content_width, action_size.y),
                 );
                 ui.allocate_ui_at_rect(actions_rect, |ui| {
@@ -11577,25 +11399,18 @@ impl EntropyApp {
             crate::ui_style::ModalLayout::new(content_width).with_top_padding(4.0 * scale),
             |ui| {
                 ui.spacing_mut().item_spacing.y = 0.0;
-                let visible_rows = responsive_settings_visible_rows(
-                    ui.ctx(),
-                    ui.available_height(),
+                let list = allocate_adaptive_settings_list_viewport(
+                    ui,
+                    "key_override_settings",
+                    metrics,
                     ROW_COUNT,
-                    86.0,
+                    metrics.value(86.0),
                 );
-                let list_height = row_height * visible_rows as f32;
-                ui.allocate_ui_with_layout(
-                    Vec2::new(content_width, list_height),
-                    egui::Layout::top_down(egui::Align::Min),
-                    |ui| {
-                        ui.set_min_size(Vec2::new(content_width, list_height));
-                        egui::ScrollArea::vertical()
-                            .id_salt(format!("ko_settings_scroll_{}", idx))
-                            .max_height(list_height)
-                            .min_scrolled_height(list_height)
-                            .auto_shrink([false, false])
-                            .show_rows(ui, row_height, ROW_COUNT, |ui, row_range| {
-                                for row_idx in row_range {
+                ui.allocate_ui_at_rect(list.content_rect, |ui| {
+                    ui.set_clip_rect(list.viewport);
+                    ui.set_min_size(list.content_rect.size());
+                    ui.spacing_mut().item_spacing.y = 0.0;
+                    for row_idx in list.first_visible_row..list.last_visible_row {
                                     match row_idx {
                                         0 => {
                                             crate::ui_style::settings_list_row_with_tooltip(
@@ -11839,18 +11654,26 @@ impl EntropyApp {
                                                 },
                                             );
                                         }
-                                        8 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, crate::i18n::tr_catalog(self.app_settings.language, "key_override_editor.trigger_press"), true, Some(crate::i18n::tr_catalog(self.app_settings.language, "key_override_editor.activate_when_the_trigger_key_is_pressed")), switch_width, |ui| { crate::ui_style::settings_switch_sized(ui, &mut edited.options.activation_trigger_down, switch_size); }),
-                                        9 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, crate::i18n::tr_catalog(self.app_settings.language, "key_override_editor.required_mod_press"), true, Some(crate::i18n::tr_catalog(self.app_settings.language, "key_override_editor.activate_when_a_required_modifier_is_pressed")), switch_width, |ui| { crate::ui_style::settings_switch_sized(ui, &mut edited.options.activation_required_mod_down, switch_size); }),
-                                        10 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, crate::i18n::tr_catalog(self.app_settings.language, "key_override_editor.blocked_mod_release"), true, Some(crate::i18n::tr_catalog(self.app_settings.language, "key_override_editor.activate_when_a_blocking_modifier_is_released")), switch_width, |ui| { crate::ui_style::settings_switch_sized(ui, &mut edited.options.activation_negative_mod_up, switch_size); }),
-                                        11 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, crate::i18n::tr_catalog(self.app_settings.language, "key_override_editor.any_one_mod"), true, Some(crate::i18n::tr_catalog(self.app_settings.language, "key_override_editor.any_one_trigger_modifier_is_enough")), switch_width, |ui| { crate::ui_style::settings_switch_sized(ui, &mut edited.options.one_mod, switch_size); }),
-                                        12 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, crate::i18n::tr_catalog(self.app_settings.language, "key_override_editor.no_re_send"), true, Some(crate::i18n::tr_catalog(self.app_settings.language, "key_override_editor.do_not_resend_the_trigger_after_override_ends")), switch_width, |ui| { crate::ui_style::settings_switch_sized(ui, &mut edited.options.no_reregister_trigger, switch_size); }),
-                                        13 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, crate::i18n::tr_catalog(self.app_settings.language, "key_override_editor.stay_active"), true, Some(crate::i18n::tr_catalog(self.app_settings.language, "key_override_editor.stay_active_when_another_key_is_pressed")), switch_width, |ui| { crate::ui_style::settings_switch_sized(ui, &mut edited.options.no_unregister_on_other_key_down, switch_size); }),
+                                        8 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, crate::i18n::tr_catalog(self.app_settings.language, "key_override_editor.trigger_press"), true, Some(crate::i18n::tr_catalog(self.app_settings.language, "key_override_editor.activate_when_the_trigger_key_is_pressed")), switch_width, |ui| { crate::ui_style::settings_switch_sized_stable(ui, ("key_override_settings", "trigger_press"), &mut edited.options.activation_trigger_down, switch_size); }),
+                                        9 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, crate::i18n::tr_catalog(self.app_settings.language, "key_override_editor.required_mod_press"), true, Some(crate::i18n::tr_catalog(self.app_settings.language, "key_override_editor.activate_when_a_required_modifier_is_pressed")), switch_width, |ui| { crate::ui_style::settings_switch_sized_stable(ui, ("key_override_settings", "required_mod_press"), &mut edited.options.activation_required_mod_down, switch_size); }),
+                                        10 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, crate::i18n::tr_catalog(self.app_settings.language, "key_override_editor.blocked_mod_release"), true, Some(crate::i18n::tr_catalog(self.app_settings.language, "key_override_editor.activate_when_a_blocking_modifier_is_released")), switch_width, |ui| { crate::ui_style::settings_switch_sized_stable(ui, ("key_override_settings", "blocked_mod_release"), &mut edited.options.activation_negative_mod_up, switch_size); }),
+                                        11 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, crate::i18n::tr_catalog(self.app_settings.language, "key_override_editor.any_one_mod"), true, Some(crate::i18n::tr_catalog(self.app_settings.language, "key_override_editor.any_one_trigger_modifier_is_enough")), switch_width, |ui| { crate::ui_style::settings_switch_sized_stable(ui, ("key_override_settings", "any_one_mod"), &mut edited.options.one_mod, switch_size); }),
+                                        12 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, crate::i18n::tr_catalog(self.app_settings.language, "key_override_editor.no_re_send"), true, Some(crate::i18n::tr_catalog(self.app_settings.language, "key_override_editor.do_not_resend_the_trigger_after_override_ends")), switch_width, |ui| { crate::ui_style::settings_switch_sized_stable(ui, ("key_override_settings", "no_re_send"), &mut edited.options.no_reregister_trigger, switch_size); }),
+                                        13 => crate::ui_style::settings_list_row_with_tooltip(ui, row_content_width, row_height, crate::i18n::tr_catalog(self.app_settings.language, "key_override_editor.stay_active"), true, Some(crate::i18n::tr_catalog(self.app_settings.language, "key_override_editor.stay_active_when_another_key_is_pressed")), switch_width, |ui| { crate::ui_style::settings_switch_sized_stable(ui, ("key_override_settings", "stay_active"), &mut edited.options.no_unregister_on_other_key_down, switch_size); }),
                                         _ => {}
                                     }
                                 }
-                            });
-                    },
-                );
+                });
+
+                if list.has_scrollbar {
+                    crate::ui_style::paint_floating_scrollbar_handle(
+                        ui,
+                        list.track_rect,
+                        list.handle_height,
+                        list.scroll_ratio,
+                        list.track_hovered,
+                    );
+                }
 
                 ui.add_space(14.0 * scale);
                 let action_size = crate::ui_style::modal_action_button_size() * scale;
