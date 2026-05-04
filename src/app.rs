@@ -476,11 +476,13 @@ fn allocate_adaptive_settings_list_viewport(
     };
 
     let mut scroll_active = false;
-    let viewport_hovered = ui.input(|i| {
-        i.pointer
-            .hover_pos()
-            .is_some_and(|pos| viewport.contains(pos))
-    });
+    let popup_open = ui.memory(|m| m.any_popup_open());
+    let viewport_hovered = !popup_open
+        && ui.input(|i| {
+            i.pointer
+                .hover_pos()
+                .is_some_and(|pos| viewport.contains(pos))
+        });
     let scroll_delta = if viewport_hovered {
         ui.input(|i| {
             if i.smooth_scroll_delta.y.abs() > 0.0 {
