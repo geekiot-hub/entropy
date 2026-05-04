@@ -6,3 +6,8 @@ Cargo.lock
 entropy.exe
 entropy-linux
 entropy-x86_64.AppImage
+
+# Local release binaries (keep in repo root locally, do not push)
+entropy-v*.exe
+entropy-v*.AppImage
+entropy-v*-macos-*
