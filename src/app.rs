@@ -150,12 +150,38 @@ fn app_settings_path() -> std::path::PathBuf {
     dir.join("app_settings.json")
 }
 
-fn text_expander_rules_path() -> std::path::PathBuf {
+const TEXT_EXPANDER_MAIN_RULES_FILE: &str = "text_expansion_rules.json";
+
+fn text_expander_config_dir() -> std::path::PathBuf {
     let dir = dirs::config_dir()
         .unwrap_or_else(|| std::path::PathBuf::from("."))
         .join("entropy");
     std::fs::create_dir_all(&dir).ok();
-    dir.join("text_expansion_rules.json")
+    dir
+}
+
+fn text_expander_rules_dir() -> std::path::PathBuf {
+    let dir = text_expander_config_dir().join("text_expander_rules");
+    std::fs::create_dir_all(&dir).ok();
+    dir
+}
+
+fn legacy_text_expander_rules_path() -> std::path::PathBuf {
+    text_expander_config_dir().join(TEXT_EXPANDER_MAIN_RULES_FILE)
+}
+
+fn text_expander_rules_path() -> std::path::PathBuf {
+    text_expander_rules_dir().join(TEXT_EXPANDER_MAIN_RULES_FILE)
+}
+
+fn migrate_legacy_text_expander_rules_file() {
+    let legacy = legacy_text_expander_rules_path();
+    let current = text_expander_rules_path();
+    if !current.exists() && legacy.exists() {
+        if let Err(e) = std::fs::copy(&legacy, &current) {
+            log::warn!("migrate_legacy_text_expander_rules_file failed: {e}");
+        }
+    }
 }
 
 fn path_modified(path: &std::path::Path) -> Option<std::time::SystemTime> {
@@ -164,18 +190,77 @@ fn path_modified(path: &std::path::Path) -> Option<std::time::SystemTime> {
         .and_then(|metadata| metadata.modified().ok())
 }
 
+fn normalize_text_expander_rules_file_name(raw: &str) -> Option<String> {
+    let name = std::path::Path::new(raw)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .map(str::trim)?;
+    if name.is_empty()
+        || name.eq_ignore_ascii_case(TEXT_EXPANDER_MAIN_RULES_FILE)
+        || !name.to_ascii_lowercase().ends_with(".json")
+    {
+        return None;
+    }
+    Some(name.to_owned())
+}
+
+fn normalize_text_expander_rule_files(files: &[String]) -> Vec<String> {
+    let mut normalized = Vec::new();
+    for file in files {
+        let Some(name) = normalize_text_expander_rules_file_name(file) else {
+            continue;
+        };
+        if !normalized
+            .iter()
+            .any(|existing: &String| existing.eq_ignore_ascii_case(&name))
+        {
+            normalized.push(name);
+        }
+    }
+    normalized
+}
+
+fn text_expander_extra_rules_path(file_name: &str) -> std::path::PathBuf {
+    text_expander_rules_dir().join(file_name)
+}
+
+fn text_expander_available_extra_rule_files(selected_files: &[String]) -> Vec<String> {
+    let selected = normalize_text_expander_rule_files(selected_files);
+    let mut files = std::fs::read_dir(text_expander_rules_dir())
+        .ok()
+        .into_iter()
+        .flat_map(|entries| entries.filter_map(Result::ok))
+        .filter_map(|entry| {
+            let path = entry.path();
+            if !path.is_file() {
+                return None;
+            }
+            let name = path.file_name()?.to_str()?;
+            normalize_text_expander_rules_file_name(name)
+        })
+        .filter(|name| {
+            !selected
+                .iter()
+                .any(|selected_name| selected_name.eq_ignore_ascii_case(name))
+        })
+        .collect::<Vec<_>>();
+    files.sort_by_key(|name| name.to_ascii_lowercase());
+    files
+}
+
 fn text_expander_rules_signature(
     extra_files: &[String],
 ) -> Vec<(String, Option<std::time::SystemTime>)> {
-    let mut files = Vec::with_capacity(extra_files.len() + 1);
+    let normalized_extra_files = normalize_text_expander_rule_files(extra_files);
+    let mut files = Vec::with_capacity(normalized_extra_files.len() + 1);
     let primary = text_expander_rules_path();
     files.push((
         primary.to_string_lossy().to_string(),
         path_modified(&primary),
     ));
-    for file in extra_files {
-        let path = std::path::PathBuf::from(file);
-        files.push((file.clone(), path_modified(&path)));
+    for file in normalized_extra_files {
+        let path = text_expander_extra_rules_path(&file);
+        files.push((file, path_modified(&path)));
     }
     files
 }
@@ -517,11 +602,13 @@ fn load_text_expansion_rules_from_path(
 }
 
 fn load_extra_text_expansion_rules(
-    paths: &[String],
+    files: &[String],
 ) -> Vec<crate::text_expander::TextExpansionRule> {
-    paths
+    normalize_text_expander_rule_files(files)
         .iter()
-        .filter_map(|path| load_text_expansion_rules_from_path(std::path::Path::new(path)))
+        .filter_map(|file| {
+            load_text_expansion_rules_from_path(&text_expander_extra_rules_path(file))
+        })
         .flatten()
         .collect()
 }
@@ -576,60 +663,8 @@ fn open_path_in_system_editor(path: &std::path::Path) -> bool {
     }
 }
 
-fn pick_text_expander_rules_file() -> Option<std::path::PathBuf> {
-    #[cfg(target_os = "windows")]
-    {
-        let script = r#"Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.OpenFileDialog; $d.Filter = 'JSON files (*.json)|*.json|All files (*.*)|*.*'; if ($d.ShowDialog() -eq 'OK') { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; Write-Output $d.FileName }"#;
-        return std::process::Command::new("powershell")
-            .args(["-NoProfile", "-STA", "-Command", script])
-            .output()
-            .ok()
-            .and_then(|output| {
-                output
-                    .status
-                    .success()
-                    .then(|| String::from_utf8_lossy(&output.stdout).trim().to_string())
-            })
-            .filter(|path| !path.is_empty())
-            .map(std::path::PathBuf::from);
-    }
-    #[cfg(target_os = "macos")]
-    {
-        return std::process::Command::new("osascript")
-            .args(["-e", r#"POSIX path of (choose file of type {"json"})"#])
-            .output()
-            .ok()
-            .and_then(|output| {
-                output
-                    .status
-                    .success()
-                    .then(|| String::from_utf8_lossy(&output.stdout).trim().to_string())
-            })
-            .filter(|path| !path.is_empty())
-            .map(std::path::PathBuf::from);
-    }
-    #[cfg(target_os = "linux")]
-    {
-        return std::process::Command::new("sh")
-            .arg("-c")
-            .arg("(zenity --file-selection --file-filter='JSON files | *.json' 2>/dev/null || kdialog --getopenfilename . '*.json' 2>/dev/null)")
-            .output()
-            .ok()
-            .and_then(|output| {
-                output.status.success().then(|| {
-                    String::from_utf8_lossy(&output.stdout).trim().to_string()
-                })
-            })
-            .filter(|path| !path.is_empty())
-            .map(std::path::PathBuf::from);
-    }
-    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
-    {
-        None
-    }
-}
-
 fn load_app_settings() -> AppSettings {
+    migrate_legacy_text_expander_rules_file();
     let path = app_settings_path();
     let settings_data = std::fs::read_to_string(&path).ok();
     let mut settings = settings_data
@@ -647,6 +682,9 @@ fn load_app_settings() -> AppSettings {
         Some(rules) => settings.text_expansion_rules = rules,
         None => save_text_expansion_rules(&settings.text_expansion_rules),
     }
+    settings.text_expander_rule_files =
+        normalize_text_expander_rule_files(&settings.text_expander_rule_files);
+
     settings
 }
 
@@ -4495,19 +4533,30 @@ impl EntropyApp {
     }
 
     fn add_text_expander_rules_file(&mut self) {
-        let Some(path) = pick_text_expander_rules_file() else {
+        self.app_settings
+            .text_expander_rule_files
+            .push(String::new());
+    }
+
+    fn set_text_expander_rules_file(&mut self, idx: usize, file_name: &str) {
+        if idx >= self.app_settings.text_expander_rule_files.len() {
+            return;
+        }
+        let Some(file_name) = normalize_text_expander_rules_file_name(file_name) else {
             return;
         };
-        let path_text = path.to_string_lossy().to_string();
         if self
             .app_settings
             .text_expander_rule_files
             .iter()
-            .any(|existing| existing == &path_text)
+            .enumerate()
+            .any(|(other_idx, existing)| {
+                other_idx != idx && existing.eq_ignore_ascii_case(&file_name)
+            })
         {
             return;
         }
-        self.app_settings.text_expander_rule_files.push(path_text);
+        self.app_settings.text_expander_rule_files[idx] = file_name;
         self.text_expander_rules_signature =
             text_expander_rules_signature(&self.app_settings.text_expander_rule_files);
         save_app_settings(&self.app_settings);
@@ -5015,13 +5064,15 @@ impl EntropyApp {
                 extra_file_row_start + self.app_settings.text_expander_rule_files.len();
             if (extra_file_row_start..extra_file_row_end).contains(&row_idx) {
                 let file_idx = row_idx - extra_file_row_start;
-                let file_path = self.app_settings.text_expander_rule_files[file_idx].clone();
-                let path = std::path::Path::new(&file_path);
-                let file_name = path
-                    .file_name()
-                    .and_then(|name| name.to_str())
-                    .unwrap_or(file_path.as_str());
-                let file_ok = load_text_expansion_rules_from_path(path).is_some();
+                let file_name = self.app_settings.text_expander_rule_files[file_idx].clone();
+                let file_selected = normalize_text_expander_rules_file_name(&file_name);
+                let file_ok = file_selected
+                    .as_ref()
+                    .map(|name| {
+                        load_text_expansion_rules_from_path(&text_expander_extra_rules_path(name))
+                            .is_some()
+                    })
+                    .unwrap_or(false);
                 let label = format!(
                     "{} {}",
                     crate::i18n::tr_catalog(lang, "text_expander.extra_rules_file_label"),
@@ -5034,48 +5085,178 @@ impl EntropyApp {
                     row_height,
                     label.as_str(),
                     true,
-                    tooltip(if file_ok {
-                        crate::i18n::tr_catalog(lang, "text_expander.extra_rules_file_ok_tooltip")
-                    } else {
-                        crate::i18n::tr_catalog(
+                    tooltip(match (file_selected.is_some(), file_ok) {
+                        (true, true) => crate::i18n::tr_catalog(
+                            lang,
+                            "text_expander.extra_rules_file_ok_tooltip",
+                        ),
+                        (true, false) => crate::i18n::tr_catalog(
                             lang,
                             "text_expander.extra_rules_file_error_tooltip",
-                        )
+                        ),
+                        (false, _) => crate::i18n::tr_catalog(
+                            lang,
+                            "text_expander.extra_rules_file_select_tooltip",
+                        ),
                     }),
                     control_width,
                     |ui| {
-                        ui.allocate_ui_with_layout(
-                            egui::vec2(control_width, row_height),
-                            egui::Layout::right_to_left(egui::Align::Center),
-                            |ui| {
-                                if crate::ui_style::modern_button(
-                                    ui,
-                                    "×",
-                                    metrics.size(30.0, metrics.settings_control_height()),
-                                    true,
-                                )
-                                .clicked()
-                                {
-                                    self.remove_text_expander_rules_file(file_idx);
-                                }
-                                ui.add_space(metrics.value(8.0));
-                                let display = if file_name.chars().count() > 24 {
-                                    format!("{}…", file_name.chars().take(23).collect::<String>())
-                                } else {
-                                    file_name.to_owned()
-                                };
-                                let prefix = if file_ok { "✓ " } else { "⚠ " };
-                                ui.label(
-                                    RichText::new(format!("{prefix}{display}"))
-                                        .size(metrics.value(12.0))
-                                        .color(if file_ok {
-                                            ui.visuals().text_color()
-                                        } else {
-                                            app_muted_text(ui.visuals().dark_mode)
-                                        }),
-                                );
-                            },
+                        let control_rect = ui.max_rect();
+                        let field_height = metrics.settings_control_height();
+                        let delete_size = metrics.size(30.0, field_height);
+                        let gap = metrics.value(8.0);
+                        let dropdown_width = control_width - delete_size.x - gap;
+                        let top = control_rect.center().y - field_height / 2.0;
+                        let dropdown_rect = egui::Rect::from_min_size(
+                            egui::pos2(control_rect.left(), top),
+                            egui::vec2(dropdown_width, field_height),
                         );
+                        let delete_rect = egui::Rect::from_min_size(
+                            egui::pos2(control_rect.right() - delete_size.x, top),
+                            delete_size,
+                        );
+
+                        ui.allocate_ui_at_rect(dropdown_rect, |ui| {
+                            let mut selected_except_current =
+                                self.app_settings.text_expander_rule_files.clone();
+                            if file_idx < selected_except_current.len() {
+                                selected_except_current.remove(file_idx);
+                            }
+                            let mut options =
+                                text_expander_available_extra_rule_files(&selected_except_current);
+                            if let Some(current) = file_selected.as_ref() {
+                                if !options
+                                    .iter()
+                                    .any(|option| option.eq_ignore_ascii_case(current))
+                                {
+                                    options.insert(0, current.clone());
+                                }
+                            }
+                            let selected_text = if let Some(current) = file_selected.as_ref() {
+                                let prefix = if file_ok { "✓ " } else { "⚠ " };
+                                format!("{prefix}{current}")
+                            } else {
+                                crate::i18n::tr_catalog(lang, "text_expander.select_rules_file")
+                                    .to_owned()
+                            };
+                            let dropdown_id = ui.make_persistent_id((
+                                "text_expander_extra_rules_file_dropdown",
+                                file_idx,
+                            ));
+                            let dropdown_resp = crate::ui_style::modern_dropdown_button_sized(
+                                ui,
+                                dropdown_id,
+                                selected_text.as_str(),
+                                if file_selected.is_none() {
+                                    app_muted_text(ui.visuals().dark_mode)
+                                } else {
+                                    ui.visuals().text_color()
+                                },
+                                dropdown_width,
+                                field_height,
+                                metrics.settings_control_font_size(),
+                            );
+                            egui::popup_below_widget(
+                                ui,
+                                dropdown_id,
+                                &dropdown_resp,
+                                egui::PopupCloseBehavior::CloseOnClickOutside,
+                                |ui| {
+                                    ui.set_min_width(dropdown_width);
+                                    ui.set_max_width(dropdown_width);
+                                    ui.spacing_mut().item_spacing = egui::vec2(0.0, 2.0);
+                                    let option_height = metrics.value(34.0);
+                                    egui::ScrollArea::vertical()
+                                        .max_height(metrics.value(168.0))
+                                        .auto_shrink([false, false])
+                                        .show(ui, |ui| {
+                                            ui.set_min_width(dropdown_width);
+                                            if options.is_empty() {
+                                                let (option_rect, _) = ui.allocate_exact_size(
+                                                    egui::vec2(dropdown_width, option_height),
+                                                    Sense::hover(),
+                                                );
+                                                ui.painter().text(
+                                                    egui::pos2(
+                                                        option_rect.left() + metrics.value(10.0),
+                                                        option_rect.center().y,
+                                                    ),
+                                                    egui::Align2::LEFT_CENTER,
+                                                    crate::i18n::tr_catalog(
+                                                        lang,
+                                                        "text_expander.no_extra_rules_files",
+                                                    ),
+                                                    FontId::proportional(metrics.value(12.0)),
+                                                    app_muted_text(ui.visuals().dark_mode),
+                                                );
+                                            } else {
+                                                for option in options.iter() {
+                                                    let display = if option.chars().count() > 24 {
+                                                        format!(
+                                                            "{}…",
+                                                            option
+                                                                .chars()
+                                                                .take(23)
+                                                                .collect::<String>()
+                                                        )
+                                                    } else {
+                                                        option.clone()
+                                                    };
+                                                    let (option_rect, option_resp) = ui
+                                                        .allocate_exact_size(
+                                                            egui::vec2(
+                                                                dropdown_width,
+                                                                option_height,
+                                                            ),
+                                                            Sense::click(),
+                                                        );
+                                                    if option_resp.hovered() {
+                                                        ui.ctx().set_cursor_icon(
+                                                            egui::CursorIcon::PointingHand,
+                                                        );
+                                                    }
+                                                    let option_fill = if option_resp.hovered() {
+                                                        crate::ui_style::hover_fill(
+                                                            ui.visuals().dark_mode,
+                                                        )
+                                                    } else {
+                                                        Color32::TRANSPARENT
+                                                    };
+                                                    ui.painter().rect_filled(
+                                                        option_rect,
+                                                        7.0,
+                                                        option_fill,
+                                                    );
+                                                    ui.painter().text(
+                                                        egui::pos2(
+                                                            option_rect.left()
+                                                                + metrics.value(10.0),
+                                                            option_rect.center().y,
+                                                        ),
+                                                        egui::Align2::LEFT_CENTER,
+                                                        display,
+                                                        FontId::proportional(metrics.value(12.0)),
+                                                        ui.visuals().text_color(),
+                                                    );
+                                                    if option_resp.clicked() {
+                                                        self.set_text_expander_rules_file(
+                                                            file_idx, option,
+                                                        );
+                                                        ui.memory_mut(|m| m.close_popup());
+                                                    }
+                                                }
+                                            }
+                                        });
+                                },
+                            );
+                        });
+
+                        ui.allocate_ui_at_rect(delete_rect, |ui| {
+                            if crate::ui_style::modern_button(ui, "×", delete_size, true).clicked()
+                            {
+                                self.remove_text_expander_rules_file(file_idx);
+                            }
+                        });
                     },
                 );
                 continue;
