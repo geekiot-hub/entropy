@@ -2572,6 +2572,7 @@ pub struct EntropyApp {
     key_override_names: Vec<String>,
     key_override_visible_count: usize,
     key_override_undo_stack: Vec<(Vec<KeyOverrideEntry>, Vec<String>, usize, usize)>,
+    text_expander_deleted_rule: Option<(usize, crate::text_expander::TextExpansionRule)>,
     selected_key_override: usize,
     key_override_pick_target: Option<KeyOverridePickField>,
     matrix_tester_pressed: Vec<bool>,
@@ -2694,6 +2695,7 @@ impl EntropyApp {
             key_override_names: vec![],
             key_override_visible_count: 1,
             key_override_undo_stack: Vec::new(),
+            text_expander_deleted_rule: None,
             selected_key_override: 0,
             key_override_pick_target: None,
             matrix_tester_pressed: Vec::new(),
@@ -4643,31 +4645,60 @@ impl EntropyApp {
                 let action_anchor_bottom =
                     list.viewport.top() + list.row_height * action_anchor_rows as f32;
                 let button_size = metrics.size(126.0, 34.0);
-                let button_rect = egui::Rect::from_center_size(
+                let button_gap = metrics.value(10.0);
+                let actions_width = button_size.x * 2.0 + button_gap;
+                let actions_rect = egui::Rect::from_center_size(
                     egui::pos2(
                         list.viewport.center().x,
                         action_anchor_bottom + metrics.value(26.0),
                     ),
-                    button_size,
+                    egui::vec2(actions_width, button_size.y),
                 );
-                ui.allocate_ui_at_rect(button_rect, |ui| {
-                    if crate::ui_style::modern_button(
-                        ui,
-                        crate::i18n::tr_catalog(lang, "text_expander.add_rule"),
-                        button_size,
-                        true,
-                    )
-                    .on_hover_text(crate::i18n::tr_catalog(
-                        lang,
-                        "text_expander.add_rule_tooltip",
-                    ))
-                    .clicked()
-                    {
-                        self.app_settings
-                            .text_expansion_rules
-                            .push(crate::text_expander::TextExpansionRule::default());
-                        self.save_text_expander_settings();
-                    }
+                ui.allocate_ui_at_rect(actions_rect, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = button_gap;
+                        if crate::ui_style::modern_button(
+                            ui,
+                            crate::i18n::tr_catalog(lang, "text_expander.add_rule"),
+                            button_size,
+                            true,
+                        )
+                        .on_hover_text(crate::i18n::tr_catalog(
+                            lang,
+                            "text_expander.add_rule_tooltip",
+                        ))
+                        .clicked()
+                        {
+                            self.app_settings
+                                .text_expansion_rules
+                                .push(crate::text_expander::TextExpansionRule::default());
+                            self.save_text_expander_settings();
+                        }
+
+                        let restore_enabled = self.text_expander_deleted_rule.is_some();
+                        if crate::ui_style::modern_button(
+                            ui,
+                            crate::i18n::tr_catalog(lang, "text_expander.restore_deleted_rule"),
+                            button_size,
+                            restore_enabled,
+                        )
+                        .on_hover_text(crate::i18n::tr_catalog(
+                            lang,
+                            "text_expander.restore_deleted_rule_tooltip",
+                        ))
+                        .clicked()
+                            && restore_enabled
+                        {
+                            if let Some((rule_idx, rule)) = self.text_expander_deleted_rule.take() {
+                                let insert_idx =
+                                    rule_idx.min(self.app_settings.text_expansion_rules.len());
+                                self.app_settings
+                                    .text_expansion_rules
+                                    .insert(insert_idx, rule);
+                                self.save_text_expander_settings();
+                            }
+                        }
+                    });
                 });
             });
         });
@@ -5698,7 +5729,8 @@ impl EntropyApp {
             );
 
             if delete_rule {
-                self.app_settings.text_expansion_rules.remove(idx);
+                let removed_rule = self.app_settings.text_expansion_rules.remove(idx);
+                self.text_expander_deleted_rule = Some((idx, removed_rule));
                 self.save_text_expander_settings();
             } else if changed && rule != original_rule {
                 if let Some(stored_rule) = self.app_settings.text_expansion_rules.get_mut(idx) {
