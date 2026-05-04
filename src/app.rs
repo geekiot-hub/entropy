@@ -13742,11 +13742,11 @@ impl EntropyApp {
                     );
                 }
 
-                ui.add_space(14.0 * scale);
                 let action_size = crate::ui_style::modal_action_button_size() * scale;
                 let action_width = action_size.x * 2.0 + 8.0 * scale;
+                let action_top = list.viewport.bottom() + 14.0 * scale;
                 let action_rect = egui::Rect::from_min_size(
-                    egui::pos2(page_center_x - action_width / 2.0, ui.cursor().min.y),
+                    egui::pos2(page_center_x - action_width / 2.0, action_top),
                     Vec2::new(action_width, action_size.y),
                 );
                 ui.allocate_ui_at_rect(action_rect, |ui| {
@@ -13813,7 +13813,8 @@ impl EntropyApp {
                         }
                     });
                 });
-                ui.allocate_space(Vec2::new(1.0, action_size.y));
+                let reserve_bottom = action_rect.bottom() - list.viewport.bottom();
+                ui.allocate_space(Vec2::new(1.0, reserve_bottom.max(action_size.y)));
             },
         );
 
