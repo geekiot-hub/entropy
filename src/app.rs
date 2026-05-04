@@ -158,10 +158,26 @@ fn text_expander_rules_path() -> std::path::PathBuf {
     dir.join("text_expansion_rules.json")
 }
 
-fn text_expander_rules_modified() -> Option<std::time::SystemTime> {
-    std::fs::metadata(text_expander_rules_path())
+fn path_modified(path: &std::path::Path) -> Option<std::time::SystemTime> {
+    std::fs::metadata(path)
         .ok()
         .and_then(|metadata| metadata.modified().ok())
+}
+
+fn text_expander_rules_signature(
+    extra_files: &[String],
+) -> Vec<(String, Option<std::time::SystemTime>)> {
+    let mut files = Vec::with_capacity(extra_files.len() + 1);
+    let primary = text_expander_rules_path();
+    files.push((
+        primary.to_string_lossy().to_string(),
+        path_modified(&primary),
+    ));
+    for file in extra_files {
+        let path = std::path::PathBuf::from(file);
+        files.push((file.clone(), path_modified(&path)));
+    }
+    files
 }
 
 fn display_preset_restore_path(device_name: &str) -> std::path::PathBuf {
@@ -242,6 +258,8 @@ struct AppSettings {
     text_expander_enabled: bool,
     #[serde(default)]
     text_expander_app_blacklist: String,
+    #[serde(default)]
+    text_expander_rule_files: Vec<String>,
     #[serde(default)]
     text_expansion_rules: Vec<crate::text_expander::TextExpansionRule>,
 }
@@ -474,6 +492,7 @@ impl Default for AppSettings {
             onboarding_tour_seen_version: 0,
             text_expander_enabled: false,
             text_expander_app_blacklist: String::new(),
+            text_expander_rule_files: Vec::new(),
             text_expansion_rules: Vec::new(),
         }
     }
@@ -486,9 +505,25 @@ fn parse_text_expansion_rules_json(
 }
 
 fn load_text_expansion_rules() -> Option<Vec<crate::text_expander::TextExpansionRule>> {
-    std::fs::read_to_string(text_expander_rules_path())
+    load_text_expansion_rules_from_path(&text_expander_rules_path())
+}
+
+fn load_text_expansion_rules_from_path(
+    path: &std::path::Path,
+) -> Option<Vec<crate::text_expander::TextExpansionRule>> {
+    std::fs::read_to_string(path)
         .ok()
         .and_then(|data| parse_text_expansion_rules_json(&data))
+}
+
+fn load_extra_text_expansion_rules(
+    paths: &[String],
+) -> Vec<crate::text_expander::TextExpansionRule> {
+    paths
+        .iter()
+        .filter_map(|path| load_text_expansion_rules_from_path(std::path::Path::new(path)))
+        .flatten()
+        .collect()
 }
 
 fn save_text_expansion_rules(rules: &[crate::text_expander::TextExpansionRule]) {
@@ -538,6 +573,59 @@ fn open_path_in_system_editor(path: &std::path::Path) -> bool {
     {
         let _ = path;
         false
+    }
+}
+
+fn pick_text_expander_rules_file() -> Option<std::path::PathBuf> {
+    #[cfg(target_os = "windows")]
+    {
+        let script = r#"Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.OpenFileDialog; $d.Filter = 'JSON files (*.json)|*.json|All files (*.*)|*.*'; if ($d.ShowDialog() -eq 'OK') { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; Write-Output $d.FileName }"#;
+        return std::process::Command::new("powershell")
+            .args(["-NoProfile", "-STA", "-Command", script])
+            .output()
+            .ok()
+            .and_then(|output| {
+                output
+                    .status
+                    .success()
+                    .then(|| String::from_utf8_lossy(&output.stdout).trim().to_string())
+            })
+            .filter(|path| !path.is_empty())
+            .map(std::path::PathBuf::from);
+    }
+    #[cfg(target_os = "macos")]
+    {
+        return std::process::Command::new("osascript")
+            .args(["-e", r#"POSIX path of (choose file of type {"json"})"#])
+            .output()
+            .ok()
+            .and_then(|output| {
+                output
+                    .status
+                    .success()
+                    .then(|| String::from_utf8_lossy(&output.stdout).trim().to_string())
+            })
+            .filter(|path| !path.is_empty())
+            .map(std::path::PathBuf::from);
+    }
+    #[cfg(target_os = "linux")]
+    {
+        return std::process::Command::new("sh")
+            .arg("-c")
+            .arg("(zenity --file-selection --file-filter='JSON files | *.json' 2>/dev/null || kdialog --getopenfilename . '*.json' 2>/dev/null)")
+            .output()
+            .ok()
+            .and_then(|output| {
+                output.status.success().then(|| {
+                    String::from_utf8_lossy(&output.stdout).trim().to_string()
+                })
+            })
+            .filter(|path| !path.is_empty())
+            .map(std::path::PathBuf::from);
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    {
+        None
     }
 }
 
@@ -2381,7 +2469,7 @@ pub struct EntropyApp {
     jump_back_stack: Vec<usize>,
     dark_mode: bool,
     app_settings: AppSettings,
-    text_expander_rules_mtime: Option<std::time::SystemTime>,
+    text_expander_rules_signature: Vec<(String, Option<std::time::SystemTime>)>,
     text_expander_rules_last_check_at: f64,
     #[cfg(target_os = "windows")]
     tray_icon: Option<tray_icon::TrayIcon>,
@@ -2461,9 +2549,18 @@ impl EntropyApp {
         crate::ui_style::set_accent(app_settings.accent_color.color());
         crate::smart_input::set_text_expander_config(
             app_settings.text_expander_enabled,
-            app_settings.text_expansion_rules.clone(),
+            {
+                let mut rules = app_settings.text_expansion_rules.clone();
+                rules.extend(load_extra_text_expansion_rules(
+                    &app_settings.text_expander_rule_files,
+                ));
+                rules
+            },
             parse_text_expander_blacklist(&app_settings.text_expander_app_blacklist),
         );
+
+        let text_expander_rules_signature =
+            text_expander_rules_signature(&app_settings.text_expander_rule_files);
 
         let mut app = Self {
             #[cfg(not(target_arch = "wasm32"))]
@@ -2494,7 +2591,7 @@ impl EntropyApp {
             status_msg: String::new(),
             dark_mode: false,
             app_settings,
-            text_expander_rules_mtime: text_expander_rules_modified(),
+            text_expander_rules_signature,
             text_expander_rules_last_check_at: 0.0,
             #[cfg(target_os = "windows")]
             tray_icon: None,
@@ -4259,15 +4356,28 @@ impl EntropyApp {
         None
     }
 
-    fn save_text_expander_settings(&mut self) {
-        save_text_expansion_rules(&self.app_settings.text_expansion_rules);
-        self.text_expander_rules_mtime = text_expander_rules_modified();
-        save_app_settings(&self.app_settings);
+    fn active_text_expansion_rules(&self) -> Vec<crate::text_expander::TextExpansionRule> {
+        let mut rules = self.app_settings.text_expansion_rules.clone();
+        rules.extend(load_extra_text_expansion_rules(
+            &self.app_settings.text_expander_rule_files,
+        ));
+        rules
+    }
+
+    fn sync_text_expander_runtime(&mut self) {
         crate::smart_input::set_text_expander_config(
             self.app_settings.text_expander_enabled,
-            self.app_settings.text_expansion_rules.clone(),
+            self.active_text_expansion_rules(),
             parse_text_expander_blacklist(&self.app_settings.text_expander_app_blacklist),
         );
+    }
+
+    fn save_text_expander_settings(&mut self) {
+        save_text_expansion_rules(&self.app_settings.text_expansion_rules);
+        self.text_expander_rules_signature =
+            text_expander_rules_signature(&self.app_settings.text_expander_rule_files);
+        save_app_settings(&self.app_settings);
+        self.sync_text_expander_runtime();
     }
 
     fn add_text_expander_blacklist_app(&mut self, app_name: &str) -> bool {
@@ -4343,9 +4453,12 @@ impl EntropyApp {
             return;
         }
         self.text_expander_rules_last_check_at = now;
-        let current_mtime = text_expander_rules_modified();
-        if current_mtime.is_some() && current_mtime != self.text_expander_rules_mtime {
+        let current_signature =
+            text_expander_rules_signature(&self.app_settings.text_expander_rule_files);
+        if current_signature != self.text_expander_rules_signature {
             if self.reload_text_expander_rules_file() {
+                self.sync_text_expander_runtime();
+                self.text_expander_rules_signature = current_signature;
                 self.status_msg = crate::i18n::tr_catalog(
                     self.app_settings.language,
                     "text_expander.rules_auto_reloaded_status",
@@ -4357,7 +4470,7 @@ impl EntropyApp {
                     "text_expander.rules_reload_failed_status",
                 )
                 .to_owned();
-                self.text_expander_rules_mtime = current_mtime;
+                self.text_expander_rules_signature = current_signature;
             }
         }
     }
@@ -4379,6 +4492,39 @@ impl EntropyApp {
             )
             .to_owned()
         };
+    }
+
+    fn add_text_expander_rules_file(&mut self) {
+        let Some(path) = pick_text_expander_rules_file() else {
+            return;
+        };
+        let path_text = path.to_string_lossy().to_string();
+        if self
+            .app_settings
+            .text_expander_rule_files
+            .iter()
+            .any(|existing| existing == &path_text)
+        {
+            return;
+        }
+        self.app_settings.text_expander_rule_files.push(path_text);
+        self.text_expander_rules_signature =
+            text_expander_rules_signature(&self.app_settings.text_expander_rule_files);
+        save_app_settings(&self.app_settings);
+        self.sync_text_expander_runtime();
+    }
+
+    fn remove_text_expander_rules_file(&mut self, remove_idx: usize) {
+        if remove_idx >= self.app_settings.text_expander_rule_files.len() {
+            return;
+        }
+        self.app_settings
+            .text_expander_rule_files
+            .remove(remove_idx);
+        self.text_expander_rules_signature =
+            text_expander_rules_signature(&self.app_settings.text_expander_rule_files);
+        save_app_settings(&self.app_settings);
+        self.sync_text_expander_runtime();
     }
 
     fn draw_text_expander_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
@@ -4406,7 +4552,9 @@ impl EntropyApp {
                 );
                 ui.add_space(metrics.value(18.0));
 
-                let row_count = 5 + self.app_settings.text_expansion_rules.len();
+                let row_count = 5
+                    + self.app_settings.text_expander_rule_files.len()
+                    + self.app_settings.text_expansion_rules.len();
                 let list = allocate_adaptive_settings_list_viewport(
                     ui,
                     "text_expander_settings",
@@ -4447,27 +4595,42 @@ impl EntropyApp {
                 let action_anchor_bottom =
                     list.viewport.top() + list.row_height * action_anchor_rows as f32;
                 let button_size = metrics.size(126.0, 34.0);
-                let button_rect = egui::Rect::from_center_size(
+                let button_gap = metrics.value(10.0);
+                let actions_width = button_size.x * 2.0 + button_gap;
+                let actions_rect = egui::Rect::from_center_size(
                     egui::pos2(
                         list.viewport.center().x,
                         action_anchor_bottom + metrics.value(26.0),
                     ),
-                    button_size,
+                    egui::vec2(actions_width, button_size.y),
                 );
-                ui.allocate_ui_at_rect(button_rect, |ui| {
-                    if crate::ui_style::modern_button(
-                        ui,
-                        crate::i18n::tr_catalog(lang, "text_expander.add_rule"),
-                        button_size,
-                        true,
-                    )
-                    .clicked()
-                    {
-                        self.app_settings
-                            .text_expansion_rules
-                            .push(crate::text_expander::TextExpansionRule::default());
-                        self.save_text_expander_settings();
-                    }
+                ui.allocate_ui_at_rect(actions_rect, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = button_gap;
+                        if crate::ui_style::modern_button(
+                            ui,
+                            crate::i18n::tr_catalog(lang, "text_expander.add_rule"),
+                            button_size,
+                            true,
+                        )
+                        .clicked()
+                        {
+                            self.app_settings
+                                .text_expansion_rules
+                                .push(crate::text_expander::TextExpansionRule::default());
+                            self.save_text_expander_settings();
+                        }
+                        if crate::ui_style::modern_button(
+                            ui,
+                            crate::i18n::tr_catalog(lang, "text_expander.add_rules_file"),
+                            button_size,
+                            true,
+                        )
+                        .clicked()
+                        {
+                            self.add_text_expander_rules_file();
+                        }
+                    });
                 });
             });
         });
@@ -4847,7 +5010,78 @@ impl EntropyApp {
                 continue;
             }
 
-            let blacklist_row_end = 5;
+            let extra_file_row_start = 5;
+            let extra_file_row_end =
+                extra_file_row_start + self.app_settings.text_expander_rule_files.len();
+            if (extra_file_row_start..extra_file_row_end).contains(&row_idx) {
+                let file_idx = row_idx - extra_file_row_start;
+                let file_path = self.app_settings.text_expander_rule_files[file_idx].clone();
+                let path = std::path::Path::new(&file_path);
+                let file_name = path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or(file_path.as_str());
+                let file_ok = load_text_expansion_rules_from_path(path).is_some();
+                let label = format!(
+                    "{} {}",
+                    crate::i18n::tr_catalog(lang, "text_expander.extra_rules_file_label"),
+                    file_idx + 1
+                );
+                let control_width = metrics.value(250.0);
+                crate::ui_style::settings_list_row_with_tooltip(
+                    ui,
+                    content_width,
+                    row_height,
+                    label.as_str(),
+                    true,
+                    tooltip(if file_ok {
+                        crate::i18n::tr_catalog(lang, "text_expander.extra_rules_file_ok_tooltip")
+                    } else {
+                        crate::i18n::tr_catalog(
+                            lang,
+                            "text_expander.extra_rules_file_error_tooltip",
+                        )
+                    }),
+                    control_width,
+                    |ui| {
+                        ui.allocate_ui_with_layout(
+                            egui::vec2(control_width, row_height),
+                            egui::Layout::right_to_left(egui::Align::Center),
+                            |ui| {
+                                if crate::ui_style::modern_button(
+                                    ui,
+                                    "×",
+                                    metrics.size(30.0, metrics.settings_control_height()),
+                                    true,
+                                )
+                                .clicked()
+                                {
+                                    self.remove_text_expander_rules_file(file_idx);
+                                }
+                                ui.add_space(metrics.value(8.0));
+                                let display = if file_name.chars().count() > 24 {
+                                    format!("{}…", file_name.chars().take(23).collect::<String>())
+                                } else {
+                                    file_name.to_owned()
+                                };
+                                let prefix = if file_ok { "✓ " } else { "⚠ " };
+                                ui.label(
+                                    RichText::new(format!("{prefix}{display}"))
+                                        .size(metrics.value(12.0))
+                                        .color(if file_ok {
+                                            ui.visuals().text_color()
+                                        } else {
+                                            app_muted_text(ui.visuals().dark_mode)
+                                        }),
+                                );
+                            },
+                        );
+                    },
+                );
+                continue;
+            }
+
+            let blacklist_row_end = extra_file_row_end;
             let idx = row_idx - blacklist_row_end;
             let Some(original_rule) = self.app_settings.text_expansion_rules.get(idx).cloned()
             else {
