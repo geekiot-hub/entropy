@@ -238,7 +238,7 @@ struct AppSettings {
     text_expander_paused: bool,
     #[serde(default)]
     text_expander_app_blacklist: String,
-    #[serde(default, skip_serializing)]
+    #[serde(default)]
     text_expansion_rules: Vec<crate::text_expander::TextExpansionRule>,
 }
 
@@ -476,12 +476,16 @@ impl Default for AppSettings {
     }
 }
 
+fn parse_text_expansion_rules_json(
+    data: &str,
+) -> Option<Vec<crate::text_expander::TextExpansionRule>> {
+    serde_json::from_str::<Vec<crate::text_expander::TextExpansionRule>>(data).ok()
+}
+
 fn load_text_expansion_rules() -> Option<Vec<crate::text_expander::TextExpansionRule>> {
     std::fs::read_to_string(text_expander_rules_path())
         .ok()
-        .and_then(|data| {
-            serde_json::from_str::<Vec<crate::text_expander::TextExpansionRule>>(&data).ok()
-        })
+        .and_then(|data| parse_text_expansion_rules_json(&data))
 }
 
 fn save_text_expansion_rules(rules: &[crate::text_expander::TextExpansionRule]) {
@@ -536,11 +540,19 @@ fn open_path_in_system_editor(path: &std::path::Path) -> bool {
 
 fn load_app_settings() -> AppSettings {
     let path = app_settings_path();
-    let mut settings = std::fs::read_to_string(&path)
-        .ok()
-        .and_then(|data| serde_json::from_str::<AppSettings>(&data).ok())
+    let settings_data = std::fs::read_to_string(&path).ok();
+    let mut settings = settings_data
+        .as_deref()
+        .and_then(|data| serde_json::from_str::<AppSettings>(data).ok())
         .unwrap_or_default();
+
+    let embedded_rules = settings.text_expansion_rules.clone();
     match load_text_expansion_rules() {
+        Some(rules) if !rules.is_empty() => settings.text_expansion_rules = rules,
+        Some(_) if !embedded_rules.is_empty() => {
+            settings.text_expansion_rules = embedded_rules;
+            save_text_expansion_rules(&settings.text_expansion_rules);
+        }
         Some(rules) => settings.text_expansion_rules = rules,
         None => save_text_expansion_rules(&settings.text_expansion_rules),
     }
