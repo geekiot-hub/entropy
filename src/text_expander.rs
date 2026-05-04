@@ -25,7 +25,6 @@ impl Default for TextExpansionRule {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct TextExpansionConfig {
     pub enabled: bool,
-    pub paused: bool,
     pub rules: Vec<TextExpansionRule>,
     pub app_blacklist: Vec<String>,
 }
@@ -145,7 +144,9 @@ impl TextExpansionEngine {
 }
 
 pub fn rule_usable(rule: &TextExpansionRule) -> bool {
-    rule.enabled && runtime_trigger_usable(&rule.trigger) && !prepare_replacement(&rule.replacement).0.is_empty()
+    rule.enabled
+        && runtime_trigger_usable(&rule.trigger)
+        && !prepare_replacement(&rule.replacement).0.is_empty()
 }
 
 fn runtime_trigger_usable(trigger: &str) -> bool {

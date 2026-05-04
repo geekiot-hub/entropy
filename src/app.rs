@@ -158,6 +158,12 @@ fn text_expander_rules_path() -> std::path::PathBuf {
     dir.join("text_expansion_rules.json")
 }
 
+fn text_expander_rules_modified() -> Option<std::time::SystemTime> {
+    std::fs::metadata(text_expander_rules_path())
+        .ok()
+        .and_then(|metadata| metadata.modified().ok())
+}
+
 fn display_preset_restore_path(device_name: &str) -> std::path::PathBuf {
     let dir = dirs::config_dir()
         .unwrap_or_else(|| std::path::PathBuf::from("."))
@@ -234,8 +240,6 @@ struct AppSettings {
     onboarding_tour_seen_version: u16,
     #[serde(default)]
     text_expander_enabled: bool,
-    #[serde(default)]
-    text_expander_paused: bool,
     #[serde(default)]
     text_expander_app_blacklist: String,
     #[serde(default)]
@@ -469,7 +473,6 @@ impl Default for AppSettings {
             ui_scale: default_ui_scale(),
             onboarding_tour_seen_version: 0,
             text_expander_enabled: false,
-            text_expander_paused: false,
             text_expander_app_blacklist: String::new(),
             text_expansion_rules: Vec::new(),
         }
@@ -2378,6 +2381,8 @@ pub struct EntropyApp {
     jump_back_stack: Vec<usize>,
     dark_mode: bool,
     app_settings: AppSettings,
+    text_expander_rules_mtime: Option<std::time::SystemTime>,
+    text_expander_rules_last_check_at: f64,
     #[cfg(target_os = "windows")]
     tray_icon: Option<tray_icon::TrayIcon>,
     #[cfg(target_os = "windows")]
@@ -2456,7 +2461,6 @@ impl EntropyApp {
         crate::ui_style::set_accent(app_settings.accent_color.color());
         crate::smart_input::set_text_expander_config(
             app_settings.text_expander_enabled,
-            app_settings.text_expander_paused,
             app_settings.text_expansion_rules.clone(),
             parse_text_expander_blacklist(&app_settings.text_expander_app_blacklist),
         );
@@ -2490,6 +2494,8 @@ impl EntropyApp {
             status_msg: String::new(),
             dark_mode: false,
             app_settings,
+            text_expander_rules_mtime: text_expander_rules_modified(),
+            text_expander_rules_last_check_at: 0.0,
             #[cfg(target_os = "windows")]
             tray_icon: None,
             #[cfg(target_os = "windows")]
@@ -4253,12 +4259,12 @@ impl EntropyApp {
         None
     }
 
-    fn save_text_expander_settings(&self) {
+    fn save_text_expander_settings(&mut self) {
         save_text_expansion_rules(&self.app_settings.text_expansion_rules);
+        self.text_expander_rules_mtime = text_expander_rules_modified();
         save_app_settings(&self.app_settings);
         crate::smart_input::set_text_expander_config(
             self.app_settings.text_expander_enabled,
-            self.app_settings.text_expander_paused,
             self.app_settings.text_expansion_rules.clone(),
             parse_text_expander_blacklist(&self.app_settings.text_expander_app_blacklist),
         );
@@ -4322,21 +4328,37 @@ impl EntropyApp {
         candidates
     }
 
-    fn reload_text_expander_rules_file(&mut self) {
+    fn reload_text_expander_rules_file(&mut self) -> bool {
         if let Some(rules) = load_text_expansion_rules() {
             self.app_settings.text_expansion_rules = rules;
             self.save_text_expander_settings();
-            self.status_msg = crate::i18n::tr_catalog(
-                self.app_settings.language,
-                "text_expander.rules_reloaded_status",
-            )
-            .to_owned();
+            true
         } else {
-            self.status_msg = crate::i18n::tr_catalog(
-                self.app_settings.language,
-                "text_expander.rules_reload_failed_status",
-            )
-            .to_owned();
+            false
+        }
+    }
+
+    fn auto_reload_text_expander_rules_file(&mut self, now: f64) {
+        if now - self.text_expander_rules_last_check_at < 1.0 {
+            return;
+        }
+        self.text_expander_rules_last_check_at = now;
+        let current_mtime = text_expander_rules_modified();
+        if current_mtime.is_some() && current_mtime != self.text_expander_rules_mtime {
+            if self.reload_text_expander_rules_file() {
+                self.status_msg = crate::i18n::tr_catalog(
+                    self.app_settings.language,
+                    "text_expander.rules_auto_reloaded_status",
+                )
+                .to_owned();
+            } else {
+                self.status_msg = crate::i18n::tr_catalog(
+                    self.app_settings.language,
+                    "text_expander.rules_reload_failed_status",
+                )
+                .to_owned();
+                self.text_expander_rules_mtime = current_mtime;
+            }
         }
     }
 
@@ -4384,7 +4406,7 @@ impl EntropyApp {
                 );
                 ui.add_space(metrics.value(18.0));
 
-                let row_count = 6 + self.app_settings.text_expansion_rules.len();
+                let row_count = 5 + self.app_settings.text_expansion_rules.len();
                 let list = allocate_adaptive_settings_list_viewport(
                     ui,
                     "text_expander_settings",
@@ -4495,39 +4517,10 @@ impl EntropyApp {
                 continue;
             }
 
-            if row_idx == 1 {
-                let mut paused = self.app_settings.text_expander_paused;
-                crate::ui_style::settings_list_row_with_tooltip(
-                    ui,
-                    content_width,
-                    row_height,
-                    crate::i18n::tr_catalog(lang, "text_expander.paused_label"),
-                    true,
-                    tooltip(crate::i18n::tr_catalog(
-                        lang,
-                        "text_expander.paused_tooltip",
-                    )),
-                    switch_width,
-                    |ui| {
-                        crate::ui_style::settings_switch_sized_stable(
-                            ui,
-                            "text_expander_paused",
-                            &mut paused,
-                            switch_size,
-                        );
-                    },
-                );
-                if paused != self.app_settings.text_expander_paused {
-                    self.app_settings.text_expander_paused = paused;
-                    self.save_text_expander_settings();
-                }
-                continue;
-            }
-
             let blacklist_entries =
                 parse_text_expander_blacklist(&self.app_settings.text_expander_app_blacklist);
             let window_candidates = self.text_expander_window_candidates(&blacklist_entries);
-            if row_idx == 2 {
+            if row_idx == 1 {
                 let dropdown_width = metrics.value(250.0);
                 let selected_text = if window_candidates.is_empty() {
                     crate::i18n::tr_catalog(lang, "text_expander.no_windows_hint")
@@ -4660,7 +4653,7 @@ impl EntropyApp {
                 continue;
             }
 
-            if row_idx == 3 {
+            if row_idx == 2 {
                 let dropdown_width = metrics.value(250.0);
                 let selected_text = if blacklist_entries.is_empty() {
                     crate::i18n::tr_catalog(lang, "text_expander.no_blacklist_apps")
@@ -4788,7 +4781,7 @@ impl EntropyApp {
                 continue;
             }
 
-            if row_idx == 4 {
+            if row_idx == 3 {
                 let mut blacklist = format_text_expander_blacklist(&blacklist_entries);
                 let field_width = metrics.value(250.0);
                 crate::ui_style::settings_list_row_with_tooltip(
@@ -4825,10 +4818,8 @@ impl EntropyApp {
                 continue;
             }
 
-            if row_idx == 5 {
+            if row_idx == 4 {
                 let button_width = metrics.value(118.0);
-                let gap = metrics.value(8.0);
-                let control_width = button_width * 2.0 + gap;
                 crate::ui_style::settings_list_row_with_tooltip(
                     ui,
                     content_width,
@@ -4839,44 +4830,24 @@ impl EntropyApp {
                         lang,
                         "text_expander.rules_file_tooltip",
                     )),
-                    control_width,
+                    button_width,
                     |ui| {
-                        ui.allocate_ui_with_layout(
-                            egui::vec2(control_width, row_height),
-                            egui::Layout::right_to_left(egui::Align::Center),
-                            |ui| {
-                                if crate::ui_style::modern_button(
-                                    ui,
-                                    crate::i18n::tr_catalog(
-                                        lang,
-                                        "text_expander.reload_rules_file",
-                                    ),
-                                    metrics.size(button_width, metrics.settings_control_height()),
-                                    true,
-                                )
-                                .clicked()
-                                {
-                                    self.reload_text_expander_rules_file();
-                                }
-                                ui.add_space(gap);
-                                if crate::ui_style::modern_button(
-                                    ui,
-                                    crate::i18n::tr_catalog(lang, "text_expander.open_rules_file"),
-                                    metrics.size(button_width, metrics.settings_control_height()),
-                                    true,
-                                )
-                                .clicked()
-                                {
-                                    self.open_text_expander_rules_file();
-                                }
-                            },
-                        );
+                        if crate::ui_style::modern_button(
+                            ui,
+                            crate::i18n::tr_catalog(lang, "text_expander.open_rules_file"),
+                            metrics.size(button_width, metrics.settings_control_height()),
+                            true,
+                        )
+                        .clicked()
+                        {
+                            self.open_text_expander_rules_file();
+                        }
                     },
                 );
                 continue;
             }
 
-            let blacklist_row_end = 6;
+            let blacklist_row_end = 5;
             let idx = row_idx - blacklist_row_end;
             let Some(original_rule) = self.app_settings.text_expansion_rules.get(idx).cloned()
             else {
@@ -7008,6 +6979,7 @@ impl eframe::App for EntropyApp {
             }
         }
         let now = ctx.input(|i| i.time);
+        self.auto_reload_text_expander_rules_file(now);
         if (self.last_device_scan_at == 0.0 || now - self.last_device_scan_at >= 1.0)
             && !self.vial_unlock_polling
         {

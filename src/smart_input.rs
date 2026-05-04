@@ -437,13 +437,11 @@ pub fn text_expander_app_candidates() -> Vec<TextExpanderAppCandidate> {
 
 pub fn set_text_expander_config(
     enabled: bool,
-    paused: bool,
     rules: Vec<TextExpansionRule>,
     app_blacklist: Vec<String>,
 ) {
     let config = TextExpansionConfig {
         enabled,
-        paused,
         rules: rules.clone(),
         app_blacklist: app_blacklist
             .into_iter()
@@ -469,7 +467,7 @@ fn text_expander_enabled() -> bool {
 fn text_expander_suppressed_for_context() -> bool {
     text_expander_config()
         .read()
-        .map(|config| config.paused || foreground_app_blacklisted(&config.app_blacklist))
+        .map(|config| foreground_app_blacklisted(&config.app_blacklist))
         .unwrap_or(false)
 }
 
