@@ -4622,13 +4622,7 @@ impl EntropyApp {
                 );
                 ui.add_space(metrics.value(18.0));
 
-                let blacklist_row_count =
-                    parse_text_expander_blacklist(&self.app_settings.text_expander_app_blacklist)
-                        .len()
-                        .div_ceil(2)
-                        .max(1);
-                let row_count = 3
-                    + blacklist_row_count
+                let row_count = 4
                     + self.app_settings.text_expander_rule_files.len()
                     + self.app_settings.text_expansion_rules.len();
                 let list = allocate_adaptive_settings_list_viewport(
@@ -4897,29 +4891,14 @@ impl EntropyApp {
                 continue;
             }
 
-            let blacklist_row_start = 2;
-            let blacklist_row_count = blacklist_entries.len().div_ceil(2).max(1);
-            let blacklist_row_end = blacklist_row_start + blacklist_row_count;
-            if (blacklist_row_start..blacklist_row_end).contains(&row_idx) {
+            if row_idx == 2 {
                 let control_width = metrics.value(250.0);
-                let blacklist_page_idx = row_idx - blacklist_row_start;
-                let row_entries_start = blacklist_page_idx * 2;
-                let row_entries_end = (row_entries_start + 2).min(blacklist_entries.len());
                 let mut remove_app: Option<String> = None;
-                let label = if blacklist_page_idx == 0 {
-                    crate::i18n::tr_catalog(lang, "text_expander.blacklist_label").to_owned()
-                } else {
-                    format!(
-                        "{} {}",
-                        crate::i18n::tr_catalog(lang, "text_expander.blacklist_label"),
-                        blacklist_page_idx + 1
-                    )
-                };
                 crate::ui_style::settings_list_row_with_tooltip(
                     ui,
                     content_width,
                     row_height,
-                    label.as_str(),
+                    crate::i18n::tr_catalog(lang, "text_expander.blacklist_label"),
                     true,
                     tooltip(crate::i18n::tr_catalog(
                         lang,
@@ -4942,19 +4921,27 @@ impl EntropyApp {
 
                         let chip_height = metrics.value(26.0);
                         let gap = metrics.value(6.0);
-                        let chip_width = (control_width - gap) / 2.0;
+                        let more_width = metrics.value(42.0);
+                        let visible_count = blacklist_entries.len().min(2);
+                        let has_more = blacklist_entries.len() > visible_count;
+                        let chip_width = if has_more {
+                            ((control_width - more_width - gap * visible_count as f32)
+                                / visible_count as f32)
+                                .clamp(metrics.value(70.0), metrics.value(96.0))
+                        } else {
+                            ((control_width - gap * (visible_count.saturating_sub(1)) as f32)
+                                / visible_count as f32)
+                                .clamp(metrics.value(70.0), metrics.value(118.0))
+                        };
                         let y = control_rect.center().y - chip_height / 2.0;
-                        for (slot_idx, app_name) in blacklist_entries
-                            [row_entries_start..row_entries_end]
-                            .iter()
-                            .enumerate()
-                        {
-                            let display = if app_name.chars().count() > 19 {
-                                format!("{}…", app_name.chars().take(18).collect::<String>())
+                        let mut x = control_rect.left();
+
+                        for app_name in blacklist_entries.iter().take(visible_count) {
+                            let display = if app_name.chars().count() > 14 {
+                                format!("{}…", app_name.chars().take(13).collect::<String>())
                             } else {
                                 app_name.clone()
                             };
-                            let x = control_rect.left() + slot_idx as f32 * (chip_width + gap);
                             let chip_rect = egui::Rect::from_min_size(
                                 egui::pos2(x, y),
                                 egui::vec2(chip_width, chip_height),
@@ -5002,6 +4989,128 @@ impl EntropyApp {
                             if resp.clicked() {
                                 remove_app = Some(app_name.clone());
                             }
+                            x += chip_width + gap;
+                        }
+
+                        if has_more {
+                            let remaining = blacklist_entries.len() - visible_count;
+                            let more_rect = egui::Rect::from_min_size(
+                                egui::pos2(control_rect.right() - more_width, y),
+                                egui::vec2(more_width, chip_height),
+                            );
+                            let popup_id =
+                                ui.make_persistent_id("text_expander_blacklist_more_popup");
+                            let more_resp = ui.interact(
+                                more_rect,
+                                ui.make_persistent_id("text_expander_blacklist_more_chip"),
+                                Sense::click(),
+                            );
+                            if more_resp.hovered() {
+                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                            }
+                            if more_resp.clicked() {
+                                ui.memory_mut(|m| m.toggle_popup(popup_id));
+                            }
+                            let more_open = ui.memory(|m| m.is_popup_open(popup_id));
+                            let fill = if more_resp.hovered() || more_open {
+                                crate::ui_style::hover_fill(dark)
+                            } else {
+                                crate::ui_style::surface_fill(dark)
+                            };
+                            ui.painter().rect(
+                                more_rect,
+                                8.0,
+                                fill,
+                                crate::ui_style::modal_outline_stroke(dark),
+                                egui::StrokeKind::Inside,
+                            );
+                            ui.painter().text(
+                                more_rect.center(),
+                                egui::Align2::CENTER_CENTER,
+                                format!("+{remaining}"),
+                                FontId::proportional(metrics.value(12.0)),
+                                ui.visuals().text_color(),
+                            );
+                            egui::popup_below_widget(
+                                ui,
+                                popup_id,
+                                &more_resp,
+                                egui::PopupCloseBehavior::CloseOnClickOutside,
+                                |ui| {
+                                    ui.set_min_width(control_width);
+                                    ui.set_max_width(control_width);
+                                    ui.spacing_mut().item_spacing = egui::vec2(0.0, 2.0);
+                                    let option_height = metrics.value(30.0);
+                                    let option_spacing = metrics.value(2.0);
+                                    egui::ScrollArea::vertical()
+                                        .max_height(compact_dropdown_popup_height(
+                                            blacklist_entries.len(),
+                                            option_height,
+                                            option_spacing,
+                                        ))
+                                        .auto_shrink([false, true])
+                                        .show(ui, |ui| {
+                                            ui.set_min_width(control_width);
+                                            for app_name in blacklist_entries.iter() {
+                                                let display = if app_name.chars().count() > 28 {
+                                                    format!(
+                                                        "{}…",
+                                                        app_name
+                                                            .chars()
+                                                            .take(27)
+                                                            .collect::<String>()
+                                                    )
+                                                } else {
+                                                    app_name.clone()
+                                                };
+                                                let (option_rect, option_resp) = ui
+                                                    .allocate_exact_size(
+                                                        egui::vec2(control_width, option_height),
+                                                        Sense::click(),
+                                                    );
+                                                if option_resp.hovered() {
+                                                    ui.ctx().set_cursor_icon(
+                                                        egui::CursorIcon::PointingHand,
+                                                    );
+                                                }
+                                                let option_fill = if option_resp.hovered() {
+                                                    crate::ui_style::hover_fill(dark)
+                                                } else {
+                                                    Color32::TRANSPARENT
+                                                };
+                                                ui.painter().rect_filled(
+                                                    option_rect,
+                                                    7.0,
+                                                    option_fill,
+                                                );
+                                                ui.painter().text(
+                                                    egui::pos2(
+                                                        option_rect.left() + metrics.value(10.0),
+                                                        option_rect.center().y,
+                                                    ),
+                                                    egui::Align2::LEFT_CENTER,
+                                                    display,
+                                                    FontId::proportional(metrics.value(12.0)),
+                                                    ui.visuals().text_color(),
+                                                );
+                                                ui.painter().text(
+                                                    egui::pos2(
+                                                        option_rect.right() - metrics.value(12.0),
+                                                        option_rect.center().y,
+                                                    ),
+                                                    egui::Align2::CENTER_CENTER,
+                                                    "×",
+                                                    FontId::proportional(metrics.value(13.0)),
+                                                    app_muted_text(dark),
+                                                );
+                                                if option_resp.clicked() {
+                                                    remove_app = Some(app_name.clone());
+                                                    ui.memory_mut(|m| m.close_popup());
+                                                }
+                                            }
+                                        });
+                                },
+                            );
                         }
                     },
                 );
@@ -5011,8 +5120,7 @@ impl EntropyApp {
                 continue;
             }
 
-            let rules_file_row_idx = blacklist_row_end;
-            if row_idx == rules_file_row_idx {
+            if row_idx == 3 {
                 let button_width = metrics.value(118.0);
                 crate::ui_style::settings_list_row_with_tooltip(
                     ui,
@@ -5041,7 +5149,7 @@ impl EntropyApp {
                 continue;
             }
 
-            let extra_file_row_start = rules_file_row_idx + 1;
+            let extra_file_row_start = 4;
             let extra_file_row_end =
                 extra_file_row_start + self.app_settings.text_expander_rule_files.len();
             if (extra_file_row_start..extra_file_row_end).contains(&row_idx) {
