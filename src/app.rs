@@ -7937,14 +7937,7 @@ impl EntropyApp {
     ) {
         let dark = ui.visuals().dark_mode;
         let painter = ui.painter_at(rect);
-        painter.rect(
-            rect,
-            16.0,
-            app_surface_fill(dark),
-            Stroke::new(1.0, app_border_color(dark)),
-            egui::StrokeKind::Inside,
-        );
-        let keyboard_rect = rect.shrink2(egui::vec2(16.0, 14.0));
+        let keyboard_rect = rect.shrink2(egui::vec2(10.0, 8.0));
         let geometry = preview_layout_geometry(ui.ctx(), layout, keyboard_rect, ui_scale);
         let outline = if dark {
             Color32::from_rgb(58, 58, 62)
@@ -8004,9 +7997,23 @@ impl EntropyApp {
                 key_legend_layout,
             );
             if is_transparent {
-                draw_key_label_dimmed(&painter, key_rect, &label, dark, key.rotation.to_radians());
+                draw_sticky_key_label(
+                    &painter,
+                    key_rect,
+                    &label,
+                    dark,
+                    key.rotation.to_radians(),
+                    true,
+                );
             } else {
-                draw_key_label(&painter, key_rect, &label, dark, key.rotation.to_radians());
+                draw_sticky_key_label(
+                    &painter,
+                    key_rect,
+                    &label,
+                    dark,
+                    key.rotation.to_radians(),
+                    false,
+                );
             }
         }
 
@@ -8036,11 +8043,15 @@ impl EntropyApp {
 
         for (_, group_rect, ccw, cw) in encoder_groups {
             let center = group_rect.center();
-            let radius = (group_rect.width().min(group_rect.height()) * 0.42).max(14.0);
-            painter.circle_filled(center, radius, key_fill);
+            let radius = (group_rect.width().min(group_rect.height())
+                * LAYOUT_ENCODER_RADIUS_FACTOR)
+                .max(14.0);
+            let fill_radius = radius + LAYOUT_ENCODER_FILL_EXTRA;
+            painter.circle_filled(center, fill_radius, key_fill);
             painter.circle_stroke(center, radius, Stroke::new(1.0, outline));
+
             let label_for = |kc: Option<u16>| -> String {
-                match kc.unwrap_or(0) {
+                let label = match kc.unwrap_or(0) {
                     0x0000 => "✕".to_string(),
                     0x0001 => "▽".to_string(),
                     value => keycode_label_with_macro_names(
@@ -8052,26 +8063,47 @@ impl EntropyApp {
                         key_legend_layout,
                     )
                     .replace('\n', " "),
-                }
+                };
+                sticky_compact_label(&label, 9)
             };
             let text_color = if dark {
                 Color32::from_gray(232)
             } else {
                 Color32::from_gray(32)
             };
-            painter.text(
-                egui::pos2(center.x, center.y - radius * 0.28),
+            let top_label = label_for(cw);
+            let bottom_label = label_for(ccw);
+            let font_for = |label: &str| {
+                FontId::proportional(if label.chars().count() > 7 { 7.2 } else { 8.4 })
+            };
+            let top_rect = egui::Rect::from_center_size(
+                egui::pos2(center.x, center.y - radius * 0.34),
+                egui::vec2(radius * 1.45, radius * 0.42),
+            );
+            let bottom_rect = egui::Rect::from_center_size(
+                egui::pos2(center.x, center.y + radius * 0.34),
+                egui::vec2(radius * 1.45, radius * 0.42),
+            );
+            painter.with_clip_rect(top_rect).text(
+                top_rect.center(),
                 egui::Align2::CENTER_CENTER,
-                format!("↻ {}", label_for(cw)),
-                FontId::proportional(9.5),
+                top_label.clone(),
+                font_for(&top_label),
                 text_color,
             );
-            painter.text(
-                egui::pos2(center.x, center.y + radius * 0.28),
+            painter.with_clip_rect(bottom_rect).text(
+                bottom_rect.center(),
                 egui::Align2::CENTER_CENTER,
-                format!("↺ {}", label_for(ccw)),
-                FontId::proportional(9.5),
+                bottom_label.clone(),
+                font_for(&bottom_label),
                 text_color,
+            );
+            painter.line_segment(
+                [
+                    egui::pos2(center.x - radius * 0.72, center.y),
+                    egui::pos2(center.x + radius * 0.72, center.y),
+                ],
+                Stroke::new(1.0, outline),
             );
         }
     }
@@ -17293,6 +17325,107 @@ impl EntropyApp {
         if layout_h > avail.y {
             ui.allocate_space(Vec2::new(0.0, (layout_h - avail.y).max(0.0)));
         }
+    }
+}
+
+fn sticky_compact_label(label: &str, max_chars: usize) -> String {
+    let label = label.trim();
+    let count = label.chars().count();
+    if count <= max_chars {
+        return label.to_string();
+    }
+    let keep = max_chars.saturating_sub(1).max(1);
+    format!("{}…", label.chars().take(keep).collect::<String>())
+}
+
+fn sticky_key_label_sizes(label: &str, rect: egui::Rect) -> (Option<f32>, f32) {
+    let (top, bottom) = key_label_font_sizes(label);
+    let longest = label
+        .split(['\n', '/'])
+        .map(|part| part.trim().chars().count())
+        .max()
+        .unwrap_or(1)
+        .max(1) as f32;
+    let available = (rect.width() - 8.0).max(8.0);
+    let base = bottom.max(top.unwrap_or(bottom));
+    let fit_scale = (available / (longest * base * 0.58)).clamp(0.58, 1.0);
+    (top.map(|size| size * fit_scale), bottom * fit_scale)
+}
+
+fn draw_sticky_key_label(
+    painter: &egui::Painter,
+    rect: egui::Rect,
+    label: &str,
+    dark: bool,
+    rotation: f32,
+    dimmed: bool,
+) {
+    let clip_rect = rect.shrink2(egui::vec2(4.0, 3.0));
+    let (top, bottom) = if label.contains('\n') {
+        let mut parts = label.splitn(2, '\n');
+        let t = parts.next().unwrap_or("");
+        let b = parts.next().unwrap_or(label);
+        (Some(t), b)
+    } else if let Some(pos) = label.find('/') {
+        (Some(&label[..pos]), &label[pos + 1..])
+    } else {
+        (None, label)
+    };
+    let (top_size, bottom_size) = sticky_key_label_sizes(label, rect);
+    let (top_color, bottom_color) = if dimmed {
+        if dark {
+            (Color32::from_rgb(45, 45, 50), Color32::from_rgb(62, 56, 56))
+        } else {
+            (
+                Color32::from_rgb(215, 215, 220),
+                Color32::from_rgb(200, 200, 208),
+            )
+        }
+    } else if dark {
+        (
+            Color32::from_rgb(130, 130, 145),
+            Color32::from_rgb(239, 233, 232),
+        )
+    } else {
+        (
+            Color32::from_rgb(130, 130, 150),
+            Color32::from_rgb(26, 26, 30),
+        )
+    };
+
+    let clipped = painter.with_clip_rect(clip_rect);
+    if let Some(top_str) = top {
+        let center = rect.center();
+        paint_centered_text_rotated(
+            &clipped,
+            center + rotated_offset(0.0, -7.0, rotation),
+            top_str,
+            FontId::proportional(top_size.unwrap_or(9.0)),
+            top_color,
+            rotation,
+        );
+        paint_centered_text_rotated(
+            &clipped,
+            center + rotated_offset(0.0, 6.0, rotation),
+            bottom,
+            FontId::proportional(bottom_size),
+            bottom_color,
+            rotation,
+        );
+    } else {
+        let font_size = if bottom == "↵" {
+            16.0_f32.min(bottom_size + 4.0)
+        } else {
+            bottom_size
+        };
+        paint_centered_text_rotated(
+            &clipped,
+            rect.center(),
+            bottom,
+            FontId::proportional(font_size),
+            bottom_color,
+            rotation,
+        );
     }
 }
 
