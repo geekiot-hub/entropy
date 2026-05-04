@@ -7857,9 +7857,9 @@ impl EntropyApp {
                     });
 
                     ui.add_space(8.0);
-                    let rect = ui
-                        .available_rect_before_wrap()
-                        .shrink2(egui::vec2(12.0, 10.0));
+                    let preview_size = ui.available_size().max(egui::vec2(1.0, 1.0));
+                    let (preview_rect, _) = ui.allocate_exact_size(preview_size, Sense::hover());
+                    let rect = preview_rect.shrink2(egui::vec2(12.0, 10.0));
                     if let Some(layout) = &layout {
                         Self::paint_sticky_layout_preview(
                             ui,
@@ -7889,7 +7889,6 @@ impl EntropyApp {
                             app_muted_text(dark),
                         );
                     }
-                    ui.allocate_rect(ui.available_rect_before_wrap(), Sense::hover());
                 };
 
                 if matches!(viewport_class, egui::ViewportClass::Embedded) {
