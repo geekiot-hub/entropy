@@ -7784,8 +7784,10 @@ impl EntropyApp {
                     ui.painter().rect_filled(ui.max_rect(), 0.0, panel_bg);
                     ui.add_space(8.0);
 
-                    ui.horizontal_centered(|ui| {
+                    ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 8.0;
+                        let row_width = 34.0 + 8.0 + 260.0 + 8.0 + 34.0 + 8.0 + 34.0;
+                        ui.add_space(((ui.available_width() - row_width) * 0.5).max(0.0));
                         let layer_count = layout
                             .as_ref()
                             .map(|layout| layout.layers.len().max(1))
