@@ -4622,7 +4622,13 @@ impl EntropyApp {
                 );
                 ui.add_space(metrics.value(18.0));
 
-                let row_count = 4
+                let blacklist_row_count =
+                    parse_text_expander_blacklist(&self.app_settings.text_expander_app_blacklist)
+                        .len()
+                        .div_ceil(2)
+                        .max(1);
+                let row_count = 3
+                    + blacklist_row_count
                     + self.app_settings.text_expander_rule_files.len()
                     + self.app_settings.text_expansion_rules.len();
                 let list = allocate_adaptive_settings_list_viewport(
@@ -4891,14 +4897,29 @@ impl EntropyApp {
                 continue;
             }
 
-            if row_idx == 2 {
+            let blacklist_row_start = 2;
+            let blacklist_row_count = blacklist_entries.len().div_ceil(2).max(1);
+            let blacklist_row_end = blacklist_row_start + blacklist_row_count;
+            if (blacklist_row_start..blacklist_row_end).contains(&row_idx) {
                 let control_width = metrics.value(250.0);
+                let blacklist_page_idx = row_idx - blacklist_row_start;
+                let row_entries_start = blacklist_page_idx * 2;
+                let row_entries_end = (row_entries_start + 2).min(blacklist_entries.len());
                 let mut remove_app: Option<String> = None;
+                let label = if blacklist_page_idx == 0 {
+                    crate::i18n::tr_catalog(lang, "text_expander.blacklist_label").to_owned()
+                } else {
+                    format!(
+                        "{} {}",
+                        crate::i18n::tr_catalog(lang, "text_expander.blacklist_label"),
+                        blacklist_page_idx + 1
+                    )
+                };
                 crate::ui_style::settings_list_row_with_tooltip(
                     ui,
                     content_width,
                     row_height,
-                    crate::i18n::tr_catalog(lang, "text_expander.blacklist_label"),
+                    label.as_str(),
                     true,
                     tooltip(crate::i18n::tr_catalog(
                         lang,
@@ -4921,24 +4942,19 @@ impl EntropyApp {
 
                         let chip_height = metrics.value(26.0);
                         let gap = metrics.value(6.0);
-                        let mut x = control_rect.left();
+                        let chip_width = (control_width - gap) / 2.0;
                         let y = control_rect.center().y - chip_height / 2.0;
-                        let mut remaining = 0usize;
-
-                        for (idx, app_name) in blacklist_entries.iter().enumerate() {
-                            let name_chars = app_name.chars().count();
-                            let display = if name_chars > 17 {
-                                format!("{}…", app_name.chars().take(16).collect::<String>())
+                        for (slot_idx, app_name) in blacklist_entries
+                            [row_entries_start..row_entries_end]
+                            .iter()
+                            .enumerate()
+                        {
+                            let display = if app_name.chars().count() > 19 {
+                                format!("{}…", app_name.chars().take(18).collect::<String>())
                             } else {
                                 app_name.clone()
                             };
-                            let chip_width = (display.chars().count() as f32 * metrics.value(7.0)
-                                + metrics.value(28.0))
-                            .clamp(metrics.value(56.0), metrics.value(118.0));
-                            if x + chip_width > control_rect.right() {
-                                remaining = blacklist_entries.len() - idx;
-                                break;
-                            }
+                            let x = control_rect.left() + slot_idx as f32 * (chip_width + gap);
                             let chip_rect = egui::Rect::from_min_size(
                                 egui::pos2(x, y),
                                 egui::vec2(chip_width, chip_height),
@@ -4986,17 +5002,6 @@ impl EntropyApp {
                             if resp.clicked() {
                                 remove_app = Some(app_name.clone());
                             }
-                            x += chip_width + gap;
-                        }
-
-                        if remaining > 0 {
-                            ui.painter().text(
-                                egui::pos2(control_rect.right(), control_rect.center().y),
-                                egui::Align2::RIGHT_CENTER,
-                                format!("+{remaining}"),
-                                FontId::proportional(metrics.value(12.0)),
-                                app_muted_text(dark),
-                            );
                         }
                     },
                 );
@@ -5006,7 +5011,8 @@ impl EntropyApp {
                 continue;
             }
 
-            if row_idx == 3 {
+            let rules_file_row_idx = blacklist_row_end;
+            if row_idx == rules_file_row_idx {
                 let button_width = metrics.value(118.0);
                 crate::ui_style::settings_list_row_with_tooltip(
                     ui,
@@ -5035,7 +5041,7 @@ impl EntropyApp {
                 continue;
             }
 
-            let extra_file_row_start = 4;
+            let extra_file_row_start = rules_file_row_idx + 1;
             let extra_file_row_end =
                 extra_file_row_start + self.app_settings.text_expander_rule_files.len();
             if (extra_file_row_start..extra_file_row_end).contains(&row_idx) {
