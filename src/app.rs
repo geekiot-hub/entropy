@@ -327,6 +327,8 @@ struct AppSettings {
     show_shifted_number_symbols: bool,
     #[serde(default = "default_layer_hover_preview")]
     layer_hover_preview: bool,
+    #[serde(default)]
+    sticky_layout_window: bool,
     #[serde(default = "crate::i18n::default_language")]
     language: crate::i18n::Language,
     #[serde(default = "default_encoder_hover_enlarge")]
@@ -571,6 +573,7 @@ impl Default for AppSettings {
             minimize_to_tray_on_close: false,
             show_shifted_number_symbols: default_show_shifted_number_symbols(),
             layer_hover_preview: default_layer_hover_preview(),
+            sticky_layout_window: false,
             language: crate::i18n::default_language(),
             encoder_hover_enlarge: default_encoder_hover_enlarge(),
             key_legend_layout: KeyLegendLayout::default(),
@@ -1251,6 +1254,35 @@ fn layout_geometry(
     viewport: egui::Rect,
     ui_scale: f32,
 ) -> LayoutGeometry {
+    layout_geometry_with_reserved(
+        ctx,
+        layout,
+        viewport,
+        ui_scale,
+        LAYOUT_TOP_RESERVED_H,
+        LAYOUT_BOTTOM_RESERVED_H,
+        LAYOUT_FIT_MARGIN,
+    )
+}
+
+fn preview_layout_geometry(
+    ctx: &egui::Context,
+    layout: &KeyboardLayout,
+    viewport: egui::Rect,
+    ui_scale: f32,
+) -> LayoutGeometry {
+    layout_geometry_with_reserved(ctx, layout, viewport, ui_scale, 8.0, 8.0, 24.0)
+}
+
+fn layout_geometry_with_reserved(
+    ctx: &egui::Context,
+    layout: &KeyboardLayout,
+    viewport: egui::Rect,
+    ui_scale: f32,
+    top_reserved: f32,
+    bottom_reserved: f32,
+    fit_margin: f32,
+) -> LayoutGeometry {
     let mut min_x: f32 = f32::MAX;
     let mut min_y: f32 = f32::MAX;
     let mut max_x: f32 = f32::MIN;
@@ -1278,15 +1310,15 @@ fn layout_geometry(
     let span_y = max_y - min_y;
     let fit_width = viewport.width() * ui_scale;
     let fit_height = viewport.height() * ui_scale;
-    let scale_x = (fit_width - LAYOUT_FIT_MARGIN) / (span_x * LAYOUT_BASE_UNIT).max(1.0);
-    let scale_y = (fit_height - LAYOUT_FIT_MARGIN) / (span_y * LAYOUT_BASE_UNIT).max(1.0);
+    let scale_x = (fit_width - fit_margin) / (span_x * LAYOUT_BASE_UNIT).max(1.0);
+    let scale_y = (fit_height - fit_margin) / (span_y * LAYOUT_BASE_UNIT).max(1.0);
     let max_scale = responsive_layout_max_scale(ctx, viewport);
     let scale = scale_x.min(scale_y).min(max_scale);
     let unit = LAYOUT_BASE_UNIT * scale;
     let layout_w = span_x * unit;
     let layout_h = span_y * unit;
-    let content_top = viewport.top() + LAYOUT_TOP_RESERVED_H;
-    let content_bottom = viewport.bottom() - LAYOUT_BOTTOM_RESERVED_H;
+    let content_top = viewport.top() + top_reserved;
+    let content_bottom = viewport.bottom() - bottom_reserved;
 
     LayoutGeometry {
         offset_x: viewport.center().x - layout_w / 2.0 - min_x * unit,
@@ -3978,7 +4010,7 @@ impl EntropyApp {
                 );
                 ui.add_space(metrics.value(24.0));
 
-                const TOTAL_APP_SETTINGS_ROWS: usize = 8;
+                const TOTAL_APP_SETTINGS_ROWS: usize = 9;
                 let list = allocate_adaptive_settings_list_viewport(
                     ui,
                     "app_settings",
@@ -4305,6 +4337,33 @@ impl EntropyApp {
                     }
                 }
                 6 => {
+                    let mut sticky_layout_window = self.app_settings.sticky_layout_window;
+                    crate::ui_style::settings_list_row_with_tooltip(
+                        ui,
+                        content_width,
+                        row_height,
+                        crate::i18n::tr_catalog(lang, "ui.sticky_layout_window_label"),
+                        true,
+                        tooltip(crate::i18n::tr_catalog(
+                            lang,
+                            "ui.sticky_layout_window_tooltip",
+                        )),
+                        switch_width,
+                        |ui| {
+                            let _ = crate::ui_style::settings_switch_sized_stable(
+                                ui,
+                                "app_settings_sticky_layout_window",
+                                &mut sticky_layout_window,
+                                switch_size,
+                            );
+                        },
+                    );
+                    if sticky_layout_window != self.app_settings.sticky_layout_window {
+                        self.app_settings.sticky_layout_window = sticky_layout_window;
+                        save_app_settings(&self.app_settings);
+                    }
+                }
+                7 => {
                     let mut selected_accent = self.app_settings.accent_color;
                     crate::ui_style::settings_list_row_with_tooltip(
                         ui,
@@ -4357,7 +4416,7 @@ impl EntropyApp {
                         save_app_settings(&self.app_settings);
                     }
                 }
-                7 => {
+                8 => {
                     crate::ui_style::settings_list_row_with_tooltip(
                         ui,
                         content_width,
@@ -7684,6 +7743,337 @@ impl EntropyApp {
                 });
             });
     }
+
+    fn draw_sticky_layout_window(&mut self, ctx: &egui::Context) {
+        if !self.app_settings.sticky_layout_window {
+            return;
+        }
+
+        let viewport_id = egui::ViewportId::from_hash_of("entropy_sticky_layout_window");
+        let lang = self.app_settings.language;
+        let title = crate::i18n::tr_catalog(lang, "ui.sticky_layout_window_title").to_string();
+        let layout = self.layout.clone();
+        let layer_names = self.layer_names.clone();
+        let macro_names = self.keycode_picker.macro_names.clone();
+        let tap_dance_names = self.keycode_picker.tap_dance_names.clone();
+        let key_legend_layout = self.app_settings.key_legend_layout;
+        let show_shifted_number_symbols = self.app_settings.show_shifted_number_symbols;
+        let ui_scale = clamp_ui_scale(self.app_settings.ui_scale);
+        let dark = self.dark_mode;
+        let mut selected_layer = self.selected_layer;
+        let mut should_close = false;
+
+        ctx.show_viewport_immediate(
+            viewport_id,
+            egui::ViewportBuilder::default()
+                .with_title(title.clone())
+                .with_inner_size(egui::vec2(720.0, 360.0))
+                .with_min_inner_size(egui::vec2(460.0, 240.0))
+                .with_resizable(true)
+                .with_always_on_top(),
+            |viewport_ctx, viewport_class| {
+                if viewport_ctx.input(|i| i.viewport().close_requested()) {
+                    should_close = true;
+                    return;
+                }
+
+                let draw_contents = |ui: &mut egui::Ui,
+                                     selected_layer: &mut usize,
+                                     should_close: &mut bool| {
+                    let panel_bg = app_panel_fill(dark);
+                    ui.painter().rect_filled(ui.max_rect(), 0.0, panel_bg);
+                    ui.add_space(8.0);
+
+                    ui.horizontal_centered(|ui| {
+                        ui.spacing_mut().item_spacing.x = 8.0;
+                        let layer_count = layout
+                            .as_ref()
+                            .map(|layout| layout.layers.len().max(1))
+                            .unwrap_or(1);
+                        *selected_layer = (*selected_layer).min(layer_count.saturating_sub(1));
+
+                        let prev_enabled = layout.is_some() && *selected_layer > 0;
+                        if crate::ui_style::modern_button(
+                            ui,
+                            "‹",
+                            egui::vec2(34.0, 28.0),
+                            prev_enabled,
+                        )
+                        .clicked()
+                            && prev_enabled
+                        {
+                            *selected_layer -= 1;
+                        }
+
+                        let raw_layer_name = layer_names
+                            .get(*selected_layer)
+                            .map(|name| name.trim())
+                            .filter(|name| !name.is_empty() && *name != selected_layer.to_string())
+                            .unwrap_or("");
+                        let layer_title = if raw_layer_name.is_empty() {
+                            format!(
+                                "{} {}",
+                                crate::i18n::tr_catalog(lang, "ui.sticky_layout_layer"),
+                                *selected_layer
+                            )
+                        } else {
+                            format!(
+                                "{} {} · {}",
+                                crate::i18n::tr_catalog(lang, "ui.sticky_layout_layer"),
+                                *selected_layer,
+                                raw_layer_name
+                            )
+                        };
+                        ui.add_sized(
+                            egui::vec2(260.0, 28.0),
+                            egui::Label::new(RichText::new(layer_title).size(14.0).strong().color(
+                                if dark {
+                                    Color32::from_gray(235)
+                                } else {
+                                    Color32::from_gray(45)
+                                },
+                            )),
+                        );
+
+                        let next_enabled = layout.is_some() && *selected_layer + 1 < layer_count;
+                        if crate::ui_style::modern_button(
+                            ui,
+                            "›",
+                            egui::vec2(34.0, 28.0),
+                            next_enabled,
+                        )
+                        .clicked()
+                            && next_enabled
+                        {
+                            *selected_layer += 1;
+                        }
+
+                        if crate::ui_style::modern_button(ui, "×", egui::vec2(34.0, 28.0), true)
+                            .on_hover_text(crate::i18n::tr_catalog(lang, "common.close"))
+                            .clicked()
+                        {
+                            *should_close = true;
+                        }
+                    });
+
+                    ui.add_space(8.0);
+                    let rect = ui
+                        .available_rect_before_wrap()
+                        .shrink2(egui::vec2(12.0, 10.0));
+                    if let Some(layout) = &layout {
+                        Self::paint_sticky_layout_preview(
+                            ui,
+                            layout,
+                            *selected_layer,
+                            &layer_names,
+                            &macro_names,
+                            &tap_dance_names,
+                            key_legend_layout,
+                            show_shifted_number_symbols,
+                            ui_scale,
+                            rect,
+                        );
+                    } else {
+                        ui.painter().rect(
+                            rect,
+                            16.0,
+                            app_surface_fill(dark),
+                            Stroke::new(1.0, app_border_color(dark)),
+                            egui::StrokeKind::Inside,
+                        );
+                        ui.painter().text(
+                            rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            crate::i18n::tr_catalog(lang, "ui.sticky_layout_no_keyboard"),
+                            FontId::proportional(14.0),
+                            app_muted_text(dark),
+                        );
+                    }
+                    ui.allocate_rect(ui.available_rect_before_wrap(), Sense::hover());
+                };
+
+                if matches!(viewport_class, egui::ViewportClass::Embedded) {
+                    let mut open = true;
+                    egui::Window::new(title.as_str())
+                        .open(&mut open)
+                        .default_size(egui::vec2(720.0, 360.0))
+                        .resizable(true)
+                        .show(viewport_ctx, |ui| {
+                            draw_contents(ui, &mut selected_layer, &mut should_close);
+                        });
+                    if !open {
+                        should_close = true;
+                    }
+                } else {
+                    egui::CentralPanel::default()
+                        .frame(egui::Frame::NONE.fill(app_panel_fill(dark)))
+                        .show(viewport_ctx, |ui| {
+                            draw_contents(ui, &mut selected_layer, &mut should_close);
+                        });
+                }
+            },
+        );
+
+        self.selected_layer = selected_layer.min(self.layer_count.saturating_sub(1));
+        if should_close {
+            self.app_settings.sticky_layout_window = false;
+            save_app_settings(&self.app_settings);
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn paint_sticky_layout_preview(
+        ui: &mut egui::Ui,
+        layout: &KeyboardLayout,
+        layer: usize,
+        layer_names: &[String],
+        macro_names: &[String],
+        tap_dance_names: &[String],
+        key_legend_layout: KeyLegendLayout,
+        show_shifted_number_symbols: bool,
+        ui_scale: f32,
+        rect: egui::Rect,
+    ) {
+        let dark = ui.visuals().dark_mode;
+        let painter = ui.painter_at(rect);
+        painter.rect(
+            rect,
+            16.0,
+            app_surface_fill(dark),
+            Stroke::new(1.0, app_border_color(dark)),
+            egui::StrokeKind::Inside,
+        );
+        let keyboard_rect = rect.shrink2(egui::vec2(16.0, 14.0));
+        let geometry = preview_layout_geometry(ui.ctx(), layout, keyboard_rect, ui_scale);
+        let outline = if dark {
+            Color32::from_rgb(58, 58, 62)
+        } else {
+            Color32::from_rgb(225, 225, 229)
+        };
+        let key_fill = if dark {
+            Color32::from_rgb(48, 48, 52)
+        } else {
+            Color32::from_rgb(255, 255, 255)
+        };
+        let empty_fill = if dark {
+            Color32::from_rgb(28, 28, 31)
+        } else {
+            Color32::from_rgb(248, 248, 250)
+        };
+
+        for (ki, key) in layout.keys.iter().enumerate() {
+            let key_rect = layout_physical_key_rect(key, geometry);
+            let kc = layout.get_keycode(layer, ki);
+            let is_transparent = kc == 0x0001;
+            let fill = if kc == 0x0000 { empty_fill } else { key_fill };
+            paint_layout_keycap(
+                &painter,
+                key_rect,
+                key.rotation,
+                fill,
+                Stroke::new(1.0, outline),
+            );
+
+            if kc == 0x0000 {
+                continue;
+            }
+
+            let label_kc = if is_transparent {
+                (0..layer)
+                    .rev()
+                    .map(|fallback_layer| layout.get_keycode(fallback_layer, ki))
+                    .find(|fallback| !matches!(*fallback, 0x0000 | 0x0001))
+                    .unwrap_or(0x0000)
+            } else {
+                kc
+            };
+            if label_kc == 0x0000 {
+                continue;
+            }
+            let label = number_row_shifted_label(
+                keycode_label_with_macro_names(
+                    label_kc,
+                    &layout.custom_keycodes,
+                    layer_names,
+                    macro_names,
+                    tap_dance_names,
+                    key_legend_layout,
+                ),
+                show_shifted_number_symbols,
+                key_legend_layout,
+            );
+            if is_transparent {
+                draw_key_label_dimmed(&painter, key_rect, &label, dark, key.rotation.to_radians());
+            } else {
+                draw_key_label(&painter, key_rect, &label, dark, key.rotation.to_radians());
+            }
+        }
+
+        let mut encoder_groups: Vec<(u8, egui::Rect, Option<u16>, Option<u16>)> = Vec::new();
+        for (encoder_idx, encoder) in layout.encoders.iter().enumerate() {
+            let encoder_rect = layout_physical_encoder_rect(encoder, geometry);
+            let kc = layout.get_encoder_keycode(layer, encoder_idx);
+            if let Some((_, group_rect, ccw, cw)) = encoder_groups
+                .iter_mut()
+                .find(|(idx, _, _, _)| *idx == encoder.encoder_idx)
+            {
+                *group_rect = group_rect.union(encoder_rect);
+                if encoder.direction == 0 {
+                    *ccw = Some(kc);
+                } else {
+                    *cw = Some(kc);
+                }
+            } else {
+                encoder_groups.push((
+                    encoder.encoder_idx,
+                    encoder_rect,
+                    (encoder.direction == 0).then_some(kc),
+                    (encoder.direction != 0).then_some(kc),
+                ));
+            }
+        }
+
+        for (_, group_rect, ccw, cw) in encoder_groups {
+            let center = group_rect.center();
+            let radius = (group_rect.width().min(group_rect.height()) * 0.42).max(14.0);
+            painter.circle_filled(center, radius, key_fill);
+            painter.circle_stroke(center, radius, Stroke::new(1.0, outline));
+            let label_for = |kc: Option<u16>| -> String {
+                match kc.unwrap_or(0) {
+                    0x0000 => "✕".to_string(),
+                    0x0001 => "▽".to_string(),
+                    value => keycode_label_with_macro_names(
+                        value,
+                        &layout.custom_keycodes,
+                        layer_names,
+                        macro_names,
+                        tap_dance_names,
+                        key_legend_layout,
+                    )
+                    .replace('\n', " "),
+                }
+            };
+            let text_color = if dark {
+                Color32::from_gray(232)
+            } else {
+                Color32::from_gray(32)
+            };
+            painter.text(
+                egui::pos2(center.x, center.y - radius * 0.28),
+                egui::Align2::CENTER_CENTER,
+                format!("↻ {}", label_for(cw)),
+                FontId::proportional(9.5),
+                text_color,
+            );
+            painter.text(
+                egui::pos2(center.x, center.y + radius * 0.28),
+                egui::Align2::CENTER_CENTER,
+                format!("↺ {}", label_for(ccw)),
+                FontId::proportional(9.5),
+                text_color,
+            );
+        }
+    }
 }
 
 impl eframe::App for EntropyApp {
@@ -7933,6 +8323,8 @@ impl eframe::App for EntropyApp {
                 self.draw_placeholder(ui);
             }
         });
+
+        self.draw_sticky_layout_window(ctx);
 
         egui::Area::new(egui::Id::new("made_by_signature"))
             .anchor(egui::Align2::LEFT_BOTTOM, [16.0, -12.0])
