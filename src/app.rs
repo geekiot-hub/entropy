@@ -741,6 +741,11 @@ fn format_text_expander_blacklist(entries: &[String]) -> String {
     entries.join(", ")
 }
 
+fn compact_dropdown_popup_height(option_count: usize, option_height: f32, spacing_y: f32) -> f32 {
+    let visible = option_count.max(1).min(5) as f32;
+    option_height * visible + spacing_y * (visible - 1.0).max(0.0)
+}
+
 fn load_saved_layer_names(device_name: &str) -> Option<Vec<String>> {
     let path = layer_names_path(device_name);
     let data = std::fs::read_to_string(&path).ok()?;
@@ -4790,9 +4795,14 @@ impl EntropyApp {
                                 ui.set_max_width(dropdown_width);
                                 ui.spacing_mut().item_spacing = egui::vec2(0.0, 2.0);
                                 let option_height = metrics.value(34.0);
+                                let option_spacing = metrics.value(2.0);
                                 egui::ScrollArea::vertical()
-                                    .max_height(metrics.value(168.0))
-                                    .auto_shrink([false, false])
+                                    .max_height(compact_dropdown_popup_height(
+                                        window_candidates.len(),
+                                        option_height,
+                                        option_spacing,
+                                    ))
+                                    .auto_shrink([false, true])
                                     .show(ui, |ui| {
                                         ui.set_min_width(dropdown_width);
                                         if window_candidates.is_empty() {
@@ -4923,9 +4933,14 @@ impl EntropyApp {
                                 ui.set_max_width(dropdown_width);
                                 ui.spacing_mut().item_spacing = egui::vec2(0.0, 2.0);
                                 let option_height = metrics.value(34.0);
+                                let option_spacing = metrics.value(2.0);
                                 egui::ScrollArea::vertical()
-                                    .max_height(metrics.value(168.0))
-                                    .auto_shrink([false, false])
+                                    .max_height(compact_dropdown_popup_height(
+                                        blacklist_entries.len(),
+                                        option_height,
+                                        option_spacing,
+                                    ))
+                                    .auto_shrink([false, true])
                                     .show(ui, |ui| {
                                         ui.set_min_width(dropdown_width);
                                         if blacklist_entries.is_empty() {
@@ -5180,9 +5195,14 @@ impl EntropyApp {
                                     ui.set_max_width(dropdown_width);
                                     ui.spacing_mut().item_spacing = egui::vec2(0.0, 2.0);
                                     let option_height = metrics.value(34.0);
+                                    let option_spacing = metrics.value(2.0);
                                     egui::ScrollArea::vertical()
-                                        .max_height(metrics.value(168.0))
-                                        .auto_shrink([false, false])
+                                        .max_height(compact_dropdown_popup_height(
+                                            options.len(),
+                                            option_height,
+                                            option_spacing,
+                                        ))
+                                        .auto_shrink([false, true])
                                         .show(ui, |ui| {
                                             ui.set_min_width(dropdown_width);
                                             if options.is_empty() {
