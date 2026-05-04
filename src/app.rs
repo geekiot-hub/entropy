@@ -150,6 +150,14 @@ fn app_settings_path() -> std::path::PathBuf {
     dir.join("app_settings.json")
 }
 
+fn text_expander_rules_path() -> std::path::PathBuf {
+    let dir = dirs::config_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join("entropy");
+    std::fs::create_dir_all(&dir).ok();
+    dir.join("text_expansion_rules.json")
+}
+
 fn display_preset_restore_path(device_name: &str) -> std::path::PathBuf {
     let dir = dirs::config_dir()
         .unwrap_or_else(|| std::path::PathBuf::from("."))
@@ -230,7 +238,7 @@ struct AppSettings {
     text_expander_paused: bool,
     #[serde(default)]
     text_expander_app_blacklist: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing)]
     text_expansion_rules: Vec<crate::text_expander::TextExpansionRule>,
 }
 
@@ -468,12 +476,75 @@ impl Default for AppSettings {
     }
 }
 
+fn load_text_expansion_rules() -> Option<Vec<crate::text_expander::TextExpansionRule>> {
+    std::fs::read_to_string(text_expander_rules_path())
+        .ok()
+        .and_then(|data| {
+            serde_json::from_str::<Vec<crate::text_expander::TextExpansionRule>>(&data).ok()
+        })
+}
+
+fn save_text_expansion_rules(rules: &[crate::text_expander::TextExpansionRule]) {
+    match serde_json::to_string_pretty(rules) {
+        Ok(json) => {
+            if let Err(e) = std::fs::write(text_expander_rules_path(), json) {
+                log::warn!("save_text_expansion_rules failed: {e}");
+            }
+        }
+        Err(e) => log::warn!("save_text_expansion_rules serialize failed: {e}"),
+    }
+}
+
+fn ensure_text_expander_rules_file(rules: &[crate::text_expander::TextExpansionRule]) {
+    let path = text_expander_rules_path();
+    if !path.exists() {
+        save_text_expansion_rules(rules);
+    }
+}
+
+fn open_path_in_system_editor(path: &std::path::Path) -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        return std::process::Command::new("cmd")
+            .args(["/C", "start", "", &path.to_string_lossy()])
+            .status()
+            .map(|status| status.success())
+            .unwrap_or(false);
+    }
+    #[cfg(target_os = "macos")]
+    {
+        return std::process::Command::new("open")
+            .arg(path)
+            .status()
+            .map(|status| status.success())
+            .unwrap_or(false);
+    }
+    #[cfg(target_os = "linux")]
+    {
+        return std::process::Command::new("xdg-open")
+            .arg(path)
+            .status()
+            .map(|status| status.success())
+            .unwrap_or(false);
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    {
+        let _ = path;
+        false
+    }
+}
+
 fn load_app_settings() -> AppSettings {
     let path = app_settings_path();
-    std::fs::read_to_string(&path)
+    let mut settings = std::fs::read_to_string(&path)
         .ok()
         .and_then(|data| serde_json::from_str::<AppSettings>(&data).ok())
-        .unwrap_or_default()
+        .unwrap_or_default();
+    match load_text_expansion_rules() {
+        Some(rules) => settings.text_expansion_rules = rules,
+        None => save_text_expansion_rules(&settings.text_expansion_rules),
+    }
+    settings
 }
 
 fn save_app_settings(settings: &AppSettings) {
@@ -4171,6 +4242,7 @@ impl EntropyApp {
     }
 
     fn save_text_expander_settings(&self) {
+        save_text_expansion_rules(&self.app_settings.text_expansion_rules);
         save_app_settings(&self.app_settings);
         crate::smart_input::set_text_expander_config(
             self.app_settings.text_expander_enabled,
@@ -4238,6 +4310,43 @@ impl EntropyApp {
         candidates
     }
 
+    fn reload_text_expander_rules_file(&mut self) {
+        if let Some(rules) = load_text_expansion_rules() {
+            self.app_settings.text_expansion_rules = rules;
+            self.save_text_expander_settings();
+            self.status_msg = crate::i18n::tr_catalog(
+                self.app_settings.language,
+                "text_expander.rules_reloaded_status",
+            )
+            .to_owned();
+        } else {
+            self.status_msg = crate::i18n::tr_catalog(
+                self.app_settings.language,
+                "text_expander.rules_reload_failed_status",
+            )
+            .to_owned();
+        }
+    }
+
+    fn open_text_expander_rules_file(&mut self) {
+        ensure_text_expander_rules_file(&self.app_settings.text_expansion_rules);
+        let path = text_expander_rules_path();
+        let result = open_path_in_system_editor(&path);
+        self.status_msg = if result {
+            crate::i18n::tr_catalog(
+                self.app_settings.language,
+                "text_expander.rules_file_opened_status",
+            )
+            .to_owned()
+        } else {
+            crate::i18n::tr_catalog(
+                self.app_settings.language,
+                "text_expander.rules_file_open_failed_status",
+            )
+            .to_owned()
+        };
+    }
+
     fn draw_text_expander_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect) {
         let lang = self.app_settings.language;
         let dark = ui.visuals().dark_mode;
@@ -4263,7 +4372,7 @@ impl EntropyApp {
                 );
                 ui.add_space(metrics.value(18.0));
 
-                let row_count = 5 + self.app_settings.text_expansion_rules.len();
+                let row_count = 6 + self.app_settings.text_expansion_rules.len();
                 let list = allocate_adaptive_settings_list_viewport(
                     ui,
                     "text_expander_settings",
@@ -4704,7 +4813,58 @@ impl EntropyApp {
                 continue;
             }
 
-            let blacklist_row_end = 5;
+            if row_idx == 5 {
+                let button_width = metrics.value(118.0);
+                let gap = metrics.value(8.0);
+                let control_width = button_width * 2.0 + gap;
+                crate::ui_style::settings_list_row_with_tooltip(
+                    ui,
+                    content_width,
+                    row_height,
+                    crate::i18n::tr_catalog(lang, "text_expander.rules_file_label"),
+                    true,
+                    tooltip(crate::i18n::tr_catalog(
+                        lang,
+                        "text_expander.rules_file_tooltip",
+                    )),
+                    control_width,
+                    |ui| {
+                        ui.allocate_ui_with_layout(
+                            egui::vec2(control_width, row_height),
+                            egui::Layout::right_to_left(egui::Align::Center),
+                            |ui| {
+                                if crate::ui_style::modern_button(
+                                    ui,
+                                    crate::i18n::tr_catalog(
+                                        lang,
+                                        "text_expander.reload_rules_file",
+                                    ),
+                                    metrics.size(button_width, metrics.settings_control_height()),
+                                    true,
+                                )
+                                .clicked()
+                                {
+                                    self.reload_text_expander_rules_file();
+                                }
+                                ui.add_space(gap);
+                                if crate::ui_style::modern_button(
+                                    ui,
+                                    crate::i18n::tr_catalog(lang, "text_expander.open_rules_file"),
+                                    metrics.size(button_width, metrics.settings_control_height()),
+                                    true,
+                                )
+                                .clicked()
+                                {
+                                    self.open_text_expander_rules_file();
+                                }
+                            },
+                        );
+                    },
+                );
+                continue;
+            }
+
+            let blacklist_row_end = 6;
             let idx = row_idx - blacklist_row_end;
             let Some(original_rule) = self.app_settings.text_expansion_rules.get(idx).cloned()
             else {
