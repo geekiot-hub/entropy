@@ -4768,11 +4768,16 @@ impl EntropyApp {
                                 egui::pos2(x, y),
                                 egui::vec2(chip_width, chip_height),
                             );
-                            let resp = ui.interact(
-                                chip_rect,
-                                ui.make_persistent_id(("text_expander_blacklist_chip", app_name)),
-                                Sense::click(),
-                            );
+                            let resp = ui
+                                .interact(
+                                    chip_rect,
+                                    ui.make_persistent_id((
+                                        "text_expander_blacklist_chip",
+                                        app_name,
+                                    )),
+                                    Sense::click(),
+                                )
+                                .on_hover_text(app_name.as_str());
                             if resp.hovered() {
                                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                             }
@@ -4897,6 +4902,8 @@ impl EntropyApp {
                                                         egui::vec2(control_width, option_height),
                                                         Sense::click(),
                                                     );
+                                                let option_resp =
+                                                    option_resp.on_hover_text(app_name.as_str());
                                                 if option_resp.hovered() {
                                                     ui.ctx().set_cursor_icon(
                                                         egui::CursorIcon::PointingHand,
