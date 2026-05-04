@@ -4788,7 +4788,14 @@ impl EntropyApp {
                                 crate::ui_style::modal_outline_stroke(dark),
                                 egui::StrokeKind::Inside,
                             );
-                            ui.painter().text(
+                            let text_clip_rect = egui::Rect::from_min_max(
+                                egui::pos2(chip_rect.left() + metrics.value(7.0), chip_rect.top()),
+                                egui::pos2(
+                                    chip_rect.right() - metrics.value(24.0),
+                                    chip_rect.bottom(),
+                                ),
+                            );
+                            ui.painter().with_clip_rect(text_clip_rect).text(
                                 egui::pos2(
                                     chip_rect.left() + metrics.value(9.0),
                                     chip_rect.center().y,
@@ -4905,7 +4912,17 @@ impl EntropyApp {
                                                     7.0,
                                                     option_fill,
                                                 );
-                                                ui.painter().text(
+                                                let text_clip_rect = egui::Rect::from_min_max(
+                                                    egui::pos2(
+                                                        option_rect.left() + metrics.value(8.0),
+                                                        option_rect.top(),
+                                                    ),
+                                                    egui::pos2(
+                                                        option_rect.right() - metrics.value(28.0),
+                                                        option_rect.bottom(),
+                                                    ),
+                                                );
+                                                ui.painter().with_clip_rect(text_clip_rect).text(
                                                     egui::pos2(
                                                         option_rect.left() + metrics.value(10.0),
                                                         option_rect.center().y,
