@@ -586,7 +586,21 @@ impl Default for AppSettings {
 fn parse_text_expansion_rules_json(
     data: &str,
 ) -> Option<Vec<crate::text_expander::TextExpansionRule>> {
-    serde_json::from_str::<Vec<crate::text_expander::TextExpansionRule>>(data).ok()
+    if let Ok(rules) = serde_json::from_str::<Vec<crate::text_expander::TextExpansionRule>>(data) {
+        return Some(rules);
+    }
+
+    let value = serde_json::from_str::<serde_json::Value>(data).ok()?;
+    for key in ["rules", "text_expansion_rules"] {
+        if let Some(rules_value) = value.get(key) {
+            if let Ok(rules) = serde_json::from_value::<Vec<crate::text_expander::TextExpansionRule>>(
+                rules_value.clone(),
+            ) {
+                return Some(rules);
+            }
+        }
+    }
+    None
 }
 
 fn load_text_expansion_rules() -> Option<Vec<crate::text_expander::TextExpansionRule>> {
