@@ -4589,9 +4589,20 @@ impl EntropyApp {
                     .wrap()
                     .halign(egui::Align::Center),
                 );
-                ui.add_space(metrics.value(18.0));
+                ui.add_sized(
+                    Vec2::new(metrics.settings_content_width(), metrics.value(28.0)),
+                    egui::Label::new(
+                        RichText::new(crate::i18n::tr_catalog(lang, "text_expander.quick_help"))
+                            .size(metrics.value(11.5))
+                            .color(app_muted_text(dark)),
+                    )
+                    .wrap()
+                    .halign(egui::Align::Center),
+                );
+                ui.add_space(metrics.value(10.0));
 
-                let row_count = 4 + self.app_settings.text_expansion_rules.len();
+                let rule_row_count = self.app_settings.text_expansion_rules.len().max(1);
+                let row_count = 4 + rule_row_count;
                 let list = allocate_adaptive_settings_list_viewport(
                     ui,
                     "text_expander_settings",
@@ -4646,6 +4657,10 @@ impl EntropyApp {
                         button_size,
                         true,
                     )
+                    .on_hover_text(crate::i18n::tr_catalog(
+                        lang,
+                        "text_expander.add_rule_tooltip",
+                    ))
                     .clicked()
                     {
                         self.app_settings
@@ -4965,11 +4980,16 @@ impl EntropyApp {
                         );
                         let add_popup_id =
                             ui.make_persistent_id("text_expander_blacklist_add_window_popup");
-                        let add_resp = ui.interact(
-                            add_rect,
-                            ui.make_persistent_id("text_expander_blacklist_add_window_chip"),
-                            Sense::click(),
-                        );
+                        let add_resp = ui
+                            .interact(
+                                add_rect,
+                                ui.make_persistent_id("text_expander_blacklist_add_window_chip"),
+                                Sense::click(),
+                            )
+                            .on_hover_text(crate::i18n::tr_catalog(
+                                lang,
+                                "text_expander.blacklist_add_tooltip",
+                            ));
                         if add_resp.hovered() {
                             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                         }
@@ -5372,11 +5392,16 @@ impl EntropyApp {
                         );
                         let add_popup_id =
                             ui.make_persistent_id("text_expander_rules_files_add_popup");
-                        let add_resp = ui.interact(
-                            add_rect,
-                            ui.make_persistent_id("text_expander_rules_files_add_chip"),
-                            Sense::click(),
-                        );
+                        let add_resp = ui
+                            .interact(
+                                add_rect,
+                                ui.make_persistent_id("text_expander_rules_files_add_chip"),
+                                Sense::click(),
+                            )
+                            .on_hover_text(crate::i18n::tr_catalog(
+                                lang,
+                                "text_expander.extra_rules_file_add_tooltip",
+                            ));
                         if add_resp.hovered() {
                             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                         }
@@ -5511,6 +5536,32 @@ impl EntropyApp {
 
             let rules_start_row = 4;
             let idx = row_idx - rules_start_row;
+            if self.app_settings.text_expansion_rules.is_empty() {
+                let control_width = metrics.value(250.0);
+                crate::ui_style::settings_list_row_with_tooltip(
+                    ui,
+                    content_width,
+                    row_height,
+                    crate::i18n::tr_catalog(lang, "text_expander.empty_rules_label"),
+                    true,
+                    tooltip(crate::i18n::tr_catalog(
+                        lang,
+                        "text_expander.empty_rules_tooltip",
+                    )),
+                    control_width,
+                    |ui| {
+                        let rect = ui.max_rect();
+                        ui.painter().text(
+                            rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            crate::i18n::tr_catalog(lang, "text_expander.empty_rules_hint"),
+                            FontId::proportional(metrics.value(12.0)),
+                            app_muted_text(ui.visuals().dark_mode),
+                        );
+                    },
+                );
+                continue;
+            }
             let Some(original_rule) = self.app_settings.text_expansion_rules.get(idx).cloned()
             else {
                 continue;
@@ -5591,16 +5642,22 @@ impl EntropyApp {
 
                     let mut trigger_resp = None;
                     ui.allocate_ui_at_rect(trigger_rect, |ui| {
-                        trigger_resp = Some(crate::ui_style::modern_text_field_sized(
-                            ui,
-                            ui.make_persistent_id(("text_expander_trigger", idx)),
-                            &mut rule.trigger,
-                            trigger_width,
-                            field_height,
-                            crate::i18n::tr_catalog(lang, "text_expander.trigger_hint"),
-                            32,
-                            egui::Align::Center,
-                        ));
+                        trigger_resp = Some(
+                            crate::ui_style::modern_text_field_sized(
+                                ui,
+                                ui.make_persistent_id(("text_expander_trigger", idx)),
+                                &mut rule.trigger,
+                                trigger_width,
+                                field_height,
+                                crate::i18n::tr_catalog(lang, "text_expander.trigger_hint"),
+                                32,
+                                egui::Align::Center,
+                            )
+                            .on_hover_text(crate::i18n::tr_catalog(
+                                lang,
+                                "text_expander.trigger_tooltip",
+                            )),
+                        );
                     });
                     if trigger_resp.is_some_and(|resp| resp.changed()) {
                         changed = true;
@@ -5608,16 +5665,22 @@ impl EntropyApp {
 
                     let mut replacement_resp = None;
                     ui.allocate_ui_at_rect(replacement_rect, |ui| {
-                        replacement_resp = Some(crate::ui_style::modern_text_field_sized(
-                            ui,
-                            ui.make_persistent_id(("text_expander_replacement", idx)),
-                            &mut rule.replacement,
-                            replacement_width,
-                            field_height,
-                            crate::i18n::tr_catalog(lang, "text_expander.replacement_hint"),
-                            480,
-                            egui::Align::Min,
-                        ));
+                        replacement_resp = Some(
+                            crate::ui_style::modern_text_field_sized(
+                                ui,
+                                ui.make_persistent_id(("text_expander_replacement", idx)),
+                                &mut rule.replacement,
+                                replacement_width,
+                                field_height,
+                                crate::i18n::tr_catalog(lang, "text_expander.replacement_hint"),
+                                480,
+                                egui::Align::Min,
+                            )
+                            .on_hover_text(crate::i18n::tr_catalog(
+                                lang,
+                                "text_expander.replacement_tooltip",
+                            )),
+                        );
                     });
                     if replacement_resp.is_some_and(|resp| resp.changed()) {
                         changed = true;
