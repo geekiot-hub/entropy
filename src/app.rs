@@ -4534,9 +4534,9 @@ impl EntropyApp {
         }
     }
 
-    fn open_text_expander_rules_file(&mut self) {
+    fn open_text_expander_rules_folder(&mut self) {
         ensure_text_expander_rules_file(&self.app_settings.text_expansion_rules);
-        let path = text_expander_rules_path();
+        let path = text_expander_rules_dir();
         let result = open_path_in_system_editor(&path);
         self.status_msg = if result {
             crate::i18n::tr_catalog(
@@ -5124,7 +5124,7 @@ impl EntropyApp {
                         )
                         .clicked()
                         {
-                            self.open_text_expander_rules_file();
+                            self.open_text_expander_rules_folder();
                         }
                     },
                 );
