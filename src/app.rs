@@ -4591,7 +4591,7 @@ impl EntropyApp {
                 );
                 ui.add_space(metrics.value(18.0));
 
-                let row_count = 5 + self.app_settings.text_expansion_rules.len();
+                let row_count = 4 + self.app_settings.text_expansion_rules.len();
                 let list = allocate_adaptive_settings_list_viewport(
                     ui,
                     "text_expander_settings",
@@ -4706,145 +4706,8 @@ impl EntropyApp {
                 parse_text_expander_blacklist(&self.app_settings.text_expander_app_blacklist);
             let window_candidates = self.text_expander_window_candidates(&blacklist_entries);
             if row_idx == 1 {
-                let dropdown_width = metrics.value(250.0);
-                let selected_text = if window_candidates.is_empty() {
-                    crate::i18n::tr_catalog(lang, "text_expander.no_windows_hint")
-                } else {
-                    crate::i18n::tr_catalog(lang, "text_expander.select_window")
-                };
-                crate::ui_style::settings_list_row_with_tooltip(
-                    ui,
-                    content_width,
-                    row_height,
-                    crate::i18n::tr_catalog(lang, "text_expander.window_select_label"),
-                    true,
-                    tooltip(crate::i18n::tr_catalog(
-                        lang,
-                        "text_expander.window_select_tooltip",
-                    )),
-                    dropdown_width,
-                    |ui| {
-                        let dropdown_id =
-                            ui.make_persistent_id("text_expander_blacklist_window_dropdown");
-                        let dropdown_resp = crate::ui_style::modern_dropdown_button_sized(
-                            ui,
-                            dropdown_id,
-                            selected_text,
-                            if window_candidates.is_empty() {
-                                app_muted_text(ui.visuals().dark_mode)
-                            } else {
-                                ui.visuals().text_color()
-                            },
-                            dropdown_width,
-                            metrics.settings_control_height(),
-                            metrics.settings_control_font_size(),
-                        );
-                        egui::popup_below_widget(
-                            ui,
-                            dropdown_id,
-                            &dropdown_resp,
-                            egui::PopupCloseBehavior::CloseOnClickOutside,
-                            |ui| {
-                                ui.set_min_width(dropdown_width);
-                                ui.set_max_width(dropdown_width);
-                                ui.spacing_mut().item_spacing = egui::vec2(0.0, 2.0);
-                                let option_height = metrics.value(34.0);
-                                let option_spacing = metrics.value(2.0);
-                                egui::ScrollArea::vertical()
-                                    .max_height(compact_dropdown_popup_height(
-                                        window_candidates.len(),
-                                        option_height,
-                                        option_spacing,
-                                    ))
-                                    .auto_shrink([false, true])
-                                    .show(ui, |ui| {
-                                        ui.set_min_width(dropdown_width);
-                                        if window_candidates.is_empty() {
-                                            let (option_rect, _) = ui.allocate_exact_size(
-                                                egui::vec2(dropdown_width, option_height),
-                                                Sense::hover(),
-                                            );
-                                            ui.painter().text(
-                                                egui::pos2(
-                                                    option_rect.left() + metrics.value(10.0),
-                                                    option_rect.center().y,
-                                                ),
-                                                egui::Align2::LEFT_CENTER,
-                                                crate::i18n::tr_catalog(
-                                                    lang,
-                                                    "text_expander.no_windows_hint",
-                                                ),
-                                                FontId::proportional(metrics.value(12.0)),
-                                                app_muted_text(ui.visuals().dark_mode),
-                                            );
-                                        } else {
-                                            for candidate in window_candidates.iter() {
-                                                let title = if candidate.title.is_empty() {
-                                                    candidate.exe.clone()
-                                                } else {
-                                                    format!(
-                                                        "{} — {}",
-                                                        candidate.title, candidate.exe
-                                                    )
-                                                };
-                                                let display = if title.chars().count() > 30 {
-                                                    format!(
-                                                        "{}…",
-                                                        title.chars().take(29).collect::<String>()
-                                                    )
-                                                } else {
-                                                    title
-                                                };
-                                                let (option_rect, option_resp) = ui
-                                                    .allocate_exact_size(
-                                                        egui::vec2(dropdown_width, option_height),
-                                                        Sense::click(),
-                                                    );
-                                                if option_resp.hovered() {
-                                                    ui.ctx().set_cursor_icon(
-                                                        egui::CursorIcon::PointingHand,
-                                                    );
-                                                }
-                                                let option_fill = if option_resp.hovered() {
-                                                    crate::ui_style::hover_fill(
-                                                        ui.visuals().dark_mode,
-                                                    )
-                                                } else {
-                                                    Color32::TRANSPARENT
-                                                };
-                                                ui.painter().rect_filled(
-                                                    option_rect,
-                                                    7.0,
-                                                    option_fill,
-                                                );
-                                                ui.painter().text(
-                                                    egui::pos2(
-                                                        option_rect.left() + metrics.value(10.0),
-                                                        option_rect.center().y,
-                                                    ),
-                                                    egui::Align2::LEFT_CENTER,
-                                                    display,
-                                                    FontId::proportional(metrics.value(12.0)),
-                                                    ui.visuals().text_color(),
-                                                );
-                                                if option_resp.clicked() {
-                                                    self.add_text_expander_blacklist_app(
-                                                        &candidate.exe,
-                                                    );
-                                                    ui.memory_mut(|m| m.close_popup());
-                                                }
-                                            }
-                                        }
-                                    });
-                            },
-                        );
-                    },
-                );
-                continue;
-            }
-
-            if row_idx == 2 {
                 let control_width = metrics.value(250.0);
+                let mut add_app: Option<String> = None;
                 let mut remove_app: Option<String> = None;
                 crate::ui_style::settings_list_row_with_tooltip(
                     ui,
@@ -4860,33 +4723,40 @@ impl EntropyApp {
                     |ui| {
                         let control_rect = ui.max_rect();
                         let dark = ui.visuals().dark_mode;
+                        let chip_height = metrics.value(26.0);
+                        let gap = metrics.value(6.0);
+                        let add_width = metrics.value(44.0);
+                        let more_width = metrics.value(42.0);
+                        let visible_count = blacklist_entries.len().min(2);
+                        let has_more = blacklist_entries.len() > visible_count;
+                        let reserved_right =
+                            add_width + if has_more { gap + more_width } else { 0.0 };
+                        let chip_width = if visible_count > 0 {
+                            ((control_width - reserved_right - gap * visible_count as f32)
+                                / visible_count as f32)
+                                .clamp(metrics.value(70.0), metrics.value(96.0))
+                        } else {
+                            0.0
+                        };
+                        let y = control_rect.center().y - chip_height / 2.0;
+                        let mut x = control_rect.left();
+
                         if blacklist_entries.is_empty() {
+                            let hint_rect = egui::Rect::from_min_max(
+                                control_rect.left_top(),
+                                egui::pos2(
+                                    control_rect.right() - add_width - gap,
+                                    control_rect.bottom(),
+                                ),
+                            );
                             ui.painter().text(
-                                control_rect.center(),
+                                hint_rect.center(),
                                 egui::Align2::CENTER_CENTER,
                                 crate::i18n::tr_catalog(lang, "text_expander.no_blacklist_apps"),
                                 FontId::proportional(metrics.value(12.0)),
                                 app_muted_text(dark),
                             );
-                            return;
                         }
-
-                        let chip_height = metrics.value(26.0);
-                        let gap = metrics.value(6.0);
-                        let more_width = metrics.value(42.0);
-                        let visible_count = blacklist_entries.len().min(2);
-                        let has_more = blacklist_entries.len() > visible_count;
-                        let chip_width = if has_more {
-                            ((control_width - more_width - gap * visible_count as f32)
-                                / visible_count as f32)
-                                .clamp(metrics.value(70.0), metrics.value(96.0))
-                        } else {
-                            ((control_width - gap * (visible_count.saturating_sub(1)) as f32)
-                                / visible_count as f32)
-                                .clamp(metrics.value(70.0), metrics.value(118.0))
-                        };
-                        let y = control_rect.center().y - chip_height / 2.0;
-                        let mut x = control_rect.left();
 
                         for app_name in blacklist_entries.iter().take(visible_count) {
                             let display = if app_name.chars().count() > 14 {
@@ -4947,7 +4817,7 @@ impl EntropyApp {
                         if has_more {
                             let remaining = blacklist_entries.len() - visible_count;
                             let more_rect = egui::Rect::from_min_size(
-                                egui::pos2(control_rect.right() - more_width, y),
+                                egui::pos2(control_rect.right() - add_width - gap - more_width, y),
                                 egui::vec2(more_width, chip_height),
                             );
                             let popup_id =
@@ -5064,15 +4934,151 @@ impl EntropyApp {
                                 },
                             );
                         }
+
+                        let add_rect = egui::Rect::from_min_size(
+                            egui::pos2(control_rect.right() - add_width, y),
+                            egui::vec2(add_width, chip_height),
+                        );
+                        let add_popup_id =
+                            ui.make_persistent_id("text_expander_blacklist_add_window_popup");
+                        let add_resp = ui.interact(
+                            add_rect,
+                            ui.make_persistent_id("text_expander_blacklist_add_window_chip"),
+                            Sense::click(),
+                        );
+                        if add_resp.hovered() {
+                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                        }
+                        if add_resp.clicked() {
+                            ui.memory_mut(|m| m.toggle_popup(add_popup_id));
+                        }
+                        let add_open = ui.memory(|m| m.is_popup_open(add_popup_id));
+                        let fill = if add_resp.hovered() || add_open {
+                            crate::ui_style::hover_fill(dark)
+                        } else {
+                            crate::ui_style::surface_fill(dark)
+                        };
+                        ui.painter().rect(
+                            add_rect,
+                            8.0,
+                            fill,
+                            crate::ui_style::modal_outline_stroke(dark),
+                            egui::StrokeKind::Inside,
+                        );
+                        ui.painter().text(
+                            add_rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            "+",
+                            FontId::proportional(metrics.value(15.0)),
+                            ui.visuals().text_color(),
+                        );
+                        egui::popup_below_widget(
+                            ui,
+                            add_popup_id,
+                            &add_resp,
+                            egui::PopupCloseBehavior::CloseOnClickOutside,
+                            |ui| {
+                                ui.set_min_width(control_width);
+                                ui.set_max_width(control_width);
+                                ui.spacing_mut().item_spacing = egui::vec2(0.0, 2.0);
+                                let option_height = metrics.value(34.0);
+                                let option_spacing = metrics.value(2.0);
+                                egui::ScrollArea::vertical()
+                                    .max_height(compact_dropdown_popup_height(
+                                        window_candidates.len(),
+                                        option_height,
+                                        option_spacing,
+                                    ))
+                                    .auto_shrink([false, true])
+                                    .show(ui, |ui| {
+                                        ui.set_min_width(control_width);
+                                        if window_candidates.is_empty() {
+                                            let (option_rect, _) = ui.allocate_exact_size(
+                                                egui::vec2(control_width, option_height),
+                                                Sense::hover(),
+                                            );
+                                            ui.painter().text(
+                                                egui::pos2(
+                                                    option_rect.left() + metrics.value(10.0),
+                                                    option_rect.center().y,
+                                                ),
+                                                egui::Align2::LEFT_CENTER,
+                                                crate::i18n::tr_catalog(
+                                                    lang,
+                                                    "text_expander.no_windows_hint",
+                                                ),
+                                                FontId::proportional(metrics.value(12.0)),
+                                                app_muted_text(dark),
+                                            );
+                                        } else {
+                                            for candidate in window_candidates.iter() {
+                                                let title = if candidate.title.is_empty() {
+                                                    candidate.exe.clone()
+                                                } else {
+                                                    format!(
+                                                        "{} — {}",
+                                                        candidate.title, candidate.exe
+                                                    )
+                                                };
+                                                let display = if title.chars().count() > 30 {
+                                                    format!(
+                                                        "{}…",
+                                                        title.chars().take(29).collect::<String>()
+                                                    )
+                                                } else {
+                                                    title
+                                                };
+                                                let (option_rect, option_resp) = ui
+                                                    .allocate_exact_size(
+                                                        egui::vec2(control_width, option_height),
+                                                        Sense::click(),
+                                                    );
+                                                if option_resp.hovered() {
+                                                    ui.ctx().set_cursor_icon(
+                                                        egui::CursorIcon::PointingHand,
+                                                    );
+                                                }
+                                                let option_fill = if option_resp.hovered() {
+                                                    crate::ui_style::hover_fill(dark)
+                                                } else {
+                                                    Color32::TRANSPARENT
+                                                };
+                                                ui.painter().rect_filled(
+                                                    option_rect,
+                                                    7.0,
+                                                    option_fill,
+                                                );
+                                                ui.painter().text(
+                                                    egui::pos2(
+                                                        option_rect.left() + metrics.value(10.0),
+                                                        option_rect.center().y,
+                                                    ),
+                                                    egui::Align2::LEFT_CENTER,
+                                                    display,
+                                                    FontId::proportional(metrics.value(12.0)),
+                                                    ui.visuals().text_color(),
+                                                );
+                                                if option_resp.clicked() {
+                                                    add_app = Some(candidate.exe.clone());
+                                                    ui.memory_mut(|m| m.close_popup());
+                                                }
+                                            }
+                                        }
+                                    });
+                            },
+                        );
                     },
                 );
+                if let Some(app_name) = add_app {
+                    self.add_text_expander_blacklist_app(&app_name);
+                }
                 if let Some(app_name) = remove_app {
                     self.remove_text_expander_blacklist_app(&app_name);
                 }
                 continue;
             }
 
-            if row_idx == 3 {
+            if row_idx == 2 {
                 let button_width = metrics.value(118.0);
                 crate::ui_style::settings_list_row_with_tooltip(
                     ui,
@@ -5101,7 +5107,7 @@ impl EntropyApp {
                 continue;
             }
 
-            if row_idx == 4 {
+            if row_idx == 3 {
                 let control_width = metrics.value(250.0);
                 let mut add_file: Option<String> = None;
                 let mut remove_file: Option<usize> = None;
@@ -5479,7 +5485,7 @@ impl EntropyApp {
                 continue;
             }
 
-            let rules_start_row = 5;
+            let rules_start_row = 4;
             let idx = row_idx - rules_start_row;
             let Some(original_rule) = self.app_settings.text_expansion_rules.get(idx).cloned()
             else {
