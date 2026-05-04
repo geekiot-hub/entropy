@@ -4553,37 +4553,6 @@ impl EntropyApp {
         };
     }
 
-    fn add_text_expander_rules_file(&mut self) {
-        self.app_settings
-            .text_expander_rule_files
-            .push(String::new());
-    }
-
-    fn set_text_expander_rules_file(&mut self, idx: usize, file_name: &str) {
-        if idx >= self.app_settings.text_expander_rule_files.len() {
-            return;
-        }
-        let Some(file_name) = normalize_text_expander_rules_file_name(file_name) else {
-            return;
-        };
-        if self
-            .app_settings
-            .text_expander_rule_files
-            .iter()
-            .enumerate()
-            .any(|(other_idx, existing)| {
-                other_idx != idx && existing.eq_ignore_ascii_case(&file_name)
-            })
-        {
-            return;
-        }
-        self.app_settings.text_expander_rule_files[idx] = file_name;
-        self.text_expander_rules_signature =
-            text_expander_rules_signature(&self.app_settings.text_expander_rule_files);
-        save_app_settings(&self.app_settings);
-        self.sync_text_expander_runtime();
-    }
-
     fn remove_text_expander_rules_file(&mut self, remove_idx: usize) {
         if remove_idx >= self.app_settings.text_expander_rule_files.len() {
             return;
@@ -4622,9 +4591,7 @@ impl EntropyApp {
                 );
                 ui.add_space(metrics.value(18.0));
 
-                let row_count = 4
-                    + self.app_settings.text_expander_rule_files.len()
-                    + self.app_settings.text_expansion_rules.len();
+                let row_count = 5 + self.app_settings.text_expansion_rules.len();
                 let list = allocate_adaptive_settings_list_viewport(
                     ui,
                     "text_expander_settings",
@@ -4665,42 +4632,27 @@ impl EntropyApp {
                 let action_anchor_bottom =
                     list.viewport.top() + list.row_height * action_anchor_rows as f32;
                 let button_size = metrics.size(126.0, 34.0);
-                let button_gap = metrics.value(10.0);
-                let actions_width = button_size.x * 2.0 + button_gap;
-                let actions_rect = egui::Rect::from_center_size(
+                let button_rect = egui::Rect::from_center_size(
                     egui::pos2(
                         list.viewport.center().x,
                         action_anchor_bottom + metrics.value(26.0),
                     ),
-                    egui::vec2(actions_width, button_size.y),
+                    button_size,
                 );
-                ui.allocate_ui_at_rect(actions_rect, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing.x = button_gap;
-                        if crate::ui_style::modern_button(
-                            ui,
-                            crate::i18n::tr_catalog(lang, "text_expander.add_rule"),
-                            button_size,
-                            true,
-                        )
-                        .clicked()
-                        {
-                            self.app_settings
-                                .text_expansion_rules
-                                .push(crate::text_expander::TextExpansionRule::default());
-                            self.save_text_expander_settings();
-                        }
-                        if crate::ui_style::modern_button(
-                            ui,
-                            crate::i18n::tr_catalog(lang, "text_expander.add_rules_file"),
-                            button_size,
-                            true,
-                        )
-                        .clicked()
-                        {
-                            self.add_text_expander_rules_file();
-                        }
-                    });
+                ui.allocate_ui_at_rect(button_rect, |ui| {
+                    if crate::ui_style::modern_button(
+                        ui,
+                        crate::i18n::tr_catalog(lang, "text_expander.add_rule"),
+                        button_size,
+                        true,
+                    )
+                    .clicked()
+                    {
+                        self.app_settings
+                            .text_expansion_rules
+                            .push(crate::text_expander::TextExpansionRule::default());
+                        self.save_text_expander_settings();
+                    }
                 });
             });
         });
@@ -5149,127 +5101,349 @@ impl EntropyApp {
                 continue;
             }
 
-            let extra_file_row_start = 4;
-            let extra_file_row_end =
-                extra_file_row_start + self.app_settings.text_expander_rule_files.len();
-            if (extra_file_row_start..extra_file_row_end).contains(&row_idx) {
-                let file_idx = row_idx - extra_file_row_start;
-                let file_name = self.app_settings.text_expander_rule_files[file_idx].clone();
-                let file_selected = normalize_text_expander_rules_file_name(&file_name);
-                let file_ok = file_selected
-                    .as_ref()
-                    .map(|name| {
-                        load_text_expansion_rules_from_path(&text_expander_extra_rules_path(name))
-                            .is_some()
-                    })
-                    .unwrap_or(false);
-                let label = format!(
-                    "{} {}",
-                    crate::i18n::tr_catalog(lang, "text_expander.extra_rules_file_label"),
-                    file_idx + 1
-                );
+            if row_idx == 4 {
                 let control_width = metrics.value(250.0);
+                let mut add_file: Option<String> = None;
+                let mut remove_file: Option<usize> = None;
                 crate::ui_style::settings_list_row_with_tooltip(
                     ui,
                     content_width,
                     row_height,
-                    label.as_str(),
+                    crate::i18n::tr_catalog(lang, "text_expander.extra_rules_file_label"),
                     true,
-                    tooltip(match (file_selected.is_some(), file_ok) {
-                        (true, true) => crate::i18n::tr_catalog(
-                            lang,
-                            "text_expander.extra_rules_file_ok_tooltip",
-                        ),
-                        (true, false) => crate::i18n::tr_catalog(
-                            lang,
-                            "text_expander.extra_rules_file_error_tooltip",
-                        ),
-                        (false, _) => crate::i18n::tr_catalog(
-                            lang,
-                            "text_expander.extra_rules_file_select_tooltip",
-                        ),
-                    }),
+                    tooltip(crate::i18n::tr_catalog(
+                        lang,
+                        "text_expander.extra_rules_file_select_tooltip",
+                    )),
                     control_width,
                     |ui| {
                         let control_rect = ui.max_rect();
-                        let field_height = metrics.settings_control_height();
-                        let delete_size = metrics.size(30.0, field_height);
-                        let gap = metrics.value(8.0);
-                        let dropdown_width = control_width - delete_size.x - gap;
-                        let top = control_rect.center().y - field_height / 2.0;
-                        let dropdown_rect = egui::Rect::from_min_size(
-                            egui::pos2(control_rect.left(), top),
-                            egui::vec2(dropdown_width, field_height),
-                        );
-                        let delete_rect = egui::Rect::from_min_size(
-                            egui::pos2(control_rect.right() - delete_size.x, top),
-                            delete_size,
-                        );
+                        let dark = ui.visuals().dark_mode;
+                        let chip_height = metrics.value(26.0);
+                        let gap = metrics.value(6.0);
+                        let add_width = metrics.value(44.0);
+                        let selected_count = self.app_settings.text_expander_rule_files.len();
+                        let visible_count = selected_count.min(2);
+                        let has_more = selected_count > visible_count;
+                        let more_width = metrics.value(42.0);
+                        let reserved_right =
+                            add_width + if has_more { gap + more_width } else { 0.0 };
+                        let chip_width = if visible_count > 0 {
+                            ((control_width - reserved_right - gap * visible_count as f32)
+                                / visible_count as f32)
+                                .clamp(metrics.value(64.0), metrics.value(92.0))
+                        } else {
+                            0.0
+                        };
+                        let y = control_rect.center().y - chip_height / 2.0;
+                        let mut x = control_rect.left();
 
-                        ui.allocate_ui_at_rect(dropdown_rect, |ui| {
-                            let mut selected_except_current =
-                                self.app_settings.text_expander_rule_files.clone();
-                            if file_idx < selected_except_current.len() {
-                                selected_except_current.remove(file_idx);
-                            }
-                            let mut options =
-                                text_expander_available_extra_rule_files(&selected_except_current);
-                            if let Some(current) = file_selected.as_ref() {
-                                if !options
-                                    .iter()
-                                    .any(|option| option.eq_ignore_ascii_case(current))
-                                {
-                                    options.insert(0, current.clone());
-                                }
-                            }
-                            let selected_text = if let Some(current) = file_selected.as_ref() {
-                                let prefix = if file_ok { "✓ " } else { "⚠ " };
-                                format!("{prefix}{current}")
+                        for (file_idx, file_name) in self
+                            .app_settings
+                            .text_expander_rule_files
+                            .iter()
+                            .take(visible_count)
+                            .enumerate()
+                        {
+                            let file_ok = load_text_expansion_rules_from_path(
+                                &text_expander_extra_rules_path(file_name),
+                            )
+                            .is_some();
+                            let display = if file_name.chars().count() > 12 {
+                                format!("{}…", file_name.chars().take(11).collect::<String>())
                             } else {
-                                crate::i18n::tr_catalog(lang, "text_expander.select_rules_file")
-                                    .to_owned()
+                                file_name.clone()
                             };
-                            let dropdown_id = ui.make_persistent_id((
-                                "text_expander_extra_rules_file_dropdown",
-                                file_idx,
-                            ));
-                            let dropdown_resp = crate::ui_style::modern_dropdown_button_sized(
-                                ui,
-                                dropdown_id,
-                                selected_text.as_str(),
-                                if file_selected.is_none() {
-                                    app_muted_text(ui.visuals().dark_mode)
-                                } else {
-                                    ui.visuals().text_color()
-                                },
-                                dropdown_width,
-                                field_height,
-                                metrics.settings_control_font_size(),
+                            let chip_rect = egui::Rect::from_min_size(
+                                egui::pos2(x, y),
+                                egui::vec2(chip_width, chip_height),
+                            );
+                            let resp = ui.interact(
+                                chip_rect,
+                                ui.make_persistent_id(("text_expander_rules_file_chip", file_name)),
+                                Sense::click(),
+                            );
+                            if resp.hovered() {
+                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                            }
+                            let fill = if resp.hovered() {
+                                crate::ui_style::hover_fill(dark)
+                            } else {
+                                crate::ui_style::surface_fill(dark)
+                            };
+                            ui.painter().rect(
+                                chip_rect,
+                                8.0,
+                                fill,
+                                crate::ui_style::modal_outline_stroke(dark),
+                                egui::StrokeKind::Inside,
+                            );
+                            let prefix = if file_ok { "✓ " } else { "⚠ " };
+                            ui.painter().text(
+                                egui::pos2(
+                                    chip_rect.left() + metrics.value(8.0),
+                                    chip_rect.center().y,
+                                ),
+                                egui::Align2::LEFT_CENTER,
+                                format!("{prefix}{display}"),
+                                FontId::proportional(metrics.value(11.0)),
+                                ui.visuals().text_color(),
+                            );
+                            ui.painter().text(
+                                egui::pos2(
+                                    chip_rect.right() - metrics.value(10.0),
+                                    chip_rect.center().y,
+                                ),
+                                egui::Align2::CENTER_CENTER,
+                                "×",
+                                FontId::proportional(metrics.value(13.0)),
+                                app_muted_text(dark),
+                            );
+                            if resp.clicked() {
+                                remove_file = Some(file_idx);
+                            }
+                            x += chip_width + gap;
+                        }
+
+                        if has_more {
+                            let remaining = selected_count - visible_count;
+                            let more_rect = egui::Rect::from_min_size(
+                                egui::pos2(control_rect.right() - add_width - gap - more_width, y),
+                                egui::vec2(more_width, chip_height),
+                            );
+                            let popup_id =
+                                ui.make_persistent_id("text_expander_rules_files_more_popup");
+                            let more_resp = ui.interact(
+                                more_rect,
+                                ui.make_persistent_id("text_expander_rules_files_more_chip"),
+                                Sense::click(),
+                            );
+                            if more_resp.hovered() {
+                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                            }
+                            if more_resp.clicked() {
+                                ui.memory_mut(|m| m.toggle_popup(popup_id));
+                            }
+                            let more_open = ui.memory(|m| m.is_popup_open(popup_id));
+                            let fill = if more_resp.hovered() || more_open {
+                                crate::ui_style::hover_fill(dark)
+                            } else {
+                                crate::ui_style::surface_fill(dark)
+                            };
+                            ui.painter().rect(
+                                more_rect,
+                                8.0,
+                                fill,
+                                crate::ui_style::modal_outline_stroke(dark),
+                                egui::StrokeKind::Inside,
+                            );
+                            ui.painter().text(
+                                more_rect.center(),
+                                egui::Align2::CENTER_CENTER,
+                                format!("+{remaining}"),
+                                FontId::proportional(metrics.value(12.0)),
+                                ui.visuals().text_color(),
                             );
                             egui::popup_below_widget(
                                 ui,
-                                dropdown_id,
-                                &dropdown_resp,
+                                popup_id,
+                                &more_resp,
                                 egui::PopupCloseBehavior::CloseOnClickOutside,
                                 |ui| {
-                                    ui.set_min_width(dropdown_width);
-                                    ui.set_max_width(dropdown_width);
+                                    ui.set_min_width(control_width);
+                                    ui.set_max_width(control_width);
                                     ui.spacing_mut().item_spacing = egui::vec2(0.0, 2.0);
-                                    let option_height = metrics.value(34.0);
+                                    let option_height = metrics.value(30.0);
                                     let option_spacing = metrics.value(2.0);
                                     egui::ScrollArea::vertical()
                                         .max_height(compact_dropdown_popup_height(
-                                            options.len(),
+                                            selected_count,
                                             option_height,
                                             option_spacing,
                                         ))
                                         .auto_shrink([false, true])
                                         .show(ui, |ui| {
-                                            ui.set_min_width(dropdown_width);
-                                            if options.is_empty() {
-                                                let (option_rect, _) = ui.allocate_exact_size(
-                                                    egui::vec2(dropdown_width, option_height),
-                                                    Sense::hover(),
+                                            ui.set_min_width(control_width);
+                                            for (file_idx, file_name) in self
+                                                .app_settings
+                                                .text_expander_rule_files
+                                                .iter()
+                                                .enumerate()
+                                            {
+                                                let file_ok = load_text_expansion_rules_from_path(
+                                                    &text_expander_extra_rules_path(file_name),
+                                                )
+                                                .is_some();
+                                                let display = if file_name.chars().count() > 28 {
+                                                    format!(
+                                                        "{}…",
+                                                        file_name
+                                                            .chars()
+                                                            .take(27)
+                                                            .collect::<String>()
+                                                    )
+                                                } else {
+                                                    file_name.clone()
+                                                };
+                                                let (option_rect, option_resp) = ui
+                                                    .allocate_exact_size(
+                                                        egui::vec2(control_width, option_height),
+                                                        Sense::click(),
+                                                    );
+                                                if option_resp.hovered() {
+                                                    ui.ctx().set_cursor_icon(
+                                                        egui::CursorIcon::PointingHand,
+                                                    );
+                                                }
+                                                let option_fill = if option_resp.hovered() {
+                                                    crate::ui_style::hover_fill(dark)
+                                                } else {
+                                                    Color32::TRANSPARENT
+                                                };
+                                                ui.painter().rect_filled(
+                                                    option_rect,
+                                                    7.0,
+                                                    option_fill,
+                                                );
+                                                let prefix = if file_ok { "✓ " } else { "⚠ " };
+                                                ui.painter().text(
+                                                    egui::pos2(
+                                                        option_rect.left() + metrics.value(10.0),
+                                                        option_rect.center().y,
+                                                    ),
+                                                    egui::Align2::LEFT_CENTER,
+                                                    format!("{prefix}{display}"),
+                                                    FontId::proportional(metrics.value(12.0)),
+                                                    ui.visuals().text_color(),
+                                                );
+                                                ui.painter().text(
+                                                    egui::pos2(
+                                                        option_rect.right() - metrics.value(12.0),
+                                                        option_rect.center().y,
+                                                    ),
+                                                    egui::Align2::CENTER_CENTER,
+                                                    "×",
+                                                    FontId::proportional(metrics.value(13.0)),
+                                                    app_muted_text(dark),
+                                                );
+                                                if option_resp.clicked() {
+                                                    remove_file = Some(file_idx);
+                                                    ui.memory_mut(|m| m.close_popup());
+                                                }
+                                            }
+                                        });
+                                },
+                            );
+                        }
+
+                        let add_rect = egui::Rect::from_min_size(
+                            egui::pos2(control_rect.right() - add_width, y),
+                            egui::vec2(add_width, chip_height),
+                        );
+                        let add_popup_id =
+                            ui.make_persistent_id("text_expander_rules_files_add_popup");
+                        let add_resp = ui.interact(
+                            add_rect,
+                            ui.make_persistent_id("text_expander_rules_files_add_chip"),
+                            Sense::click(),
+                        );
+                        if add_resp.hovered() {
+                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                        }
+                        if add_resp.clicked() {
+                            ui.memory_mut(|m| m.toggle_popup(add_popup_id));
+                        }
+                        let add_open = ui.memory(|m| m.is_popup_open(add_popup_id));
+                        let fill = if add_resp.hovered() || add_open {
+                            crate::ui_style::hover_fill(dark)
+                        } else {
+                            crate::ui_style::surface_fill(dark)
+                        };
+                        ui.painter().rect(
+                            add_rect,
+                            8.0,
+                            fill,
+                            crate::ui_style::modal_outline_stroke(dark),
+                            egui::StrokeKind::Inside,
+                        );
+                        ui.painter().text(
+                            add_rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            "+",
+                            FontId::proportional(metrics.value(15.0)),
+                            ui.visuals().text_color(),
+                        );
+                        egui::popup_below_widget(
+                            ui,
+                            add_popup_id,
+                            &add_resp,
+                            egui::PopupCloseBehavior::CloseOnClickOutside,
+                            |ui| {
+                                let selected_files =
+                                    self.app_settings.text_expander_rule_files.clone();
+                                let options =
+                                    text_expander_available_extra_rule_files(&selected_files);
+                                ui.set_min_width(control_width);
+                                ui.set_max_width(control_width);
+                                ui.spacing_mut().item_spacing = egui::vec2(0.0, 2.0);
+                                let option_height = metrics.value(30.0);
+                                let option_spacing = metrics.value(2.0);
+                                egui::ScrollArea::vertical()
+                                    .max_height(compact_dropdown_popup_height(
+                                        options.len(),
+                                        option_height,
+                                        option_spacing,
+                                    ))
+                                    .auto_shrink([false, true])
+                                    .show(ui, |ui| {
+                                        ui.set_min_width(control_width);
+                                        if options.is_empty() {
+                                            let (option_rect, _) = ui.allocate_exact_size(
+                                                egui::vec2(control_width, option_height),
+                                                Sense::hover(),
+                                            );
+                                            ui.painter().text(
+                                                egui::pos2(
+                                                    option_rect.left() + metrics.value(10.0),
+                                                    option_rect.center().y,
+                                                ),
+                                                egui::Align2::LEFT_CENTER,
+                                                crate::i18n::tr_catalog(
+                                                    lang,
+                                                    "text_expander.no_extra_rules_files",
+                                                ),
+                                                FontId::proportional(metrics.value(12.0)),
+                                                app_muted_text(dark),
+                                            );
+                                        } else {
+                                            for option in options.iter() {
+                                                let display = if option.chars().count() > 28 {
+                                                    format!(
+                                                        "{}…",
+                                                        option.chars().take(27).collect::<String>()
+                                                    )
+                                                } else {
+                                                    option.clone()
+                                                };
+                                                let (option_rect, option_resp) = ui
+                                                    .allocate_exact_size(
+                                                        egui::vec2(control_width, option_height),
+                                                        Sense::click(),
+                                                    );
+                                                if option_resp.hovered() {
+                                                    ui.ctx().set_cursor_icon(
+                                                        egui::CursorIcon::PointingHand,
+                                                    );
+                                                }
+                                                let option_fill = if option_resp.hovered() {
+                                                    crate::ui_style::hover_fill(dark)
+                                                } else {
+                                                    Color32::TRANSPARENT
+                                                };
+                                                ui.painter().rect_filled(
+                                                    option_rect,
+                                                    7.0,
+                                                    option_fill,
                                                 );
                                                 ui.painter().text(
                                                     egui::pos2(
@@ -5277,88 +5451,36 @@ impl EntropyApp {
                                                         option_rect.center().y,
                                                     ),
                                                     egui::Align2::LEFT_CENTER,
-                                                    crate::i18n::tr_catalog(
-                                                        lang,
-                                                        "text_expander.no_extra_rules_files",
-                                                    ),
+                                                    display,
                                                     FontId::proportional(metrics.value(12.0)),
-                                                    app_muted_text(ui.visuals().dark_mode),
+                                                    ui.visuals().text_color(),
                                                 );
-                                            } else {
-                                                for option in options.iter() {
-                                                    let display = if option.chars().count() > 24 {
-                                                        format!(
-                                                            "{}…",
-                                                            option
-                                                                .chars()
-                                                                .take(23)
-                                                                .collect::<String>()
-                                                        )
-                                                    } else {
-                                                        option.clone()
-                                                    };
-                                                    let (option_rect, option_resp) = ui
-                                                        .allocate_exact_size(
-                                                            egui::vec2(
-                                                                dropdown_width,
-                                                                option_height,
-                                                            ),
-                                                            Sense::click(),
-                                                        );
-                                                    if option_resp.hovered() {
-                                                        ui.ctx().set_cursor_icon(
-                                                            egui::CursorIcon::PointingHand,
-                                                        );
-                                                    }
-                                                    let option_fill = if option_resp.hovered() {
-                                                        crate::ui_style::hover_fill(
-                                                            ui.visuals().dark_mode,
-                                                        )
-                                                    } else {
-                                                        Color32::TRANSPARENT
-                                                    };
-                                                    ui.painter().rect_filled(
-                                                        option_rect,
-                                                        7.0,
-                                                        option_fill,
-                                                    );
-                                                    ui.painter().text(
-                                                        egui::pos2(
-                                                            option_rect.left()
-                                                                + metrics.value(10.0),
-                                                            option_rect.center().y,
-                                                        ),
-                                                        egui::Align2::LEFT_CENTER,
-                                                        display,
-                                                        FontId::proportional(metrics.value(12.0)),
-                                                        ui.visuals().text_color(),
-                                                    );
-                                                    if option_resp.clicked() {
-                                                        self.set_text_expander_rules_file(
-                                                            file_idx, option,
-                                                        );
-                                                        ui.memory_mut(|m| m.close_popup());
-                                                    }
+                                                if option_resp.clicked() {
+                                                    add_file = Some(option.clone());
+                                                    ui.memory_mut(|m| m.close_popup());
                                                 }
                                             }
-                                        });
-                                },
-                            );
-                        });
-
-                        ui.allocate_ui_at_rect(delete_rect, |ui| {
-                            if crate::ui_style::modern_button(ui, "×", delete_size, true).clicked()
-                            {
-                                self.remove_text_expander_rules_file(file_idx);
-                            }
-                        });
+                                        }
+                                    });
+                            },
+                        );
                     },
                 );
+                if let Some(file_name) = add_file {
+                    self.app_settings.text_expander_rule_files.push(file_name);
+                    self.text_expander_rules_signature =
+                        text_expander_rules_signature(&self.app_settings.text_expander_rule_files);
+                    save_app_settings(&self.app_settings);
+                    self.sync_text_expander_runtime();
+                }
+                if let Some(file_idx) = remove_file {
+                    self.remove_text_expander_rules_file(file_idx);
+                }
                 continue;
             }
 
-            let blacklist_row_end = extra_file_row_end;
-            let idx = row_idx - blacklist_row_end;
+            let rules_start_row = 5;
+            let idx = row_idx - rules_start_row;
             let Some(original_rule) = self.app_settings.text_expansion_rules.get(idx).cloned()
             else {
                 continue;
