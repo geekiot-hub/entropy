@@ -6456,24 +6456,31 @@ impl EntropyApp {
         let switch_width = metrics.value(46.0);
         let switch_size = metrics.size(46.0, 24.0);
 
-        let (visible_count, device_name) = self
+        let (encoder_indices, device_name) = self
             .layout
             .as_ref()
             .map(|layout| {
-                let mut seen = std::collections::BTreeSet::new();
-                let count = layout
+                let indices = layout
                     .encoders
                     .iter()
-                    .filter(|encoder| seen.insert(encoder.encoder_idx))
-                    .count();
-                (count, layout.name.clone())
+                    .map(|encoder| encoder.encoder_idx as usize)
+                    .collect::<std::collections::BTreeSet<_>>()
+                    .into_iter()
+                    .collect::<Vec<_>>();
+                (indices, layout.name.clone())
             })
-            .unwrap_or((0, String::new()));
+            .unwrap_or((Vec::new(), String::new()));
+        let visibility_len = encoder_indices
+            .iter()
+            .copied()
+            .max()
+            .map(|idx| idx + 1)
+            .unwrap_or(0);
 
-        if self.encoder_visibility.len() < visible_count {
-            self.encoder_visibility.resize(visible_count, true);
+        if self.encoder_visibility.len() < visibility_len {
+            self.encoder_visibility.resize(visibility_len, true);
         }
-        self.encoder_visibility.truncate(visible_count);
+        self.encoder_visibility.truncate(visibility_len);
 
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
@@ -6491,7 +6498,7 @@ impl EntropyApp {
                 );
                 ui.add_space(24.0);
 
-                if visible_count == 0 {
+                if encoder_indices.is_empty() {
                     crate::ui_style::modal_empty_state(
                         ui,
                         crate::i18n::tr(lang, crate::i18n::Key::EncodersUnavailable),
@@ -6505,15 +6512,15 @@ impl EntropyApp {
                     crate::ui_style::ModalLayout::new(encoders_content_width)
                         .with_top_padding(encoders_top_padding),
                     |ui| {
-                        for visual_idx in 0..visible_count {
-                            let mut visible = self.encoder_visibility[visual_idx];
+                        for encoder_idx in &encoder_indices {
+                            let mut visible = self.encoder_visibility[*encoder_idx];
                             let label = if matches!(
                                 self.app_settings.language,
                                 crate::i18n::Language::Russian
                             ) {
-                                format!("Энкодер {}", visual_idx + 1)
+                                format!("Энкодер {}", encoder_idx + 1)
                             } else {
-                                format!("Encoder {}", visual_idx + 1)
+                                format!("Encoder {}", encoder_idx + 1)
                             };
                             crate::ui_style::settings_list_row(
                                 ui,
@@ -6529,7 +6536,7 @@ impl EntropyApp {
                                         switch_size,
                                     );
                                     if resp.changed() {
-                                        self.encoder_visibility[visual_idx] = visible;
+                                        self.encoder_visibility[*encoder_idx] = visible;
                                         if !device_name.is_empty() {
                                             save_encoder_visibility(
                                                 &self.encoder_visibility,
@@ -7758,6 +7765,7 @@ impl EntropyApp {
         let tap_dance_names = self.keycode_picker.tap_dance_names.clone();
         let key_legend_layout = self.app_settings.key_legend_layout;
         let show_shifted_number_symbols = self.app_settings.show_shifted_number_symbols;
+        let encoder_visibility = self.encoder_visibility.clone();
         let ui_scale = clamp_ui_scale(self.app_settings.ui_scale);
         let dark = self.dark_mode;
         let mut selected_layer = self.selected_layer;
@@ -7872,6 +7880,7 @@ impl EntropyApp {
                             &tap_dance_names,
                             key_legend_layout,
                             show_shifted_number_symbols,
+                            &encoder_visibility,
                             ui_scale,
                             rect,
                         );
@@ -7932,6 +7941,7 @@ impl EntropyApp {
         tap_dance_names: &[String],
         key_legend_layout: KeyLegendLayout,
         show_shifted_number_symbols: bool,
+        encoder_visibility: &[bool],
         ui_scale: f32,
         rect: egui::Rect,
     ) {
@@ -7955,14 +7965,94 @@ impl EntropyApp {
             Color32::from_rgb(248, 248, 250)
         };
 
-        for (ki, key) in layout.keys.iter().enumerate() {
-            let key_rect = layout_physical_key_rect(key, geometry);
-            let kc = layout.get_keycode(layer, ki);
+        let key_rects: Vec<(usize, egui::Rect)> = layout
+            .keys
+            .iter()
+            .enumerate()
+            .map(|(ki, key)| (ki, layout_physical_key_rect(key, geometry)))
+            .collect();
+
+        let mut encoder_groups: Vec<(u8, egui::Rect, Option<(usize, u16)>, Option<(usize, u16)>)> =
+            Vec::new();
+        for (encoder_idx, encoder) in layout.encoders.iter().enumerate() {
+            if !encoder_visibility
+                .get(encoder.encoder_idx as usize)
+                .copied()
+                .unwrap_or(true)
+            {
+                continue;
+            }
+
+            let encoder_rect = layout_physical_encoder_rect(encoder, geometry);
+            let kc = layout.get_encoder_keycode(layer, encoder_idx);
+            if let Some((_, group_rect, ccw, cw)) = encoder_groups
+                .iter_mut()
+                .find(|(idx, _, _, _)| *idx == encoder.encoder_idx)
+            {
+                *group_rect = group_rect.union(encoder_rect);
+                if encoder.direction == 0 {
+                    *ccw = Some((encoder_idx, kc));
+                } else {
+                    *cw = Some((encoder_idx, kc));
+                }
+            } else {
+                encoder_groups.push((
+                    encoder.encoder_idx,
+                    encoder_rect,
+                    (encoder.direction == 0).then_some((encoder_idx, kc)),
+                    (encoder.direction != 0).then_some((encoder_idx, kc)),
+                ));
+            }
+        }
+
+        let mut encoder_press_rects: Vec<(usize, egui::Rect)> = Vec::new();
+        for (_, group_rect, _, _) in &encoder_groups {
+            let center = group_rect.center();
+            let radius = group_rect.width().min(group_rect.height()) * 0.5;
+            let mut best_key: Option<(usize, f32)> = None;
+            for (ki, key_rect) in &key_rects {
+                if encoder_press_rects
+                    .iter()
+                    .any(|(assigned_ki, _)| assigned_ki == ki)
+                {
+                    continue;
+                }
+                let dist = key_rect.center().distance(center);
+                if dist > radius * 0.38 {
+                    continue;
+                }
+                match best_key {
+                    Some((_, best_dist)) if dist >= best_dist => {}
+                    _ => best_key = Some((*ki, dist)),
+                }
+            }
+            if let Some((ki, _)) = best_key {
+                let press_rect = egui::Rect::from_center_size(
+                    center,
+                    Vec2::new(
+                        (radius * 0.88).min(group_rect.width() * 0.44),
+                        (radius * 0.48).min(group_rect.height() * 0.22),
+                    ),
+                );
+                encoder_press_rects.push((ki, press_rect));
+            }
+        }
+
+        for (ki, key_rect) in &key_rects {
+            if encoder_press_rects
+                .iter()
+                .any(|(press_ki, _)| press_ki == ki)
+            {
+                continue;
+            }
+
+            let key = &layout.keys[*ki];
+            let kc = layout.get_keycode(layer, *ki);
             let is_transparent = kc == 0x0001;
             let fill = if kc == 0x0000 { empty_fill } else { key_fill };
             paint_layout_keycap(
                 &painter,
-                key_rect,
+                *key_rect,
                 key.rotation,
                 fill,
                 Stroke::new(1.0, outline),
@@ -7975,7 +8065,7 @@ impl EntropyApp {
             let label_kc = if is_transparent {
                 (0..layer)
                     .rev()
-                    .map(|fallback_layer| layout.get_keycode(fallback_layer, ki))
+                    .map(|fallback_layer| layout.get_keycode(fallback_layer, *ki))
                     .find(|fallback| !matches!(*fallback, 0x0000 | 0x0001))
                     .unwrap_or(0x0000)
             } else {
@@ -7996,50 +8086,37 @@ impl EntropyApp {
                 show_shifted_number_symbols,
                 key_legend_layout,
             );
-            if is_transparent {
-                draw_sticky_key_label(
-                    &painter,
-                    key_rect,
-                    &label,
-                    dark,
-                    key.rotation.to_radians(),
-                    true,
-                );
-            } else {
-                draw_sticky_key_label(
-                    &painter,
-                    key_rect,
-                    &label,
-                    dark,
-                    key.rotation.to_radians(),
-                    false,
-                );
-            }
+            draw_sticky_key_label(
+                &painter,
+                *key_rect,
+                &label,
+                dark,
+                key.rotation.to_radians(),
+                is_transparent,
+            );
         }
 
-        let mut encoder_groups: Vec<(u8, egui::Rect, Option<u16>, Option<u16>)> = Vec::new();
-        for (encoder_idx, encoder) in layout.encoders.iter().enumerate() {
-            let encoder_rect = layout_physical_encoder_rect(encoder, geometry);
-            let kc = layout.get_encoder_keycode(layer, encoder_idx);
-            if let Some((_, group_rect, ccw, cw)) = encoder_groups
-                .iter_mut()
-                .find(|(idx, _, _, _)| *idx == encoder.encoder_idx)
-            {
-                *group_rect = group_rect.union(encoder_rect);
-                if encoder.direction == 0 {
-                    *ccw = Some(kc);
-                } else {
-                    *cw = Some(kc);
-                }
-            } else {
-                encoder_groups.push((
-                    encoder.encoder_idx,
-                    encoder_rect,
-                    (encoder.direction == 0).then_some(kc),
-                    (encoder.direction != 0).then_some(kc),
-                ));
-            }
-        }
+        let label_for = |kc: Option<u16>| -> String {
+            let label = match kc.unwrap_or(0) {
+                0x0000 => "✕".to_string(),
+                0x0001 => "▽".to_string(),
+                value => keycode_label_with_macro_names(
+                    value,
+                    &layout.custom_keycodes,
+                    layer_names,
+                    macro_names,
+                    tap_dance_names,
+                    key_legend_layout,
+                )
+                .replace('\n', " "),
+            };
+            sticky_compact_label(&label, 9)
+        };
+        let text_color = if dark {
+            Color32::from_gray(232)
+        } else {
+            Color32::from_gray(32)
+        };
 
         for (_, group_rect, ccw, cw) in encoder_groups {
             let center = group_rect.center();
@@ -8047,64 +8124,192 @@ impl EntropyApp {
                 * LAYOUT_ENCODER_RADIUS_FACTOR)
                 .max(14.0);
             let fill_radius = radius + LAYOUT_ENCODER_FILL_EXTRA;
+            let press_slot = encoder_press_rects
+                .iter()
+                .find(|(_, press_rect)| press_rect.center().distance(center) < 1.0)
+                .map(|(press_ki, press_rect)| (*press_ki, *press_rect));
+
+            let (top_rect, middle_rect, bottom_rect) = if let Some((_, press_rect)) = press_slot {
+                let divider_gap = radius * 0.06;
+                let top_divider_y = press_rect.top() - divider_gap;
+                let bottom_divider_y = press_rect.bottom() + divider_gap;
+                (
+                    egui::Rect::from_min_max(
+                        egui::pos2(center.x - fill_radius, center.y - fill_radius),
+                        egui::pos2(center.x + fill_radius, top_divider_y),
+                    ),
+                    Some(egui::Rect::from_min_max(
+                        egui::pos2(center.x - fill_radius, top_divider_y),
+                        egui::pos2(center.x + fill_radius, bottom_divider_y),
+                    )),
+                    egui::Rect::from_min_max(
+                        egui::pos2(center.x - fill_radius, bottom_divider_y),
+                        egui::pos2(center.x + fill_radius, center.y + fill_radius),
+                    ),
+                )
+            } else {
+                (
+                    egui::Rect::from_min_max(
+                        egui::pos2(center.x - fill_radius, center.y - fill_radius),
+                        egui::pos2(center.x + fill_radius, center.y),
+                    ),
+                    None,
+                    egui::Rect::from_min_max(
+                        egui::pos2(center.x - fill_radius, center.y),
+                        egui::pos2(center.x + fill_radius, center.y + fill_radius),
+                    ),
+                )
+            };
+
             painter.circle_filled(center, fill_radius, key_fill);
+            painter
+                .with_clip_rect(top_rect)
+                .circle_filled(center, fill_radius, key_fill);
+            if let Some(middle_rect) = middle_rect {
+                painter
+                    .with_clip_rect(middle_rect)
+                    .circle_filled(center, fill_radius, key_fill);
+            }
+            painter
+                .with_clip_rect(bottom_rect)
+                .circle_filled(center, fill_radius, key_fill);
             painter.circle_stroke(center, radius, Stroke::new(1.0, outline));
 
-            let label_for = |kc: Option<u16>| -> String {
-                let label = match kc.unwrap_or(0) {
-                    0x0000 => "✕".to_string(),
-                    0x0001 => "▽".to_string(),
-                    value => keycode_label_with_macro_names(
-                        value,
-                        &layout.custom_keycodes,
-                        layer_names,
-                        macro_names,
-                        tap_dance_names,
-                        key_legend_layout,
-                    )
-                    .replace('\n', " "),
-                };
-                sticky_compact_label(&label, 9)
-            };
-            let text_color = if dark {
-                Color32::from_gray(232)
+            let has_press_button = press_slot.is_some();
+            let top_label = label_for(cw.map(|(_, kc)| kc));
+            let bottom_label = label_for(ccw.map(|(_, kc)| kc));
+            let top_font = if has_press_button {
+                egui::FontId::proportional(if top_label.chars().count() > 9 {
+                    6.6
+                } else {
+                    7.4
+                })
             } else {
-                Color32::from_gray(32)
+                egui::FontId::proportional(if top_label.chars().count() > 9 {
+                    8.5
+                } else {
+                    9.5
+                })
             };
-            let top_label = label_for(cw);
-            let bottom_label = label_for(ccw);
-            let font_for = |label: &str| {
-                FontId::proportional(if label.chars().count() > 7 { 7.2 } else { 8.4 })
+            let bottom_font = if has_press_button {
+                egui::FontId::proportional(if bottom_label.chars().count() > 9 {
+                    6.6
+                } else {
+                    7.4
+                })
+            } else {
+                egui::FontId::proportional(if bottom_label.chars().count() > 9 {
+                    8.5
+                } else {
+                    9.5
+                })
             };
-            let top_rect = egui::Rect::from_center_size(
-                egui::pos2(center.x, center.y - radius * 0.34),
-                egui::vec2(radius * 1.45, radius * 0.42),
-            );
-            let bottom_rect = egui::Rect::from_center_size(
-                egui::pos2(center.x, center.y + radius * 0.34),
-                egui::vec2(radius * 1.45, radius * 0.42),
-            );
-            painter.with_clip_rect(top_rect).text(
-                top_rect.center(),
+            let top_label_y = center.y - radius * if has_press_button { 0.52 } else { 0.30 };
+            let bottom_label_y = center.y + radius * if has_press_button { 0.52 } else { 0.30 };
+            painter.text(
+                egui::pos2(center.x, top_label_y),
                 egui::Align2::CENTER_CENTER,
-                top_label.clone(),
-                font_for(&top_label),
+                top_label,
+                top_font,
                 text_color,
             );
-            painter.with_clip_rect(bottom_rect).text(
-                bottom_rect.center(),
+            painter.text(
+                egui::pos2(center.x, bottom_label_y),
                 egui::Align2::CENTER_CENTER,
-                bottom_label.clone(),
-                font_for(&bottom_label),
+                bottom_label,
+                bottom_font,
                 text_color,
             );
-            painter.line_segment(
-                [
-                    egui::pos2(center.x - radius * 0.72, center.y),
-                    egui::pos2(center.x + radius * 0.72, center.y),
-                ],
-                Stroke::new(1.0, outline),
-            );
+
+            draw_sticky_encoder_arrow(&painter, center, radius, true, outline);
+            draw_sticky_encoder_arrow(&painter, center, radius, false, outline);
+
+            if let Some((press_ki, _)) = press_slot {
+                let middle_rect = middle_rect.unwrap();
+                let top_divider_y = middle_rect.top();
+                let bottom_divider_y = middle_rect.bottom();
+                let divider_radius = (radius - 0.5).max(0.0);
+                let top_divider_half_width = (divider_radius * divider_radius
+                    - (top_divider_y - center.y) * (top_divider_y - center.y))
+                    .max(0.0)
+                    .sqrt();
+                let bottom_divider_half_width = (divider_radius * divider_radius
+                    - (bottom_divider_y - center.y) * (bottom_divider_y - center.y))
+                    .max(0.0)
+                    .sqrt();
+                painter.line_segment(
+                    [
+                        egui::pos2(center.x - top_divider_half_width, top_divider_y),
+                        egui::pos2(center.x + top_divider_half_width, top_divider_y),
+                    ],
+                    Stroke::new(1.0, outline),
+                );
+                painter.line_segment(
+                    [
+                        egui::pos2(center.x - bottom_divider_half_width, bottom_divider_y),
+                        egui::pos2(center.x + bottom_divider_half_width, bottom_divider_y),
+                    ],
+                    Stroke::new(1.0, outline),
+                );
+
+                let press_label = {
+                    let kc = layout.get_keycode(layer, press_ki);
+                    if kc == 0x0001 {
+                        let fallback_kc = (0..layer)
+                            .rev()
+                            .map(|fallback_layer| layout.get_keycode(fallback_layer, press_ki))
+                            .find(|fallback| !matches!(*fallback, 0x0000 | 0x0001))
+                            .unwrap_or(0x0000);
+                        if fallback_kc == 0x0000 {
+                            "▽".to_string()
+                        } else {
+                            keycode_label_with_macro_names(
+                                fallback_kc,
+                                &layout.custom_keycodes,
+                                layer_names,
+                                macro_names,
+                                tap_dance_names,
+                                key_legend_layout,
+                            )
+                        }
+                    } else if kc == 0x0000 {
+                        "✕".to_string()
+                    } else {
+                        keycode_label_with_macro_names(
+                            kc,
+                            &layout.custom_keycodes,
+                            layer_names,
+                            macro_names,
+                            tap_dance_names,
+                            key_legend_layout,
+                        )
+                    }
+                }
+                .replace('\n', " ");
+                let press_label = sticky_compact_label(&press_label, 8);
+                let press_text_rect = middle_rect.shrink2(egui::vec2(4.0, 2.0));
+                let press_font = FontId::proportional(if press_label.chars().count() > 8 {
+                    7.2
+                } else {
+                    8.2
+                });
+                painter.with_clip_rect(press_text_rect).text(
+                    press_text_rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    press_label,
+                    press_font,
+                    text_color,
+                );
+            } else {
+                let divider_half_width = (radius - 0.5).max(0.0);
+                painter.line_segment(
+                    [
+                        egui::pos2(center.x - divider_half_width, center.y),
+                        egui::pos2(center.x + divider_half_width, center.y),
+                    ],
+                    Stroke::new(1.0, outline),
+                );
+            }
         }
     }
 }
@@ -17325,6 +17530,53 @@ impl EntropyApp {
         if layout_h > avail.y {
             ui.allocate_space(Vec2::new(0.0, (layout_h - avail.y).max(0.0)));
         }
+    }
+}
+
+fn draw_sticky_encoder_arrow(
+    painter: &egui::Painter,
+    center: egui::Pos2,
+    encoder_radius: f32,
+    top: bool,
+    color: Color32,
+) {
+    let (start_deg, end_deg) = if top {
+        (240.0_f32, 300.0_f32)
+    } else {
+        (120.0_f32, 60.0_f32)
+    };
+    let r = encoder_radius * 1.22;
+    let mut points = Vec::new();
+    for step in 0..=12 {
+        let t = step as f32 / 12.0;
+        let deg = start_deg + (end_deg - start_deg) * t;
+        let rad = deg.to_radians();
+        points.push(egui::pos2(
+            center.x + rad.cos() * r,
+            center.y + rad.sin() * r,
+        ));
+    }
+    painter.add(egui::Shape::line(points.clone(), Stroke::new(1.7, color)));
+    if points.len() >= 2 {
+        let end = points[points.len() - 1];
+        let prev = points[points.len() - 2];
+        let dir = egui::vec2(end.x - prev.x, end.y - prev.y).normalized();
+        let left = egui::vec2(-dir.y, dir.x);
+        painter.add(egui::Shape::convex_polygon(
+            vec![
+                end,
+                egui::pos2(
+                    end.x - dir.x * 3.6 + left.x * 2.4,
+                    end.y - dir.y * 3.6 + left.y * 2.4,
+                ),
+                egui::pos2(
+                    end.x - dir.x * 3.6 - left.x * 2.4,
+                    end.y - dir.y * 3.6 - left.y * 2.4,
+                ),
+            ],
+            color,
+            Stroke::NONE,
+        ));
     }
 }
 
