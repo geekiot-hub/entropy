@@ -1230,6 +1230,8 @@ const LAYOUT_TOP_RESERVED_H: f32 = 32.0_f32 + 4.0_f32 + 68.0_f32;
 const LAYOUT_BOTTOM_RESERVED_H: f32 = 76.0_f32;
 const STICKY_LAYOUT_WINDOW_W: f32 = 720.0_f32;
 const STICKY_LAYOUT_WINDOW_H: f32 = 360.0_f32;
+const STICKY_LAYOUT_WINDOW_MARGIN: f32 = 2.0_f32;
+const STICKY_LAYOUT_KEYBOARD_MARGIN: f32 = 2.0_f32;
 
 #[derive(Clone, Copy)]
 struct LayoutGeometry {
@@ -7825,7 +7827,7 @@ impl EntropyApp {
 
                     let preview_size = ui.available_size().max(egui::vec2(1.0, 1.0));
                     let (preview_rect, _) = ui.allocate_exact_size(preview_size, Sense::hover());
-                    let rect = preview_rect.shrink2(egui::vec2(12.0, 10.0));
+                    let rect = preview_rect.shrink(STICKY_LAYOUT_WINDOW_MARGIN);
                     if let Some(layout) = &layout {
                         Self::paint_sticky_layout_preview(
                             ui,
@@ -7905,7 +7907,7 @@ impl EntropyApp {
     ) {
         let dark = ui.visuals().dark_mode;
         let painter = ui.painter_at(rect);
-        let keyboard_rect = rect.shrink2(egui::vec2(10.0, 8.0));
+        let keyboard_rect = rect.shrink(STICKY_LAYOUT_KEYBOARD_MARGIN);
         let geometry = preview_layout_geometry(ui.ctx(), layout, keyboard_rect, ui_scale);
         let outline = if dark {
             Color32::from_rgb(58, 58, 62)
