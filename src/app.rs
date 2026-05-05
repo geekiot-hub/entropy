@@ -3845,8 +3845,14 @@ impl EntropyApp {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn poll_matrix_tester(&mut self, ctx: &egui::Context, layout: &KeyboardLayout) {
-        if self.main_menu_tab != MainMenuTab::Settings || self.firmware != FirmwareProtocol::Vial {
+    fn poll_switch_matrix_state(
+        &mut self,
+        ctx: &egui::Context,
+        rows: usize,
+        cols: usize,
+        remember_ever_pressed: bool,
+    ) {
+        if self.firmware != FirmwareProtocol::Vial {
             return;
         }
         if self.unlock_open || self.vial_unlock_polling {
@@ -3859,15 +3865,17 @@ impl EntropyApp {
         let now = std::time::Instant::now();
         if now.duration_since(self.matrix_tester_last_poll) >= MATRIX_TESTER_POLL_INTERVAL {
             self.matrix_tester_last_poll = now;
-            match hid.get_switch_matrix(layout.rows, layout.cols) {
+            match hid.get_switch_matrix(rows, cols) {
                 Ok(pressed) => {
-                    if self.matrix_tester_ever_pressed.len() != pressed.len() {
-                        self.matrix_tester_ever_pressed = vec![false; pressed.len()];
-                    }
-                    for (idx, &is_pressed) in pressed.iter().enumerate() {
-                        if is_pressed {
-                            if let Some(seen) = self.matrix_tester_ever_pressed.get_mut(idx) {
-                                *seen = true;
+                    if remember_ever_pressed {
+                        if self.matrix_tester_ever_pressed.len() != pressed.len() {
+                            self.matrix_tester_ever_pressed = vec![false; pressed.len()];
+                        }
+                        for (idx, &is_pressed) in pressed.iter().enumerate() {
+                            if is_pressed {
+                                if let Some(seen) = self.matrix_tester_ever_pressed.get_mut(idx) {
+                                    *seen = true;
+                                }
                             }
                         }
                     }
@@ -3879,6 +3887,14 @@ impl EntropyApp {
             }
         }
         ctx.request_repaint_after(MATRIX_TESTER_POLL_INTERVAL);
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn poll_matrix_tester(&mut self, ctx: &egui::Context, layout: &KeyboardLayout) {
+        if self.main_menu_tab != MainMenuTab::Settings {
+            return;
+        }
+        self.poll_switch_matrix_state(ctx, layout.rows, layout.cols, true);
     }
 
     fn draw_settings_screen(
@@ -7756,6 +7772,15 @@ impl EntropyApp {
             return;
         }
 
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some((rows, cols)) = self
+            .layout
+            .as_ref()
+            .map(|layout| (layout.rows, layout.cols))
+        {
+            self.poll_switch_matrix_state(ctx, rows, cols, false);
+        }
+
         let viewport_id = egui::ViewportId::from_hash_of("entropy_sticky_layout_window");
         let lang = self.app_settings.language;
         let title = crate::i18n::tr_catalog(lang, "ui.sticky_layout_window_title").to_string();
@@ -7766,9 +7791,13 @@ impl EntropyApp {
         let key_legend_layout = self.app_settings.key_legend_layout;
         let show_shifted_number_symbols = self.app_settings.show_shifted_number_symbols;
         let encoder_visibility = self.encoder_visibility.clone();
+        let matrix_pressed = self.matrix_tester_pressed.clone();
+        let sticky_layer = layout
+            .as_ref()
+            .map(|layout| sticky_layout_active_layer(layout, &matrix_pressed))
+            .unwrap_or(0);
         let ui_scale = clamp_ui_scale(self.app_settings.ui_scale);
         let dark = self.dark_mode;
-        let mut selected_layer = self.selected_layer;
         let mut should_close = false;
 
         ctx.show_viewport_immediate(
@@ -7785,88 +7814,13 @@ impl EntropyApp {
                     return;
                 }
 
-                let draw_contents = |ui: &mut egui::Ui,
-                                     selected_layer: &mut usize,
-                                     should_close: &mut bool| {
+                let draw_contents = |ui: &mut egui::Ui, should_close: &mut bool| {
                     let panel_bg = app_panel_fill(dark);
                     ui.painter().rect_filled(ui.max_rect(), 0.0, panel_bg);
-                    ui.add_space(8.0);
+                    if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                        *should_close = true;
+                    }
 
-                    ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing.x = 8.0;
-                        let row_width = 34.0 + 8.0 + 260.0 + 8.0 + 34.0 + 8.0 + 34.0;
-                        ui.add_space(((ui.available_width() - row_width) * 0.5).max(0.0));
-                        let layer_count = layout
-                            .as_ref()
-                            .map(|layout| layout.layers.len().max(1))
-                            .unwrap_or(1);
-                        *selected_layer = (*selected_layer).min(layer_count.saturating_sub(1));
-
-                        let prev_enabled = layout.is_some() && *selected_layer > 0;
-                        if crate::ui_style::modern_button(
-                            ui,
-                            "‹",
-                            egui::vec2(34.0, 28.0),
-                            prev_enabled,
-                        )
-                        .clicked()
-                            && prev_enabled
-                        {
-                            *selected_layer -= 1;
-                        }
-
-                        let raw_layer_name = layer_names
-                            .get(*selected_layer)
-                            .map(|name| name.trim())
-                            .filter(|name| !name.is_empty() && *name != selected_layer.to_string())
-                            .unwrap_or("");
-                        let layer_title = if raw_layer_name.is_empty() {
-                            format!(
-                                "{} {}",
-                                crate::i18n::tr_catalog(lang, "ui.sticky_layout_layer"),
-                                *selected_layer
-                            )
-                        } else {
-                            format!(
-                                "{} {} · {}",
-                                crate::i18n::tr_catalog(lang, "ui.sticky_layout_layer"),
-                                *selected_layer,
-                                raw_layer_name
-                            )
-                        };
-                        ui.add_sized(
-                            egui::vec2(260.0, 28.0),
-                            egui::Label::new(RichText::new(layer_title).size(14.0).strong().color(
-                                if dark {
-                                    Color32::from_gray(235)
-                                } else {
-                                    Color32::from_gray(45)
-                                },
-                            )),
-                        );
-
-                        let next_enabled = layout.is_some() && *selected_layer + 1 < layer_count;
-                        if crate::ui_style::modern_button(
-                            ui,
-                            "›",
-                            egui::vec2(34.0, 28.0),
-                            next_enabled,
-                        )
-                        .clicked()
-                            && next_enabled
-                        {
-                            *selected_layer += 1;
-                        }
-
-                        if crate::ui_style::modern_button(ui, "×", egui::vec2(34.0, 28.0), true)
-                            .on_hover_text(crate::i18n::tr_catalog(lang, "common.close"))
-                            .clicked()
-                        {
-                            *should_close = true;
-                        }
-                    });
-
-                    ui.add_space(8.0);
                     let preview_size = ui.available_size().max(egui::vec2(1.0, 1.0));
                     let (preview_rect, _) = ui.allocate_exact_size(preview_size, Sense::hover());
                     let rect = preview_rect.shrink2(egui::vec2(12.0, 10.0));
@@ -7874,13 +7828,14 @@ impl EntropyApp {
                         Self::paint_sticky_layout_preview(
                             ui,
                             layout,
-                            *selected_layer,
+                            sticky_layer,
                             &layer_names,
                             &macro_names,
                             &tap_dance_names,
                             key_legend_layout,
                             show_shifted_number_symbols,
                             &encoder_visibility,
+                            &matrix_pressed,
                             ui_scale,
                             rect,
                         );
@@ -7909,7 +7864,7 @@ impl EntropyApp {
                         .default_size(egui::vec2(720.0, 360.0))
                         .resizable(true)
                         .show(viewport_ctx, |ui| {
-                            draw_contents(ui, &mut selected_layer, &mut should_close);
+                            draw_contents(ui, &mut should_close);
                         });
                     if !open {
                         should_close = true;
@@ -7918,13 +7873,12 @@ impl EntropyApp {
                     egui::CentralPanel::default()
                         .frame(egui::Frame::NONE.fill(app_panel_fill(dark)))
                         .show(viewport_ctx, |ui| {
-                            draw_contents(ui, &mut selected_layer, &mut should_close);
+                            draw_contents(ui, &mut should_close);
                         });
                 }
             },
         );
 
-        self.selected_layer = selected_layer.min(self.layer_count.saturating_sub(1));
         if should_close {
             self.app_settings.sticky_layout_window = false;
             save_app_settings(&self.app_settings);
@@ -7942,6 +7896,7 @@ impl EntropyApp {
         key_legend_layout: KeyLegendLayout,
         show_shifted_number_symbols: bool,
         encoder_visibility: &[bool],
+        matrix_pressed: &[bool],
         ui_scale: f32,
         rect: egui::Rect,
     ) {
@@ -8049,13 +8004,21 @@ impl EntropyApp {
             let key = &layout.keys[*ki];
             let kc = layout.get_keycode(layer, *ki);
             let is_transparent = kc == 0x0001;
-            let fill = if kc == 0x0000 { empty_fill } else { key_fill };
+            let is_pressed = layout_matrix_key_pressed(layout, matrix_pressed, key.row, key.col);
+            let fill = if is_pressed {
+                app_hover_fill(dark)
+            } else if kc == 0x0000 {
+                empty_fill
+            } else {
+                key_fill
+            };
+            let stroke = if is_pressed { app_accent() } else { outline };
             paint_layout_keycap(
                 &painter,
                 *key_rect,
                 key.rotation,
                 fill,
-                Stroke::new(1.0, outline),
+                Stroke::new(1.0, stroke),
             );
 
             if kc == 0x0000 {
@@ -8128,6 +8091,12 @@ impl EntropyApp {
                 .iter()
                 .find(|(_, press_rect)| press_rect.center().distance(center) < 1.0)
                 .map(|(press_ki, press_rect)| (*press_ki, *press_rect));
+            let press_is_pressed = press_slot
+                .map(|(press_ki, _)| {
+                    let key = &layout.keys[press_ki];
+                    layout_matrix_key_pressed(layout, matrix_pressed, key.row, key.col)
+                })
+                .unwrap_or(false);
 
             let (top_rect, middle_rect, bottom_rect) = if let Some((_, press_rect)) = press_slot {
                 let divider_gap = radius * 0.06;
@@ -8166,9 +8135,14 @@ impl EntropyApp {
                 .with_clip_rect(top_rect)
                 .circle_filled(center, fill_radius, key_fill);
             if let Some(middle_rect) = middle_rect {
+                let middle_fill = if press_is_pressed {
+                    app_hover_fill(dark)
+                } else {
+                    key_fill
+                };
                 painter
                     .with_clip_rect(middle_rect)
-                    .circle_filled(center, fill_radius, key_fill);
+                    .circle_filled(center, fill_radius, middle_fill);
             }
             painter
                 .with_clip_rect(bottom_rect)
@@ -17531,6 +17505,53 @@ impl EntropyApp {
             ui.allocate_space(Vec2::new(0.0, (layout_h - avail.y).max(0.0)));
         }
     }
+}
+
+fn layout_matrix_key_pressed(
+    layout: &KeyboardLayout,
+    matrix_pressed: &[bool],
+    row: u8,
+    col: u8,
+) -> bool {
+    matrix_pressed
+        .get(row as usize * layout.cols + col as usize)
+        .copied()
+        .unwrap_or(false)
+}
+
+fn layout_effective_keycode(layout: &KeyboardLayout, layer: usize, key_idx: usize) -> u16 {
+    let kc = layout.get_keycode(layer, key_idx);
+    if kc != 0x0001 {
+        return kc;
+    }
+
+    (0..layer)
+        .rev()
+        .map(|fallback_layer| layout.get_keycode(fallback_layer, key_idx))
+        .find(|fallback| *fallback != 0x0001)
+        .unwrap_or(0x0000)
+}
+
+fn sticky_layout_active_layer(layout: &KeyboardLayout, matrix_pressed: &[bool]) -> usize {
+    let layer_count = layout.layers.len().max(1);
+    let mut active_layer = 0usize;
+
+    for _ in 0..layer_count {
+        let next_layer = layout.keys.iter().enumerate().find_map(|(key_idx, key)| {
+            if !layout_matrix_key_pressed(layout, matrix_pressed, key.row, key.col) {
+                return None;
+            }
+            vial_layer_target(layout_effective_keycode(layout, active_layer, key_idx))
+                .filter(|target| *target < layer_count)
+        });
+
+        match next_layer {
+            Some(next_layer) if next_layer != active_layer => active_layer = next_layer,
+            _ => break,
+        }
+    }
+
+    active_layer
 }
 
 fn draw_sticky_encoder_arrow(
