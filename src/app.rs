@@ -1228,6 +1228,8 @@ const LAYOUT_ENCODER_RADIUS_FACTOR: f32 = 0.47_f32;
 const LAYOUT_ENCODER_FILL_EXTRA: f32 = 1.0_f32;
 const LAYOUT_TOP_RESERVED_H: f32 = 32.0_f32 + 4.0_f32 + 68.0_f32;
 const LAYOUT_BOTTOM_RESERVED_H: f32 = 76.0_f32;
+const STICKY_LAYOUT_WINDOW_W: f32 = 720.0_f32;
+const STICKY_LAYOUT_WINDOW_H: f32 = 360.0_f32;
 
 #[derive(Clone, Copy)]
 struct LayoutGeometry {
@@ -7804,8 +7806,8 @@ impl EntropyApp {
             viewport_id,
             egui::ViewportBuilder::default()
                 .with_title(title.clone())
-                .with_inner_size(egui::vec2(720.0, 360.0))
-                .with_min_inner_size(egui::vec2(460.0, 240.0))
+                .with_inner_size(egui::vec2(STICKY_LAYOUT_WINDOW_W, STICKY_LAYOUT_WINDOW_H))
+                .with_min_inner_size(egui::vec2(STICKY_LAYOUT_WINDOW_W, STICKY_LAYOUT_WINDOW_H))
                 .with_resizable(true)
                 .with_always_on_top(),
             |viewport_ctx, viewport_class| {
@@ -7861,7 +7863,8 @@ impl EntropyApp {
                     let mut open = true;
                     egui::Window::new(title.as_str())
                         .open(&mut open)
-                        .default_size(egui::vec2(720.0, 360.0))
+                        .default_size(egui::vec2(STICKY_LAYOUT_WINDOW_W, STICKY_LAYOUT_WINDOW_H))
+                        .min_size(egui::vec2(STICKY_LAYOUT_WINDOW_W, STICKY_LAYOUT_WINDOW_H))
                         .resizable(true)
                         .show(viewport_ctx, |ui| {
                             draw_contents(ui, &mut should_close);
