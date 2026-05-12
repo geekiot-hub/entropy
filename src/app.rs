@@ -6,6 +6,8 @@ static TRAY_QUIT_REQUESTED: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
 
 const MATRIX_TESTER_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(16);
+const MATRIX_TESTER_LOCK_CHECK_INTERVAL: std::time::Duration =
+    std::time::Duration::from_millis(750);
 const UI_SCALE_MIN: f32 = 0.5;
 const UI_SCALE_MAX: f32 = 2.0;
 const UI_SCALE_STEP: f32 = 0.1;
@@ -2650,6 +2652,7 @@ pub struct EntropyApp {
     sticky_layout_toggled_layers: Vec<bool>,
     sticky_layout_base_layer: usize,
     matrix_tester_last_poll: std::time::Instant,
+    matrix_tester_last_lock_check: std::time::Instant,
     matrix_tester_unlock_prompted: bool,
     matrix_tester_lock_checked: bool,
     macro_auto_unlock_cancelled: bool,
@@ -2777,6 +2780,8 @@ impl EntropyApp {
             sticky_layout_toggled_layers: Vec::new(),
             sticky_layout_base_layer: 0,
             matrix_tester_last_poll: std::time::Instant::now(),
+            matrix_tester_last_lock_check: std::time::Instant::now()
+                - MATRIX_TESTER_LOCK_CHECK_INTERVAL,
             matrix_tester_unlock_prompted: false,
             matrix_tester_lock_checked: false,
             macro_auto_unlock_cancelled: false,
@@ -3835,6 +3840,8 @@ impl EntropyApp {
         self.sticky_layout_toggled_layers.clear();
         self.sticky_layout_base_layer = 0;
         self.matrix_tester_last_poll = std::time::Instant::now() - MATRIX_TESTER_POLL_INTERVAL;
+        self.matrix_tester_last_lock_check =
+            std::time::Instant::now() - MATRIX_TESTER_LOCK_CHECK_INTERVAL;
         self.matrix_tester_unlock_prompted = false;
         self.matrix_tester_lock_checked = false;
     }
@@ -3851,6 +3858,39 @@ impl EntropyApp {
                 .map(|(unlocked, _)| unlocked)
                 .map(|unlocked| !unlocked)
                 .unwrap_or(false)
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn prompt_if_vial_locked_for_matrix_poll(&mut self) {
+        if self.firmware != FirmwareProtocol::Vial
+            || self.layout.is_none()
+            || self.hid_device.is_none()
+            || self.unlock_open
+            || self.vial_unlock_polling
+            || self.matrix_tester_unlock_prompted
+        {
+            return;
+        }
+
+        let now = std::time::Instant::now();
+        if self.matrix_tester_lock_checked
+            && now.duration_since(self.matrix_tester_last_lock_check)
+                < MATRIX_TESTER_LOCK_CHECK_INTERVAL
+        {
+            return;
+        }
+
+        self.matrix_tester_lock_checked = true;
+        self.matrix_tester_last_lock_check = now;
+        if self.is_vial_locked() {
+            self.unlock_open = true;
+            self.matrix_tester_unlock_prompted = true;
+            self.status_msg = crate::i18n::tr_catalog(
+                self.app_settings.language,
+                "matrix_tester.keyboard_is_locked_unlock_it_to_use_matrix_tester",
+            )
+            .into();
+        }
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -3939,6 +3979,9 @@ impl EntropyApp {
                 }
                 Err(e) => {
                     log::warn!("Matrix poll error: {e}");
+                    self.matrix_tester_lock_checked = false;
+                    self.matrix_tester_last_lock_check =
+                        std::time::Instant::now() - MATRIX_TESTER_LOCK_CHECK_INTERVAL;
                 }
             }
         }
@@ -6124,25 +6167,9 @@ impl EntropyApp {
             }
         };
 
-        if supported
-            && hid_ready
-            && !self.unlock_open
-            && !self.matrix_tester_unlock_prompted
-            && !self.matrix_tester_lock_checked
-        {
-            self.matrix_tester_lock_checked = true;
-            if self.is_vial_locked() {
-                self.unlock_open = true;
-                self.matrix_tester_unlock_prompted = true;
-                self.status_msg = crate::i18n::tr_catalog(
-                    self.app_settings.language,
-                    crate::i18n::tr_catalog(
-                        self.app_settings.language,
-                        "matrix_tester.keyboard_is_locked_unlock_it_to_use_matrix_tester",
-                    ),
-                )
-                .into();
-            }
+        if supported && hid_ready {
+            #[cfg(not(target_arch = "wasm32"))]
+            self.prompt_if_vial_locked_for_matrix_poll();
         }
 
         let total_keys = layout.keys.len();
@@ -7904,24 +7931,7 @@ impl EntropyApp {
         }
 
         #[cfg(not(target_arch = "wasm32"))]
-        if self.firmware == FirmwareProtocol::Vial
-            && self.layout.is_some()
-            && self.hid_device.is_some()
-            && !self.unlock_open
-            && !self.matrix_tester_unlock_prompted
-            && !self.matrix_tester_lock_checked
-        {
-            self.matrix_tester_lock_checked = true;
-            if self.is_vial_locked() {
-                self.unlock_open = true;
-                self.matrix_tester_unlock_prompted = true;
-                self.status_msg = crate::i18n::tr_catalog(
-                    self.app_settings.language,
-                    "matrix_tester.keyboard_is_locked_unlock_it_to_use_matrix_tester",
-                )
-                .into();
-            }
-        }
+        self.prompt_if_vial_locked_for_matrix_poll();
 
         #[cfg(not(target_arch = "wasm32"))]
         if let Some((rows, cols)) = self
