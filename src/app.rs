@@ -3830,6 +3830,10 @@ impl EntropyApp {
     fn reset_matrix_tester_state(&mut self) {
         self.matrix_tester_pressed.clear();
         self.matrix_tester_ever_pressed.clear();
+        self.sticky_layout_prev_pressed.clear();
+        self.sticky_layout_pressed_key_layers.clear();
+        self.sticky_layout_toggled_layers.clear();
+        self.sticky_layout_base_layer = 0;
         self.matrix_tester_last_poll = std::time::Instant::now() - MATRIX_TESTER_POLL_INTERVAL;
         self.matrix_tester_unlock_prompted = false;
         self.matrix_tester_lock_checked = false;
@@ -7897,6 +7901,26 @@ impl EntropyApp {
     fn draw_sticky_layout_window(&mut self, ctx: &egui::Context) {
         if !self.app_settings.sticky_layout_window {
             return;
+        }
+
+        #[cfg(not(target_arch = "wasm32"))]
+        if self.firmware == FirmwareProtocol::Vial
+            && self.layout.is_some()
+            && self.hid_device.is_some()
+            && !self.unlock_open
+            && !self.matrix_tester_unlock_prompted
+            && !self.matrix_tester_lock_checked
+        {
+            self.matrix_tester_lock_checked = true;
+            if self.is_vial_locked() {
+                self.unlock_open = true;
+                self.matrix_tester_unlock_prompted = true;
+                self.status_msg = crate::i18n::tr_catalog(
+                    self.app_settings.language,
+                    "matrix_tester.keyboard_is_locked_unlock_it_to_use_matrix_tester",
+                )
+                .into();
+            }
         }
 
         #[cfg(not(target_arch = "wasm32"))]
