@@ -2646,6 +2646,7 @@ pub struct EntropyApp {
     matrix_tester_pressed: Vec<bool>,
     matrix_tester_ever_pressed: Vec<bool>,
     sticky_layout_prev_pressed: Vec<bool>,
+    sticky_layout_pressed_key_layers: Vec<Option<usize>>,
     sticky_layout_toggled_layers: Vec<bool>,
     sticky_layout_base_layer: usize,
     matrix_tester_last_poll: std::time::Instant,
@@ -2772,6 +2773,7 @@ impl EntropyApp {
             matrix_tester_pressed: Vec::new(),
             matrix_tester_ever_pressed: Vec::new(),
             sticky_layout_prev_pressed: Vec::new(),
+            sticky_layout_pressed_key_layers: Vec::new(),
             sticky_layout_toggled_layers: Vec::new(),
             sticky_layout_base_layer: 0,
             matrix_tester_last_poll: std::time::Instant::now(),
@@ -2832,6 +2834,7 @@ impl EntropyApp {
         self.rgb_settings = RgbSettingsState::default();
         self.layout_options_value = None;
         self.sticky_layout_prev_pressed.clear();
+        self.sticky_layout_pressed_key_layers.clear();
         self.sticky_layout_toggled_layers.clear();
         self.sticky_layout_base_layer = 0;
         self.status_msg = status_msg.into();
@@ -3775,6 +3778,7 @@ impl EntropyApp {
                     .collect();
                 self.keycode_picker.layer_names = self.layer_names.clone();
                 self.sticky_layout_prev_pressed.clear();
+                self.sticky_layout_pressed_key_layers.clear();
                 self.sticky_layout_toggled_layers = vec![false; r.layout.layers.len().max(1)];
                 self.sticky_layout_base_layer = 0;
 
@@ -7822,6 +7826,9 @@ impl EntropyApp {
         if self.sticky_layout_prev_pressed.len() != pressed.len() {
             self.sticky_layout_prev_pressed = vec![false; pressed.len()];
         }
+        if self.sticky_layout_pressed_key_layers.len() != pressed.len() {
+            self.sticky_layout_pressed_key_layers = vec![None; pressed.len()];
+        }
         if self.sticky_layout_toggled_layers.len() != layer_count {
             self.sticky_layout_toggled_layers = vec![false; layer_count];
         }
@@ -7835,7 +7842,15 @@ impl EntropyApp {
                 .get(matrix_idx)
                 .copied()
                 .unwrap_or(false);
-            if !is_pressed || was_pressed {
+            if !is_pressed {
+                if let Some(source_layer) =
+                    self.sticky_layout_pressed_key_layers.get_mut(matrix_idx)
+                {
+                    *source_layer = None;
+                }
+                continue;
+            }
+            if was_pressed {
                 continue;
             }
 
@@ -7846,6 +7861,16 @@ impl EntropyApp {
                 self.sticky_layout_base_layer,
             );
             let kc = layout_effective_keycode(layout, layer_before, key_idx);
+            if sticky_momentary_layer_target(kc).is_some()
+                || sticky_toggle_layer_target(kc).is_some()
+                || sticky_base_layer_target(kc).is_some()
+            {
+                if let Some(source_layer) =
+                    self.sticky_layout_pressed_key_layers.get_mut(matrix_idx)
+                {
+                    *source_layer = Some(layer_before);
+                }
+            }
             if let Some(target) =
                 sticky_toggle_layer_target(kc).filter(|target| *target < layer_count)
             {
@@ -7898,6 +7923,7 @@ impl EntropyApp {
         let show_shifted_number_symbols = self.app_settings.show_shifted_number_symbols;
         let encoder_visibility = self.encoder_visibility.clone();
         let matrix_pressed = self.matrix_tester_pressed.clone();
+        let pressed_key_layers = self.sticky_layout_pressed_key_layers.clone();
         let ui_scale = clamp_ui_scale(self.app_settings.ui_scale);
         let dark = self.dark_mode;
         let mut should_close = false;
@@ -7938,6 +7964,7 @@ impl EntropyApp {
                             show_shifted_number_symbols,
                             &encoder_visibility,
                             &matrix_pressed,
+                            &pressed_key_layers,
                             ui_scale,
                             rect,
                         );
@@ -8000,6 +8027,7 @@ impl EntropyApp {
         show_shifted_number_symbols: bool,
         encoder_visibility: &[bool],
         matrix_pressed: &[bool],
+        pressed_key_layers: &[Option<usize>],
         ui_scale: f32,
         rect: egui::Rect,
     ) {
@@ -8105,9 +8133,19 @@ impl EntropyApp {
             }
 
             let key = &layout.keys[*ki];
-            let kc = layout.get_keycode(layer, *ki);
-            let is_transparent = kc == 0x0001;
+            let matrix_idx = key.row as usize * layout.cols + key.col as usize;
             let is_pressed = layout_matrix_key_pressed(layout, matrix_pressed, key.row, key.col);
+            let key_layer = if is_pressed {
+                pressed_key_layers
+                    .get(matrix_idx)
+                    .and_then(|source_layer| *source_layer)
+                    .filter(|source_layer| *source_layer < layout.layers.len())
+                    .unwrap_or(layer)
+            } else {
+                layer
+            };
+            let kc = layout.get_keycode(key_layer, *ki);
+            let is_transparent = kc == 0x0001;
             let fill = if is_pressed {
                 app_hover_fill(dark)
             } else if kc == 0x0000 {
@@ -8129,7 +8167,7 @@ impl EntropyApp {
             }
 
             let label_kc = if is_transparent {
-                (0..layer)
+                (0..key_layer)
                     .rev()
                     .map(|fallback_layer| layout.get_keycode(fallback_layer, *ki))
                     .find(|fallback| !matches!(*fallback, 0x0000 | 0x0001))
@@ -8330,9 +8368,16 @@ impl EntropyApp {
                 );
 
                 let press_label = {
-                    let kc = layout.get_keycode(layer, press_ki);
+                    let key = &layout.keys[press_ki];
+                    let matrix_idx = key.row as usize * layout.cols + key.col as usize;
+                    let press_layer = pressed_key_layers
+                        .get(matrix_idx)
+                        .and_then(|source_layer| *source_layer)
+                        .filter(|source_layer| *source_layer < layout.layers.len())
+                        .unwrap_or(layer);
+                    let kc = layout.get_keycode(press_layer, press_ki);
                     if kc == 0x0001 {
-                        let fallback_kc = (0..layer)
+                        let fallback_kc = (0..press_layer)
                             .rev()
                             .map(|fallback_layer| layout.get_keycode(fallback_layer, press_ki))
                             .find(|fallback| !matches!(*fallback, 0x0000 | 0x0001))
