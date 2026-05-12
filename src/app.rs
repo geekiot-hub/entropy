@@ -1556,6 +1556,38 @@ fn vial_layer_target(kc: u16) -> Option<usize> {
     }
 }
 
+fn vial_layer_op_target(kc: u16) -> Option<(u16, usize)> {
+    if (0x5200..0x5300).contains(&kc) {
+        let op = (kc >> 5) & 0x7;
+        (op != 5).then_some((op, (kc & 0x1F) as usize))
+    } else {
+        None
+    }
+}
+
+fn sticky_momentary_layer_target(kc: u16) -> Option<usize> {
+    if let Some((op, target)) = vial_layer_op_target(kc) {
+        return matches!(op, 1 | 4 | 6).then_some(target); // MO / OSL / TT while held
+    }
+    if kc & 0xF000 == 0x4000 {
+        return Some(((kc >> 8) & 0xF) as usize); // LT
+    }
+    if (0x5000..0x5200).contains(&kc) {
+        return Some(((kc >> 4) & 0xF) as usize); // LM
+    }
+    None
+}
+
+fn sticky_toggle_layer_target(kc: u16) -> Option<usize> {
+    // TG
+    vial_layer_op_target(kc).and_then(|(op, target)| (op == 3).then_some(target))
+}
+
+fn sticky_base_layer_target(kc: u16) -> Option<usize> {
+    // TO / DF / PDF
+    vial_layer_op_target(kc).and_then(|(op, target)| matches!(op, 0 | 2 | 7).then_some(target))
+}
+
 fn vial_layer_retarget_base(kc: u16) -> Option<u16> {
     if (0x5200..0x5300).contains(&kc) {
         let op = (kc >> 5) & 0x7;
@@ -2613,6 +2645,9 @@ pub struct EntropyApp {
     key_override_pick_target: Option<KeyOverridePickField>,
     matrix_tester_pressed: Vec<bool>,
     matrix_tester_ever_pressed: Vec<bool>,
+    sticky_layout_prev_pressed: Vec<bool>,
+    sticky_layout_toggled_layers: Vec<bool>,
+    sticky_layout_base_layer: usize,
     matrix_tester_last_poll: std::time::Instant,
     matrix_tester_unlock_prompted: bool,
     matrix_tester_lock_checked: bool,
@@ -2736,6 +2771,9 @@ impl EntropyApp {
             key_override_pick_target: None,
             matrix_tester_pressed: Vec::new(),
             matrix_tester_ever_pressed: Vec::new(),
+            sticky_layout_prev_pressed: Vec::new(),
+            sticky_layout_toggled_layers: Vec::new(),
+            sticky_layout_base_layer: 0,
             matrix_tester_last_poll: std::time::Instant::now(),
             matrix_tester_unlock_prompted: false,
             matrix_tester_lock_checked: false,
@@ -2793,6 +2831,9 @@ impl EntropyApp {
         self.layer_led_settings = LayerLedSettingsState::default();
         self.rgb_settings = RgbSettingsState::default();
         self.layout_options_value = None;
+        self.sticky_layout_prev_pressed.clear();
+        self.sticky_layout_toggled_layers.clear();
+        self.sticky_layout_base_layer = 0;
         self.status_msg = status_msg.into();
     }
 
@@ -3733,6 +3774,9 @@ impl EntropyApp {
                     })
                     .collect();
                 self.keycode_picker.layer_names = self.layer_names.clone();
+                self.sticky_layout_prev_pressed.clear();
+                self.sticky_layout_toggled_layers = vec![false; r.layout.layers.len().max(1)];
+                self.sticky_layout_base_layer = 0;
 
                 self.layout = Some(r.layout);
                 self.refresh_layer_picker_content_flags();
@@ -7771,6 +7815,60 @@ impl EntropyApp {
             });
     }
 
+    fn sync_sticky_layout_layer_state(&mut self, layout: &KeyboardLayout) -> usize {
+        let layer_count = layout.layers.len().max(1);
+        let pressed = self.matrix_tester_pressed.clone();
+
+        if self.sticky_layout_prev_pressed.len() != pressed.len() {
+            self.sticky_layout_prev_pressed = vec![false; pressed.len()];
+        }
+        if self.sticky_layout_toggled_layers.len() != layer_count {
+            self.sticky_layout_toggled_layers = vec![false; layer_count];
+        }
+        self.sticky_layout_base_layer = self.sticky_layout_base_layer.min(layer_count - 1);
+
+        for (key_idx, key) in layout.keys.iter().enumerate() {
+            let matrix_idx = key.row as usize * layout.cols + key.col as usize;
+            let is_pressed = pressed.get(matrix_idx).copied().unwrap_or(false);
+            let was_pressed = self
+                .sticky_layout_prev_pressed
+                .get(matrix_idx)
+                .copied()
+                .unwrap_or(false);
+            if !is_pressed || was_pressed {
+                continue;
+            }
+
+            let layer_before = sticky_layout_active_layer(
+                layout,
+                &self.sticky_layout_prev_pressed,
+                &self.sticky_layout_toggled_layers,
+                self.sticky_layout_base_layer,
+            );
+            let kc = layout_effective_keycode(layout, layer_before, key_idx);
+            if let Some(target) =
+                sticky_toggle_layer_target(kc).filter(|target| *target < layer_count)
+            {
+                if let Some(enabled) = self.sticky_layout_toggled_layers.get_mut(target) {
+                    *enabled = !*enabled;
+                }
+            } else if let Some(target) =
+                sticky_base_layer_target(kc).filter(|target| *target < layer_count)
+            {
+                self.sticky_layout_base_layer = target;
+                self.sticky_layout_toggled_layers.fill(false);
+            }
+        }
+
+        self.sticky_layout_prev_pressed = pressed;
+        sticky_layout_active_layer(
+            layout,
+            &self.matrix_tester_pressed,
+            &self.sticky_layout_toggled_layers,
+            self.sticky_layout_base_layer,
+        )
+    }
+
     fn draw_sticky_layout_window(&mut self, ctx: &egui::Context) {
         if !self.app_settings.sticky_layout_window {
             return;
@@ -7789,6 +7887,10 @@ impl EntropyApp {
         let lang = self.app_settings.language;
         let title = crate::i18n::tr_catalog(lang, "ui.sticky_layout_window_title").to_string();
         let layout = self.layout.clone();
+        let sticky_layer = layout
+            .as_ref()
+            .map(|layout| self.sync_sticky_layout_layer_state(layout))
+            .unwrap_or(0);
         let layer_names = self.layer_names.clone();
         let macro_names = self.keycode_picker.macro_names.clone();
         let tap_dance_names = self.keycode_picker.tap_dance_names.clone();
@@ -7796,10 +7898,6 @@ impl EntropyApp {
         let show_shifted_number_symbols = self.app_settings.show_shifted_number_symbols;
         let encoder_visibility = self.encoder_visibility.clone();
         let matrix_pressed = self.matrix_tester_pressed.clone();
-        let sticky_layer = layout
-            .as_ref()
-            .map(|layout| sticky_layout_active_layer(layout, &matrix_pressed))
-            .unwrap_or(0);
         let ui_scale = clamp_ui_scale(self.app_settings.ui_scale);
         let dark = self.dark_mode;
         let mut should_close = false;
@@ -17537,16 +17635,26 @@ fn layout_effective_keycode(layout: &KeyboardLayout, layer: usize, key_idx: usiz
         .unwrap_or(0x0000)
 }
 
-fn sticky_layout_active_layer(layout: &KeyboardLayout, matrix_pressed: &[bool]) -> usize {
+fn sticky_layout_active_layer(
+    layout: &KeyboardLayout,
+    matrix_pressed: &[bool],
+    toggled_layers: &[bool],
+    base_layer: usize,
+) -> usize {
     let layer_count = layout.layers.len().max(1);
-    let mut active_layer = 0usize;
+    let mut active_layer = toggled_layers
+        .iter()
+        .enumerate()
+        .rev()
+        .find_map(|(layer, enabled)| (*enabled && layer < layer_count).then_some(layer))
+        .unwrap_or_else(|| base_layer.min(layer_count - 1));
 
     for _ in 0..layer_count {
         let next_layer = layout.keys.iter().enumerate().find_map(|(key_idx, key)| {
             if !layout_matrix_key_pressed(layout, matrix_pressed, key.row, key.col) {
                 return None;
             }
-            vial_layer_target(layout_effective_keycode(layout, active_layer, key_idx))
+            sticky_momentary_layer_target(layout_effective_keycode(layout, active_layer, key_idx))
                 .filter(|target| *target < layer_count)
         });
 
