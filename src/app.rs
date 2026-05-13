@@ -1274,9 +1274,9 @@ const LAYOUT_TOP_RESERVED_H: f32 = 32.0_f32 + 4.0_f32 + 68.0_f32;
 const LAYOUT_BOTTOM_RESERVED_H: f32 = 76.0_f32;
 const STICKY_LAYOUT_WINDOW_W: f32 = 1440.0_f32;
 const STICKY_LAYOUT_WINDOW_H: f32 = 720.0_f32;
-const STICKY_LAYOUT_WINDOW_MARGIN: f32 = 2.0_f32;
+const STICKY_LAYOUT_WINDOW_MARGIN: f32 = 1.0_f32;
 const STICKY_LAYOUT_WINDOW_TITLE_H: f32 = 34.0_f32;
-const STICKY_LAYOUT_KEYBOARD_MARGIN: f32 = 2.0_f32;
+const STICKY_LAYOUT_KEYBOARD_MARGIN: f32 = 1.0_f32;
 
 #[derive(Clone, Copy)]
 enum StickyLayoutWindowButton {
@@ -1509,6 +1509,7 @@ fn layout_geometry(
         LAYOUT_TOP_RESERVED_H,
         LAYOUT_BOTTOM_RESERVED_H,
         LAYOUT_FIT_MARGIN,
+        None,
     )
 }
 
@@ -1518,7 +1519,16 @@ fn preview_layout_geometry(
     viewport: egui::Rect,
     ui_scale: f32,
 ) -> LayoutGeometry {
-    layout_geometry_with_reserved(ctx, layout, viewport, ui_scale, 8.0, 8.0, 24.0)
+    layout_geometry_with_reserved(
+        ctx,
+        layout,
+        viewport,
+        ui_scale,
+        2.0,
+        2.0,
+        6.0,
+        Some(f32::INFINITY),
+    )
 }
 
 fn layout_geometry_with_reserved(
@@ -1529,6 +1539,7 @@ fn layout_geometry_with_reserved(
     top_reserved: f32,
     bottom_reserved: f32,
     fit_margin: f32,
+    max_scale_override: Option<f32>,
 ) -> LayoutGeometry {
     let mut min_x: f32 = f32::MAX;
     let mut min_y: f32 = f32::MAX;
@@ -1559,7 +1570,8 @@ fn layout_geometry_with_reserved(
     let fit_height = viewport.height() * ui_scale;
     let scale_x = (fit_width - fit_margin) / (span_x * LAYOUT_BASE_UNIT).max(1.0);
     let scale_y = (fit_height - fit_margin) / (span_y * LAYOUT_BASE_UNIT).max(1.0);
-    let max_scale = responsive_layout_max_scale(ctx, viewport);
+    let max_scale =
+        max_scale_override.unwrap_or_else(|| responsive_layout_max_scale(ctx, viewport));
     let scale = scale_x.min(scale_y).min(max_scale);
     let unit = LAYOUT_BASE_UNIT * scale;
     let layout_w = span_x * unit;
