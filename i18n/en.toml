@@ -125,6 +125,7 @@ sticky_layout_window_tooltip = "Show a sticky note-style keyboard layout compani
 sticky_layout_window_title = "Entropy Layout"
 sticky_layout_window_pin_tooltip = "Keep above other windows"
 sticky_layout_window_close_tooltip = "Close sticky window"
+sticky_layout_transparency_short = "Transp."
 sticky_layout_layer = "Layer"
 sticky_layout_no_keyboard = "Connect a keyboard to show its layout"
 accent_color_label = "Accent color"
