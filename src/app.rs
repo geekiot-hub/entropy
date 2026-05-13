@@ -335,6 +335,8 @@ struct AppSettings {
     sticky_layout_always_on_top: bool,
     #[serde(default = "default_sticky_layout_opacity")]
     sticky_layout_opacity: f32,
+    #[serde(default)]
+    sticky_layout_dark_mode: bool,
     #[serde(default = "crate::i18n::default_language")]
     language: crate::i18n::Language,
     #[serde(default = "default_encoder_hover_enlarge")]
@@ -618,6 +620,7 @@ impl Default for AppSettings {
             sticky_layout_window: false,
             sticky_layout_always_on_top: default_sticky_layout_always_on_top(),
             sticky_layout_opacity: default_sticky_layout_opacity(),
+            sticky_layout_dark_mode: false,
             language: crate::i18n::default_language(),
             encoder_hover_enlarge: default_encoder_hover_enlarge(),
             key_legend_layout: KeyLegendLayout::default(),
@@ -1272,8 +1275,8 @@ const LAYOUT_ENCODER_RADIUS_FACTOR: f32 = 0.47_f32;
 const LAYOUT_ENCODER_FILL_EXTRA: f32 = 1.0_f32;
 const LAYOUT_TOP_RESERVED_H: f32 = 32.0_f32 + 4.0_f32 + 68.0_f32;
 const LAYOUT_BOTTOM_RESERVED_H: f32 = 76.0_f32;
-const STICKY_LAYOUT_WINDOW_W: f32 = 1440.0_f32;
-const STICKY_LAYOUT_WINDOW_H: f32 = 720.0_f32;
+const STICKY_LAYOUT_WINDOW_W: f32 = 720.0_f32;
+const STICKY_LAYOUT_WINDOW_H: f32 = 360.0_f32;
 const STICKY_LAYOUT_WINDOW_MARGIN: f32 = 1.0_f32;
 const STICKY_LAYOUT_WINDOW_TITLE_H: f32 = 34.0_f32;
 const STICKY_LAYOUT_KEYBOARD_MARGIN: f32 = 1.0_f32;
@@ -1332,6 +1335,7 @@ fn draw_theme_selector_labels(
 fn draw_sticky_layout_transparency_dropdown(
     ui: &mut egui::Ui,
     lang: crate::i18n::Language,
+    dark: bool,
     opacity: &mut f32,
 ) -> bool {
     const OPACITY_VALUES: [f32; 6] = [1.0, 0.90, 0.80, 0.70, 0.60, 0.50];
@@ -1360,7 +1364,11 @@ fn draw_sticky_layout_transparency_dropdown(
         ui,
         dropdown_id,
         &selected_text,
-        ui.visuals().text_color(),
+        if dark {
+            Color32::from_rgb(235, 235, 235)
+        } else {
+            Color32::from_rgb(42, 42, 44)
+        },
         width,
         24.0,
         11.0,
@@ -1388,7 +1396,7 @@ fn draw_sticky_layout_transparency_dropdown(
                     ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                 }
                 let option_fill = if selected || option_resp.hovered() {
-                    app_hover_fill(ui.visuals().dark_mode)
+                    app_hover_fill(dark)
                 } else {
                     Color32::TRANSPARENT
                 };
@@ -1399,9 +1407,13 @@ fn draw_sticky_layout_transparency_dropdown(
                     option_text,
                     FontId::proportional(11.0),
                     if selected {
-                        ui.visuals().text_color()
+                        if dark {
+                            Color32::from_rgb(235, 235, 235)
+                        } else {
+                            Color32::from_rgb(42, 42, 44)
+                        }
                     } else {
-                        app_muted_text(ui.visuals().dark_mode)
+                        app_muted_text(dark)
                     },
                 );
                 if option_resp.clicked() {
@@ -1418,11 +1430,11 @@ fn draw_sticky_layout_transparency_dropdown(
 
 fn sticky_layout_window_icon_button(
     ui: &mut egui::Ui,
+    dark: bool,
     kind: StickyLayoutWindowButton,
     active: bool,
     tooltip: &str,
 ) -> egui::Response {
-    let dark = ui.visuals().dark_mode;
     let (rect, response) = ui.allocate_exact_size(Vec2::splat(26.0), Sense::click());
     let response = response.on_hover_text(tooltip);
     if response.hovered() {
@@ -8230,8 +8242,8 @@ impl EntropyApp {
         let matrix_pressed = self.matrix_tester_pressed.clone();
         let pressed_key_layers = self.sticky_layout_pressed_key_layers.clone();
         let ui_scale = clamp_ui_scale(self.app_settings.ui_scale);
-        let dark = self.dark_mode;
-        let mut sticky_dark_mode = self.dark_mode;
+        let dark = self.app_settings.sticky_layout_dark_mode;
+        let mut sticky_dark_mode = self.app_settings.sticky_layout_dark_mode;
         let mut sticky_opacity =
             clamp_sticky_layout_opacity(self.app_settings.sticky_layout_opacity);
         let mut sticky_always_on_top = self.app_settings.sticky_layout_always_on_top;
@@ -8309,6 +8321,7 @@ impl EntropyApp {
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             if sticky_layout_window_icon_button(
                                 ui,
+                                dark,
                                 StickyLayoutWindowButton::Close,
                                 false,
                                 crate::i18n::tr_catalog(
@@ -8323,6 +8336,7 @@ impl EntropyApp {
                             ui.add_space(4.0);
                             if sticky_layout_window_icon_button(
                                 ui,
+                                dark,
                                 StickyLayoutWindowButton::Pin,
                                 sticky_always_on_top,
                                 crate::i18n::tr_catalog(
@@ -8364,6 +8378,7 @@ impl EntropyApp {
                             &matrix_pressed,
                             &pressed_key_layers,
                             ui_scale,
+                            dark,
                             rect,
                         );
                     } else {
@@ -8388,7 +8403,12 @@ impl EntropyApp {
                         egui::vec2(108.0, 24.0),
                     );
                     ui.allocate_ui_at_rect(transparency_rect, |ui| {
-                        if draw_sticky_layout_transparency_dropdown(ui, lang, &mut sticky_opacity) {
+                        if draw_sticky_layout_transparency_dropdown(
+                            ui,
+                            lang,
+                            dark,
+                            &mut sticky_opacity,
+                        ) {
                             should_save_settings = true;
                         }
                     });
@@ -8459,8 +8479,9 @@ impl EntropyApp {
             self.app_settings.sticky_layout_window = false;
             should_save_settings = true;
         }
-        if self.dark_mode != sticky_dark_mode {
-            self.dark_mode = sticky_dark_mode;
+        if self.app_settings.sticky_layout_dark_mode != sticky_dark_mode {
+            self.app_settings.sticky_layout_dark_mode = sticky_dark_mode;
+            should_save_settings = true;
         }
         sticky_opacity = clamp_sticky_layout_opacity(sticky_opacity);
         if (self.app_settings.sticky_layout_opacity - sticky_opacity).abs() > f32::EPSILON {
@@ -8490,9 +8511,9 @@ impl EntropyApp {
         matrix_pressed: &[bool],
         pressed_key_layers: &[Option<usize>],
         ui_scale: f32,
+        dark: bool,
         rect: egui::Rect,
     ) {
-        let dark = ui.visuals().dark_mode;
         let painter = ui.painter_at(rect);
         let keyboard_rect = rect.shrink(STICKY_LAYOUT_KEYBOARD_MARGIN);
         let geometry = preview_layout_geometry(ui.ctx(), layout, keyboard_rect, ui_scale);
