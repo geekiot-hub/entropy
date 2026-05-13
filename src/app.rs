@@ -385,6 +385,26 @@ fn clamp_sticky_layout_opacity(opacity: f32) -> f32 {
     }
 }
 
+#[cfg(target_os = "windows")]
+fn set_windows_window_opacity_by_title(title: &str, opacity: f32) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        FindWindowW, GetWindowLongPtrW, SetLayeredWindowAttributes, SetWindowLongPtrW, GWL_EXSTYLE,
+        LWA_ALPHA, WS_EX_LAYERED,
+    };
+
+    let alpha = (clamp_sticky_layout_opacity(opacity) * 255.0).round() as u8;
+    let title_wide: Vec<u16> = title.encode_utf16().chain(std::iter::once(0)).collect();
+    unsafe {
+        let hwnd = FindWindowW(std::ptr::null(), title_wide.as_ptr());
+        if hwnd.is_null() {
+            return;
+        }
+        let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex_style | WS_EX_LAYERED as isize);
+        SetLayeredWindowAttributes(hwnd, 0, alpha, LWA_ALPHA);
+    }
+}
+
 fn default_app_accent_color() -> AppAccentColor {
     AppAccentColor::Rose
 }
@@ -8214,7 +8234,6 @@ impl EntropyApp {
                 .with_min_inner_size(egui::vec2(STICKY_LAYOUT_WINDOW_W, STICKY_LAYOUT_WINDOW_H))
                 .with_resizable(true)
                 .with_decorations(false)
-                .with_transparent(true)
                 .with_window_level(if sticky_always_on_top {
                     egui::WindowLevel::AlwaysOnTop
                 } else {
@@ -8227,7 +8246,10 @@ impl EntropyApp {
                 }
 
                 let mut draw_contents = |ui: &mut egui::Ui, should_close: &mut bool| {
+                    #[cfg(not(target_os = "windows"))]
                     ui.set_opacity(sticky_opacity);
+                    #[cfg(target_os = "windows")]
+                    set_windows_window_opacity_by_title(&title, sticky_opacity);
                     let panel_bg = app_panel_fill(dark);
                     let full_rect = ui.max_rect();
                     ui.painter().rect_filled(full_rect, 12.0, panel_bg);
@@ -8356,9 +8378,6 @@ impl EntropyApp {
                     ui.allocate_ui_at_rect(transparency_rect, |ui| {
                         if draw_sticky_layout_transparency_dropdown(ui, lang, &mut sticky_opacity) {
                             should_save_settings = true;
-                            viewport_ctx.send_viewport_cmd(egui::ViewportCommand::Transparent(
-                                sticky_opacity < 1.0,
-                            ));
                         }
                     });
 
@@ -8867,8 +8886,8 @@ impl EntropyApp {
 }
 
 impl eframe::App for EntropyApp {
-    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
-        Color32::TRANSPARENT.to_normalized_gamma_f32()
+    fn clear_color(&self, visuals: &egui::Visuals) -> [f32; 4] {
+        app_panel_fill(visuals.dark_mode).to_normalized_gamma_f32()
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
