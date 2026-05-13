@@ -2988,6 +2988,7 @@ pub struct EntropyApp {
     sticky_layout_toggled_layers: Vec<bool>,
     sticky_layout_base_layer: usize,
     sticky_layout_last_size: Option<Vec2>,
+    sticky_layout_resize_start_size: Option<Vec2>,
     matrix_tester_last_poll: std::time::Instant,
     matrix_tester_last_lock_check: std::time::Instant,
     matrix_tester_unlock_prompted: bool,
@@ -3117,6 +3118,7 @@ impl EntropyApp {
             sticky_layout_toggled_layers: Vec::new(),
             sticky_layout_base_layer: 0,
             sticky_layout_last_size: None,
+            sticky_layout_resize_start_size: None,
             matrix_tester_last_poll: std::time::Instant::now(),
             matrix_tester_last_lock_check: std::time::Instant::now()
                 - MATRIX_TESTER_LOCK_CHECK_INTERVAL,
@@ -8320,9 +8322,15 @@ impl EntropyApp {
         let mut sticky_opacity =
             clamp_sticky_layout_opacity(self.app_settings.sticky_layout_opacity);
         let mut sticky_always_on_top = self.app_settings.sticky_layout_always_on_top;
-        let sticky_window_size = sticky_layout_saved_window_size(&self.app_settings);
-        let sticky_previous_size = self.sticky_layout_last_size.unwrap_or(sticky_window_size);
+        let saved_sticky_window_size = sticky_layout_saved_window_size(&self.app_settings);
+        let sticky_window_size = sticky_layout_aspect_adjusted_window_size(
+            layout.as_ref(),
+            saved_sticky_window_size,
+            saved_sticky_window_size,
+        );
         let mut observed_sticky_size: Option<Vec2> = None;
+        let mut requested_sticky_size: Option<Vec2> = None;
+        let mut resize_start_size = self.sticky_layout_resize_start_size;
         let mut should_close = false;
         let mut should_save_settings = false;
 
@@ -8352,24 +8360,12 @@ impl EntropyApp {
                         && current_size.x > 0.0
                         && current_size.y > 0.0
                     {
-                        let adjusted_size = sticky_layout_aspect_adjusted_window_size(
-                            layout.as_ref(),
-                            current_size,
-                            sticky_previous_size,
-                        );
-                        if (adjusted_size.x - current_size.x).abs() > 1.5
-                            || (adjusted_size.y - current_size.y).abs() > 1.5
-                        {
-                            viewport_ctx
-                                .send_viewport_cmd(egui::ViewportCommand::InnerSize(adjusted_size));
-                            observed_sticky_size = Some(adjusted_size);
-                        } else {
-                            observed_sticky_size = Some(current_size);
-                        }
+                        observed_sticky_size = Some(current_size);
                     }
                 }
 
                 let mut draw_contents = |ui: &mut egui::Ui, should_close: &mut bool| {
+                    ui.visuals_mut().dark_mode = dark;
                     #[cfg(not(target_os = "windows"))]
                     ui.set_opacity(sticky_opacity);
                     #[cfg(target_os = "windows")]
@@ -8536,9 +8532,23 @@ impl EntropyApp {
                         ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeSouthEast);
                     }
                     if resize_resp.drag_started() {
-                        viewport_ctx.send_viewport_cmd(egui::ViewportCommand::BeginResize(
-                            egui::ResizeDirection::SouthEast,
-                        ));
+                        resize_start_size = Some(observed_sticky_size.unwrap_or(full_rect.size()));
+                    }
+                    if resize_resp.dragged() {
+                        let start_size = resize_start_size.unwrap_or(full_rect.size());
+                        let requested_size = start_size + resize_resp.drag_delta();
+                        let adjusted_size = sticky_layout_aspect_adjusted_window_size(
+                            layout.as_ref(),
+                            requested_size,
+                            start_size,
+                        );
+                        viewport_ctx
+                            .send_viewport_cmd(egui::ViewportCommand::InnerSize(adjusted_size));
+                        requested_sticky_size = Some(adjusted_size);
+                        observed_sticky_size = Some(adjusted_size);
+                    }
+                    if resize_resp.drag_stopped() {
+                        resize_start_size = None;
                     }
                     let grip_color = app_muted_text(dark);
                     for offset in [6.0, 11.0, 16.0] {
@@ -8575,7 +8585,8 @@ impl EntropyApp {
             },
         );
 
-        if let Some(size) = observed_sticky_size {
+        self.sticky_layout_resize_start_size = resize_start_size;
+        if let Some(size) = requested_sticky_size.or(observed_sticky_size) {
             self.sticky_layout_last_size = Some(size);
             let saved_size = sticky_layout_saved_window_size(&self.app_settings);
             if (saved_size.x - size.x).abs() > 1.0 || (saved_size.y - size.y).abs() > 1.0 {
