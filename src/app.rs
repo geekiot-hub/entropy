@@ -8231,6 +8231,13 @@ impl EntropyApp {
                     let panel_bg = app_panel_fill(dark);
                     let full_rect = ui.max_rect();
                     ui.painter().rect_filled(full_rect, 12.0, panel_bg);
+                    ui.painter().rect(
+                        full_rect.shrink(0.5),
+                        12.0,
+                        Color32::TRANSPARENT,
+                        Stroke::new(1.0, app_border_color(dark)),
+                        egui::StrokeKind::Inside,
+                    );
                     if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
                         *should_close = true;
                     }
@@ -8860,6 +8867,10 @@ impl EntropyApp {
 }
 
 impl eframe::App for EntropyApp {
+    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
+        Color32::TRANSPARENT.to_normalized_gamma_f32()
+    }
+
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
         #[cfg(not(target_arch = "wasm32"))]
         self.fallback_entropy_display_presets_before_exit();
