@@ -337,6 +337,8 @@ struct AppSettings {
     sticky_layout_opacity: f32,
     #[serde(default)]
     sticky_layout_dark_mode: bool,
+    #[serde(default)]
+    sticky_layout_window_size: Option<[f32; 2]>,
     #[serde(default = "crate::i18n::default_language")]
     language: crate::i18n::Language,
     #[serde(default = "default_encoder_hover_enlarge")]
@@ -621,6 +623,7 @@ impl Default for AppSettings {
             sticky_layout_always_on_top: default_sticky_layout_always_on_top(),
             sticky_layout_opacity: default_sticky_layout_opacity(),
             sticky_layout_dark_mode: false,
+            sticky_layout_window_size: None,
             language: crate::i18n::default_language(),
             encoder_hover_enlarge: default_encoder_hover_enlarge(),
             key_legend_layout: KeyLegendLayout::default(),
@@ -1541,6 +1544,74 @@ fn preview_layout_geometry(
         6.0,
         Some(f32::INFINITY),
     )
+}
+
+fn sticky_layout_default_window_size() -> Vec2 {
+    egui::vec2(STICKY_LAYOUT_WINDOW_W, STICKY_LAYOUT_WINDOW_H)
+}
+
+fn sticky_layout_saved_window_size(settings: &AppSettings) -> Vec2 {
+    settings
+        .sticky_layout_window_size
+        .map(|[w, h]| egui::vec2(w.max(STICKY_LAYOUT_WINDOW_W), h.max(STICKY_LAYOUT_WINDOW_H)))
+        .unwrap_or_else(sticky_layout_default_window_size)
+}
+
+fn sticky_layout_content_aspect(layout: Option<&KeyboardLayout>) -> f32 {
+    let Some(layout) = layout else {
+        return STICKY_LAYOUT_WINDOW_W / (STICKY_LAYOUT_WINDOW_H - STICKY_LAYOUT_WINDOW_TITLE_H);
+    };
+    let mut min_x: f32 = f32::MAX;
+    let mut min_y: f32 = f32::MAX;
+    let mut max_x: f32 = f32::MIN;
+    let mut max_y: f32 = f32::MIN;
+    for key in &layout.keys {
+        min_x = min_x.min(key.x);
+        min_y = min_y.min(key.y);
+        max_x = max_x.max(key.x + key.w);
+        max_y = max_y.max(key.y + key.h);
+    }
+    for encoder in &layout.encoders {
+        min_x = min_x.min(encoder.x);
+        min_y = min_y.min(encoder.y);
+        max_x = max_x.max(encoder.x + encoder.w);
+        max_y = max_y.max(encoder.y + encoder.h);
+    }
+    if min_x == f32::MAX {
+        return STICKY_LAYOUT_WINDOW_W / (STICKY_LAYOUT_WINDOW_H - STICKY_LAYOUT_WINDOW_TITLE_H);
+    }
+    ((max_x - min_x) / (max_y - min_y).max(0.1)).clamp(0.4, 8.0)
+}
+
+fn sticky_layout_aspect_adjusted_window_size(
+    layout: Option<&KeyboardLayout>,
+    requested: Vec2,
+    previous: Vec2,
+) -> Vec2 {
+    let min_size = sticky_layout_default_window_size();
+    let requested = egui::vec2(requested.x.max(min_size.x), requested.y.max(min_size.y));
+    let content_aspect = sticky_layout_content_aspect(layout);
+    let width_changed = (requested.x - previous.x).abs() >= (requested.y - previous.y).abs();
+    let mut size = if width_changed {
+        egui::vec2(
+            requested.x,
+            (requested.x / content_aspect) + STICKY_LAYOUT_WINDOW_TITLE_H,
+        )
+    } else {
+        egui::vec2(
+            ((requested.y - STICKY_LAYOUT_WINDOW_TITLE_H).max(1.0)) * content_aspect,
+            requested.y,
+        )
+    };
+    if size.x < min_size.x {
+        size.x = min_size.x;
+        size.y = (size.x / content_aspect) + STICKY_LAYOUT_WINDOW_TITLE_H;
+    }
+    if size.y < min_size.y {
+        size.y = min_size.y;
+        size.x = ((size.y - STICKY_LAYOUT_WINDOW_TITLE_H).max(1.0)) * content_aspect;
+    }
+    size
 }
 
 fn layout_geometry_with_reserved(
@@ -2916,6 +2987,7 @@ pub struct EntropyApp {
     sticky_layout_pressed_key_layers: Vec<Option<usize>>,
     sticky_layout_toggled_layers: Vec<bool>,
     sticky_layout_base_layer: usize,
+    sticky_layout_last_size: Option<Vec2>,
     matrix_tester_last_poll: std::time::Instant,
     matrix_tester_last_lock_check: std::time::Instant,
     matrix_tester_unlock_prompted: bool,
@@ -3044,6 +3116,7 @@ impl EntropyApp {
             sticky_layout_pressed_key_layers: Vec::new(),
             sticky_layout_toggled_layers: Vec::new(),
             sticky_layout_base_layer: 0,
+            sticky_layout_last_size: None,
             matrix_tester_last_poll: std::time::Instant::now(),
             matrix_tester_last_lock_check: std::time::Instant::now()
                 - MATRIX_TESTER_LOCK_CHECK_INTERVAL,
@@ -8247,6 +8320,9 @@ impl EntropyApp {
         let mut sticky_opacity =
             clamp_sticky_layout_opacity(self.app_settings.sticky_layout_opacity);
         let mut sticky_always_on_top = self.app_settings.sticky_layout_always_on_top;
+        let sticky_window_size = sticky_layout_saved_window_size(&self.app_settings);
+        let sticky_previous_size = self.sticky_layout_last_size.unwrap_or(sticky_window_size);
+        let mut observed_sticky_size: Option<Vec2> = None;
         let mut should_close = false;
         let mut should_save_settings = false;
 
@@ -8254,8 +8330,8 @@ impl EntropyApp {
             viewport_id,
             egui::ViewportBuilder::default()
                 .with_title(title.clone())
-                .with_inner_size(egui::vec2(STICKY_LAYOUT_WINDOW_W, STICKY_LAYOUT_WINDOW_H))
-                .with_min_inner_size(egui::vec2(STICKY_LAYOUT_WINDOW_W, STICKY_LAYOUT_WINDOW_H))
+                .with_inner_size(sticky_window_size)
+                .with_min_inner_size(sticky_layout_default_window_size())
                 .with_resizable(true)
                 .with_decorations(false)
                 .with_window_level(if sticky_always_on_top {
@@ -8267,6 +8343,30 @@ impl EntropyApp {
                 if viewport_ctx.input(|i| i.viewport().close_requested()) {
                     should_close = true;
                     return;
+                }
+
+                if let Some(current_rect) = viewport_ctx.input(|i| i.viewport().inner_rect) {
+                    let current_size = current_rect.size();
+                    if current_size.x.is_finite()
+                        && current_size.y.is_finite()
+                        && current_size.x > 0.0
+                        && current_size.y > 0.0
+                    {
+                        let adjusted_size = sticky_layout_aspect_adjusted_window_size(
+                            layout.as_ref(),
+                            current_size,
+                            sticky_previous_size,
+                        );
+                        if (adjusted_size.x - current_size.x).abs() > 1.5
+                            || (adjusted_size.y - current_size.y).abs() > 1.5
+                        {
+                            viewport_ctx
+                                .send_viewport_cmd(egui::ViewportCommand::InnerSize(adjusted_size));
+                            observed_sticky_size = Some(adjusted_size);
+                        } else {
+                            observed_sticky_size = Some(current_size);
+                        }
+                    }
                 }
 
                 let mut draw_contents = |ui: &mut egui::Ui, should_close: &mut bool| {
@@ -8456,8 +8556,8 @@ impl EntropyApp {
                     let mut open = true;
                     egui::Window::new(title.as_str())
                         .open(&mut open)
-                        .default_size(egui::vec2(STICKY_LAYOUT_WINDOW_W, STICKY_LAYOUT_WINDOW_H))
-                        .min_size(egui::vec2(STICKY_LAYOUT_WINDOW_W, STICKY_LAYOUT_WINDOW_H))
+                        .default_size(sticky_window_size)
+                        .min_size(sticky_layout_default_window_size())
                         .resizable(true)
                         .show(viewport_ctx, |ui| {
                             draw_contents(ui, &mut should_close);
@@ -8474,6 +8574,15 @@ impl EntropyApp {
                 }
             },
         );
+
+        if let Some(size) = observed_sticky_size {
+            self.sticky_layout_last_size = Some(size);
+            let saved_size = sticky_layout_saved_window_size(&self.app_settings);
+            if (saved_size.x - size.x).abs() > 1.0 || (saved_size.y - size.y).abs() > 1.0 {
+                self.app_settings.sticky_layout_window_size = Some([size.x, size.y]);
+                should_save_settings = true;
+            }
+        }
 
         if should_close {
             self.app_settings.sticky_layout_window = false;
