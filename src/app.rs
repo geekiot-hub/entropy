@@ -379,7 +379,7 @@ fn default_sticky_layout_opacity() -> f32 {
 
 fn clamp_sticky_layout_opacity(opacity: f32) -> f32 {
     if opacity.is_finite() {
-        opacity.clamp(0.55, 1.0)
+        opacity.clamp(0.10, 1.0)
     } else {
         default_sticky_layout_opacity()
     }
@@ -1334,7 +1334,7 @@ fn draw_sticky_layout_transparency_dropdown(
     lang: crate::i18n::Language,
     opacity: &mut f32,
 ) -> bool {
-    const OPACITY_VALUES: [f32; 4] = [1.0, 0.85, 0.70, 0.55];
+    const OPACITY_VALUES: [f32; 10] = [1.0, 0.90, 0.80, 0.70, 0.60, 0.50, 0.40, 0.30, 0.20, 0.10];
 
     let current = clamp_sticky_layout_opacity(*opacity);
     let selected_idx = OPACITY_VALUES
@@ -8252,10 +8252,10 @@ impl EntropyApp {
                     set_windows_window_opacity_by_title(&title, sticky_opacity);
                     let panel_bg = app_panel_fill(dark);
                     let full_rect = ui.max_rect();
-                    ui.painter().rect_filled(full_rect, 12.0, panel_bg);
+                    ui.painter().rect_filled(full_rect, 0.0, panel_bg);
                     ui.painter().rect(
                         full_rect.shrink(0.5),
-                        12.0,
+                        0.0,
                         Color32::TRANSPARENT,
                         Stroke::new(1.0, app_border_color(dark)),
                         egui::StrokeKind::Inside,
