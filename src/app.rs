@@ -331,6 +331,8 @@ struct AppSettings {
     layer_hover_preview: bool,
     #[serde(default)]
     sticky_layout_window: bool,
+    #[serde(default = "default_sticky_layout_always_on_top")]
+    sticky_layout_always_on_top: bool,
     #[serde(default = "crate::i18n::default_language")]
     language: crate::i18n::Language,
     #[serde(default = "default_encoder_hover_enlarge")]
@@ -362,6 +364,10 @@ fn default_layer_hover_preview() -> bool {
 }
 
 fn default_encoder_hover_enlarge() -> bool {
+    true
+}
+
+fn default_sticky_layout_always_on_top() -> bool {
     true
 }
 
@@ -576,6 +582,7 @@ impl Default for AppSettings {
             show_shifted_number_symbols: default_show_shifted_number_symbols(),
             layer_hover_preview: default_layer_hover_preview(),
             sticky_layout_window: false,
+            sticky_layout_always_on_top: default_sticky_layout_always_on_top(),
             language: crate::i18n::default_language(),
             encoder_hover_enlarge: default_encoder_hover_enlarge(),
             key_legend_layout: KeyLegendLayout::default(),
@@ -1233,7 +1240,91 @@ const LAYOUT_BOTTOM_RESERVED_H: f32 = 76.0_f32;
 const STICKY_LAYOUT_WINDOW_W: f32 = 720.0_f32;
 const STICKY_LAYOUT_WINDOW_H: f32 = 360.0_f32;
 const STICKY_LAYOUT_WINDOW_MARGIN: f32 = 2.0_f32;
+const STICKY_LAYOUT_WINDOW_TITLE_H: f32 = 34.0_f32;
 const STICKY_LAYOUT_KEYBOARD_MARGIN: f32 = 2.0_f32;
+
+#[derive(Clone, Copy)]
+enum StickyLayoutWindowButton {
+    Pin,
+    Close,
+}
+
+fn sticky_layout_window_icon_button(
+    ui: &mut egui::Ui,
+    kind: StickyLayoutWindowButton,
+    active: bool,
+    tooltip: &str,
+) -> egui::Response {
+    let dark = ui.visuals().dark_mode;
+    let (rect, response) = ui.allocate_exact_size(Vec2::splat(26.0), Sense::click());
+    let response = response.on_hover_text(tooltip);
+    if response.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+
+    let fill = if active || response.hovered() {
+        app_hover_fill(dark)
+    } else {
+        Color32::TRANSPARENT
+    };
+    let stroke_color = if active {
+        app_accent()
+    } else {
+        app_border_color(dark)
+    };
+    ui.painter().rect(
+        rect,
+        8.0,
+        fill,
+        Stroke::new(if active { 1.2 } else { 0.8 }, stroke_color),
+        egui::StrokeKind::Inside,
+    );
+
+    let color = if active {
+        app_accent()
+    } else {
+        app_muted_text(dark)
+    };
+    let stroke = Stroke::new(1.7, color);
+    match kind {
+        StickyLayoutWindowButton::Close => {
+            let a = rect.center() + egui::vec2(-4.5, -4.5);
+            let b = rect.center() + egui::vec2(4.5, 4.5);
+            let c = rect.center() + egui::vec2(4.5, -4.5);
+            let d = rect.center() + egui::vec2(-4.5, 4.5);
+            ui.painter().line_segment([a, b], stroke);
+            ui.painter().line_segment([c, d], stroke);
+        }
+        StickyLayoutWindowButton::Pin => {
+            let center = rect.center();
+            let head = egui::pos2(center.x, rect.top() + 8.3);
+            ui.painter().circle_stroke(head, 3.1, stroke);
+            ui.painter().line_segment(
+                [
+                    egui::pos2(center.x, rect.top() + 11.4),
+                    egui::pos2(center.x, rect.bottom() - 7.0),
+                ],
+                stroke,
+            );
+            ui.painter().line_segment(
+                [
+                    egui::pos2(center.x - 5.2, rect.top() + 14.4),
+                    egui::pos2(center.x + 5.2, rect.top() + 14.4),
+                ],
+                stroke,
+            );
+            ui.painter().line_segment(
+                [
+                    egui::pos2(center.x, rect.bottom() - 7.0),
+                    egui::pos2(center.x - 2.8, rect.bottom() - 3.8),
+                ],
+                stroke,
+            );
+        }
+    }
+
+    response
+}
 
 #[derive(Clone, Copy)]
 struct LayoutGeometry {
@@ -7960,7 +8051,9 @@ impl EntropyApp {
         let pressed_key_layers = self.sticky_layout_pressed_key_layers.clone();
         let ui_scale = clamp_ui_scale(self.app_settings.ui_scale);
         let dark = self.dark_mode;
+        let mut sticky_always_on_top = self.app_settings.sticky_layout_always_on_top;
         let mut should_close = false;
+        let mut should_save_settings = false;
 
         ctx.show_viewport_immediate(
             viewport_id,
@@ -7969,22 +8062,106 @@ impl EntropyApp {
                 .with_inner_size(egui::vec2(STICKY_LAYOUT_WINDOW_W, STICKY_LAYOUT_WINDOW_H))
                 .with_min_inner_size(egui::vec2(STICKY_LAYOUT_WINDOW_W, STICKY_LAYOUT_WINDOW_H))
                 .with_resizable(true)
-                .with_always_on_top(),
+                .with_decorations(false)
+                .with_window_level(if sticky_always_on_top {
+                    egui::WindowLevel::AlwaysOnTop
+                } else {
+                    egui::WindowLevel::Normal
+                }),
             |viewport_ctx, viewport_class| {
                 if viewport_ctx.input(|i| i.viewport().close_requested()) {
                     should_close = true;
                     return;
                 }
 
-                let draw_contents = |ui: &mut egui::Ui, should_close: &mut bool| {
+                let mut draw_contents = |ui: &mut egui::Ui, should_close: &mut bool| {
                     let panel_bg = app_panel_fill(dark);
-                    ui.painter().rect_filled(ui.max_rect(), 0.0, panel_bg);
+                    let full_rect = ui.max_rect();
+                    ui.painter().rect_filled(full_rect, 12.0, panel_bg);
                     if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
                         *should_close = true;
                     }
 
-                    let preview_size = ui.available_size().max(egui::vec2(1.0, 1.0));
-                    let (preview_rect, _) = ui.allocate_exact_size(preview_size, Sense::hover());
+                    let title_rect = egui::Rect::from_min_max(
+                        full_rect.min,
+                        egui::pos2(
+                            full_rect.right(),
+                            full_rect.top() + STICKY_LAYOUT_WINDOW_TITLE_H,
+                        ),
+                    );
+                    ui.painter()
+                        .rect_filled(title_rect, 12.0, app_window_fill(dark));
+                    ui.painter().line_segment(
+                        [title_rect.left_bottom(), title_rect.right_bottom()],
+                        Stroke::new(1.0, app_border_color(dark)),
+                    );
+
+                    let buttons_w = 60.0;
+                    let drag_rect = egui::Rect::from_min_max(
+                        title_rect.min,
+                        egui::pos2(title_rect.right() - buttons_w, title_rect.bottom()),
+                    );
+                    let drag_response = ui.interact(
+                        drag_rect,
+                        ui.id().with("sticky_layout_window_drag"),
+                        Sense::click_and_drag(),
+                    );
+                    if drag_response.drag_started() {
+                        viewport_ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
+                    }
+
+                    ui.painter().text(
+                        egui::pos2(title_rect.left() + 12.0, title_rect.center().y),
+                        egui::Align2::LEFT_CENTER,
+                        title.as_str(),
+                        FontId::proportional(13.0),
+                        app_muted_text(dark),
+                    );
+
+                    ui.allocate_ui_at_rect(title_rect.shrink2(Vec2::new(6.0, 4.0)), |ui| {
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if sticky_layout_window_icon_button(
+                                ui,
+                                StickyLayoutWindowButton::Close,
+                                false,
+                                crate::i18n::tr_catalog(
+                                    lang,
+                                    "ui.sticky_layout_window_close_tooltip",
+                                ),
+                            )
+                            .clicked()
+                            {
+                                *should_close = true;
+                            }
+                            ui.add_space(4.0);
+                            if sticky_layout_window_icon_button(
+                                ui,
+                                StickyLayoutWindowButton::Pin,
+                                sticky_always_on_top,
+                                crate::i18n::tr_catalog(
+                                    lang,
+                                    "ui.sticky_layout_window_pin_tooltip",
+                                ),
+                            )
+                            .clicked()
+                            {
+                                sticky_always_on_top = !sticky_always_on_top;
+                                should_save_settings = true;
+                                viewport_ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(
+                                    if sticky_always_on_top {
+                                        egui::WindowLevel::AlwaysOnTop
+                                    } else {
+                                        egui::WindowLevel::Normal
+                                    },
+                                ));
+                            }
+                        });
+                    });
+
+                    let preview_rect = egui::Rect::from_min_max(
+                        egui::pos2(full_rect.left(), title_rect.bottom()),
+                        full_rect.right_bottom(),
+                    );
                     let rect = preview_rect.shrink(STICKY_LAYOUT_WINDOW_MARGIN);
                     if let Some(layout) = &layout {
                         Self::paint_sticky_layout_preview(
@@ -8035,7 +8212,7 @@ impl EntropyApp {
                     }
                 } else {
                     egui::CentralPanel::default()
-                        .frame(egui::Frame::NONE.fill(app_panel_fill(dark)))
+                        .frame(egui::Frame::NONE.fill(Color32::TRANSPARENT))
                         .show(viewport_ctx, |ui| {
                             draw_contents(ui, &mut should_close);
                         });
@@ -8045,6 +8222,13 @@ impl EntropyApp {
 
         if should_close {
             self.app_settings.sticky_layout_window = false;
+            should_save_settings = true;
+        }
+        if self.app_settings.sticky_layout_always_on_top != sticky_always_on_top {
+            self.app_settings.sticky_layout_always_on_top = sticky_always_on_top;
+            should_save_settings = true;
+        }
+        if should_save_settings {
             save_app_settings(&self.app_settings);
         }
     }
