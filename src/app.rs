@@ -1249,6 +1249,51 @@ enum StickyLayoutWindowButton {
     Close,
 }
 
+fn draw_theme_selector_labels(
+    ui: &mut egui::Ui,
+    lang: crate::i18n::Language,
+    dark_mode: &mut bool,
+) {
+    ui.horizontal(|ui| {
+        let active = app_accent();
+        let inactive = app_muted_text(*dark_mode);
+
+        let light_resp = ui.add(
+            egui::Label::new(
+                RichText::new(crate::i18n::tr_catalog(lang, "app_chrome.light_light"))
+                    .size(11.0)
+                    .color(if *dark_mode { inactive } else { active }),
+            )
+            .selectable(false)
+            .sense(egui::Sense::click()),
+        );
+        if light_resp.hovered() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+        }
+        if light_resp.clicked() {
+            *dark_mode = false;
+        }
+
+        ui.add(egui::Label::new(RichText::new("|").size(11.0).color(inactive)).selectable(false));
+
+        let dark_resp = ui.add(
+            egui::Label::new(
+                RichText::new(crate::i18n::tr_catalog(lang, "app_chrome.dark_dark"))
+                    .size(11.0)
+                    .color(if *dark_mode { active } else { inactive }),
+            )
+            .selectable(false)
+            .sense(egui::Sense::click()),
+        );
+        if dark_resp.hovered() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+        }
+        if dark_resp.clicked() {
+            *dark_mode = true;
+        }
+    });
+}
+
 fn sticky_layout_window_icon_button(
     ui: &mut egui::Ui,
     kind: StickyLayoutWindowButton,
@@ -8035,8 +8080,26 @@ impl EntropyApp {
 
         let viewport_id = egui::ViewportId::from_hash_of("entropy_sticky_layout_window");
         let lang = self.app_settings.language;
-        let title = crate::i18n::tr_catalog(lang, "ui.sticky_layout_window_title").to_string();
         let layout = self.layout.clone();
+        let selected_device_name = self
+            .selected_device
+            .and_then(|idx| self.device_manager.devices().get(idx))
+            .map(|device| device.name.clone());
+        let title = selected_device_name
+            .as_deref()
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .map(str::to_owned)
+            .or_else(|| {
+                layout
+                    .as_ref()
+                    .map(|layout| layout.name.trim())
+                    .filter(|name| !name.is_empty())
+                    .map(str::to_owned)
+            })
+            .unwrap_or_else(|| {
+                crate::i18n::tr_catalog(lang, "ui.sticky_layout_window_title").to_string()
+            });
         let sticky_layer = layout
             .as_ref()
             .map(|layout| self.sync_sticky_layout_layer_state(layout))
@@ -8051,6 +8114,7 @@ impl EntropyApp {
         let pressed_key_layers = self.sticky_layout_pressed_key_layers.clone();
         let ui_scale = clamp_ui_scale(self.app_settings.ui_scale);
         let dark = self.dark_mode;
+        let mut sticky_dark_mode = self.dark_mode;
         let mut sticky_always_on_top = self.app_settings.sticky_layout_always_on_top;
         let mut should_close = false;
         let mut should_save_settings = false;
@@ -8089,13 +8153,6 @@ impl EntropyApp {
                             full_rect.top() + STICKY_LAYOUT_WINDOW_TITLE_H,
                         ),
                     );
-                    ui.painter()
-                        .rect_filled(title_rect, 12.0, app_window_fill(dark));
-                    ui.painter().line_segment(
-                        [title_rect.left_bottom(), title_rect.right_bottom()],
-                        Stroke::new(1.0, app_border_color(dark)),
-                    );
-
                     let buttons_w = 60.0;
                     let drag_rect = egui::Rect::from_min_max(
                         title_rect.min,
@@ -8195,6 +8252,16 @@ impl EntropyApp {
                             app_muted_text(dark),
                         );
                     }
+
+                    let theme_rect = egui::Rect::from_min_size(
+                        egui::pos2(full_rect.right() - 126.0, full_rect.bottom() - 27.0),
+                        egui::vec2(118.0, 22.0),
+                    );
+                    ui.allocate_ui_at_rect(theme_rect, |ui| {
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            draw_theme_selector_labels(ui, lang, &mut sticky_dark_mode);
+                        });
+                    });
                 };
 
                 if matches!(viewport_class, egui::ViewportClass::Embedded) {
@@ -8223,6 +8290,9 @@ impl EntropyApp {
         if should_close {
             self.app_settings.sticky_layout_window = false;
             should_save_settings = true;
+        }
+        if self.dark_mode != sticky_dark_mode {
+            self.dark_mode = sticky_dark_mode;
         }
         if self.app_settings.sticky_layout_always_on_top != sticky_always_on_top {
             self.app_settings.sticky_layout_always_on_top = sticky_always_on_top;
@@ -8933,61 +9003,7 @@ impl eframe::App for EntropyApp {
             .anchor(egui::Align2::RIGHT_BOTTOM, [-16.0, -12.0])
             .order(egui::Order::Foreground)
             .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    let active = app_accent();
-                    let inactive = app_muted_text(self.dark_mode);
-
-                    let light_resp = ui.add(
-                        egui::Label::new(
-                            RichText::new(crate::i18n::tr_catalog(
-                                self.app_settings.language,
-                                "app_chrome.light_light",
-                            ))
-                            .size(11.0)
-                            .color(if self.dark_mode {
-                                inactive
-                            } else {
-                                active
-                            }),
-                        )
-                        .selectable(false)
-                        .sense(egui::Sense::click()),
-                    );
-                    if light_resp.hovered() {
-                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                    }
-                    if light_resp.clicked() {
-                        self.dark_mode = false;
-                    }
-
-                    ui.add(
-                        egui::Label::new(RichText::new("|").size(11.0).color(inactive))
-                            .selectable(false),
-                    );
-
-                    let dark_resp = ui.add(
-                        egui::Label::new(
-                            RichText::new(crate::i18n::tr_catalog(
-                                self.app_settings.language,
-                                "app_chrome.dark_dark",
-                            ))
-                            .size(11.0)
-                            .color(if self.dark_mode {
-                                active
-                            } else {
-                                inactive
-                            }),
-                        )
-                        .selectable(false)
-                        .sense(egui::Sense::click()),
-                    );
-                    if dark_resp.hovered() {
-                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                    }
-                    if dark_resp.clicked() {
-                        self.dark_mode = true;
-                    }
-                });
+                draw_theme_selector_labels(ui, self.app_settings.language, &mut self.dark_mode);
             });
 
         // Keycode picker modal
