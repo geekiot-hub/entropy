@@ -8377,81 +8377,8 @@ impl EntropyApp {
                         *should_close = true;
                     }
 
-                    let title_rect = egui::Rect::from_min_max(
-                        full_rect.min,
-                        egui::pos2(
-                            full_rect.right(),
-                            full_rect.top() + STICKY_LAYOUT_WINDOW_TITLE_H,
-                        ),
-                    );
-                    let buttons_w = 60.0;
-                    let drag_rect = egui::Rect::from_min_max(
-                        title_rect.min,
-                        egui::pos2(title_rect.right() - buttons_w, title_rect.bottom()),
-                    );
-                    let drag_response = ui.interact(
-                        drag_rect,
-                        ui.id().with("sticky_layout_window_drag"),
-                        Sense::click_and_drag(),
-                    );
-                    if drag_response.drag_started() {
-                        viewport_ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
-                    }
-
-                    ui.painter().text(
-                        egui::pos2(title_rect.left() + 12.0, title_rect.center().y),
-                        egui::Align2::LEFT_CENTER,
-                        title.as_str(),
-                        FontId::proportional(13.0),
-                        app_muted_text(dark),
-                    );
-
-                    ui.allocate_ui_at_rect(title_rect.shrink2(Vec2::new(6.0, 4.0)), |ui| {
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if sticky_layout_window_icon_button(
-                                ui,
-                                dark,
-                                StickyLayoutWindowButton::Close,
-                                false,
-                                crate::i18n::tr_catalog(
-                                    lang,
-                                    "ui.sticky_layout_window_close_tooltip",
-                                ),
-                            )
-                            .clicked()
-                            {
-                                *should_close = true;
-                            }
-                            ui.add_space(4.0);
-                            if sticky_layout_window_icon_button(
-                                ui,
-                                dark,
-                                StickyLayoutWindowButton::Pin,
-                                sticky_always_on_top,
-                                crate::i18n::tr_catalog(
-                                    lang,
-                                    "ui.sticky_layout_window_pin_tooltip",
-                                ),
-                            )
-                            .clicked()
-                            {
-                                sticky_always_on_top = !sticky_always_on_top;
-                                should_save_settings = true;
-                                viewport_ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(
-                                    if sticky_always_on_top {
-                                        egui::WindowLevel::AlwaysOnTop
-                                    } else {
-                                        egui::WindowLevel::Normal
-                                    },
-                                ));
-                            }
-                        });
-                    });
-
-                    let preview_rect = egui::Rect::from_min_max(
-                        egui::pos2(full_rect.left(), title_rect.bottom()),
-                        full_rect.right_bottom(),
-                    );
+                    let preview_rect =
+                        egui::Rect::from_min_max(full_rect.min, full_rect.right_bottom());
                     let rect = preview_rect.shrink(STICKY_LAYOUT_WINDOW_MARGIN);
                     if let Some(layout) = &layout {
                         Self::paint_sticky_layout_preview(
@@ -8499,6 +8426,32 @@ impl EntropyApp {
                             &mut sticky_opacity,
                         ) {
                             should_save_settings = true;
+                        }
+                    });
+
+                    let pin_rect = egui::Rect::from_min_size(
+                        egui::pos2(full_rect.right() - 182.0, full_rect.bottom() - 29.0),
+                        egui::vec2(26.0, 26.0),
+                    );
+                    ui.allocate_ui_at_rect(pin_rect, |ui| {
+                        if sticky_layout_window_icon_button(
+                            ui,
+                            dark,
+                            StickyLayoutWindowButton::Pin,
+                            sticky_always_on_top,
+                            crate::i18n::tr_catalog(lang, "ui.sticky_layout_window_pin_tooltip"),
+                        )
+                        .clicked()
+                        {
+                            sticky_always_on_top = !sticky_always_on_top;
+                            should_save_settings = true;
+                            viewport_ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(
+                                if sticky_always_on_top {
+                                    egui::WindowLevel::AlwaysOnTop
+                                } else {
+                                    egui::WindowLevel::Normal
+                                },
+                            ));
                         }
                     });
 
