@@ -8254,7 +8254,25 @@ impl EntropyApp {
         let viewport_id = egui::ViewportId::from_hash_of("entropy_sticky_layout_window");
         let lang = self.app_settings.language;
         let layout = self.layout.clone();
-        let title = crate::i18n::tr_catalog(lang, "ui.sticky_layout_window_title").to_string();
+        let selected_device_name = self
+            .selected_device
+            .and_then(|idx| self.device_manager.devices().get(idx))
+            .map(|device| device.name.clone());
+        let title = selected_device_name
+            .as_deref()
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .map(str::to_owned)
+            .or_else(|| {
+                layout
+                    .as_ref()
+                    .map(|layout| layout.name.trim())
+                    .filter(|name| !name.is_empty())
+                    .map(str::to_owned)
+            })
+            .unwrap_or_else(|| {
+                crate::i18n::tr_catalog(lang, "ui.sticky_layout_window_title").to_string()
+            });
         let sticky_layer = layout
             .as_ref()
             .map(|layout| self.sync_sticky_layout_layer_state(layout))
