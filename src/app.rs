@@ -8,6 +8,8 @@ static TRAY_QUIT_REQUESTED: std::sync::atomic::AtomicBool =
 const MATRIX_TESTER_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(16);
 const MATRIX_TESTER_LOCK_CHECK_INTERVAL: std::time::Duration =
     std::time::Duration::from_millis(750);
+const VIAL_UNLOCK_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(110);
+const VIAL_UNLOCK_PROGRESS_ANIMATION_TIME: f32 = 0.16;
 const UI_SCALE_MIN: f32 = 0.5;
 const UI_SCALE_MAX: f32 = 2.0;
 const UI_SCALE_STEP: f32 = 0.1;
@@ -2990,6 +2992,8 @@ pub struct EntropyApp {
     vial_unlock_counter: u8,
     vial_unlock_best: u8,
     vial_unlock_total: u8,
+    vial_unlock_last_poll: Option<std::time::Instant>,
+    vial_unlock_animation_nonce: u64,
 }
 
 impl EntropyApp {
@@ -3119,6 +3123,8 @@ impl EntropyApp {
             vial_unlock_counter: 0,
             vial_unlock_best: 50,
             vial_unlock_total: 50,
+            vial_unlock_last_poll: None,
+            vial_unlock_animation_nonce: 0,
             #[cfg(not(target_arch = "wasm32"))]
             connect_state: ConnectState::Idle,
             #[cfg(not(target_arch = "wasm32"))]
@@ -3145,6 +3151,7 @@ impl EntropyApp {
         self.connect_state = ConnectState::Idle;
         self.unlock_open = false;
         self.vial_unlock_polling = false;
+        self.vial_unlock_last_poll = None;
         self.pending_layout_indicator_open_after_unlock = false;
         self.keycode_picker.open = false;
         self.current_device_name.clear();
@@ -4241,7 +4248,7 @@ impl EntropyApp {
         if let Some(hid) = &self.hid_device {
             match hid.lock() {
                 Ok(()) => {
-                    self.status_msg = "Keyboard unlock cancelled".into();
+                    self.status_msg = "Device unlock cancelled".into();
                 }
                 Err(e) => {
                     self.status_msg = format!("Cancel unlock failed: {e}");
@@ -4250,6 +4257,7 @@ impl EntropyApp {
         }
         self.unlock_open = false;
         self.vial_unlock_polling = false;
+        self.vial_unlock_last_poll = None;
         self.pending_layout_indicator_open_after_unlock = false;
         self.vial_unlock_counter = 0;
         self.vial_unlock_best = 50;
@@ -9322,7 +9330,11 @@ impl eframe::App for EntropyApp {
                     match hid.unlock_start() {
                         Ok(()) => {
                             self.vial_unlock_polling = true;
-                            self.vial_unlock_best = 50;
+                            self.vial_unlock_counter = self.vial_unlock_total;
+                            self.vial_unlock_best = self.vial_unlock_total;
+                            self.vial_unlock_last_poll = None;
+                            self.vial_unlock_animation_nonce =
+                                self.vial_unlock_animation_nonce.wrapping_add(1);
                         }
                         Err(e) => {
                             self.status_msg = format!("Unlock start failed: {e}");
@@ -9332,57 +9344,70 @@ impl eframe::App for EntropyApp {
                     }
                 }
             }
-            // Poll unlock
+            // Poll unlock at firmware-safe intervals. The overlay may repaint faster for smooth
+            // progress animation, but USB polling should not run every rendered frame.
             if self.vial_unlock_polling {
-                if let Some(hid) = &self.hid_device {
-                    match hid.unlock_poll() {
-                        Ok((unlocked, in_progress, counter)) => {
-                            self.vial_unlock_counter = counter;
-                            if counter < self.vial_unlock_best {
-                                self.vial_unlock_best = counter;
-                            }
-                            if unlocked {
-                                self.status_msg = "Keyboard unlocked!".into();
-                                self.unlock_open = false;
-                                self.vial_unlock_polling = false;
-                                self.macro_auto_unlock_cancelled = false;
-                                if self.pending_layout_indicator_open_after_unlock {
-                                    self.pending_layout_indicator_open_after_unlock = false;
-                                    self.app_settings.sticky_layout_window = true;
-                                    self.sticky_layout_last_size = None;
-                                    save_app_settings(&self.app_settings);
+                let now = std::time::Instant::now();
+                let should_poll = self
+                    .vial_unlock_last_poll
+                    .map(|last_poll| now.duration_since(last_poll) >= VIAL_UNLOCK_POLL_INTERVAL)
+                    .unwrap_or(true);
+                if should_poll {
+                    self.vial_unlock_last_poll = Some(now);
+                    if let Some(hid) = &self.hid_device {
+                        match hid.unlock_poll() {
+                            Ok((unlocked, in_progress, counter)) => {
+                                self.vial_unlock_counter = counter;
+                                if counter < self.vial_unlock_best {
+                                    self.vial_unlock_best = counter;
                                 }
-                            } else if !in_progress {
-                                match hid.get_unlock_status() {
-                                    Ok((_, keys)) => {
-                                        self.vial_unlock_keys = keys;
-                                    }
-                                    Err(e) => {
-                                        self.status_msg = format!("Unlock status failed: {e}");
-                                    }
-                                }
-                                match hid.unlock_start() {
-                                    Ok(()) => {
-                                        self.vial_unlock_counter = 0;
-                                        self.vial_unlock_best = self.vial_unlock_total;
-                                        self.status_msg = "Unlock timed out, try again".into();
-                                    }
-                                    Err(e) => {
-                                        self.status_msg = format!("Unlock restart failed: {e}");
-                                        self.unlock_open = false;
-                                        self.vial_unlock_polling = false;
+                                if unlocked {
+                                    self.status_msg = "Device unlocked!".into();
+                                    self.unlock_open = false;
+                                    self.vial_unlock_polling = false;
+                                    self.vial_unlock_last_poll = None;
+                                    self.macro_auto_unlock_cancelled = false;
+                                    if self.pending_layout_indicator_open_after_unlock {
                                         self.pending_layout_indicator_open_after_unlock = false;
+                                        self.app_settings.sticky_layout_window = true;
+                                        self.sticky_layout_last_size = None;
+                                        save_app_settings(&self.app_settings);
+                                    }
+                                } else if !in_progress {
+                                    match hid.get_unlock_status() {
+                                        Ok((_, keys)) => {
+                                            self.vial_unlock_keys = keys;
+                                        }
+                                        Err(e) => {
+                                            self.status_msg = format!("Unlock status failed: {e}");
+                                        }
+                                    }
+                                    match hid.unlock_start() {
+                                        Ok(()) => {
+                                            self.vial_unlock_counter = self.vial_unlock_total;
+                                            self.vial_unlock_best = self.vial_unlock_total;
+                                            self.vial_unlock_last_poll = None;
+                                            self.vial_unlock_animation_nonce =
+                                                self.vial_unlock_animation_nonce.wrapping_add(1);
+                                            self.status_msg = "Unlock timed out, try again".into();
+                                        }
+                                        Err(e) => {
+                                            self.status_msg = format!("Unlock restart failed: {e}");
+                                            self.unlock_open = false;
+                                            self.vial_unlock_polling = false;
+                                            self.vial_unlock_last_poll = None;
+                                            self.pending_layout_indicator_open_after_unlock = false;
+                                        }
                                     }
                                 }
                             }
-                        }
-                        Err(e) => {
-                            self.status_msg = format!("Unlock poll failed: {e}");
+                            Err(e) => {
+                                self.status_msg = format!("Unlock poll failed: {e}");
+                            }
                         }
                     }
                 }
-                // Poll at ~120ms intervals (firmware timer threshold is 100ms)
-                ctx.request_repaint_after(std::time::Duration::from_millis(120));
+                ctx.request_repaint_after(std::time::Duration::from_millis(16));
             }
             // Fullscreen overlay with layout and highlighted keys
             let unlock_keys = self.vial_unlock_keys.clone();
@@ -9450,11 +9475,16 @@ impl eframe::App for EntropyApp {
                     );
 
                     // Progress bar
-                    let progress = if total > 0 {
+                    let target_progress = if total > 0 {
                         1.0 - (counter as f32 / total as f32)
                     } else {
                         0.0
                     };
+                    let progress = ui.ctx().animate_value_with_time(
+                        egui::Id::new(("vial_unlock_progress", self.vial_unlock_animation_nonce)),
+                        target_progress.clamp(0.0, 1.0),
+                        VIAL_UNLOCK_PROGRESS_ANIMATION_TIME,
+                    );
                     let bar_w = 300.0f32;
                     let bar_h = 12.0f32;
                     let bar_y = top_y + 55.0;
@@ -16695,7 +16725,7 @@ impl EntropyApp {
                                             if let Some(hid) = &self.hid_device {
                                                 match hid.lock() {
                                                     Ok(()) => {
-                                                        self.status_msg = "Keyboard locked".into();
+                                                        self.status_msg = "Device locked".into();
                                                         if self.app_settings.sticky_layout_window {
                                                             self.app_settings.sticky_layout_window = false;
                                                             self.pending_layout_indicator_open_after_unlock = false;
