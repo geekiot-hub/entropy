@@ -16108,7 +16108,13 @@ impl EntropyApp {
                                             if let Some(hid) = &self.hid_device {
                                                 match hid.lock() {
                                                     Ok(()) => {
-                                                        self.status_msg = "Keyboard locked".into()
+                                                        self.status_msg = "Keyboard locked".into();
+                                                        if self.app_settings.sticky_layout_window {
+                                                            self.app_settings.sticky_layout_window = false;
+                                                            self.pending_layout_indicator_open_after_unlock = false;
+                                                            self.sticky_layout_last_size = None;
+                                                            save_app_settings(&self.app_settings);
+                                                        }
                                                     }
                                                     Err(e) => {
                                                         self.status_msg =
