@@ -8311,6 +8311,8 @@ impl EntropyApp {
             .with_min_inner_size(sticky_layout_default_window_size())
             .with_resizable(true)
             .with_decorations(false)
+            .with_taskbar(false)
+            .with_window_type(egui::X11WindowType::Utility)
             .with_window_level(if sticky_always_on_top {
                 egui::WindowLevel::AlwaysOnTop
             } else {
