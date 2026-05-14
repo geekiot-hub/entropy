@@ -741,7 +741,7 @@ fn static_catalog_key(text: &str) -> Option<&'static str> {
         "Dark" => Some("app_chrome.dark"),
         "☀ Light" => Some("app_chrome.light_light"),
         "🌙 Dark" => Some("app_chrome.dark_dark"),
-        "🔓 Unlock Keyboard" => Some("app_chrome.unlock_unlock_keyboard"),
+        "Unlock device" => Some("app_chrome.unlock_unlock_keyboard"),
         "Unlock Keyboard" => Some("app_chrome.unlock_keyboard"),
         "Macros saved" => Some("status_messages.macros_saved"),
         "Combos saved" => Some("status_messages.combos_saved"),

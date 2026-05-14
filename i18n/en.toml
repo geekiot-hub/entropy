@@ -245,7 +245,7 @@ light = "Light"
 dark = "Dark"
 light_light = "☀ Light"
 dark_dark = "🌙 Dark"
-unlock_unlock_keyboard = "🔓 Unlock Keyboard"
+unlock_unlock_keyboard = "Unlock device"
 unlock_keyboard = "Unlock Keyboard"
 
 [key_names]

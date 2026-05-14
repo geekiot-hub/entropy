@@ -245,7 +245,7 @@ light = "Светлая"
 dark = "Тёмная"
 light_light = "☀ Светлая"
 dark_dark = "🌙 Тёмная"
-unlock_unlock_keyboard = "🔓 Разблокировать клавиатуру"
+unlock_unlock_keyboard = "Разблокировать устройство"
 unlock_keyboard = "Разблокировать клавиатуру"
 
 [key_names]
