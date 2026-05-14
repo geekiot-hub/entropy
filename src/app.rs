@@ -1595,63 +1595,6 @@ fn sticky_layout_saved_window_size(settings: &AppSettings) -> Vec2 {
         .unwrap_or_else(sticky_layout_default_window_size)
 }
 
-fn sticky_layout_content_aspect(layout: Option<&KeyboardLayout>) -> f32 {
-    let Some(layout) = layout else {
-        return STICKY_LAYOUT_WINDOW_W / (STICKY_LAYOUT_WINDOW_H - STICKY_LAYOUT_WINDOW_TITLE_H);
-    };
-    let mut min_x: f32 = f32::MAX;
-    let mut min_y: f32 = f32::MAX;
-    let mut max_x: f32 = f32::MIN;
-    let mut max_y: f32 = f32::MIN;
-    for key in &layout.keys {
-        min_x = min_x.min(key.x);
-        min_y = min_y.min(key.y);
-        max_x = max_x.max(key.x + key.w);
-        max_y = max_y.max(key.y + key.h);
-    }
-    for encoder in &layout.encoders {
-        min_x = min_x.min(encoder.x);
-        min_y = min_y.min(encoder.y);
-        max_x = max_x.max(encoder.x + encoder.w);
-        max_y = max_y.max(encoder.y + encoder.h);
-    }
-    if min_x == f32::MAX {
-        return STICKY_LAYOUT_WINDOW_W / (STICKY_LAYOUT_WINDOW_H - STICKY_LAYOUT_WINDOW_TITLE_H);
-    }
-    ((max_x - min_x) / (max_y - min_y).max(0.1)).clamp(0.4, 8.0)
-}
-
-fn sticky_layout_aspect_adjusted_window_size(
-    layout: Option<&KeyboardLayout>,
-    requested: Vec2,
-    previous: Vec2,
-) -> Vec2 {
-    let min_size = sticky_layout_default_window_size();
-    let requested = egui::vec2(requested.x.max(min_size.x), requested.y.max(min_size.y));
-    let content_aspect = sticky_layout_content_aspect(layout);
-    let width_changed = (requested.x - previous.x).abs() >= (requested.y - previous.y).abs();
-    let mut size = if width_changed {
-        egui::vec2(
-            requested.x,
-            (requested.x / content_aspect) + STICKY_LAYOUT_WINDOW_TITLE_H,
-        )
-    } else {
-        egui::vec2(
-            ((requested.y - STICKY_LAYOUT_WINDOW_TITLE_H).max(1.0)) * content_aspect,
-            requested.y,
-        )
-    };
-    if size.x < min_size.x {
-        size.x = min_size.x;
-        size.y = (size.x / content_aspect) + STICKY_LAYOUT_WINDOW_TITLE_H;
-    }
-    if size.y < min_size.y {
-        size.y = min_size.y;
-        size.x = ((size.y - STICKY_LAYOUT_WINDOW_TITLE_H).max(1.0)) * content_aspect;
-    }
-    size
-}
-
 fn layout_geometry_with_reserved(
     ctx: &egui::Context,
     layout: &KeyboardLayout,
@@ -8360,12 +8303,7 @@ impl EntropyApp {
         let mut sticky_opacity =
             clamp_sticky_layout_opacity(self.app_settings.sticky_layout_opacity);
         let mut sticky_always_on_top = self.app_settings.sticky_layout_always_on_top;
-        let saved_sticky_window_size = sticky_layout_saved_window_size(&self.app_settings);
-        let sticky_window_size = sticky_layout_aspect_adjusted_window_size(
-            layout.as_ref(),
-            saved_sticky_window_size,
-            saved_sticky_window_size,
-        );
+        let sticky_window_size = sticky_layout_saved_window_size(&self.app_settings);
         let mut observed_sticky_size: Option<Vec2> = None;
         let mut resize_opacity_hold_frames = self.sticky_layout_resize_opacity_hold_frames;
         let mut should_close = false;
