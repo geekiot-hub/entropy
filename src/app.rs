@@ -16182,34 +16182,12 @@ impl EntropyApp {
                 let combo_supported = !self.combo_entries.is_empty();
                 let key_override_supported = !self.key_override_entries.is_empty();
                 let auto_shift_supported = self.auto_shift_timeout.is_some();
-                let show_lock_item = self.firmware == FirmwareProtocol::Vial
-                    && self.layout.is_some()
-                    && !self.vial_unlock_polling
-                    && !self.unlock_open;
-                let is_unlocked = if show_lock_item {
-                    self.hid_device
-                        .as_ref()
-                        .and_then(|hid| hid.get_unlock_status().ok())
-                        .map(|(unlocked, _keys)| unlocked)
-                        .unwrap_or(false)
-                } else {
-                    false
-                };
-                let lock_label = if is_unlocked {
-                    crate::i18n::tr_catalog(lang, "ui.lock_keyboard_action")
-                } else {
-                    crate::i18n::tr_catalog(lang, "ui.unlock_keyboard_action")
-                };
                 let advanced_item_count = 1
-                    + show_lock_item as usize
                     + combo_supported as usize
                     + auto_shift_supported as usize
                     + key_override_supported as usize;
                 let mut advanced_menu_labels =
                     vec![crate::i18n::tr_catalog(lang, "text_expander.title")];
-                if show_lock_item {
-                    advanced_menu_labels.push(lock_label);
-                }
                 if combo_supported {
                     advanced_menu_labels.push(crate::i18n::tr(lang, TrKey::ComboTitle));
                 }
@@ -16247,7 +16225,6 @@ impl EntropyApp {
                     let item_width = dropdown_rect.width() - 16.0;
                     let (
                         text_expander_hovered,
-                        lock_hovered,
                         combo_hovered,
                         auto_shift_hovered,
                         key_override_hovered,
@@ -16267,9 +16244,6 @@ impl EntropyApp {
                                         self.main_menu_tab == MainMenuTab::Advanced
                                             && self.settings_tab == SettingsTab::TextExpander,
                                     );
-                                    let lock_resp = show_lock_item.then(|| {
-                                        top_dropdown_item(ui, item_width, lock_label, true, false)
-                                    });
                                     let combo_resp = combo_supported.then(|| {
                                         top_dropdown_item(
                                             ui,
@@ -16304,29 +16278,7 @@ impl EntropyApp {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.open_text_expander_settings_page();
                                     }
-                                    if lock_resp.as_ref().map(|r| r.clicked()).unwrap_or(false) {
-                                        self.close_top_dropdowns(ui.ctx());
-                                        if is_unlocked {
-                                            if let Some(hid) = &self.hid_device {
-                                                match hid.lock() {
-                                                    Ok(()) => {
-                                                        self.status_msg = "Keyboard locked".into();
-                                                        if self.app_settings.sticky_layout_window {
-                                                            self.app_settings.sticky_layout_window = false;
-                                                            self.pending_layout_indicator_open_after_unlock = false;
-                                                            self.sticky_layout_last_size = None;
-                                                            save_app_settings(&self.app_settings);
-                                                        }
-                                                    }
-                                                    Err(e) => {
-                                                        self.status_msg = format!("Lock failed: {e}")
-                                                    }
-                                                }
-                                            }
-                                        } else {
-                                            self.unlock_open = true;
-                                        }
-                                    }
+
                                     if combo_resp.as_ref().map(|r| r.clicked()).unwrap_or(false) {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.settings_tab = SettingsTab::Combo;
@@ -16355,7 +16307,6 @@ impl EntropyApp {
                                     }
                                     (
                                         text_expander_resp.hovered(),
-                                        lock_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         combo_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         auto_shift_resp
                                             .as_ref()
@@ -16366,7 +16317,6 @@ impl EntropyApp {
                                             .map(|r| r.hovered())
                                             .unwrap_or(false),
                                         text_expander_resp.clicked()
-                                            || lock_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
                                             || combo_resp
                                                 .as_ref()
                                                 .map(|r| r.clicked())
@@ -16390,7 +16340,6 @@ impl EntropyApp {
                             !advanced_clicked
                                 && (advanced_tab_hovered
                                     || text_expander_hovered
-                                    || lock_hovered
                                     || combo_hovered
                                     || auto_shift_hovered
                                     || key_override_hovered
@@ -16424,6 +16373,24 @@ impl EntropyApp {
                 let show_tap_hold_item =
                     self.tap_hold_settings.supported || self.one_shot_settings.supported;
                 let show_matrix_item = self.firmware == FirmwareProtocol::Vial;
+                let show_lock_item = self.firmware == FirmwareProtocol::Vial
+                    && self.layout.is_some()
+                    && !self.vial_unlock_polling
+                    && !self.unlock_open;
+                let is_unlocked = if show_lock_item {
+                    self.hid_device
+                        .as_ref()
+                        .and_then(|hid| hid.get_unlock_status().ok())
+                        .map(|(unlocked, _keys)| unlocked)
+                        .unwrap_or(false)
+                } else {
+                    false
+                };
+                let lock_label = if is_unlocked {
+                    crate::i18n::tr_catalog(lang, "ui.lock_keyboard_action")
+                } else {
+                    crate::i18n::tr_catalog(lang, "ui.unlock_keyboard_action")
+                };
                 let settings_item_count = 2
                     + show_matrix_item as usize
                     + show_rgb_item as usize
@@ -16434,7 +16401,8 @@ impl EntropyApp {
                     + show_touchpad_item as usize
                     + show_live_features_item as usize
                     + show_magic_item as usize
-                    + show_tap_hold_item as usize;
+                    + show_tap_hold_item as usize
+                    + show_lock_item as usize;
                 // Keep hover bridge in sync with actual item height (30px) and frame padding.
                 // Underestimating this makes lower items close the dropdown on hover.
                 let dropdown_height = settings_item_count as f32 * 30.0 + 12.0;
@@ -16473,6 +16441,9 @@ impl EntropyApp {
                 if show_tap_hold_item {
                     settings_menu_labels.push(crate::i18n::tr(lang, TrKey::TapHoldOneShotTitle));
                 }
+                if show_lock_item {
+                    settings_menu_labels.push(lock_label);
+                }
                 let dropdown_width = adaptive_top_dropdown_width(ui, settings_menu_labels, 184.0);
                 let dropdown_rect = egui::Rect::from_min_size(
                     egui::pos2(
@@ -16508,6 +16479,7 @@ impl EntropyApp {
                         live_features_hovered,
                         magic_hovered,
                         tap_hold_hovered,
+                        lock_hovered,
                         settings_clicked,
                     ) = egui::Area::new(egui::Id::new("settings_dropdown_area"))
                         .order(egui::Order::Foreground)
@@ -16636,6 +16608,9 @@ impl EntropyApp {
                                                 && self.settings_tab == SettingsTab::TapHold,
                                         )
                                     });
+                                    let lock_resp = show_lock_item.then(|| {
+                                        top_dropdown_item(ui, item_width, lock_label, true, false)
+                                    });
                                     if app_resp.clicked() {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.open_app_settings_page();
@@ -16714,6 +16689,29 @@ impl EntropyApp {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.open_tap_hold_settings_page();
                                     }
+                                    if lock_resp.as_ref().map(|r| r.clicked()).unwrap_or(false) {
+                                        self.close_top_dropdowns(ui.ctx());
+                                        if is_unlocked {
+                                            if let Some(hid) = &self.hid_device {
+                                                match hid.lock() {
+                                                    Ok(()) => {
+                                                        self.status_msg = "Keyboard locked".into();
+                                                        if self.app_settings.sticky_layout_window {
+                                                            self.app_settings.sticky_layout_window = false;
+                                                            self.pending_layout_indicator_open_after_unlock = false;
+                                                            self.sticky_layout_last_size = None;
+                                                            save_app_settings(&self.app_settings);
+                                                        }
+                                                    }
+                                                    Err(e) => {
+                                                        self.status_msg = format!("Lock failed: {e}")
+                                                    }
+                                                }
+                                            }
+                                        } else {
+                                            self.unlock_open = true;
+                                        }
+                                    }
                                     (
                                         app_resp.hovered(),
                                         matrix_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
@@ -16748,6 +16746,7 @@ impl EntropyApp {
                                             .as_ref()
                                             .map(|r| r.hovered())
                                             .unwrap_or(false),
+                                        lock_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         app_resp.clicked()
                                             || matrix_resp
                                                 .as_ref()
@@ -16789,7 +16788,8 @@ impl EntropyApp {
                                             || tap_hold_resp
                                                 .as_ref()
                                                 .map(|r| r.clicked())
-                                                .unwrap_or(false),
+                                                .unwrap_or(false)
+                                            || lock_resp.as_ref().map(|r| r.clicked()).unwrap_or(false),
                                     )
                                 })
                                 .inner
@@ -16812,6 +16812,7 @@ impl EntropyApp {
                                     || live_features_hovered
                                     || magic_hovered
                                     || tap_hold_hovered
+                                    || lock_hovered
                                     || pointer_over_bridge),
                         )
                     });
