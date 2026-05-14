@@ -1331,24 +1331,6 @@ fn draw_theme_selector_labels(
         let active = app_accent();
         let inactive = app_muted_text(*dark_mode);
 
-        let light_resp = ui.add(
-            egui::Label::new(
-                RichText::new(crate::i18n::tr_catalog(lang, "app_chrome.light_light"))
-                    .size(11.0)
-                    .color(if *dark_mode { inactive } else { active }),
-            )
-            .selectable(false)
-            .sense(egui::Sense::click()),
-        );
-        if light_resp.hovered() {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-        }
-        if light_resp.clicked() {
-            *dark_mode = false;
-        }
-
-        ui.add(egui::Label::new(RichText::new("|").size(11.0).color(inactive)).selectable(false));
-
         let dark_resp = ui.add(
             egui::Label::new(
                 RichText::new(crate::i18n::tr_catalog(lang, "app_chrome.dark_dark"))
@@ -1364,9 +1346,26 @@ fn draw_theme_selector_labels(
         if dark_resp.clicked() {
             *dark_mode = true;
         }
+
+        ui.add(egui::Label::new(RichText::new("|").size(11.0).color(inactive)).selectable(false));
+
+        let light_resp = ui.add(
+            egui::Label::new(
+                RichText::new(crate::i18n::tr_catalog(lang, "app_chrome.light_light"))
+                    .size(11.0)
+                    .color(if *dark_mode { inactive } else { active }),
+            )
+            .selectable(false)
+            .sense(egui::Sense::click()),
+        );
+        if light_resp.hovered() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+        }
+        if light_resp.clicked() {
+            *dark_mode = false;
+        }
     });
 }
-
 fn draw_sticky_layout_transparency_dropdown(
     ui: &mut egui::Ui,
     lang: crate::i18n::Language,
@@ -4446,7 +4445,7 @@ impl EntropyApp {
                 );
                 ui.add_space(metrics.value(24.0));
 
-                const TOTAL_APP_SETTINGS_ROWS: usize = 9;
+                const TOTAL_APP_SETTINGS_ROWS: usize = 8;
                 let list = allocate_adaptive_settings_list_viewport(
                     ui,
                     "app_settings",
@@ -4773,33 +4772,6 @@ impl EntropyApp {
                     }
                 }
                 6 => {
-                    let mut sticky_layout_window = self.app_settings.sticky_layout_window;
-                    crate::ui_style::settings_list_row_with_tooltip(
-                        ui,
-                        content_width,
-                        row_height,
-                        crate::i18n::tr_catalog(lang, "ui.sticky_layout_window_label"),
-                        true,
-                        tooltip(crate::i18n::tr_catalog(
-                            lang,
-                            "ui.sticky_layout_window_tooltip",
-                        )),
-                        switch_width,
-                        |ui| {
-                            let _ = crate::ui_style::settings_switch_sized_stable(
-                                ui,
-                                "app_settings_sticky_layout_window",
-                                &mut sticky_layout_window,
-                                switch_size,
-                            );
-                        },
-                    );
-                    if sticky_layout_window != self.app_settings.sticky_layout_window {
-                        self.app_settings.sticky_layout_window = sticky_layout_window;
-                        save_app_settings(&self.app_settings);
-                    }
-                }
-                7 => {
                     let mut selected_accent = self.app_settings.accent_color;
                     crate::ui_style::settings_list_row_with_tooltip(
                         ui,
@@ -4852,7 +4824,7 @@ impl EntropyApp {
                         save_app_settings(&self.app_settings);
                     }
                 }
-                8 => {
+                7 => {
                     crate::ui_style::settings_list_row_with_tooltip(
                         ui,
                         content_width,
@@ -16180,12 +16152,14 @@ impl EntropyApp {
                 let combo_supported = !self.combo_entries.is_empty();
                 let key_override_supported = !self.key_override_entries.is_empty();
                 let auto_shift_supported = self.auto_shift_timeout.is_some();
-                let advanced_item_count = 1
+                let advanced_item_count = 2
                     + combo_supported as usize
                     + auto_shift_supported as usize
                     + key_override_supported as usize;
-                let mut advanced_menu_labels =
-                    vec![crate::i18n::tr_catalog(lang, "text_expander.title")];
+                let mut advanced_menu_labels = vec![
+                    crate::i18n::tr_catalog(lang, "text_expander.title"),
+                    crate::i18n::tr_catalog(lang, "ui.sticky_layout_window_label"),
+                ];
                 if combo_supported {
                     advanced_menu_labels.push(crate::i18n::tr(lang, TrKey::ComboTitle));
                 }
@@ -16223,6 +16197,7 @@ impl EntropyApp {
                     let item_width = dropdown_rect.width() - 16.0;
                     let (
                         text_expander_hovered,
+                        sticky_layout_hovered,
                         combo_hovered,
                         auto_shift_hovered,
                         key_override_hovered,
@@ -16241,6 +16216,16 @@ impl EntropyApp {
                                         true,
                                         self.main_menu_tab == MainMenuTab::Advanced
                                             && self.settings_tab == SettingsTab::TextExpander,
+                                    );
+                                    let sticky_layout_resp = top_dropdown_item(
+                                        ui,
+                                        item_width,
+                                        crate::i18n::tr_catalog(
+                                            lang,
+                                            "ui.sticky_layout_window_label",
+                                        ),
+                                        true,
+                                        self.app_settings.sticky_layout_window,
                                     );
                                     let combo_resp = combo_supported.then(|| {
                                         top_dropdown_item(
@@ -16276,6 +16261,12 @@ impl EntropyApp {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.open_text_expander_settings_page();
                                     }
+                                    if sticky_layout_resp.clicked() {
+                                        self.app_settings.sticky_layout_window =
+                                            !self.app_settings.sticky_layout_window;
+                                        save_app_settings(&self.app_settings);
+                                        self.close_top_dropdowns(ui.ctx());
+                                    }
                                     if combo_resp.as_ref().map(|r| r.clicked()).unwrap_or(false) {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.settings_tab = SettingsTab::Combo;
@@ -16304,6 +16295,7 @@ impl EntropyApp {
                                     }
                                     (
                                         text_expander_resp.hovered(),
+                                        sticky_layout_resp.hovered(),
                                         combo_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         auto_shift_resp
                                             .as_ref()
@@ -16314,6 +16306,7 @@ impl EntropyApp {
                                             .map(|r| r.hovered())
                                             .unwrap_or(false),
                                         text_expander_resp.clicked()
+                                            || sticky_layout_resp.clicked()
                                             || combo_resp
                                                 .as_ref()
                                                 .map(|r| r.clicked())
@@ -16337,6 +16330,7 @@ impl EntropyApp {
                             !advanced_clicked
                                 && (advanced_tab_hovered
                                     || text_expander_hovered
+                                    || sticky_layout_hovered
                                     || combo_hovered
                                     || auto_shift_hovered
                                     || key_override_hovered
