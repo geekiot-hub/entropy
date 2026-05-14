@@ -389,6 +389,28 @@ fn clamp_sticky_layout_opacity(opacity: f32) -> f32 {
     }
 }
 
+fn sticky_layout_visuals(dark: bool) -> egui::Visuals {
+    let mut visuals = if dark {
+        egui::Visuals::dark()
+    } else {
+        egui::Visuals::light()
+    };
+    visuals.panel_fill = app_panel_fill(dark);
+    visuals.window_fill = app_window_fill(dark);
+    visuals.faint_bg_color = app_panel_fill(dark);
+    visuals.extreme_bg_color = app_panel_fill(dark);
+    visuals.widgets.noninteractive.bg_fill = app_panel_fill(dark);
+    visuals.widgets.noninteractive.bg_stroke = Stroke::new(1.0, app_border_color(dark));
+    visuals.widgets.inactive.bg_fill = app_surface_fill(dark);
+    visuals.widgets.inactive.weak_bg_fill = app_surface_fill(dark);
+    visuals.widgets.inactive.bg_stroke = Stroke::new(1.0, app_border_color(dark));
+    visuals.widgets.hovered.bg_fill = app_hover_fill(dark);
+    visuals.widgets.hovered.weak_bg_fill = app_hover_fill(dark);
+    visuals.widgets.hovered.bg_stroke = Stroke::new(1.0, app_border_color(dark));
+    visuals.interact_cursor = Some(egui::CursorIcon::PointingHand);
+    visuals
+}
+
 #[cfg(target_os = "windows")]
 fn set_windows_window_opacity_by_title(title: &str, opacity: f32) {
     use windows_sys::Win32::UI::WindowsAndMessaging::{
@@ -1394,11 +1416,7 @@ fn draw_sticky_layout_transparency_dropdown(
         &dropdown_resp,
         egui::PopupCloseBehavior::CloseOnClickOutside,
         |ui| {
-            *ui.visuals_mut() = if dark {
-                egui::Visuals::dark()
-            } else {
-                egui::Visuals::light()
-            };
+            *ui.visuals_mut() = sticky_layout_visuals(dark);
             egui::Frame::NONE
                 .fill(app_surface_fill(dark))
                 .inner_margin(egui::Margin::same(4))
@@ -8367,6 +8385,7 @@ impl EntropyApp {
                     egui::WindowLevel::Normal
                 }),
             |viewport_ctx, viewport_class| {
+                viewport_ctx.set_visuals(sticky_layout_visuals(dark));
                 if viewport_ctx.input(|i| i.viewport().close_requested()) {
                     should_close = true;
                     return;
@@ -8396,11 +8415,7 @@ impl EntropyApp {
                 let viewport_default_size = sticky_window_size;
 
                 let mut draw_contents = |ui: &mut egui::Ui, should_close: &mut bool| {
-                    *ui.visuals_mut() = if dark {
-                        egui::Visuals::dark()
-                    } else {
-                        egui::Visuals::light()
-                    };
+                    *ui.visuals_mut() = sticky_layout_visuals(dark);
                     let effective_sticky_opacity = if resize_opacity_hold_frames > 0 {
                         1.0
                     } else {
@@ -8575,7 +8590,7 @@ impl EntropyApp {
                     }
                 } else {
                     egui::CentralPanel::default()
-                        .frame(egui::Frame::NONE.fill(Color32::TRANSPARENT))
+                        .frame(egui::Frame::NONE.fill(app_panel_fill(dark)))
                         .show(viewport_ctx, |ui| {
                             draw_contents(ui, &mut should_close);
                         });
