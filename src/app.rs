@@ -8384,18 +8384,17 @@ impl EntropyApp {
                         ),
                     );
                     let buttons_w = 60.0;
-                    let drag_rect = egui::Rect::from_min_max(
+                    let title_drag_rect = egui::Rect::from_min_max(
                         title_rect.min,
                         egui::pos2(title_rect.right() - buttons_w, title_rect.bottom()),
                     );
-                    let drag_response = ui.interact(
-                        drag_rect,
-                        ui.id().with("sticky_layout_window_drag"),
-                        Sense::click_and_drag(),
+                    ui.painter().line_segment(
+                        [
+                            egui::pos2(title_rect.left(), title_rect.bottom()),
+                            egui::pos2(title_rect.right(), title_rect.bottom()),
+                        ],
+                        Stroke::new(1.0, app_border_color(dark)),
                     );
-                    if drag_response.drag_started() {
-                        viewport_ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
-                    }
 
                     let title_x = title_rect.left() + 12.0;
                     if let Some(device_title) = &device_title {
@@ -8487,6 +8486,23 @@ impl EntropyApp {
                         ],
                         Stroke::new(1.0, app_border_color(dark)),
                     );
+                    let footer_drag_rect = egui::Rect::from_min_max(
+                        egui::pos2(footer_rect.left() + 124.0, footer_rect.top()),
+                        egui::pos2(footer_rect.right() - 154.0, footer_rect.bottom()),
+                    );
+                    let title_drag_response = ui.interact(
+                        title_drag_rect,
+                        ui.id().with("sticky_layout_window_title_drag"),
+                        Sense::click_and_drag(),
+                    );
+                    let footer_drag_response = ui.interact(
+                        footer_drag_rect,
+                        ui.id().with("sticky_layout_window_footer_drag"),
+                        Sense::click_and_drag(),
+                    );
+                    if title_drag_response.drag_started() || footer_drag_response.drag_started() {
+                        viewport_ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
+                    }
                     let preview_rect = egui::Rect::from_min_max(
                         egui::pos2(full_rect.left(), title_rect.bottom()),
                         egui::pos2(full_rect.right(), footer_rect.top()),
