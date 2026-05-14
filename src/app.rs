@@ -1390,7 +1390,7 @@ fn draw_sticky_layout_transparency_dropdown(
     let selected_text = format!(
         "{} {}%",
         label_prefix,
-        ((1.0 - OPACITY_VALUES[selected_idx]) * 100.0).round() as i32
+        (OPACITY_VALUES[selected_idx] * 100.0).round() as i32
     );
     let dropdown_id = ui.id().with("sticky_layout_transparency_dropdown");
     let width = 104.0;
@@ -1423,11 +1423,8 @@ fn draw_sticky_layout_transparency_dropdown(
                     ui.set_min_width(width);
                     ui.spacing_mut().item_spacing = Vec2::new(0.0, 2.0);
                     for (idx, value) in OPACITY_VALUES.iter().copied().enumerate() {
-                        let option_text = format!(
-                            "{} {}%",
-                            label_prefix,
-                            ((1.0 - value) * 100.0).round() as i32
-                        );
+                        let option_text =
+                            format!("{} {}%", label_prefix, (value * 100.0).round() as i32);
                         let selected = idx == selected_idx;
                         let (option_rect, option_resp) =
                             ui.allocate_exact_size(Vec2::new(width, 24.0), Sense::click());
