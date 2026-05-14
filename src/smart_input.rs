@@ -505,6 +505,14 @@ fn foreground_process_name_lower() -> Option<String> {
 }
 
 #[cfg(target_os = "windows")]
+fn foreground_is_current_process() -> bool {
+    let Some(foreground) = foreground_process_name_lower() else {
+        return false;
+    };
+    current_process_name_lower().as_deref() == Some(foreground.as_str())
+}
+
+#[cfg(target_os = "windows")]
 unsafe fn process_name_lower_for_hwnd(hwnd: HWND) -> Option<String> {
     if hwnd.is_null() {
         return None;
@@ -801,6 +809,9 @@ unsafe extern "system" fn keyboard_proc(n_code: i32, w_param: usize, l_param: is
         if !injected {
             if is_key_down {
                 remember_current_foreground_app();
+            }
+            if foreground_is_current_process() {
+                return CallNextHookEx(std::ptr::null_mut(), n_code, w_param, l_param);
             }
             if is_key_down && text_expander_enabled() {
                 if text_expander_suppressed_for_context() {
