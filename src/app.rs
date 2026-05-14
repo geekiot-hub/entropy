@@ -1315,7 +1315,8 @@ const LAYOUT_BOTTOM_RESERVED_H: f32 = 76.0_f32;
 const STICKY_LAYOUT_WINDOW_W: f32 = 720.0_f32;
 const STICKY_LAYOUT_WINDOW_H: f32 = 360.0_f32;
 const STICKY_LAYOUT_WINDOW_MARGIN: f32 = 1.0_f32;
-const STICKY_LAYOUT_WINDOW_TITLE_H: f32 = 34.0_f32;
+const STICKY_LAYOUT_WINDOW_TITLE_H: f32 = 42.0_f32;
+const STICKY_LAYOUT_WINDOW_FOOTER_H: f32 = 34.0_f32;
 const STICKY_LAYOUT_KEYBOARD_MARGIN: f32 = 1.0_f32;
 
 #[derive(Clone, Copy)]
@@ -8263,7 +8264,9 @@ impl EntropyApp {
             .selected_device
             .and_then(|idx| self.device_manager.devices().get(idx))
             .map(|device| device.name.clone());
-        let title = selected_device_name
+        let indicator_title =
+            crate::i18n::tr_catalog(lang, "ui.sticky_layout_window_title").to_string();
+        let device_title = selected_device_name
             .as_deref()
             .map(str::trim)
             .filter(|name| !name.is_empty())
@@ -8274,10 +8277,11 @@ impl EntropyApp {
                     .map(|layout| layout.name.trim())
                     .filter(|name| !name.is_empty())
                     .map(str::to_owned)
-            })
-            .unwrap_or_else(|| {
-                crate::i18n::tr_catalog(lang, "ui.sticky_layout_window_title").to_string()
             });
+        let window_title = device_title
+            .as_deref()
+            .map(|device_title| format!("{indicator_title} — {device_title}"))
+            .unwrap_or_else(|| indicator_title.clone());
         let sticky_layer = layout
             .as_ref()
             .map(|layout| self.sync_sticky_layout_layer_state(layout))
@@ -8303,7 +8307,7 @@ impl EntropyApp {
         let mut should_save_settings = false;
 
         let mut viewport_builder = egui::ViewportBuilder::default()
-            .with_title(title.clone())
+            .with_title(window_title.clone())
             .with_min_inner_size(sticky_layout_default_window_size())
             .with_resizable(true)
             .with_decorations(false)
@@ -8359,7 +8363,7 @@ impl EntropyApp {
                     #[cfg(not(target_os = "windows"))]
                     ui.set_opacity(effective_sticky_opacity);
                     #[cfg(target_os = "windows")]
-                    set_windows_window_opacity_by_title(&title, effective_sticky_opacity);
+                    set_windows_window_opacity_by_title(&window_title, effective_sticky_opacity);
                     let panel_bg = app_panel_fill(dark);
                     let full_rect = ui.max_rect();
                     ui.painter().rect_filled(full_rect, 0.0, panel_bg);
@@ -8391,13 +8395,39 @@ impl EntropyApp {
                         viewport_ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
                     }
 
-                    ui.painter().text(
-                        egui::pos2(title_rect.left() + 12.0, title_rect.center().y),
-                        egui::Align2::LEFT_CENTER,
-                        title.as_str(),
-                        FontId::proportional(13.0),
-                        app_muted_text(dark),
-                    );
+                    let title_x = title_rect.left() + 12.0;
+                    if let Some(device_title) = &device_title {
+                        ui.painter().text(
+                            egui::pos2(title_x, title_rect.top() + 14.0),
+                            egui::Align2::LEFT_CENTER,
+                            indicator_title.as_str(),
+                            FontId::proportional(13.0),
+                            if dark {
+                                Color32::from_gray(238)
+                            } else {
+                                Color32::from_gray(32)
+                            },
+                        );
+                        ui.painter().text(
+                            egui::pos2(title_x, title_rect.top() + 30.0),
+                            egui::Align2::LEFT_CENTER,
+                            device_title.as_str(),
+                            FontId::proportional(11.0),
+                            app_muted_text(dark),
+                        );
+                    } else {
+                        ui.painter().text(
+                            egui::pos2(title_x, title_rect.center().y),
+                            egui::Align2::LEFT_CENTER,
+                            indicator_title.as_str(),
+                            FontId::proportional(13.0),
+                            if dark {
+                                Color32::from_gray(238)
+                            } else {
+                                Color32::from_gray(32)
+                            },
+                        );
+                    }
 
                     ui.allocate_ui_at_rect(title_rect.shrink2(Vec2::new(6.0, 4.0)), |ui| {
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -8441,9 +8471,23 @@ impl EntropyApp {
                         });
                     });
 
+                    let footer_rect = egui::Rect::from_min_max(
+                        egui::pos2(
+                            full_rect.left(),
+                            full_rect.bottom() - STICKY_LAYOUT_WINDOW_FOOTER_H,
+                        ),
+                        full_rect.right_bottom(),
+                    );
+                    ui.painter().line_segment(
+                        [
+                            egui::pos2(footer_rect.left(), footer_rect.top()),
+                            egui::pos2(footer_rect.right(), footer_rect.top()),
+                        ],
+                        Stroke::new(1.0, app_border_color(dark)),
+                    );
                     let preview_rect = egui::Rect::from_min_max(
                         egui::pos2(full_rect.left(), title_rect.bottom()),
-                        full_rect.right_bottom(),
+                        egui::pos2(full_rect.right(), footer_rect.top()),
                     );
                     let rect = preview_rect.shrink(STICKY_LAYOUT_WINDOW_MARGIN);
                     if let Some(layout) = &layout {
@@ -8481,7 +8525,7 @@ impl EntropyApp {
                     }
 
                     let transparency_rect = egui::Rect::from_min_size(
-                        egui::pos2(full_rect.left() + 8.0, full_rect.bottom() - 28.0),
+                        egui::pos2(footer_rect.left() + 8.0, footer_rect.center().y - 12.0),
                         egui::vec2(108.0, 24.0),
                     );
                     ui.allocate_ui_at_rect(transparency_rect, |ui| {
@@ -8496,7 +8540,7 @@ impl EntropyApp {
                     });
 
                     let theme_rect = egui::Rect::from_min_size(
-                        egui::pos2(full_rect.right() - 150.0, full_rect.bottom() - 27.0),
+                        egui::pos2(footer_rect.right() - 150.0, footer_rect.center().y - 11.0),
                         egui::vec2(118.0, 22.0),
                     );
                     ui.allocate_ui_at_rect(theme_rect, |ui| {
@@ -8506,7 +8550,7 @@ impl EntropyApp {
                     });
 
                     let resize_rect = egui::Rect::from_min_size(
-                        egui::pos2(full_rect.right() - 26.0, full_rect.bottom() - 26.0),
+                        egui::pos2(footer_rect.right() - 26.0, footer_rect.bottom() - 26.0),
                         egui::vec2(26.0, 26.0),
                     );
                     let resize_resp = ui.interact(
@@ -8543,7 +8587,7 @@ impl EntropyApp {
 
                 if matches!(viewport_class, egui::ViewportClass::Embedded) {
                     let mut open = true;
-                    egui::Window::new(title.as_str())
+                    egui::Window::new(window_title.as_str())
                         .open(&mut open)
                         .default_size(viewport_default_size)
                         .min_size(sticky_layout_default_window_size())
