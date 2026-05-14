@@ -8331,7 +8331,7 @@ impl EntropyApp {
             clamp_sticky_layout_opacity(self.app_settings.sticky_layout_opacity);
         let mut sticky_always_on_top = self.app_settings.sticky_layout_always_on_top;
         let saved_sticky_window_size = sticky_layout_saved_window_size(&self.app_settings);
-        let mut sticky_window_size = sticky_layout_aspect_adjusted_window_size(
+        let sticky_window_size = sticky_layout_aspect_adjusted_window_size(
             layout.as_ref(),
             saved_sticky_window_size,
             saved_sticky_window_size,
@@ -8347,7 +8347,7 @@ impl EntropyApp {
                 .with_inner_size(sticky_window_size)
                 .with_min_inner_size(sticky_layout_default_window_size())
                 .with_resizable(true)
-                .with_decorations(false)
+                .with_decorations(true)
                 .with_window_level(if sticky_always_on_top {
                     egui::WindowLevel::AlwaysOnTop
                 } else {
@@ -8530,37 +8530,6 @@ impl EntropyApp {
                             draw_theme_selector_labels(ui, lang, &mut sticky_dark_mode);
                         });
                     });
-
-                    let resize_rect = egui::Rect::from_min_size(
-                        egui::pos2(full_rect.right() - 26.0, full_rect.bottom() - 26.0),
-                        egui::vec2(26.0, 26.0),
-                    );
-                    let resize_resp = ui.interact(
-                        resize_rect,
-                        ui.id().with("sticky_layout_resize_grip"),
-                        Sense::click_and_drag(),
-                    );
-                    if resize_resp.hovered() || resize_resp.dragged() {
-                        ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeSouthEast);
-                    }
-                    if resize_resp.drag_started() {
-                        viewport_ctx.send_viewport_cmd(egui::ViewportCommand::BeginResize(
-                            egui::ResizeDirection::SouthEast,
-                        ));
-                    }
-                    if resize_resp.drag_stopped() {
-                        should_save_settings = true;
-                    }
-                    let grip_color = app_muted_text(dark);
-                    for offset in [7.0, 12.0, 17.0] {
-                        ui.painter().line_segment(
-                            [
-                                egui::pos2(full_rect.right() - offset, full_rect.bottom() - 5.0),
-                                egui::pos2(full_rect.right() - 5.0, full_rect.bottom() - offset),
-                            ],
-                            Stroke::new(1.0, grip_color),
-                        );
-                    }
                 };
 
                 if matches!(viewport_class, egui::ViewportClass::Embedded) {
