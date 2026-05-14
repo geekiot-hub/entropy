@@ -15104,14 +15104,22 @@ impl EntropyApp {
                                         self.close_top_dropdowns(ui.ctx());
                                         if is_unlocked {
                                             if let Some(hid) = &self.hid_device {
+                                                let layout_indicator_was_open =
+                                                    self.app_settings.sticky_layout_window;
                                                 match hid.lock() {
                                                     Ok(()) => {
-                                                        self.status_msg = "Device locked".into();
-                                                        if self.app_settings.sticky_layout_window {
+                                                        if layout_indicator_was_open {
+                                                            self.status_msg = crate::i18n::tr_catalog(
+                                                                self.app_settings.language,
+                                                                "ui.sticky_layout_closed_due_to_lock",
+                                                            )
+                                                            .into();
                                                             self.app_settings.sticky_layout_window = false;
                                                             self.pending_layout_indicator_open_after_unlock = false;
                                                             self.sticky_layout_last_size = None;
                                                             save_app_settings(&self.app_settings);
+                                                        } else {
+                                                            self.status_msg = "Device locked".into();
                                                         }
                                                     }
                                                     Err(e) => {
