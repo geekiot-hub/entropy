@@ -9321,7 +9321,7 @@ impl eframe::App for EntropyApp {
             if self.vial_unlock_polling {
                 if let Some(hid) = &self.hid_device {
                     match hid.unlock_poll() {
-                        Ok((unlocked, _in_progress, counter)) => {
+                        Ok((unlocked, in_progress, counter)) => {
                             self.vial_unlock_counter = counter;
                             if counter < self.vial_unlock_best {
                                 self.vial_unlock_best = counter;
@@ -9337,9 +9337,33 @@ impl eframe::App for EntropyApp {
                                     self.sticky_layout_last_size = None;
                                     save_app_settings(&self.app_settings);
                                 }
+                            } else if !in_progress {
+                                match hid.get_unlock_status() {
+                                    Ok((_, keys)) => {
+                                        self.vial_unlock_keys = keys;
+                                    }
+                                    Err(e) => {
+                                        self.status_msg = format!("Unlock status failed: {e}");
+                                    }
+                                }
+                                match hid.unlock_start() {
+                                    Ok(()) => {
+                                        self.vial_unlock_counter = 0;
+                                        self.vial_unlock_best = self.vial_unlock_total;
+                                        self.status_msg = "Unlock timed out, try again".into();
+                                    }
+                                    Err(e) => {
+                                        self.status_msg = format!("Unlock restart failed: {e}");
+                                        self.unlock_open = false;
+                                        self.vial_unlock_polling = false;
+                                        self.pending_layout_indicator_open_after_unlock = false;
+                                    }
+                                }
                             }
                         }
-                        Err(_) => {}
+                        Err(e) => {
+                            self.status_msg = format!("Unlock poll failed: {e}");
+                        }
                     }
                 }
                 // Poll at ~120ms intervals (firmware timer threshold is 100ms)
