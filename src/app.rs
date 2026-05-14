@@ -396,7 +396,7 @@ fn set_windows_window_opacity_by_title(title: &str, opacity: f32) {
         LWA_ALPHA, WS_EX_LAYERED,
     };
 
-    let alpha = (clamp_sticky_layout_opacity(opacity) * 255.0).round() as u8;
+    let opacity = clamp_sticky_layout_opacity(opacity);
     let title_wide: Vec<u16> = title.encode_utf16().chain(std::iter::once(0)).collect();
     unsafe {
         let hwnd = FindWindowW(std::ptr::null(), title_wide.as_ptr());
@@ -404,7 +404,17 @@ fn set_windows_window_opacity_by_title(title: &str, opacity: f32) {
             return;
         }
         let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex_style | WS_EX_LAYERED as isize);
+        if opacity >= 0.999 {
+            if (ex_style & WS_EX_LAYERED as isize) != 0 {
+                SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex_style & !(WS_EX_LAYERED as isize));
+            }
+            return;
+        }
+
+        let alpha = (opacity * 255.0).round() as u8;
+        if (ex_style & WS_EX_LAYERED as isize) == 0 {
+            SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex_style | WS_EX_LAYERED as isize);
+        }
         SetLayeredWindowAttributes(hwnd, 0, alpha, LWA_ALPHA);
     }
 }
@@ -2998,6 +3008,7 @@ pub struct EntropyApp {
     sticky_layout_toggled_layers: Vec<bool>,
     sticky_layout_base_layer: usize,
     sticky_layout_last_size: Option<Vec2>,
+    sticky_layout_resize_opacity_hold_frames: u8,
     matrix_tester_last_poll: std::time::Instant,
     matrix_tester_last_lock_check: std::time::Instant,
     matrix_tester_unlock_prompted: bool,
@@ -3127,6 +3138,7 @@ impl EntropyApp {
             sticky_layout_toggled_layers: Vec::new(),
             sticky_layout_base_layer: 0,
             sticky_layout_last_size: None,
+            sticky_layout_resize_opacity_hold_frames: 0,
             matrix_tester_last_poll: std::time::Instant::now(),
             matrix_tester_last_lock_check: std::time::Instant::now()
                 - MATRIX_TESTER_LOCK_CHECK_INTERVAL,
@@ -8337,6 +8349,7 @@ impl EntropyApp {
             saved_sticky_window_size,
         );
         let mut observed_sticky_size: Option<Vec2> = None;
+        let mut resize_opacity_hold_frames = self.sticky_layout_resize_opacity_hold_frames;
         let mut should_close = false;
         let mut should_save_settings = false;
 
@@ -8366,6 +8379,16 @@ impl EntropyApp {
                         && current_size.x > 0.0
                         && current_size.y > 0.0
                     {
+                        if self
+                            .sticky_layout_last_size
+                            .map(|last_size| {
+                                (last_size.x - current_size.x).abs() > 0.5
+                                    || (last_size.y - current_size.y).abs() > 0.5
+                            })
+                            .unwrap_or(false)
+                        {
+                            resize_opacity_hold_frames = 8;
+                        }
                         observed_sticky_size = Some(current_size);
                     }
                 }
@@ -8378,10 +8401,15 @@ impl EntropyApp {
                     } else {
                         egui::Visuals::light()
                     };
+                    let effective_sticky_opacity = if resize_opacity_hold_frames > 0 {
+                        1.0
+                    } else {
+                        sticky_opacity
+                    };
                     #[cfg(not(target_os = "windows"))]
-                    ui.set_opacity(sticky_opacity);
+                    ui.set_opacity(effective_sticky_opacity);
                     #[cfg(target_os = "windows")]
-                    set_windows_window_opacity_by_title(&title, sticky_opacity);
+                    set_windows_window_opacity_by_title(&title, effective_sticky_opacity);
                     let panel_bg = app_panel_fill(dark);
                     let full_rect = ui.max_rect();
                     ui.painter().rect_filled(full_rect, 0.0, panel_bg);
@@ -8554,6 +8582,11 @@ impl EntropyApp {
                 }
             },
         );
+
+        if resize_opacity_hold_frames > 0 {
+            resize_opacity_hold_frames = resize_opacity_hold_frames.saturating_sub(1);
+        }
+        self.sticky_layout_resize_opacity_hold_frames = resize_opacity_hold_frames;
 
         if let Some(size) = observed_sticky_size {
             self.sticky_layout_last_size = Some(size);
