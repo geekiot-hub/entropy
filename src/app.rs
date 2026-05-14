@@ -8350,10 +8350,6 @@ impl EntropyApp {
                         Stroke::new(1.0, app_border_color(dark)),
                         egui::StrokeKind::Inside,
                     );
-                    if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-                        *should_close = true;
-                    }
-
                     let title_rect = egui::Rect::from_min_max(
                         full_rect.min,
                         egui::pos2(
