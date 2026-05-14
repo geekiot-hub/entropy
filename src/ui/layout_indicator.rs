@@ -360,7 +360,6 @@ impl EntropyApp {
             viewport_id,
             viewport_builder,
             |viewport_ctx, viewport_class| {
-                viewport_ctx.set_visuals(sticky_layout_visuals(dark));
                 if viewport_ctx.input(|i| i.viewport().close_requested()) {
                     should_close = true;
                     return;
