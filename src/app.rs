@@ -8511,6 +8511,41 @@ impl EntropyApp {
                             draw_theme_selector_labels(ui, lang, &mut sticky_dark_mode);
                         });
                     });
+
+                    let resize_rect = egui::Rect::from_min_size(
+                        egui::pos2(full_rect.right() - 26.0, full_rect.bottom() - 26.0),
+                        egui::vec2(26.0, 26.0),
+                    );
+                    let resize_resp = ui.interact(
+                        resize_rect,
+                        ui.id().with("sticky_layout_resize_grip"),
+                        Sense::click_and_drag(),
+                    );
+                    if resize_resp.hovered() || resize_resp.dragged() {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeSouthEast);
+                    }
+                    if resize_resp.drag_started() {
+                        resize_opacity_hold_frames = 8;
+                        viewport_ctx.send_viewport_cmd(egui::ViewportCommand::BeginResize(
+                            egui::ResizeDirection::SouthEast,
+                        ));
+                    }
+                    if resize_resp.dragged() {
+                        resize_opacity_hold_frames = 8;
+                    }
+                    if resize_resp.drag_stopped() {
+                        should_save_settings = true;
+                    }
+                    let grip_color = app_muted_text(dark);
+                    for offset in [7.0, 12.0, 17.0] {
+                        ui.painter().line_segment(
+                            [
+                                egui::pos2(full_rect.right() - offset, full_rect.bottom() - 5.0),
+                                egui::pos2(full_rect.right() - 5.0, full_rect.bottom() - offset),
+                            ],
+                            Stroke::new(1.0, grip_color),
+                        );
+                    }
                 };
 
                 if matches!(viewport_class, egui::ViewportClass::Embedded) {
