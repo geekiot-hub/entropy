@@ -2969,6 +2969,7 @@ pub struct EntropyApp {
     sticky_layout_base_layer: usize,
     sticky_layout_last_size: Option<Vec2>,
     sticky_layout_resize_opacity_hold_frames: u8,
+    pending_layout_indicator_open_after_unlock: bool,
     matrix_tester_last_poll: std::time::Instant,
     matrix_tester_last_lock_check: std::time::Instant,
     matrix_tester_unlock_prompted: bool,
@@ -3099,6 +3100,7 @@ impl EntropyApp {
             sticky_layout_base_layer: 0,
             sticky_layout_last_size: None,
             sticky_layout_resize_opacity_hold_frames: 0,
+            pending_layout_indicator_open_after_unlock: false,
             matrix_tester_last_poll: std::time::Instant::now(),
             matrix_tester_last_lock_check: std::time::Instant::now()
                 - MATRIX_TESTER_LOCK_CHECK_INTERVAL,
@@ -3146,6 +3148,7 @@ impl EntropyApp {
         self.connect_state = ConnectState::Idle;
         self.unlock_open = false;
         self.vial_unlock_polling = false;
+        self.pending_layout_indicator_open_after_unlock = false;
         self.keycode_picker.open = false;
         self.current_device_name.clear();
         self.mouse_keys_settings = MouseKeysSettingsState::default();
@@ -4250,6 +4253,7 @@ impl EntropyApp {
         }
         self.unlock_open = false;
         self.vial_unlock_polling = false;
+        self.pending_layout_indicator_open_after_unlock = false;
         self.vial_unlock_counter = 0;
         self.vial_unlock_best = 50;
         self.matrix_tester_unlock_prompted = false;
@@ -8225,7 +8229,18 @@ impl EntropyApp {
         }
 
         #[cfg(not(target_arch = "wasm32"))]
-        self.prompt_if_vial_locked_for_matrix_poll();
+        if self.is_vial_locked() {
+            self.app_settings.sticky_layout_window = false;
+            self.pending_layout_indicator_open_after_unlock = true;
+            self.unlock_open = true;
+            self.status_msg = crate::i18n::tr_catalog(
+                self.app_settings.language,
+                "matrix_tester.keyboard_is_locked_unlock_it_to_use_matrix_tester",
+            )
+            .into();
+            save_app_settings(&self.app_settings);
+            return;
+        }
 
         #[cfg(not(target_arch = "wasm32"))]
         if let Some((rows, cols)) = self
@@ -8239,25 +8254,7 @@ impl EntropyApp {
         let viewport_id = egui::ViewportId::from_hash_of("entropy_sticky_layout_window");
         let lang = self.app_settings.language;
         let layout = self.layout.clone();
-        let selected_device_name = self
-            .selected_device
-            .and_then(|idx| self.device_manager.devices().get(idx))
-            .map(|device| device.name.clone());
-        let title = selected_device_name
-            .as_deref()
-            .map(str::trim)
-            .filter(|name| !name.is_empty())
-            .map(str::to_owned)
-            .or_else(|| {
-                layout
-                    .as_ref()
-                    .map(|layout| layout.name.trim())
-                    .filter(|name| !name.is_empty())
-                    .map(str::to_owned)
-            })
-            .unwrap_or_else(|| {
-                crate::i18n::tr_catalog(lang, "ui.sticky_layout_window_title").to_string()
-            });
+        let title = crate::i18n::tr_catalog(lang, "ui.sticky_layout_window_title").to_string();
         let sticky_layer = layout
             .as_ref()
             .map(|layout| self.sync_sticky_layout_layer_state(layout))
@@ -9315,6 +9312,7 @@ impl eframe::App for EntropyApp {
                         Err(e) => {
                             self.status_msg = format!("Unlock start failed: {e}");
                             self.unlock_open = false;
+                            self.pending_layout_indicator_open_after_unlock = false;
                         }
                     }
                 }
@@ -9333,6 +9331,12 @@ impl eframe::App for EntropyApp {
                                 self.unlock_open = false;
                                 self.vial_unlock_polling = false;
                                 self.macro_auto_unlock_cancelled = false;
+                                if self.pending_layout_indicator_open_after_unlock {
+                                    self.pending_layout_indicator_open_after_unlock = false;
+                                    self.app_settings.sticky_layout_window = true;
+                                    self.sticky_layout_last_size = None;
+                                    save_app_settings(&self.app_settings);
+                                }
                             }
                         }
                         Err(_) => {}
@@ -16151,10 +16155,24 @@ impl EntropyApp {
                                 )
                                 .clicked()
                                 {
-                                    self.app_settings.sticky_layout_window =
-                                        !self.app_settings.sticky_layout_window;
-                                    self.sticky_layout_last_size = None;
-                                    save_app_settings(&self.app_settings);
+                                    if self.app_settings.sticky_layout_window {
+                                        self.app_settings.sticky_layout_window = false;
+                                        self.pending_layout_indicator_open_after_unlock = false;
+                                        self.sticky_layout_last_size = None;
+                                        save_app_settings(&self.app_settings);
+                                    } else if self.is_vial_locked() {
+                                        self.pending_layout_indicator_open_after_unlock = true;
+                                        self.unlock_open = true;
+                                        self.status_msg = crate::i18n::tr_catalog(
+                                            self.app_settings.language,
+                                            "matrix_tester.keyboard_is_locked_unlock_it_to_use_matrix_tester",
+                                        )
+                                        .into();
+                                    } else {
+                                        self.app_settings.sticky_layout_window = true;
+                                        self.sticky_layout_last_size = None;
+                                        save_app_settings(&self.app_settings);
+                                    }
                                     ctx.request_repaint();
                                     device_clicked = true;
                                 }
