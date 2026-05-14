@@ -1,6 +1,6 @@
 use super::*;
 
-const VIAL_UNLOCK_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(110);
+const VIAL_UNLOCK_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(50);
 const VIAL_UNLOCK_PROGRESS_ANIMATION_TIME: f32 = 0.16;
 
 impl EntropyApp {
@@ -35,8 +35,10 @@ impl EntropyApp {
                     }
                 }
             }
-            // Poll unlock at firmware-safe intervals. The overlay may repaint faster for smooth
-            // progress animation, but USB polling should not run every rendered frame.
+            // Poll faster than the firmware unlock timer threshold. If we poll slower than
+            // ~100ms, the firmware can expire an otherwise-correct hold and restart with a
+            // different challenge, which makes the highlighted key look wrong.
+            // The overlay still repaints independently for smooth progress animation.
             if self.vial_unlock_polling {
                 let now = std::time::Instant::now();
                 let should_poll = self
