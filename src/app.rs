@@ -14402,14 +14402,7 @@ impl EntropyApp {
                 let device_count = self.device_manager.devices().len();
                 let device_rows = device_count.max(1) as f32;
                 let devices_h = 12.0 + device_rows * 30.0;
-                let layout_indicator_locked_for_menu = !self.app_settings.sticky_layout_window
-                    && (was_open || device_tab_hovered)
-                    && self.is_vial_locked();
-                let sticky_layout_h = if layout_indicator_locked_for_menu {
-                    66.0
-                } else {
-                    36.0
-                };
+                let sticky_layout_h = 36.0;
                 let show_key_legend_switcher =
                     self.app_settings.key_legend_layout.is_multilingual();
                 let key_legend_switcher_h = if show_key_legend_switcher { 36.0 } else { 0.0 };
@@ -14435,21 +14428,8 @@ impl EntropyApp {
                     }
                 }
                 device_menu_labels.push(
-                    crate::i18n::tr_catalog(
-                        lang,
-                        if layout_indicator_locked_for_menu {
-                            "ui.sticky_layout_locked_label"
-                        } else {
-                            "ui.sticky_layout_window_label"
-                        },
-                    )
-                    .to_owned(),
+                    crate::i18n::tr_catalog(lang, "ui.sticky_layout_window_label").to_owned(),
                 );
-                if layout_indicator_locked_for_menu {
-                    device_menu_labels.push(
-                        crate::i18n::tr_catalog(lang, "ui.sticky_layout_locked_hint").to_owned(),
-                    );
-                }
                 let dropdown_size = Vec2::new(
                     adaptive_top_dropdown_width(
                         ui,
@@ -14560,29 +14540,15 @@ impl EntropyApp {
                                 }
 
                                 ui.add_space(6.0);
-                                let layout_indicator_locked = layout_indicator_locked_for_menu;
-                                let layout_indicator_label = if layout_indicator_locked {
-                                    crate::i18n::tr_catalog(lang, "ui.sticky_layout_locked_label")
-                                } else {
-                                    crate::i18n::tr_catalog(lang, "ui.sticky_layout_window_label")
-                                };
-                                let layout_indicator_resp = top_dropdown_item(
+                                if top_dropdown_item(
                                     ui,
                                     dropdown_size.x - 16.0,
-                                    layout_indicator_label,
+                                    crate::i18n::tr_catalog(lang, "ui.sticky_layout_window_label"),
                                     true,
                                     self.app_settings.sticky_layout_window,
-                                );
-                                if layout_indicator_locked {
-                                    top_dropdown_item(
-                                        ui,
-                                        dropdown_size.x - 16.0,
-                                        crate::i18n::tr_catalog(lang, "ui.sticky_layout_locked_hint"),
-                                        false,
-                                        false,
-                                    );
-                                }
-                                if layout_indicator_resp.clicked() {
+                                )
+                                .clicked()
+                                {
                                     if self.app_settings.sticky_layout_window {
                                         self.app_settings.sticky_layout_window = false;
                                         self.pending_layout_indicator_open_after_unlock = false;
