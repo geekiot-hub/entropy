@@ -1326,44 +1326,44 @@ fn draw_theme_selector_labels(
     ui: &mut egui::Ui,
     lang: crate::i18n::Language,
     dark_mode: &mut bool,
+    dark_first: bool,
 ) {
     ui.horizontal(|ui| {
         let active = app_accent();
         let inactive = app_muted_text(*dark_mode);
+        let mut theme_label = |ui: &mut egui::Ui, is_dark: bool| {
+            let key = if is_dark {
+                "app_chrome.dark_dark"
+            } else {
+                "app_chrome.light_light"
+            };
+            let selected = *dark_mode == is_dark;
+            let resp = ui.add(
+                egui::Label::new(
+                    RichText::new(crate::i18n::tr_catalog(lang, key))
+                        .size(11.0)
+                        .color(if selected { active } else { inactive }),
+                )
+                .selectable(false)
+                .sense(egui::Sense::click()),
+            );
+            if resp.hovered() {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+            }
+            if resp.clicked() {
+                *dark_mode = is_dark;
+            }
+        };
 
-        let dark_resp = ui.add(
-            egui::Label::new(
-                RichText::new(crate::i18n::tr_catalog(lang, "app_chrome.dark_dark"))
-                    .size(11.0)
-                    .color(if *dark_mode { active } else { inactive }),
-            )
-            .selectable(false)
-            .sense(egui::Sense::click()),
-        );
-        if dark_resp.hovered() {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-        }
-        if dark_resp.clicked() {
-            *dark_mode = true;
-        }
+        let (first, second) = if dark_first {
+            (true, false)
+        } else {
+            (false, true)
+        };
 
+        theme_label(ui, first);
         ui.add(egui::Label::new(RichText::new("|").size(11.0).color(inactive)).selectable(false));
-
-        let light_resp = ui.add(
-            egui::Label::new(
-                RichText::new(crate::i18n::tr_catalog(lang, "app_chrome.light_light"))
-                    .size(11.0)
-                    .color(if *dark_mode { inactive } else { active }),
-            )
-            .selectable(false)
-            .sense(egui::Sense::click()),
-        );
-        if light_resp.hovered() {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-        }
-        if light_resp.clicked() {
-            *dark_mode = false;
-        }
+        theme_label(ui, second);
     });
 }
 fn draw_sticky_layout_transparency_dropdown(
@@ -8220,6 +8220,7 @@ impl EntropyApp {
 
     fn draw_sticky_layout_window(&mut self, ctx: &egui::Context) {
         if !self.app_settings.sticky_layout_window {
+            self.sticky_layout_last_size = None;
             return;
         }
 
@@ -8281,19 +8282,23 @@ impl EntropyApp {
         let mut should_close = false;
         let mut should_save_settings = false;
 
+        let mut viewport_builder = egui::ViewportBuilder::default()
+            .with_title(title.clone())
+            .with_min_inner_size(sticky_layout_default_window_size())
+            .with_resizable(true)
+            .with_decorations(false)
+            .with_window_level(if sticky_always_on_top {
+                egui::WindowLevel::AlwaysOnTop
+            } else {
+                egui::WindowLevel::Normal
+            });
+        if self.sticky_layout_last_size.is_none() {
+            viewport_builder = viewport_builder.with_inner_size(sticky_window_size);
+        }
+
         ctx.show_viewport_immediate(
             viewport_id,
-            egui::ViewportBuilder::default()
-                .with_title(title.clone())
-                .with_inner_size(sticky_window_size)
-                .with_min_inner_size(sticky_layout_default_window_size())
-                .with_resizable(true)
-                .with_decorations(false)
-                .with_window_level(if sticky_always_on_top {
-                    egui::WindowLevel::AlwaysOnTop
-                } else {
-                    egui::WindowLevel::Normal
-                }),
+            viewport_builder,
             |viewport_ctx, viewport_class| {
                 viewport_ctx.set_visuals(sticky_layout_visuals(dark));
                 if viewport_ctx.input(|i| i.viewport().close_requested()) {
@@ -8480,7 +8485,7 @@ impl EntropyApp {
                     );
                     ui.allocate_ui_at_rect(theme_rect, |ui| {
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            draw_theme_selector_labels(ui, lang, &mut sticky_dark_mode);
+                            draw_theme_selector_labels(ui, lang, &mut sticky_dark_mode, true);
                         });
                     });
 
@@ -8559,6 +8564,7 @@ impl EntropyApp {
 
         if should_close {
             self.app_settings.sticky_layout_window = false;
+            self.sticky_layout_last_size = None;
             should_save_settings = true;
         }
         if self.app_settings.sticky_layout_dark_mode != sticky_dark_mode {
@@ -9283,7 +9289,12 @@ impl eframe::App for EntropyApp {
             .anchor(egui::Align2::RIGHT_BOTTOM, [-16.0, -12.0])
             .order(egui::Order::Foreground)
             .show(ctx, |ui| {
-                draw_theme_selector_labels(ui, self.app_settings.language, &mut self.dark_mode);
+                draw_theme_selector_labels(
+                    ui,
+                    self.app_settings.language,
+                    &mut self.dark_mode,
+                    false,
+                );
             });
 
         // Keycode picker modal
@@ -15955,6 +15966,7 @@ impl EntropyApp {
                 let device_rows = device_count.max(1) as f32;
                 let devices_h = 12.0 + device_rows * 30.0;
                 let lock_h = if has_lock_button { 36.0 } else { 0.0 };
+                let sticky_layout_h = 36.0;
                 let show_key_legend_switcher =
                     self.app_settings.key_legend_layout.is_multilingual();
                 let key_legend_switcher_h = if show_key_legend_switcher { 36.0 } else { 0.0 };
@@ -15988,13 +16000,16 @@ impl EntropyApp {
                             .push(crate::i18n::tr_catalog(lang, order_key).to_owned());
                     }
                 }
+                device_menu_labels.push(
+                    crate::i18n::tr_catalog(lang, "ui.sticky_layout_window_label").to_owned(),
+                );
                 let dropdown_size = Vec2::new(
                     adaptive_top_dropdown_width(
                         ui,
                         device_menu_labels.iter().map(String::as_str),
                         152.0,
                     ),
-                    devices_h + lock_h + key_legend_switcher_h + 12.0,
+                    devices_h + lock_h + key_legend_switcher_h + sticky_layout_h + 12.0,
                 );
                 let dropdown_rect = egui::Rect::from_min_size(
                     egui::pos2(
@@ -16129,6 +16144,24 @@ impl EntropyApp {
                                         }
                                     }
                                 }
+
+                                ui.add_space(6.0);
+                                if top_dropdown_item(
+                                    ui,
+                                    dropdown_size.x - 16.0,
+                                    crate::i18n::tr_catalog(lang, "ui.sticky_layout_window_label"),
+                                    true,
+                                    self.app_settings.sticky_layout_window,
+                                )
+                                .clicked()
+                                {
+                                    self.app_settings.sticky_layout_window =
+                                        !self.app_settings.sticky_layout_window;
+                                    self.sticky_layout_last_size = None;
+                                    save_app_settings(&self.app_settings);
+                                    ctx.request_repaint();
+                                    device_clicked = true;
+                                }
                             });
                         });
 
@@ -16152,14 +16185,12 @@ impl EntropyApp {
                 let combo_supported = !self.combo_entries.is_empty();
                 let key_override_supported = !self.key_override_entries.is_empty();
                 let auto_shift_supported = self.auto_shift_timeout.is_some();
-                let advanced_item_count = 2
+                let advanced_item_count = 1
                     + combo_supported as usize
                     + auto_shift_supported as usize
                     + key_override_supported as usize;
-                let mut advanced_menu_labels = vec![
-                    crate::i18n::tr_catalog(lang, "text_expander.title"),
-                    crate::i18n::tr_catalog(lang, "ui.sticky_layout_window_label"),
-                ];
+                let mut advanced_menu_labels =
+                    vec![crate::i18n::tr_catalog(lang, "text_expander.title")];
                 if combo_supported {
                     advanced_menu_labels.push(crate::i18n::tr(lang, TrKey::ComboTitle));
                 }
@@ -16197,7 +16228,6 @@ impl EntropyApp {
                     let item_width = dropdown_rect.width() - 16.0;
                     let (
                         text_expander_hovered,
-                        sticky_layout_hovered,
                         combo_hovered,
                         auto_shift_hovered,
                         key_override_hovered,
@@ -16216,16 +16246,6 @@ impl EntropyApp {
                                         true,
                                         self.main_menu_tab == MainMenuTab::Advanced
                                             && self.settings_tab == SettingsTab::TextExpander,
-                                    );
-                                    let sticky_layout_resp = top_dropdown_item(
-                                        ui,
-                                        item_width,
-                                        crate::i18n::tr_catalog(
-                                            lang,
-                                            "ui.sticky_layout_window_label",
-                                        ),
-                                        true,
-                                        self.app_settings.sticky_layout_window,
                                     );
                                     let combo_resp = combo_supported.then(|| {
                                         top_dropdown_item(
@@ -16261,12 +16281,6 @@ impl EntropyApp {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.open_text_expander_settings_page();
                                     }
-                                    if sticky_layout_resp.clicked() {
-                                        self.app_settings.sticky_layout_window =
-                                            !self.app_settings.sticky_layout_window;
-                                        save_app_settings(&self.app_settings);
-                                        self.close_top_dropdowns(ui.ctx());
-                                    }
                                     if combo_resp.as_ref().map(|r| r.clicked()).unwrap_or(false) {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.settings_tab = SettingsTab::Combo;
@@ -16295,7 +16309,6 @@ impl EntropyApp {
                                     }
                                     (
                                         text_expander_resp.hovered(),
-                                        sticky_layout_resp.hovered(),
                                         combo_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         auto_shift_resp
                                             .as_ref()
@@ -16306,7 +16319,6 @@ impl EntropyApp {
                                             .map(|r| r.hovered())
                                             .unwrap_or(false),
                                         text_expander_resp.clicked()
-                                            || sticky_layout_resp.clicked()
                                             || combo_resp
                                                 .as_ref()
                                                 .map(|r| r.clicked())
@@ -16330,7 +16342,6 @@ impl EntropyApp {
                             !advanced_clicked
                                 && (advanced_tab_hovered
                                     || text_expander_hovered
-                                    || sticky_layout_hovered
                                     || combo_hovered
                                     || auto_shift_hovered
                                     || key_override_hovered
