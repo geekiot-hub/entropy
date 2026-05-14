@@ -1245,6 +1245,8 @@ use egui::{Color32, FontId, RichText, Sense, Stroke, Vec2};
 
 #[path = "ui/layout_indicator.rs"]
 mod layout_indicator;
+#[path = "ui/matrix_tester.rs"]
+mod matrix_tester;
 #[path = "vial/unlock.rs"]
 mod vial_unlock;
 
@@ -3904,20 +3906,6 @@ impl EntropyApp {
         }
     }
 
-    fn reset_matrix_tester_state(&mut self) {
-        self.matrix_tester_pressed.clear();
-        self.matrix_tester_ever_pressed.clear();
-        self.sticky_layout_prev_pressed.clear();
-        self.sticky_layout_pressed_key_layers.clear();
-        self.sticky_layout_toggled_layers.clear();
-        self.sticky_layout_base_layer = 0;
-        self.matrix_tester_last_poll = std::time::Instant::now() - MATRIX_TESTER_POLL_INTERVAL;
-        self.matrix_tester_last_lock_check =
-            std::time::Instant::now() - MATRIX_TESTER_LOCK_CHECK_INTERVAL;
-        self.matrix_tester_unlock_prompted = false;
-        self.matrix_tester_lock_checked = false;
-    }
-
     #[cfg(not(target_arch = "wasm32"))]
     fn is_vial_locked(&self) -> bool {
         self.firmware == FirmwareProtocol::Vial
@@ -3930,39 +3918,6 @@ impl EntropyApp {
                 .map(|(unlocked, _)| unlocked)
                 .map(|unlocked| !unlocked)
                 .unwrap_or(false)
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    fn prompt_if_vial_locked_for_matrix_poll(&mut self) {
-        if self.firmware != FirmwareProtocol::Vial
-            || self.layout.is_none()
-            || self.hid_device.is_none()
-            || self.unlock_open
-            || self.vial_unlock_polling
-            || self.matrix_tester_unlock_prompted
-        {
-            return;
-        }
-
-        let now = std::time::Instant::now();
-        if self.matrix_tester_lock_checked
-            && now.duration_since(self.matrix_tester_last_lock_check)
-                < MATRIX_TESTER_LOCK_CHECK_INTERVAL
-        {
-            return;
-        }
-
-        self.matrix_tester_lock_checked = true;
-        self.matrix_tester_last_lock_check = now;
-        if self.is_vial_locked() {
-            self.unlock_open = true;
-            self.matrix_tester_unlock_prompted = true;
-            self.status_msg = crate::i18n::tr_catalog(
-                self.app_settings.language,
-                "matrix_tester.keyboard_is_locked_unlock_it_to_use_matrix_tester",
-            )
-            .into();
-        }
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -4012,62 +3967,6 @@ impl EntropyApp {
             self.macro_auto_unlock_cancelled = true;
         }
         self.reopen_vial_hid();
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    fn poll_switch_matrix_state(
-        &mut self,
-        ctx: &egui::Context,
-        rows: usize,
-        cols: usize,
-        remember_ever_pressed: bool,
-    ) {
-        if self.firmware != FirmwareProtocol::Vial {
-            return;
-        }
-        if self.unlock_open || self.vial_unlock_polling {
-            return;
-        }
-        let Some(hid) = &self.hid_device else {
-            return;
-        };
-
-        let now = std::time::Instant::now();
-        if now.duration_since(self.matrix_tester_last_poll) >= MATRIX_TESTER_POLL_INTERVAL {
-            self.matrix_tester_last_poll = now;
-            match hid.get_switch_matrix(rows, cols) {
-                Ok(pressed) => {
-                    if remember_ever_pressed {
-                        if self.matrix_tester_ever_pressed.len() != pressed.len() {
-                            self.matrix_tester_ever_pressed = vec![false; pressed.len()];
-                        }
-                        for (idx, &is_pressed) in pressed.iter().enumerate() {
-                            if is_pressed {
-                                if let Some(seen) = self.matrix_tester_ever_pressed.get_mut(idx) {
-                                    *seen = true;
-                                }
-                            }
-                        }
-                    }
-                    self.matrix_tester_pressed = pressed;
-                }
-                Err(e) => {
-                    log::warn!("Matrix poll error: {e}");
-                    self.matrix_tester_lock_checked = false;
-                    self.matrix_tester_last_lock_check =
-                        std::time::Instant::now() - MATRIX_TESTER_LOCK_CHECK_INTERVAL;
-                }
-            }
-        }
-        ctx.request_repaint_after(MATRIX_TESTER_POLL_INTERVAL);
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    fn poll_matrix_tester(&mut self, ctx: &egui::Context, layout: &KeyboardLayout) {
-        if self.main_menu_tab != MainMenuTab::Settings {
-            return;
-        }
-        self.poll_switch_matrix_state(ctx, layout.rows, layout.cols, true);
     }
 
     fn draw_settings_screen(
@@ -6190,229 +6089,6 @@ impl EntropyApp {
                 }
             });
         });
-    }
-
-    fn draw_matrix_tester_settings(
-        &mut self,
-        ui: &mut egui::Ui,
-        layout: &KeyboardLayout,
-        content_rect: egui::Rect,
-        dark: bool,
-    ) {
-        let title_y = content_rect.top() + 30.0;
-        let desc_y = title_y + 28.0;
-        let status_y = desc_y + 30.0;
-        let supported = self.firmware == FirmwareProtocol::Vial;
-        let hid_ready = {
-            #[cfg(not(target_arch = "wasm32"))]
-            {
-                self.hid_device.is_some()
-            }
-            #[cfg(target_arch = "wasm32")]
-            {
-                false
-            }
-        };
-
-        if supported && hid_ready {
-            #[cfg(not(target_arch = "wasm32"))]
-            self.prompt_if_vial_locked_for_matrix_poll();
-        }
-
-        let total_keys = layout.keys.len();
-        let tested_count = layout
-            .keys
-            .iter()
-            .filter(|key| {
-                let idx = key.row as usize * layout.cols + key.col as usize;
-                self.matrix_tester_ever_pressed
-                    .get(idx)
-                    .copied()
-                    .unwrap_or(false)
-            })
-            .count();
-
-        ui.allocate_ui_at_rect(
-            egui::Rect::from_min_max(
-                egui::pos2(content_rect.left(), content_rect.top()),
-                egui::pos2(content_rect.right(), desc_y + 10.0),
-            ),
-            |ui| {
-                ui.vertical_centered(|ui| {
-                    ui.add_space(18.0);
-                    ui.label(
-                        RichText::new(crate::i18n::tr(
-                            self.app_settings.language,
-                            crate::i18n::Key::MatrixTesterTitle,
-                        ))
-                        .size(18.0)
-                        .strong(),
-                    );
-                    ui.add_space(6.0);
-                    ui.label(
-                        RichText::new(crate::i18n::tr(
-                            self.app_settings.language,
-                            crate::i18n::Key::MatrixTesterDescription,
-                        ))
-                        .size(13.0)
-                        .color(app_muted_text(dark)),
-                    );
-                });
-            },
-        );
-
-        let painter = ui.painter().clone();
-        let complete = tested_count == total_keys && total_keys > 0;
-        let status_prefix =
-            crate::i18n::tr_catalog(self.app_settings.language, "matrix_tester.tested");
-        let status_text = format!("{status_prefix}: {tested_count}/{total_keys}");
-        let status_rect = egui::Rect::from_center_size(
-            egui::pos2(content_rect.center().x, status_y),
-            Vec2::new(132.0, 30.0),
-        );
-        let status_resp = ui.interact(
-            status_rect,
-            ui.id().with("matrix_tester_status_reset"),
-            egui::Sense::click(),
-        );
-        if status_resp.hovered() {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-        }
-        if status_resp.clicked() {
-            self.reset_matrix_tester_state();
-        }
-        let status_hovered = status_resp.hovered();
-        status_resp.on_hover_text(crate::i18n::tr_catalog(
-            self.app_settings.language,
-            crate::i18n::tr_catalog(
-                self.app_settings.language,
-                "matrix_tester.click_to_reset_matrix_tester",
-            ),
-        ));
-        painter.rect(
-            status_rect,
-            9.0,
-            if status_hovered {
-                crate::ui_style::hover_fill(dark)
-            } else {
-                app_surface_fill(dark)
-            },
-            crate::ui_style::modal_outline_stroke(dark),
-            egui::StrokeKind::Inside,
-        );
-        painter.text(
-            status_rect.center(),
-            egui::Align2::CENTER_CENTER,
-            status_text,
-            FontId::proportional(13.0),
-            if complete {
-                app_accent()
-            } else {
-                app_muted_text(dark)
-            },
-        );
-        let idle_fill = if dark {
-            Color32::from_rgb(34, 34, 38)
-        } else {
-            Color32::from_rgb(252, 252, 254)
-        };
-        let tested_fill = crate::ui_style::hover_fill(dark);
-
-        let board_top = content_rect.top() + 104.0;
-        let hint_y = ui.max_rect().bottom() - 36.0;
-        let board_rect = egui::Rect::from_min_max(
-            egui::pos2(content_rect.left(), board_top),
-            egui::pos2(content_rect.right(), hint_y - 22.0),
-        );
-
-        if !supported {
-            painter.text(
-                board_rect.center(),
-                egui::Align2::CENTER_CENTER,
-                crate::i18n::tr_catalog(
-                    self.app_settings.language,
-                    "matrix_tester.matrix_tester_is_currently_available_only_for_vial_keyboards",
-                ),
-                FontId::proportional(15.0),
-                app_muted_text(dark),
-            );
-            return;
-        }
-
-        if !hid_ready {
-            painter.text(
-                board_rect.center(),
-                egui::Align2::CENTER_CENTER,
-                crate::i18n::tr_catalog(
-                    self.app_settings.language,
-                    "matrix_tester.connect_a_vial_keyboard_to_start_live_switch_testing",
-                ),
-                FontId::proportional(15.0),
-                app_muted_text(dark),
-            );
-            return;
-        }
-
-        let viewport = egui::Rect::from_min_max(
-            ui.min_rect().min,
-            egui::pos2(
-                ui.min_rect().left() + ui.available_size().x,
-                ui.max_rect().bottom(),
-            ),
-        );
-        let geometry = layout_geometry(
-            ui.ctx(),
-            layout,
-            viewport,
-            clamp_ui_scale(self.app_settings.ui_scale),
-        );
-
-        let hint_color = if dark {
-            Color32::from_gray(100)
-        } else {
-            Color32::from_gray(160)
-        };
-        painter.text(
-            egui::pos2(content_rect.center().x, hint_y),
-            egui::Align2::CENTER_CENTER,
-            crate::i18n::tr_catalog(
-                self.app_settings.language,
-                "matrix_tester.click_tested_to_reset_progress",
-            ),
-            FontId::proportional(11.0),
-            hint_color,
-        );
-
-        for key in &layout.keys {
-            let matrix_idx = key.row as usize * layout.cols + key.col as usize;
-            let is_pressed = self
-                .matrix_tester_pressed
-                .get(matrix_idx)
-                .copied()
-                .unwrap_or(false);
-            let was_pressed = self
-                .matrix_tester_ever_pressed
-                .get(matrix_idx)
-                .copied()
-                .unwrap_or(false);
-            let rect = layout_physical_key_rect(key, geometry);
-
-            let fill = if is_pressed {
-                app_accent()
-            } else if was_pressed {
-                tested_fill
-            } else {
-                idle_fill
-            };
-            let stroke = if is_pressed {
-                app_accent()
-            } else if was_pressed {
-                app_accent()
-            } else {
-                app_border_color(dark)
-            };
-            paint_layout_keycap(&painter, rect, key.rotation, fill, Stroke::new(1.0, stroke));
-        }
     }
 
     fn draw_rgb_settings_page(&mut self, ui: &mut egui::Ui, content_rect: egui::Rect, dark: bool) {
