@@ -1,6 +1,6 @@
 use super::*;
 
-const VIAL_UNLOCK_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(50);
+const VIAL_UNLOCK_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(200);
 const VIAL_UNLOCK_PROGRESS_ANIMATION_TIME: f32 = 0.16;
 
 impl EntropyApp {
@@ -35,9 +35,9 @@ impl EntropyApp {
                     }
                 }
             }
-            // Poll faster than the firmware unlock timer threshold. If we poll slower than
-            // ~100ms, the firmware can expire an otherwise-correct hold and restart with a
-            // different challenge, which makes the highlighted key look wrong.
+            // Match Vial's polling cadence. Vial QMK resets the unlock counter whenever
+            // UNLOCK_POLL arrives before its internal ~100ms timer has elapsed, even if the
+            // correct keys are held. Polling too fast makes progress stick near zero.
             // The overlay still repaints independently for smooth progress animation.
             if self.vial_unlock_polling {
                 let now = std::time::Instant::now();
@@ -51,8 +51,8 @@ impl EntropyApp {
                         match hid.unlock_poll() {
                             Ok((unlocked, in_progress, counter)) => {
                                 self.vial_unlock_counter = counter;
-                                if counter < self.vial_unlock_best {
-                                    self.vial_unlock_best = counter;
+                                if counter > self.vial_unlock_total {
+                                    self.vial_unlock_total = counter;
                                 }
                                 if unlocked {
                                     self.status_msg = "Device unlocked!".into();
@@ -104,7 +104,7 @@ impl EntropyApp {
             }
             // Fullscreen overlay with layout and highlighted keys
             let unlock_keys = self.vial_unlock_keys.clone();
-            let counter = self.vial_unlock_best;
+            let counter = self.vial_unlock_counter;
             let total = self.vial_unlock_total;
 
             egui::Area::new(egui::Id::new("unlock_overlay"))
