@@ -1284,6 +1284,115 @@ const STICKY_LAYOUT_WINDOW_MARGIN: f32 = 1.0_f32;
 const STICKY_LAYOUT_WINDOW_TITLE_H: f32 = 34.0_f32;
 const STICKY_LAYOUT_KEYBOARD_MARGIN: f32 = 1.0_f32;
 
+fn sticky_layout_window_size_percent(size: Vec2) -> i32 {
+    ((size.x / STICKY_LAYOUT_WINDOW_W) * 100.0).round() as i32
+}
+
+fn draw_sticky_layout_size_controls(
+    ui: &mut egui::Ui,
+    dark: bool,
+    layout: Option<&KeyboardLayout>,
+    window_size: &mut Vec2,
+) -> bool {
+    const STICKY_SIZE_MIN: f32 = 1.0;
+    const STICKY_SIZE_MAX: f32 = 3.0;
+    const STICKY_SIZE_STEP: f32 = 0.1;
+
+    let height = 24.0;
+    let minus_w = 24.0;
+    let label_w = 54.0;
+    let plus_w = 24.0;
+    let gap = 3.0;
+    let total_w = minus_w + label_w + plus_w + gap * 2.0;
+    let left_top = ui.min_rect().min;
+    let text_color = if dark {
+        Color32::from_rgb(235, 235, 235)
+    } else {
+        Color32::from_rgb(42, 42, 44)
+    };
+    let muted = app_muted_text(dark);
+    let hover_fill = app_hover_fill(dark);
+    let font = FontId::proportional(13.0);
+    let current_factor =
+        (window_size.x / STICKY_LAYOUT_WINDOW_W).clamp(STICKY_SIZE_MIN, STICKY_SIZE_MAX);
+    let mut new_factor: Option<f32> = None;
+
+    let draw_control =
+        |ui: &mut egui::Ui, rect: egui::Rect, label: &str, enabled: bool| -> egui::Response {
+            let response = ui.allocate_rect(rect, Sense::CLICK);
+            if response.hovered() && enabled {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                ui.painter().rect_filled(rect, 7.0, hover_fill);
+            }
+            ui.painter().text(
+                rect.center(),
+                egui::Align2::CENTER_CENTER,
+                label,
+                font.clone(),
+                if enabled { text_color } else { muted },
+            );
+            response
+        };
+
+    let minus_rect = egui::Rect::from_min_size(left_top, Vec2::new(minus_w, height));
+    let label_rect = egui::Rect::from_min_size(
+        egui::pos2(minus_rect.right() + gap, left_top.y),
+        Vec2::new(label_w, height),
+    );
+    let plus_rect = egui::Rect::from_min_size(
+        egui::pos2(label_rect.right() + gap, left_top.y),
+        Vec2::new(plus_w, height),
+    );
+
+    if draw_control(
+        ui,
+        minus_rect,
+        "−",
+        current_factor > STICKY_SIZE_MIN + 0.001,
+    )
+    .clicked()
+        && current_factor > STICKY_SIZE_MIN + 0.001
+    {
+        new_factor = Some(current_factor - STICKY_SIZE_STEP);
+    }
+
+    let label_response = ui.allocate_rect(label_rect, Sense::CLICK);
+    if label_response.hovered() && sticky_layout_window_size_percent(*window_size) != 100 {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+        ui.painter().rect_filled(label_rect, 7.0, hover_fill);
+    }
+    if label_response.clicked() {
+        new_factor = Some(1.0);
+    }
+    ui.painter().text(
+        label_rect.center(),
+        egui::Align2::CENTER_CENTER,
+        format!("{}%", sticky_layout_window_size_percent(*window_size)),
+        FontId::proportional(12.0),
+        text_color,
+    );
+
+    if draw_control(ui, plus_rect, "+", current_factor < STICKY_SIZE_MAX - 0.001).clicked()
+        && current_factor < STICKY_SIZE_MAX - 0.001
+    {
+        new_factor = Some(current_factor + STICKY_SIZE_STEP);
+    }
+
+    ui.allocate_space(Vec2::new(total_w, height));
+
+    if let Some(factor) = new_factor {
+        let factor = factor.clamp(STICKY_SIZE_MIN, STICKY_SIZE_MAX);
+        let requested = egui::vec2(
+            STICKY_LAYOUT_WINDOW_W * factor,
+            STICKY_LAYOUT_WINDOW_H * factor,
+        );
+        *window_size = sticky_layout_aspect_adjusted_window_size(layout, requested, *window_size);
+        true
+    } else {
+        false
+    }
+}
+
 #[derive(Clone, Copy)]
 enum StickyLayoutWindowButton {
     Pin,
@@ -1384,47 +1493,57 @@ fn draw_sticky_layout_transparency_dropdown(
         &dropdown_resp,
         egui::PopupCloseBehavior::CloseOnClickOutside,
         |ui| {
-            ui.set_min_width(width);
-            ui.spacing_mut().item_spacing = Vec2::new(0.0, 2.0);
-            for (idx, value) in OPACITY_VALUES.iter().copied().enumerate() {
-                let option_text = format!(
-                    "{} {}%",
-                    label_prefix,
-                    ((1.0 - value) * 100.0).round() as i32
-                );
-                let selected = idx == selected_idx;
-                let (option_rect, option_resp) =
-                    ui.allocate_exact_size(Vec2::new(width, 24.0), Sense::click());
-                if option_resp.hovered() {
-                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                }
-                let option_fill = if selected || option_resp.hovered() {
-                    app_hover_fill(dark)
-                } else {
-                    Color32::TRANSPARENT
-                };
-                ui.painter().rect_filled(option_rect, 7.0, option_fill);
-                ui.painter().text(
-                    egui::pos2(option_rect.left() + 10.0, option_rect.center().y),
-                    egui::Align2::LEFT_CENTER,
-                    option_text,
-                    FontId::proportional(11.0),
-                    if selected {
-                        if dark {
-                            Color32::from_rgb(235, 235, 235)
-                        } else {
-                            Color32::from_rgb(42, 42, 44)
+            *ui.visuals_mut() = if dark {
+                egui::Visuals::dark()
+            } else {
+                egui::Visuals::light()
+            };
+            egui::Frame::NONE
+                .fill(app_surface_fill(dark))
+                .inner_margin(egui::Margin::same(4))
+                .show(ui, |ui| {
+                    ui.set_min_width(width);
+                    ui.spacing_mut().item_spacing = Vec2::new(0.0, 2.0);
+                    for (idx, value) in OPACITY_VALUES.iter().copied().enumerate() {
+                        let option_text = format!(
+                            "{} {}%",
+                            label_prefix,
+                            ((1.0 - value) * 100.0).round() as i32
+                        );
+                        let selected = idx == selected_idx;
+                        let (option_rect, option_resp) =
+                            ui.allocate_exact_size(Vec2::new(width, 24.0), Sense::click());
+                        if option_resp.hovered() {
+                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                         }
-                    } else {
-                        app_muted_text(dark)
-                    },
-                );
-                if option_resp.clicked() {
-                    *opacity = value;
-                    changed = true;
-                    ui.memory_mut(|m| m.close_popup());
-                }
-            }
+                        let option_fill = if selected || option_resp.hovered() {
+                            app_hover_fill(dark)
+                        } else {
+                            app_surface_fill(dark)
+                        };
+                        ui.painter().rect_filled(option_rect, 7.0, option_fill);
+                        ui.painter().text(
+                            egui::pos2(option_rect.left() + 10.0, option_rect.center().y),
+                            egui::Align2::LEFT_CENTER,
+                            option_text,
+                            FontId::proportional(11.0),
+                            if selected {
+                                if dark {
+                                    Color32::from_rgb(235, 235, 235)
+                                } else {
+                                    Color32::from_rgb(42, 42, 44)
+                                }
+                            } else {
+                                app_muted_text(dark)
+                            },
+                        );
+                        if option_resp.clicked() {
+                            *opacity = value;
+                            changed = true;
+                            ui.memory_mut(|m| m.close_popup());
+                        }
+                    }
+                });
         },
     );
 
@@ -2988,7 +3107,6 @@ pub struct EntropyApp {
     sticky_layout_toggled_layers: Vec<bool>,
     sticky_layout_base_layer: usize,
     sticky_layout_last_size: Option<Vec2>,
-    sticky_layout_resize_start_size: Option<Vec2>,
     matrix_tester_last_poll: std::time::Instant,
     matrix_tester_last_lock_check: std::time::Instant,
     matrix_tester_unlock_prompted: bool,
@@ -3118,7 +3236,6 @@ impl EntropyApp {
             sticky_layout_toggled_layers: Vec::new(),
             sticky_layout_base_layer: 0,
             sticky_layout_last_size: None,
-            sticky_layout_resize_start_size: None,
             matrix_tester_last_poll: std::time::Instant::now(),
             matrix_tester_last_lock_check: std::time::Instant::now()
                 - MATRIX_TESTER_LOCK_CHECK_INTERVAL,
@@ -8323,14 +8440,13 @@ impl EntropyApp {
             clamp_sticky_layout_opacity(self.app_settings.sticky_layout_opacity);
         let mut sticky_always_on_top = self.app_settings.sticky_layout_always_on_top;
         let saved_sticky_window_size = sticky_layout_saved_window_size(&self.app_settings);
-        let sticky_window_size = sticky_layout_aspect_adjusted_window_size(
+        let mut sticky_window_size = sticky_layout_aspect_adjusted_window_size(
             layout.as_ref(),
             saved_sticky_window_size,
             saved_sticky_window_size,
         );
         let mut observed_sticky_size: Option<Vec2> = None;
         let mut requested_sticky_size: Option<Vec2> = None;
-        let mut resize_start_size = self.sticky_layout_resize_start_size;
         let mut should_close = false;
         let mut should_save_settings = false;
 
@@ -8340,7 +8456,7 @@ impl EntropyApp {
                 .with_title(title.clone())
                 .with_inner_size(sticky_window_size)
                 .with_min_inner_size(sticky_layout_default_window_size())
-                .with_resizable(true)
+                .with_resizable(false)
                 .with_decorations(false)
                 .with_window_level(if sticky_always_on_top {
                     egui::WindowLevel::AlwaysOnTop
@@ -8364,8 +8480,14 @@ impl EntropyApp {
                     }
                 }
 
+                let viewport_default_size = sticky_window_size;
+
                 let mut draw_contents = |ui: &mut egui::Ui, should_close: &mut bool| {
-                    ui.visuals_mut().dark_mode = dark;
+                    *ui.visuals_mut() = if dark {
+                        egui::Visuals::dark()
+                    } else {
+                        egui::Visuals::light()
+                    };
                     #[cfg(not(target_os = "windows"))]
                     ui.set_opacity(sticky_opacity);
                     #[cfg(target_os = "windows")]
@@ -8519,56 +8641,34 @@ impl EntropyApp {
                         });
                     });
 
-                    let resize_rect = egui::Rect::from_min_size(
-                        egui::pos2(full_rect.right() - 24.0, full_rect.bottom() - 24.0),
-                        egui::vec2(24.0, 24.0),
+                    let size_controls_rect = egui::Rect::from_min_size(
+                        egui::pos2(full_rect.center().x - 54.0, full_rect.bottom() - 27.0),
+                        egui::vec2(108.0, 24.0),
                     );
-                    let resize_resp = ui.interact(
-                        resize_rect,
-                        ui.id().with("sticky_layout_resize_grip"),
-                        Sense::click_and_drag(),
-                    );
-                    if resize_resp.hovered() || resize_resp.dragged() {
-                        ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeSouthEast);
-                    }
-                    if resize_resp.drag_started() {
-                        resize_start_size = Some(observed_sticky_size.unwrap_or(full_rect.size()));
-                    }
-                    if resize_resp.dragged() {
-                        let start_size = resize_start_size.unwrap_or(full_rect.size());
-                        let requested_size = start_size + resize_resp.drag_delta();
-                        let adjusted_size = sticky_layout_aspect_adjusted_window_size(
+                    ui.allocate_ui_at_rect(size_controls_rect, |ui| {
+                        if draw_sticky_layout_size_controls(
+                            ui,
+                            dark,
                             layout.as_ref(),
-                            requested_size,
-                            start_size,
-                        );
-                        viewport_ctx
-                            .send_viewport_cmd(egui::ViewportCommand::InnerSize(adjusted_size));
-                        requested_sticky_size = Some(adjusted_size);
-                        observed_sticky_size = Some(adjusted_size);
-                    }
-                    if resize_resp.drag_stopped() {
-                        resize_start_size = None;
-                    }
-                    let grip_color = app_muted_text(dark);
-                    for offset in [6.0, 11.0, 16.0] {
-                        ui.painter().line_segment(
-                            [
-                                egui::pos2(full_rect.right() - offset, full_rect.bottom() - 4.0),
-                                egui::pos2(full_rect.right() - 4.0, full_rect.bottom() - offset),
-                            ],
-                            Stroke::new(1.0, grip_color),
-                        );
-                    }
+                            &mut sticky_window_size,
+                        ) {
+                            viewport_ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(
+                                sticky_window_size,
+                            ));
+                            requested_sticky_size = Some(sticky_window_size);
+                            observed_sticky_size = Some(sticky_window_size);
+                            should_save_settings = true;
+                        }
+                    });
                 };
 
                 if matches!(viewport_class, egui::ViewportClass::Embedded) {
                     let mut open = true;
                     egui::Window::new(title.as_str())
                         .open(&mut open)
-                        .default_size(sticky_window_size)
+                        .default_size(viewport_default_size)
                         .min_size(sticky_layout_default_window_size())
-                        .resizable(true)
+                        .resizable(false)
                         .show(viewport_ctx, |ui| {
                             draw_contents(ui, &mut should_close);
                         });
@@ -8585,7 +8685,6 @@ impl EntropyApp {
             },
         );
 
-        self.sticky_layout_resize_start_size = resize_start_size;
         if let Some(size) = requested_sticky_size.or(observed_sticky_size) {
             self.sticky_layout_last_size = Some(size);
             let saved_size = sticky_layout_saved_window_size(&self.app_settings);
