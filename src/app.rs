@@ -15988,23 +15988,9 @@ impl EntropyApp {
                     .ctx()
                     .data(|d| d.get_temp::<bool>(dropdown_id))
                     .unwrap_or(false);
-                let has_lock_button = self.firmware == FirmwareProtocol::Vial
-                    && self.layout.is_some()
-                    && !self.vial_unlock_polling
-                    && !self.unlock_open;
-                let is_unlocked = if has_lock_button {
-                    self.hid_device
-                        .as_ref()
-                        .and_then(|hid| hid.get_unlock_status().ok())
-                        .map(|(unlocked, _keys)| unlocked)
-                        .unwrap_or(false)
-                } else {
-                    false
-                };
                 let device_count = self.device_manager.devices().len();
                 let device_rows = device_count.max(1) as f32;
                 let devices_h = 12.0 + device_rows * 30.0;
-                let lock_h = if has_lock_button { 36.0 } else { 0.0 };
                 let sticky_layout_h = 36.0;
                 let show_key_legend_switcher =
                     self.app_settings.key_legend_layout.is_multilingual();
@@ -16024,15 +16010,6 @@ impl EntropyApp {
                             })
                             .collect()
                     };
-                if has_lock_button {
-                    let action = if is_unlocked {
-                        crate::i18n::tr(lang, TrKey::LockAction)
-                    } else {
-                        crate::i18n::tr(lang, TrKey::UnlockAction)
-                    };
-                    let icon = if is_unlocked { "🔓" } else { "🔒" };
-                    device_menu_labels.push(format!("{icon} {action}"));
-                }
                 if show_key_legend_switcher {
                     if let Some(order_key) = self.app_settings.key_legend_layout.order_i18n_key() {
                         device_menu_labels
@@ -16048,7 +16025,7 @@ impl EntropyApp {
                         device_menu_labels.iter().map(String::as_str),
                         152.0,
                     ),
-                    devices_h + lock_h + key_legend_switcher_h + sticky_layout_h + 12.0,
+                    devices_h + key_legend_switcher_h + sticky_layout_h + 12.0,
                 );
                 let dropdown_rect = egui::Rect::from_min_size(
                     egui::pos2(
@@ -16127,45 +16104,6 @@ impl EntropyApp {
                                     }
                                 }
 
-                                if has_lock_button {
-                                    ui.add_space(6.0);
-                                    let lock_label = if is_unlocked {
-                                        format!("🔓 {}", crate::i18n::tr(lang, TrKey::LockAction))
-                                    } else {
-                                        format!("🔒 {}", crate::i18n::tr(lang, TrKey::UnlockAction))
-                                    };
-                                    if top_dropdown_item(
-                                        ui,
-                                        dropdown_size.x - 16.0,
-                                        &lock_label,
-                                        true,
-                                        false,
-                                    )
-                                    .clicked()
-                                    {
-                                        if is_unlocked {
-                                            if let Some(hid) = &self.hid_device {
-                                                match hid.lock() {
-                                                    Ok(()) => {
-                                                        self.status_msg = "Keyboard locked".into();
-                                                        if self.app_settings.sticky_layout_window {
-                                                            self.app_settings.sticky_layout_window = false;
-                                                            self.pending_layout_indicator_open_after_unlock = false;
-                                                            self.sticky_layout_last_size = None;
-                                                            save_app_settings(&self.app_settings);
-                                                        }
-                                                    }
-                                                    Err(e) => {
-                                                        self.status_msg =
-                                                            format!("Lock failed: {e}")
-                                                    }
-                                                }
-                                            }
-                                        } else {
-                                            self.unlock_open = true;
-                                        }
-                                    }
-                                }
 
                                 if show_key_legend_switcher {
                                     if let Some(order_key) =
@@ -16244,12 +16182,34 @@ impl EntropyApp {
                 let combo_supported = !self.combo_entries.is_empty();
                 let key_override_supported = !self.key_override_entries.is_empty();
                 let auto_shift_supported = self.auto_shift_timeout.is_some();
+                let show_lock_item = self.firmware == FirmwareProtocol::Vial
+                    && self.layout.is_some()
+                    && !self.vial_unlock_polling
+                    && !self.unlock_open;
+                let is_unlocked = if show_lock_item {
+                    self.hid_device
+                        .as_ref()
+                        .and_then(|hid| hid.get_unlock_status().ok())
+                        .map(|(unlocked, _keys)| unlocked)
+                        .unwrap_or(false)
+                } else {
+                    false
+                };
+                let lock_label = if is_unlocked {
+                    crate::i18n::tr_catalog(lang, "ui.lock_keyboard_action")
+                } else {
+                    crate::i18n::tr_catalog(lang, "ui.unlock_keyboard_action")
+                };
                 let advanced_item_count = 1
+                    + show_lock_item as usize
                     + combo_supported as usize
                     + auto_shift_supported as usize
                     + key_override_supported as usize;
                 let mut advanced_menu_labels =
                     vec![crate::i18n::tr_catalog(lang, "text_expander.title")];
+                if show_lock_item {
+                    advanced_menu_labels.push(lock_label);
+                }
                 if combo_supported {
                     advanced_menu_labels.push(crate::i18n::tr(lang, TrKey::ComboTitle));
                 }
@@ -16287,6 +16247,7 @@ impl EntropyApp {
                     let item_width = dropdown_rect.width() - 16.0;
                     let (
                         text_expander_hovered,
+                        lock_hovered,
                         combo_hovered,
                         auto_shift_hovered,
                         key_override_hovered,
@@ -16306,6 +16267,9 @@ impl EntropyApp {
                                         self.main_menu_tab == MainMenuTab::Advanced
                                             && self.settings_tab == SettingsTab::TextExpander,
                                     );
+                                    let lock_resp = show_lock_item.then(|| {
+                                        top_dropdown_item(ui, item_width, lock_label, true, false)
+                                    });
                                     let combo_resp = combo_supported.then(|| {
                                         top_dropdown_item(
                                             ui,
@@ -16340,6 +16304,29 @@ impl EntropyApp {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.open_text_expander_settings_page();
                                     }
+                                    if lock_resp.as_ref().map(|r| r.clicked()).unwrap_or(false) {
+                                        self.close_top_dropdowns(ui.ctx());
+                                        if is_unlocked {
+                                            if let Some(hid) = &self.hid_device {
+                                                match hid.lock() {
+                                                    Ok(()) => {
+                                                        self.status_msg = "Keyboard locked".into();
+                                                        if self.app_settings.sticky_layout_window {
+                                                            self.app_settings.sticky_layout_window = false;
+                                                            self.pending_layout_indicator_open_after_unlock = false;
+                                                            self.sticky_layout_last_size = None;
+                                                            save_app_settings(&self.app_settings);
+                                                        }
+                                                    }
+                                                    Err(e) => {
+                                                        self.status_msg = format!("Lock failed: {e}")
+                                                    }
+                                                }
+                                            }
+                                        } else {
+                                            self.unlock_open = true;
+                                        }
+                                    }
                                     if combo_resp.as_ref().map(|r| r.clicked()).unwrap_or(false) {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.settings_tab = SettingsTab::Combo;
@@ -16368,6 +16355,7 @@ impl EntropyApp {
                                     }
                                     (
                                         text_expander_resp.hovered(),
+                                        lock_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         combo_resp.as_ref().map(|r| r.hovered()).unwrap_or(false),
                                         auto_shift_resp
                                             .as_ref()
@@ -16378,6 +16366,7 @@ impl EntropyApp {
                                             .map(|r| r.hovered())
                                             .unwrap_or(false),
                                         text_expander_resp.clicked()
+                                            || lock_resp.as_ref().map(|r| r.clicked()).unwrap_or(false)
                                             || combo_resp
                                                 .as_ref()
                                                 .map(|r| r.clicked())
@@ -16401,6 +16390,7 @@ impl EntropyApp {
                             !advanced_clicked
                                 && (advanced_tab_hovered
                                     || text_expander_hovered
+                                    || lock_hovered
                                     || combo_hovered
                                     || auto_shift_hovered
                                     || key_override_hovered
