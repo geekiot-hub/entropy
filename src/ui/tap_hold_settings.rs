@@ -1,0 +1,529 @@
+use super::*;
+
+impl EntropyApp {
+    pub(super) fn draw_tap_hold_settings_page(
+        &mut self,
+        ui: &mut egui::Ui,
+        content_rect: egui::Rect,
+    ) {
+        let lang = self.app_settings.language;
+        let dark = ui.visuals().dark_mode;
+        let hid_ready = {
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                self.hid_device.is_some()
+            }
+            #[cfg(target_arch = "wasm32")]
+            {
+                false
+            }
+        };
+
+        ui.allocate_ui_at_rect(content_rect, |ui| {
+            ui.vertical_centered(|ui| {
+                ui.add_space(18.0);
+                ui.label(
+                    RichText::new(crate::i18n::tr(lang, crate::i18n::Key::TapHoldOneShotTitle))
+                        .size(18.0)
+                        .strong(),
+                );
+                ui.add_space(6.0);
+                ui.label(
+                    RichText::new(crate::i18n::tr(
+                        lang,
+                        crate::i18n::Key::TapHoldOneShotDescription,
+                    ))
+                    .size(13.0)
+                    .color(app_muted_text(dark)),
+                );
+                ui.add_space(24.0);
+
+                if !self.tap_hold_settings.supported && !self.one_shot_settings.supported {
+                    crate::ui_style::modal_empty_state(
+                        ui,
+                        crate::i18n::tr(lang, crate::i18n::Key::TapHoldOneShotUnavailable),
+                        Some(crate::i18n::tr(
+                            lang,
+                            crate::i18n::Key::QmkSettingsEnableHint,
+                        )),
+                    );
+                    return;
+                }
+
+                if !hid_ready {
+                    crate::ui_style::modal_empty_state(
+                        ui,
+                        crate::i18n::tr(lang, crate::i18n::Key::TapHoldOneShotConnect),
+                        None,
+                    );
+                    return;
+                }
+
+                let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ui.ctx());
+                let total_rows = self.tap_hold_one_shot_row_count();
+                let list = allocate_adaptive_settings_list_viewport(
+                    ui,
+                    "tap_hold_settings",
+                    metrics,
+                    total_rows,
+                    0.0,
+                );
+                ui.allocate_ui_at_rect(list.content_rect, |ui| {
+                    ui.set_clip_rect(list.viewport);
+                    ui.set_min_size(list.content_rect.size());
+                    ui.spacing_mut().item_spacing.y = 0.0;
+                    self.draw_tap_hold_editor_content(
+                        ui,
+                        list.first_visible_row..list.last_visible_row,
+                        list.row_content_width,
+                        list.row_height,
+                        list.suppress_tooltips,
+                    );
+                });
+
+                if list.has_scrollbar {
+                    crate::ui_style::paint_floating_scrollbar_handle(
+                        ui,
+                        list.track_rect,
+                        list.handle_height,
+                        list.scroll_ratio,
+                        list.track_hovered,
+                    );
+                }
+            });
+        });
+    }
+
+    fn tap_hold_one_shot_row_count(&self) -> usize {
+        self.tap_hold_settings.supported as usize * 10
+            + self.one_shot_settings.supported as usize * 2
+            + (self.tap_hold_settings.supported && self.one_shot_settings.supported) as usize
+    }
+
+    fn draw_tap_hold_editor_content(
+        &mut self,
+        ui: &mut egui::Ui,
+        row_range: std::ops::Range<usize>,
+        content_width: f32,
+        row_height: f32,
+        suppress_tooltips: bool,
+    ) {
+        #[derive(Clone, Copy)]
+        enum SettingsRowKind {
+            TapHold,
+            OneShot,
+        }
+
+        enum SettingsRow {
+            Section(&'static str),
+            Setting {
+                kind: SettingsRowKind,
+                qsid: u16,
+                label: &'static str,
+                tooltip: &'static str,
+                is_bool: bool,
+                max: u32,
+            },
+        }
+
+        let mut rows: Vec<SettingsRow> = Vec::with_capacity(13);
+        if self.tap_hold_settings.supported {
+            rows.extend([
+                SettingsRow::Setting {
+                    kind: SettingsRowKind::TapHold,
+                    qsid: 7,
+                    label: crate::i18n::tr_catalog(self.app_settings.language, "tap_hold_settings.tapping_term_label"),
+                    tooltip: crate::i18n::tr_catalog(
+                        self.app_settings.language,
+                        "tap_hold_settings.global_tap_vs_hold_decision_window_for_dual_role_keys",
+                    ),
+                    is_bool: false,
+                    max: 10000,
+                },
+                SettingsRow::Setting {
+                    kind: SettingsRowKind::TapHold,
+                    qsid: 22,
+                    label: crate::i18n::tr_catalog(self.app_settings.language, "tap_hold_settings.permissive_hold"),
+                    tooltip: crate::i18n::tr_catalog(
+                        self.app_settings.language,
+                        "tap_hold_settings.nested_taps_choose_hold_for_mod_tap_and_layer_tap_keys",
+                    ),
+                    is_bool: true,
+                    max: 1,
+                },
+                SettingsRow::Setting {
+                    kind: SettingsRowKind::TapHold,
+                    qsid: 23,
+                    label: crate::i18n::tr_catalog(self.app_settings.language, "tap_hold_settings.hold_on_other_key"),
+                    tooltip: crate::i18n::tr_catalog(
+                        self.app_settings.language,
+                        "tap_hold_settings.pressing_another_key_immediately_chooses_hold_for_dual_role_keys",
+                    ),
+                    is_bool: true,
+                    max: 1,
+                },
+                SettingsRow::Setting {
+                    kind: SettingsRowKind::TapHold,
+                    qsid: 24,
+                    label: crate::i18n::tr_catalog(self.app_settings.language, "tap_hold_settings.retro_tapping"),
+                    tooltip: crate::i18n::tr_catalog(
+                        self.app_settings.language,
+                        "tap_hold_settings.a_held_and_released_alone_dual_role_key_still_sends_its_tap_action",
+                    ),
+                    is_bool: true,
+                    max: 1,
+                },
+                SettingsRow::Setting {
+                    kind: SettingsRowKind::TapHold,
+                    qsid: 26,
+                    label: crate::i18n::tr_catalog(self.app_settings.language, "tap_hold_settings.chordal_hold"),
+                    tooltip: crate::i18n::tr_catalog(
+                        self.app_settings.language,
+                        "tap_hold_settings.same_hand_chords_prefer_tap_to_reduce_home_row_mod_accidents",
+                    ),
+                    is_bool: true,
+                    max: 1,
+                },
+                SettingsRow::Setting {
+                    kind: SettingsRowKind::TapHold,
+                    qsid: 25,
+                    label: crate::i18n::tr_catalog(self.app_settings.language, "tap_hold_settings.quick_tap_term"),
+                    tooltip: crate::i18n::tr_catalog(
+                        self.app_settings.language,
+                        "tap_hold_settings.tap_then_hold_repeat_window_for_dual_role_key_tap_actions",
+                    ),
+                    is_bool: false,
+                    max: 10000,
+                },
+                SettingsRow::Setting {
+                    kind: SettingsRowKind::TapHold,
+                    qsid: 18,
+                    label: crate::i18n::tr_catalog(self.app_settings.language, "tap_hold_settings.tap_code_delay"),
+                    tooltip: crate::i18n::tr_catalog(
+                        self.app_settings.language,
+                        "tap_hold_settings.delay_between_register_and_unregister_in_tap_code",
+                    ),
+                    is_bool: false,
+                    max: 1000,
+                },
+                SettingsRow::Setting {
+                    kind: SettingsRowKind::TapHold,
+                    qsid: 19,
+                    label: crate::i18n::tr_catalog(self.app_settings.language, "tap_hold_settings.tap_hold_caps_delay"),
+                    tooltip: crate::i18n::tr_catalog(self.app_settings.language, "tap_hold_settings.extra_delay_for_lt_mt_keys_whose_tap_action_is_caps_lock"),
+                    is_bool: false,
+                    max: 1000,
+                },
+                SettingsRow::Setting {
+                    kind: SettingsRowKind::TapHold,
+                    qsid: 20,
+                    label: crate::i18n::tr_catalog(self.app_settings.language, "tap_hold_settings.tapping_toggle"),
+                    tooltip: crate::i18n::tr_catalog(
+                        self.app_settings.language,
+                        "tap_hold_settings.number_of_taps_needed_for_tt_layer_toggle",
+                    ),
+                    is_bool: false,
+                    max: 100,
+                },
+                SettingsRow::Setting {
+                    kind: SettingsRowKind::TapHold,
+                    qsid: 27,
+                    label: crate::i18n::tr_catalog(self.app_settings.language, "tap_hold_settings.flow_tap"),
+                    tooltip: crate::i18n::tr_catalog(
+                        self.app_settings.language,
+                        "tap_hold_settings.fast_typing_timeout_that_forces_mt_lt_keys_to_tap",
+                    ),
+                    is_bool: false,
+                    max: 10000,
+                },
+            ]);
+        }
+        if self.one_shot_settings.supported {
+            if self.tap_hold_settings.supported {
+                rows.push(SettingsRow::Section(crate::i18n::tr_catalog(
+                    self.app_settings.language,
+                    "tap_hold_settings.one_shot_keys",
+                )));
+            }
+            rows.extend([
+                SettingsRow::Setting {
+                    kind: SettingsRowKind::OneShot,
+                    qsid: 5,
+                    label: crate::i18n::tr_catalog(self.app_settings.language, "tap_hold_settings.one_shot_tap_toggle"),
+                    tooltip: crate::i18n::tr_catalog(self.app_settings.language, "tap_hold_settings.tap_this_many_times_to_keep_a_one_shot_key_held_until_tapped_again"),
+                    is_bool: false,
+                    max: 50,
+                },
+                SettingsRow::Setting {
+                    kind: SettingsRowKind::OneShot,
+                    qsid: 6,
+                    label: crate::i18n::tr_catalog(self.app_settings.language, "tap_hold_settings.one_shot_timeout"),
+                    tooltip: crate::i18n::tr_catalog(
+                        self.app_settings.language,
+                        "tap_hold_settings.how_long_one_shot_state_waits_before_it_is_released",
+                    ),
+                    is_bool: false,
+                    max: 60000,
+                },
+            ]);
+        }
+        let scale = (row_height / 54.0).clamp(1.0, 1.12);
+        let field_width = 86.0 * scale;
+        let switch_width = 46.0 * scale;
+        let switch_size = egui::vec2(46.0 * scale, 24.0 * scale);
+        let control_height = 32.0 * scale;
+
+        for row_idx in row_range {
+            let Some(row) = rows.get(row_idx) else {
+                continue;
+            };
+            let SettingsRow::Setting {
+                kind,
+                qsid,
+                label,
+                tooltip,
+                is_bool,
+                max,
+            } = row
+            else {
+                if let SettingsRow::Section(title) = row {
+                    self.draw_tap_hold_section_divider(ui, content_width, row_height, title);
+                }
+                continue;
+            };
+            let kind = *kind;
+            let qsid = *qsid;
+            let is_bool = *is_bool;
+            let max = *max;
+            if is_bool {
+                let mut value = self.tap_hold_bool_value(qsid);
+                crate::ui_style::settings_list_row_with_tooltip(
+                    ui,
+                    content_width,
+                    row_height,
+                    label,
+                    true,
+                    if suppress_tooltips {
+                        None
+                    } else {
+                        Some(tooltip)
+                    },
+                    switch_width,
+                    |ui| {
+                        let resp = crate::ui_style::settings_switch_sized_stable(
+                            ui,
+                            ("tap_hold_settings", qsid),
+                            &mut value,
+                            switch_size,
+                        );
+                        if resp.changed() {
+                            self.set_tap_hold_bool_value(qsid, value);
+                            self.write_tap_hold_bool_setting(qsid, value);
+                        }
+                    },
+                );
+            } else {
+                let current = match kind {
+                    SettingsRowKind::TapHold => self.tap_hold_numeric_value(qsid),
+                    SettingsRowKind::OneShot => self.one_shot_numeric_value(qsid),
+                };
+                crate::ui_style::settings_list_row_with_tooltip(
+                    ui,
+                    content_width,
+                    row_height,
+                    label,
+                    true,
+                    if suppress_tooltips {
+                        None
+                    } else {
+                        Some(tooltip)
+                    },
+                    field_width,
+                    |ui| {
+                        let edit_id = egui::Id::new((
+                            match kind {
+                                SettingsRowKind::TapHold => "tap_hold_edit",
+                                SettingsRowKind::OneShot => "one_shot_edit",
+                            },
+                            qsid,
+                        ));
+                        let mut text = ui.ctx().data_mut(|d| {
+                            d.get_temp::<String>(edit_id)
+                                .unwrap_or_else(|| current.to_string())
+                        });
+                        if text.parse::<u16>().ok() != Some(current)
+                            && !ui.memory(|m| m.has_focus(edit_id))
+                        {
+                            text = current.to_string();
+                        }
+                        let resp = crate::ui_style::modern_text_field_sized(
+                            ui,
+                            edit_id,
+                            &mut text,
+                            field_width,
+                            control_height,
+                            "",
+                            5,
+                            egui::Align::RIGHT,
+                        );
+                        let resp = match (kind, qsid) {
+                            (SettingsRowKind::TapHold, 7 | 25 | 18 | 19 | 27)
+                            | (SettingsRowKind::OneShot, 6) => settings_field_unit_tooltip(
+                                resp,
+                                self.app_settings.language,
+                                suppress_tooltips,
+                                SettingsFieldUnit::Milliseconds,
+                            ),
+                            _ => resp,
+                        };
+                        if resp.changed() {
+                            let filtered: String =
+                                text.chars().filter(|c: &char| c.is_ascii_digit()).collect();
+                            let parsed = filtered.parse::<u32>().unwrap_or(0).min(max);
+                            let new_value = parsed as u16;
+                            if new_value != current {
+                                match kind {
+                                    SettingsRowKind::TapHold => {
+                                        self.set_tap_hold_numeric_value(qsid, new_value);
+                                        self.write_tap_hold_numeric_setting(qsid, new_value);
+                                    }
+                                    SettingsRowKind::OneShot => {
+                                        self.set_one_shot_numeric_value(qsid, new_value);
+                                        self.write_one_shot_numeric_setting(qsid, new_value);
+                                    }
+                                }
+                            }
+                            text = filtered;
+                        }
+                        ui.ctx().data_mut(|d| d.insert_temp(edit_id, text));
+                    },
+                );
+            }
+        }
+    }
+
+    fn draw_tap_hold_section_divider(
+        &self,
+        ui: &mut egui::Ui,
+        content_width: f32,
+        row_height: f32,
+        title: &str,
+    ) {
+        let dark = ui.visuals().dark_mode;
+        let (row_rect, _) =
+            ui.allocate_exact_size(egui::vec2(content_width, row_height), egui::Sense::hover());
+        let separator =
+            crate::ui_style::border_color(dark).gamma_multiply(if dark { 0.72 } else { 0.9 });
+        ui.painter().line_segment(
+            [row_rect.left_bottom(), row_rect.right_bottom()],
+            egui::Stroke::new(1.0, separator),
+        );
+        ui.painter().text(
+            row_rect.center(),
+            egui::Align2::CENTER_CENTER,
+            title,
+            egui::FontId::proportional(12.5),
+            app_muted_text(dark),
+        );
+    }
+
+    fn one_shot_numeric_value(&self, qsid: u16) -> u16 {
+        match qsid {
+            5 => self.one_shot_settings.tap_toggle as u16,
+            6 => self.one_shot_settings.timeout,
+            _ => 0,
+        }
+    }
+
+    fn set_one_shot_numeric_value(&mut self, qsid: u16, value: u16) {
+        match qsid {
+            5 => self.one_shot_settings.tap_toggle = value.min(u8::MAX as u16) as u8,
+            6 => self.one_shot_settings.timeout = value,
+            _ => {}
+        }
+    }
+
+    fn write_one_shot_numeric_setting(&mut self, qsid: u16, value: u16) {
+        let Some(hid) = &self.hid_device else {
+            return;
+        };
+        let result = if qsid == 5 {
+            hid.set_qmk_setting_u8(qsid, value.min(u8::MAX as u16) as u8)
+        } else {
+            hid.set_qmk_setting_u16(qsid, value)
+        };
+        if let Err(e) = result {
+            self.status_msg = format!("Failed to save One Shot setting (qsid {qsid}): {}", e);
+            log::warn!("set_qmk_setting(one_shot qsid {qsid}) failed: {e}");
+        }
+    }
+
+    fn tap_hold_numeric_value(&self, qsid: u16) -> u16 {
+        match qsid {
+            7 => self.tap_hold_settings.tapping_term,
+            25 => self.tap_hold_settings.quick_tap_term,
+            18 => self.tap_hold_settings.tap_code_delay,
+            19 => self.tap_hold_settings.tap_hold_caps_delay,
+            20 => self.tap_hold_settings.tapping_toggle,
+            27 => self.tap_hold_settings.flow_tap,
+            _ => 0,
+        }
+    }
+
+    fn set_tap_hold_numeric_value(&mut self, qsid: u16, value: u16) {
+        match qsid {
+            7 => self.tap_hold_settings.tapping_term = value,
+            25 => self.tap_hold_settings.quick_tap_term = value,
+            18 => self.tap_hold_settings.tap_code_delay = value,
+            19 => self.tap_hold_settings.tap_hold_caps_delay = value,
+            20 => self.tap_hold_settings.tapping_toggle = value,
+            27 => self.tap_hold_settings.flow_tap = value,
+            _ => {}
+        }
+    }
+
+    fn tap_hold_bool_value(&self, qsid: u16) -> bool {
+        match qsid {
+            22 => self.tap_hold_settings.permissive_hold,
+            23 => self.tap_hold_settings.hold_on_other_key_press,
+            24 => self.tap_hold_settings.retro_tapping,
+            26 => self.tap_hold_settings.chordal_hold,
+            _ => false,
+        }
+    }
+
+    fn set_tap_hold_bool_value(&mut self, qsid: u16, value: bool) {
+        match qsid {
+            22 => self.tap_hold_settings.permissive_hold = value,
+            23 => self.tap_hold_settings.hold_on_other_key_press = value,
+            24 => self.tap_hold_settings.retro_tapping = value,
+            26 => self.tap_hold_settings.chordal_hold = value,
+            _ => {}
+        }
+    }
+
+    fn write_tap_hold_numeric_setting(&mut self, qsid: u16, value: u16) {
+        let Some(hid) = &self.hid_device else {
+            return;
+        };
+        let result = if qsid == 20 {
+            hid.set_qmk_setting_u8(qsid, value.min(u8::MAX as u16) as u8)
+        } else {
+            hid.set_qmk_setting_u16(qsid, value)
+        };
+        if let Err(e) = result {
+            self.status_msg = format!("Failed to save Tap-Hold setting (qsid {qsid}): {}", e);
+            log::warn!("set_qmk_setting(tap_hold qsid {qsid}) failed: {e}");
+        }
+    }
+
+    fn write_tap_hold_bool_setting(&mut self, qsid: u16, value: bool) {
+        let Some(hid) = &self.hid_device else {
+            return;
+        };
+        if let Err(e) = hid.set_qmk_setting_u8(qsid, u8::from(value)) {
+            self.status_msg = format!("Failed to save Tap-Hold setting (qsid {qsid}): {}", e);
+            log::warn!("set_qmk_setting_u8(tap_hold qsid {qsid}) failed: {e}");
+        }
+    }
+}
