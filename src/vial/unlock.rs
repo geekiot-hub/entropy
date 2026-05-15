@@ -4,6 +4,14 @@ const VIAL_UNLOCK_POLL_INTERVAL: std::time::Duration = std::time::Duration::from
 const VIAL_UNLOCK_PROGRESS_ANIMATION_TIME: f32 = 0.16;
 
 impl EntropyApp {
+    fn stop_vial_unlock_with_status(&mut self, status: impl Into<String>) {
+        self.status_msg = status.into();
+        self.unlock_open = false;
+        self.vial_unlock_polling = false;
+        self.vial_unlock_last_poll = None;
+        self.pending_layout_indicator_open_after_unlock = false;
+    }
+
     pub(super) fn draw_vial_unlock_overlay(&mut self, ctx: &egui::Context) {
         // Vial unlock modal
         if self.unlock_open && self.firmware == FirmwareProtocol::Vial {
@@ -28,11 +36,13 @@ impl EntropyApp {
                                 self.vial_unlock_animation_nonce.wrapping_add(1);
                         }
                         Err(e) => {
-                            self.status_msg = format!("Unlock start failed: {e}");
-                            self.unlock_open = false;
-                            self.pending_layout_indicator_open_after_unlock = false;
+                            self.stop_vial_unlock_with_status(format!("Unlock start failed: {e}"));
+                            return;
                         }
                     }
+                } else {
+                    self.stop_vial_unlock_with_status("Unlock cancelled — device disconnected");
+                    return;
                 }
             }
             // Match Vial's polling cadence. Vial QMK resets the unlock counter whenever
@@ -85,19 +95,24 @@ impl EntropyApp {
                                             self.status_msg = "Unlock timed out, try again".into();
                                         }
                                         Err(e) => {
-                                            self.status_msg = format!("Unlock restart failed: {e}");
-                                            self.unlock_open = false;
-                                            self.vial_unlock_polling = false;
-                                            self.vial_unlock_last_poll = None;
-                                            self.pending_layout_indicator_open_after_unlock = false;
+                                            self.stop_vial_unlock_with_status(format!(
+                                                "Unlock restart failed: {e}"
+                                            ));
+                                            return;
                                         }
                                     }
                                 }
                             }
                             Err(e) => {
-                                self.status_msg = format!("Unlock poll failed: {e}");
+                                self.stop_vial_unlock_with_status(format!(
+                                    "Unlock interrupted — device disconnected or unavailable: {e}"
+                                ));
+                                return;
                             }
                         }
+                    } else {
+                        self.stop_vial_unlock_with_status("Unlock cancelled — device disconnected");
+                        return;
                     }
                 }
                 ctx.request_repaint_after(std::time::Duration::from_millis(16));
