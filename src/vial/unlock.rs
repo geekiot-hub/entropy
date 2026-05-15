@@ -204,34 +204,21 @@ impl EntropyApp {
                         egui::StrokeKind::Inside,
                     );
 
-                    // Draw layout keys with highlighted unlock keys
+                    // Draw layout keys with highlighted unlock keys. Always compute geometry
+                    // against the fullscreen unlock overlay: `last_layout_geometry` belongs to
+                    // the normal layout viewport and can be stale or off-screen after switching
+                    // from Settings/Advanced pages.
                     if let Some(layout) = &self.layout {
-                        let (off_x, off_y, unit, padding) =
-                            self.last_layout_geometry.unwrap_or_else(|| {
-                                let geometry = layout_geometry(
-                                    ui.ctx(),
-                                    layout,
-                                    screen,
-                                    clamp_ui_scale(self.app_settings.ui_scale),
-                                );
-                                (
-                                    geometry.offset_x,
-                                    geometry.offset_y,
-                                    geometry.unit,
-                                    geometry.padding,
-                                )
-                            });
+                        let geometry = layout_geometry(
+                            ui.ctx(),
+                            layout,
+                            screen,
+                            clamp_ui_scale(self.app_settings.ui_scale),
+                        );
                         for key in &layout.keys {
                             let is_unlock = unlock_keys
                                 .iter()
                                 .any(|(r, c)| key.row == *r && key.col == *c);
-                            let geometry = LayoutGeometry {
-                                offset_x: off_x,
-                                offset_y: off_y,
-                                unit,
-                                padding,
-                                layout_h: 0.0,
-                            };
                             let rect = layout_physical_key_rect(key, geometry);
                             let bg = if is_unlock {
                                 app_accent()
