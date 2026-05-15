@@ -804,7 +804,13 @@ fn settings_switch_impl(
         let dark = ui.visuals().dark_mode;
         let t = ui.ctx().animate_bool_responsive(response.id, *checked);
         let radius = rect.height() / 2.0;
-        let track_fill = if *checked {
+        let track_fill = if !interactive {
+            if dark {
+                Color32::from_rgb(43, 43, 46)
+            } else {
+                Color32::from_rgb(226, 226, 229)
+            }
+        } else if *checked {
             if dark {
                 Color32::from_rgb(66, 66, 70)
             } else {
@@ -821,7 +827,13 @@ fn settings_switch_impl(
 
         let knob_radius = radius - 4.0;
         let x = egui::lerp((rect.left() + radius)..=(rect.right() - radius), t);
-        let knob_fill = if *checked {
+        let knob_fill = if !interactive {
+            if dark {
+                Color32::from_rgb(102, 102, 106)
+            } else {
+                Color32::from_rgb(168, 168, 172)
+            }
+        } else if *checked {
             if dark {
                 Color32::from_rgb(220, 220, 224)
             } else {

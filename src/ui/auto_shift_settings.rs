@@ -1,5 +1,8 @@
 use super::*;
 
+const AUTO_SHIFT_TIMEOUT_MIN_MS: u16 = 1;
+const AUTO_SHIFT_TIMEOUT_MAX_MS: u16 = 1000;
+
 impl EntropyApp {
     pub(super) fn draw_auto_shift_settings_page(
         &mut self,
@@ -291,8 +294,11 @@ impl EntropyApp {
                         if filtered != self.auto_shift_timeout_text {
                             self.auto_shift_timeout_text = filtered.clone();
                         }
-                        if let Ok(parsed) = filtered.parse::<u16>() {
-                            let timeout_value = parsed.max(1);
+                        if let Ok(parsed) = filtered.parse::<u32>() {
+                            let timeout_value = parsed.clamp(
+                                AUTO_SHIFT_TIMEOUT_MIN_MS as u32,
+                                AUTO_SHIFT_TIMEOUT_MAX_MS as u32,
+                            ) as u16;
                             self.auto_shift_timeout = Some(timeout_value);
                             self.auto_shift_timeout_text = timeout_value.to_string();
                             self.write_auto_shift_timeout();
