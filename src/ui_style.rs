@@ -571,6 +571,7 @@ pub fn modal_action_row(ui: &mut Ui, add_contents: impl FnOnce(&mut Ui)) {
     ui.horizontal_centered(add_contents);
 }
 
+#[allow(dead_code)]
 pub fn modal_centered_text_block(ui: &mut Ui, width: f32, add_contents: impl FnOnce(&mut Ui)) {
     ui.horizontal_centered(|ui| {
         ui.allocate_ui_with_layout(

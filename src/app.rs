@@ -13050,6 +13050,20 @@ impl EntropyApp {
                                         self.close_top_dropdowns(ui.ctx());
                                         self.settings_tab = SettingsTab::AutoShift;
                                         self.main_menu_tab = MainMenuTab::Advanced;
+                                        if self.is_vial_locked() {
+                                            self.unlock_open = true;
+                                            self.status_msg = format!(
+                                                "{} — {}",
+                                                crate::i18n::tr(
+                                                    self.app_settings.language,
+                                                    TrKey::KeyboardLocked,
+                                                ),
+                                                crate::i18n::tr(
+                                                    self.app_settings.language,
+                                                    TrKey::AutoShiftUnlockHint,
+                                                ),
+                                            );
+                                        }
                                     }
                                     if key_override_resp
                                         .as_ref()

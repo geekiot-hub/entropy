@@ -60,27 +60,14 @@ impl EntropyApp {
                 }
 
                 if self.is_vial_locked() {
-                    crate::ui_style::modal_centered_text_block(ui, 360.0, |ui| {
-                        ui.vertical_centered(|ui| {
-                            ui.label(
-                                RichText::new(crate::i18n::tr(
-                                    lang,
-                                    crate::i18n::Key::KeyboardLocked,
-                                ))
-                                .size(14.0),
-                            );
-                            ui.add_space(6.0);
-                            ui.label(
-                                RichText::new(crate::i18n::tr(
-                                    lang,
-                                    crate::i18n::Key::AutoShiftUnlockHint,
-                                ))
-                                .size(12.5)
-                                .color(app_muted_text(dark)),
-                            );
-                        });
-                    });
-                    ui.add_space(18.0);
+                    self.unlock_open = true;
+                    self.status_msg = format!(
+                        "{} — {}",
+                        crate::i18n::tr(lang, crate::i18n::Key::KeyboardLocked),
+                        crate::i18n::tr(lang, crate::i18n::Key::AutoShiftUnlockHint),
+                    );
+                    ui.ctx().request_repaint();
+                    return;
                 }
 
                 let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ui.ctx());
