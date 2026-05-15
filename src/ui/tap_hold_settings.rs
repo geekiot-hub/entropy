@@ -1,5 +1,11 @@
 use super::*;
 
+const TAP_HOLD_TERM_MAX_MS: u32 = 1000;
+const TAP_HOLD_DELAY_MAX_MS: u32 = 255;
+const TAPPING_TOGGLE_MAX_TAPS: u32 = 10;
+const ONE_SHOT_TAP_TOGGLE_MAX_TAPS: u32 = 10;
+const ONE_SHOT_TIMEOUT_MAX_MS: u32 = 10_000;
+
 impl EntropyApp {
     pub(super) fn draw_tap_hold_settings_page(
         &mut self,
@@ -138,7 +144,7 @@ impl EntropyApp {
                         "tap_hold_settings.global_tap_vs_hold_decision_window_for_dual_role_keys",
                     ),
                     is_bool: false,
-                    max: 10000,
+                    max: TAP_HOLD_TERM_MAX_MS,
                 },
                 SettingsRow::Setting {
                     kind: SettingsRowKind::TapHold,
@@ -193,7 +199,7 @@ impl EntropyApp {
                         "tap_hold_settings.tap_then_hold_repeat_window_for_dual_role_key_tap_actions",
                     ),
                     is_bool: false,
-                    max: 10000,
+                    max: TAP_HOLD_TERM_MAX_MS,
                 },
                 SettingsRow::Setting {
                     kind: SettingsRowKind::TapHold,
@@ -204,7 +210,7 @@ impl EntropyApp {
                         "tap_hold_settings.delay_between_register_and_unregister_in_tap_code",
                     ),
                     is_bool: false,
-                    max: 1000,
+                    max: TAP_HOLD_DELAY_MAX_MS,
                 },
                 SettingsRow::Setting {
                     kind: SettingsRowKind::TapHold,
@@ -212,7 +218,7 @@ impl EntropyApp {
                     label: crate::i18n::tr_catalog(self.app_settings.language, "tap_hold_settings.tap_hold_caps_delay"),
                     tooltip: crate::i18n::tr_catalog(self.app_settings.language, "tap_hold_settings.extra_delay_for_lt_mt_keys_whose_tap_action_is_caps_lock"),
                     is_bool: false,
-                    max: 1000,
+                    max: TAP_HOLD_DELAY_MAX_MS,
                 },
                 SettingsRow::Setting {
                     kind: SettingsRowKind::TapHold,
@@ -223,7 +229,7 @@ impl EntropyApp {
                         "tap_hold_settings.number_of_taps_needed_for_tt_layer_toggle",
                     ),
                     is_bool: false,
-                    max: 100,
+                    max: TAPPING_TOGGLE_MAX_TAPS,
                 },
                 SettingsRow::Setting {
                     kind: SettingsRowKind::TapHold,
@@ -234,7 +240,7 @@ impl EntropyApp {
                         "tap_hold_settings.fast_typing_timeout_that_forces_mt_lt_keys_to_tap",
                     ),
                     is_bool: false,
-                    max: 10000,
+                    max: TAP_HOLD_TERM_MAX_MS,
                 },
             ]);
         }
@@ -252,7 +258,7 @@ impl EntropyApp {
                     label: crate::i18n::tr_catalog(self.app_settings.language, "tap_hold_settings.one_shot_tap_toggle"),
                     tooltip: crate::i18n::tr_catalog(self.app_settings.language, "tap_hold_settings.tap_this_many_times_to_keep_a_one_shot_key_held_until_tapped_again"),
                     is_bool: false,
-                    max: 50,
+                    max: ONE_SHOT_TAP_TOGGLE_MAX_TAPS,
                 },
                 SettingsRow::Setting {
                     kind: SettingsRowKind::OneShot,
@@ -263,7 +269,7 @@ impl EntropyApp {
                         "tap_hold_settings.how_long_one_shot_state_waits_before_it_is_released",
                     ),
                     is_bool: false,
-                    max: 60000,
+                    max: ONE_SHOT_TIMEOUT_MAX_MS,
                 },
             ]);
         }
@@ -379,8 +385,8 @@ impl EntropyApp {
                         if resp.changed() {
                             let filtered: String =
                                 text.chars().filter(|c: &char| c.is_ascii_digit()).collect();
-                            let parsed = filtered.parse::<u32>().unwrap_or(0).min(max);
-                            let new_value = parsed as u16;
+                            let clamped = filtered.parse::<u32>().unwrap_or(0).min(max);
+                            let new_value = clamped as u16;
                             if new_value != current {
                                 match kind {
                                     SettingsRowKind::TapHold => {
@@ -393,7 +399,7 @@ impl EntropyApp {
                                     }
                                 }
                             }
-                            text = filtered;
+                            text = clamped.to_string();
                         }
                         ui.ctx().data_mut(|d| d.insert_temp(edit_id, text));
                     },
