@@ -804,8 +804,20 @@ fn settings_switch_impl(
     if ui.is_rect_visible(rect) {
         let dark = ui.visuals().dark_mode;
         let t = ui.ctx().animate_bool_responsive(response.id, *checked);
+        let hover_t = ui
+            .ctx()
+            .animate_bool_responsive(response.id.with("hover"), response.hovered() && interactive);
         let radius = rect.height() / 2.0;
-        let track_fill = if !interactive {
+        let blend = |from: Color32, to: Color32, t: f32| -> Color32 {
+            let mix = |a: u8, b: u8| egui::lerp((a as f32)..=(b as f32), t).round() as u8;
+            Color32::from_rgba_unmultiplied(
+                mix(from.r(), to.r()),
+                mix(from.g(), to.g()),
+                mix(from.b(), to.b()),
+                mix(from.a(), to.a()),
+            )
+        };
+        let base_track_fill = if !interactive {
             if dark {
                 Color32::from_rgb(43, 43, 46)
             } else {
@@ -822,13 +834,34 @@ fn settings_switch_impl(
         } else {
             Color32::from_rgb(232, 232, 235)
         };
-        let stroke = Stroke::new(0.0, Color32::TRANSPARENT);
+        let hover_track_fill = if *checked {
+            if dark {
+                Color32::from_rgb(78, 78, 84)
+            } else {
+                Color32::from_rgb(204, 204, 210)
+            }
+        } else if dark {
+            Color32::from_rgb(56, 56, 61)
+        } else {
+            Color32::from_rgb(222, 222, 228)
+        };
+        let track_fill = blend(base_track_fill, hover_track_fill, hover_t);
+        let stroke_color = blend(
+            Color32::TRANSPARENT,
+            if dark {
+                Color32::from_rgba_unmultiplied(125, 125, 132, 145)
+            } else {
+                Color32::from_rgba_unmultiplied(128, 128, 138, 130)
+            },
+            hover_t,
+        );
+        let stroke = Stroke::new(hover_t, stroke_color);
         ui.painter()
             .rect(rect, radius, track_fill, stroke, egui::StrokeKind::Inside);
 
-        let knob_radius = radius - 4.0;
+        let knob_radius = radius - 4.0 + hover_t;
         let x = egui::lerp((rect.left() + radius)..=(rect.right() - radius), t);
-        let knob_fill = if !interactive {
+        let base_knob_fill = if !interactive {
             if dark {
                 Color32::from_rgb(102, 102, 106)
             } else {
@@ -845,6 +878,18 @@ fn settings_switch_impl(
         } else {
             Color32::from_rgb(188, 188, 192)
         };
+        let hover_knob_fill = if *checked {
+            if dark {
+                Color32::from_rgb(235, 235, 239)
+            } else {
+                Color32::from_rgb(58, 58, 64)
+            }
+        } else if dark {
+            Color32::from_rgb(104, 104, 110)
+        } else {
+            Color32::from_rgb(168, 168, 176)
+        };
+        let knob_fill = blend(base_knob_fill, hover_knob_fill, hover_t);
         ui.painter()
             .circle_filled(egui::pos2(x, rect.center().y), knob_radius, knob_fill);
     }
