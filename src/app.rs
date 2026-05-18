@@ -68,6 +68,8 @@ use layout_shared::*;
 #[path = "ui/top_dropdown.rs"]
 mod top_dropdown;
 use top_dropdown::*;
+#[path = "ui/layout_chrome.rs"]
+mod layout_chrome;
 #[path = "ui/layout_view.rs"]
 mod layout_view;
 #[path = "ui/live_features_settings.rs"]
