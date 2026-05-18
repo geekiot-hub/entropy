@@ -1,0 +1,257 @@
+use super::*;
+
+impl EntropyApp {
+    /// Poll background thread for connect result.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(super) fn poll_connect(&mut self, ctx: &egui::Context) {
+        let result = match &self.connect_state {
+            ConnectState::Loading(rx) => match rx.try_recv() {
+                Ok(r) => Some(r),
+                Err(mpsc::TryRecvError::Empty) => {
+                    ctx.request_repaint(); // keep polling
+                    return;
+                }
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    self.status_msg = "Connect thread died".into();
+                    self.connect_state = ConnectState::Idle;
+                    return;
+                }
+            },
+            ConnectState::Idle => return,
+        };
+
+        self.connect_state = ConnectState::Idle;
+        let Some(result) = result else {
+            return;
+        };
+
+        match result {
+            Ok(r) => {
+                self.layer_count = r.layer_count;
+                self.firmware = r.layout.firmware;
+                self.current_device_name = r.device_name.clone();
+                if let Some(dev) = self
+                    .selected_device
+                    .and_then(|idx| self.device_manager.devices().get(idx))
+                {
+                    self.device_display_names
+                        .insert(dev.path.clone(), r.device_name.clone());
+                }
+                self.keycode_picker.tap_dance_entries = r.tap_dance_entries.clone();
+                self.combo_entries = r.combo_entries.clone();
+                self.key_override_entries = r.key_override_entries.clone();
+                self.alt_repeat_entries = r.alt_repeat_entries.clone();
+                self.alt_repeat_names = load_alt_repeat_names(&self.current_device_name);
+                self.alt_repeat_names
+                    .resize(self.alt_repeat_entries.len(), String::new());
+                self.alt_repeat_undo_stack.clear();
+                self.selected_alt_repeat = 0;
+                self.alt_repeat_visible_count = if self.alt_repeat_entries.is_empty() {
+                    1
+                } else {
+                    1.min(self.alt_repeat_entries.len())
+                };
+                self.key_override_names = load_key_override_names(&self.current_device_name);
+                self.key_override_names
+                    .resize(self.key_override_entries.len(), String::new());
+                self.key_override_visible_count = 1;
+                self.key_override_undo_stack.clear();
+                self.selected_key_override = 0;
+                self.combo_names = load_combo_names(&self.current_device_name);
+                self.combo_names
+                    .resize(self.combo_entries.len(), String::new());
+                self.combo_term = r.combo_term.or(Some(50));
+                self.auto_shift_options = r.auto_shift_options;
+                self.auto_shift_timeout = r.auto_shift_timeout;
+                self.auto_shift_timeout_text = r
+                    .auto_shift_timeout
+                    .map(|timeout| timeout.to_string())
+                    .unwrap_or_default();
+                self.mouse_keys_settings = r.mouse_keys_settings;
+                self.touchpad_settings = r.touchpad_settings;
+                self.module_settings = r.module_settings;
+                self.tap_hold_settings = r.tap_hold_settings;
+                self.magic_settings = r.magic_settings;
+                self.one_shot_settings = r.one_shot_settings;
+                self.grave_escape_settings = r.grave_escape_settings;
+                self.layer_led_settings = r.layer_led_settings;
+                self.rgb_settings = r.rgb_settings;
+                self.layout_options_value = r.layout_options_value;
+                let highest_used_combo = self
+                    .combo_entries
+                    .iter()
+                    .enumerate()
+                    .filter(|(i, combo)| {
+                        combo.output != 0
+                            || combo.keys.iter().any(|&k| k != 0)
+                            || self
+                                .combo_names
+                                .get(*i)
+                                .map(|n| !n.trim().is_empty())
+                                .unwrap_or(false)
+                    })
+                    .map(|(i, _)| i + 1)
+                    .max()
+                    .unwrap_or(1);
+                self.combo_visible_count = highest_used_combo.min(self.combo_entries.len().max(1));
+                self.selected_combo = self
+                    .selected_combo
+                    .min(self.combo_visible_count.saturating_sub(1));
+                if !r.macro_texts.is_empty() {
+                    self.keycode_picker.macro_count = r.macro_texts.len();
+                    self.keycode_picker.macro_texts = r.macro_texts.clone();
+                    self.keycode_picker.macro_names = vec![String::new(); r.macro_texts.len()];
+                    // Parse macro texts into actions
+                    // Parse macro texts → actions (Vial protocol v2: prefix 0x01 before actions)
+                    self.keycode_picker.macro_actions = r
+                        .macro_texts
+                        .iter()
+                        .map(|text| {
+                            let bytes = text.as_bytes();
+                            let mut actions = Vec::new();
+                            let mut i = 0;
+                            while i < bytes.len() {
+                                if bytes[i] == 1 && i + 1 < bytes.len() {
+                                    // SS_QMK_PREFIX
+                                    match bytes[i + 1] {
+                                        1 if i + 2 < bytes.len() => {
+                                            // SS_TAP
+                                            actions.push(crate::keycode_picker::MacroAction::Tap(
+                                                bytes[i + 2],
+                                            ));
+                                            i += 3;
+                                        }
+                                        2 if i + 2 < bytes.len() => {
+                                            // SS_DOWN
+                                            actions.push(crate::keycode_picker::MacroAction::Down(
+                                                bytes[i + 2],
+                                            ));
+                                            i += 3;
+                                        }
+                                        3 if i + 2 < bytes.len() => {
+                                            // SS_UP
+                                            actions.push(crate::keycode_picker::MacroAction::Up(
+                                                bytes[i + 2],
+                                            ));
+                                            i += 3;
+                                        }
+                                        4 if i + 3 < bytes.len() => {
+                                            // SS_DELAY
+                                            let ms = (bytes[i + 2] as u16 - 1)
+                                                + (bytes[i + 3] as u16 - 1) * 255;
+                                            actions.push(
+                                                crate::keycode_picker::MacroAction::Delay(ms),
+                                            );
+                                            i += 4;
+                                        }
+                                        _ => {
+                                            i += 2;
+                                        } // skip unknown
+                                    }
+                                } else {
+                                    // Text character
+                                    let start = i;
+                                    while i < bytes.len() && bytes[i] != 1 {
+                                        i += 1;
+                                    }
+                                    if let Ok(s) = std::str::from_utf8(&bytes[start..i]) {
+                                        actions.push(crate::keycode_picker::MacroAction::Text(
+                                            s.to_string(),
+                                        ));
+                                    }
+                                }
+                            }
+                            actions
+                        })
+                        .collect();
+                }
+
+                self.status_msg = format!("Connected: {}", r.device_name);
+
+                // Load per-device layer names
+                let device_name = r.device_name.clone();
+                // Prefer names from descriptor/firmware, then overlay local overrides only if a real saved file exists
+                let mut layer_names = r.layout.layer_names.clone();
+                if let Some(local_layer_names) = load_saved_layer_names(&device_name) {
+                    layer_names = local_layer_names;
+                }
+                if layer_names.is_empty() {
+                    layer_names = load_layer_names(&device_name);
+                }
+                self.layer_names = layer_names;
+
+                let encoder_count = r.layout.encoder_count();
+                self.encoder_visibility = load_encoder_visibility(&device_name, encoder_count);
+
+                // Populate picker
+                self.keycode_picker.supports_rgb =
+                    r.layout.supports_rgb || self.rgb_settings.supported;
+                self.keycode_picker.supports_macro = !r.macro_texts.is_empty();
+                self.keycode_picker.supports_tap_dance = !r.tap_dance_entries.is_empty();
+                self.keycode_picker.supports_mouse_keys = self.mouse_keys_settings.supported;
+                self.keycode_picker.supports_combo = !self.combo_entries.is_empty();
+                self.keycode_picker.supports_auto_shift = self.auto_shift_timeout.is_some();
+                self.keycode_picker.supports_caps_word = r.vial_features.caps_word;
+                self.keycode_picker.supports_repeat_key = r.vial_features.repeat_key;
+                self.keycode_picker.supports_layer_lock = r.vial_features.layer_lock;
+                self.keycode_picker.supports_persistent_default_layer =
+                    r.vial_features.persistent_default_layer;
+                self.keycode_picker.layer_count = r.layout.layers.len().max(1);
+                self.keycode_picker.tap_dance_names = load_tap_dance_names(&device_name);
+                // Vial GUI maps customKeycodes to USER00.. at QK_KB + index.
+                // Protocol v6: QK_KB = 0x7E00. Do not use QK_USER (0x7E40):
+                // assigning those values writes the wrong keycodes to firmware.
+                const QK_KB: u16 = 0x7E00;
+                self.keycode_picker.custom_keycodes = r
+                    .layout
+                    .custom_keycodes
+                    .iter()
+                    .enumerate()
+                    .map(|(i, custom)| {
+                        (
+                            custom.name.clone(),
+                            custom.label.clone(),
+                            custom.title.clone(),
+                            QK_KB + i as u16,
+                        )
+                    })
+                    .collect();
+                self.keycode_picker.layer_names = self.layer_names.clone();
+                self.sticky_layout_prev_pressed.clear();
+                self.sticky_layout_pressed_key_layers.clear();
+                self.sticky_layout_toggled_layers = vec![false; r.layout.layers.len().max(1)];
+                self.sticky_layout_base_layer = 0;
+
+                self.layout = Some(r.layout);
+                self.refresh_layer_picker_content_flags();
+
+                // Open persistent HID connection for Vial real-time writes
+                if self.firmware == FirmwareProtocol::Vial {
+                    if let Some(dev) = self
+                        .selected_device
+                        .and_then(|i| self.device_manager.devices().get(i))
+                    {
+                        match crate::hid::HidDevice::open(&dev.path) {
+                            Ok(v) => {
+                                self.hid_device = Some(v);
+                                self.restore_entropy_display_preset_after_connect();
+                            }
+                            Err(e) => log::warn!("Could not open persistent HID: {e}"),
+                        }
+                        self.sync_qmk_hid_host_bridges();
+                    }
+                }
+
+                log::info!(
+                    "Connected: {} ({} layers, {:?})",
+                    r.device_name,
+                    r.layer_count,
+                    self.firmware
+                );
+            }
+            Err(e) => {
+                self.status_msg = e;
+            }
+        }
+    }
+}

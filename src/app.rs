@@ -44,8 +44,14 @@ mod app_settings_ui;
 mod auto_shift_settings_ui;
 #[path = "ui/combo_settings.rs"]
 mod combo_settings_ui;
+#[path = "ui/device_connect_apply.rs"]
+mod device_connect_apply;
+#[path = "ui/device_connect_task.rs"]
+mod device_connect_task;
 #[path = "ui/device_connection.rs"]
 mod device_connection;
+#[path = "ui/device_scan.rs"]
+mod device_scan;
 #[path = "ui/device_settings_helpers.rs"]
 mod device_settings_helpers;
 #[path = "ui/encoder_visibility_settings.rs"]
