@@ -72,6 +72,8 @@ use top_dropdown::*;
 mod layout_chrome;
 #[path = "ui/layout_keyboard.rs"]
 mod layout_keyboard;
+#[path = "ui/layout_layer_switcher.rs"]
+mod layout_layer_switcher;
 #[path = "ui/layout_view.rs"]
 mod layout_view;
 #[path = "ui/live_features_settings.rs"]
