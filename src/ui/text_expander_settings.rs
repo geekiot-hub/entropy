@@ -828,7 +828,7 @@ impl EntropyApp {
                         let more_width = metrics.value(42.0);
                         let reserved_right =
                             add_width + if has_more { gap + more_width } else { 0.0 };
-                        let chip_width = if visible_count > 0 {
+                        let shared_chip_width = if visible_count > 0 {
                             let available_width = control_width - reserved_right - gap;
                             ((control_width - reserved_right - gap * visible_count as f32)
                                 / visible_count as f32)
@@ -853,15 +853,31 @@ impl EntropyApp {
                                 &text_expander_extra_rules_path(file_name),
                             )
                             .is_some();
-                            let display = if file_name.chars().count() > 12 {
-                                format!("{}…", file_name.chars().take(11).collect::<String>())
+                            let available_chip_width = control_width - reserved_right - gap;
+                            let chip_width = if visible_count == 1 {
+                                let natural_width = metrics.value(50.0)
+                                    + file_name.chars().count() as f32 * metrics.value(7.0);
+                                natural_width.clamp(
+                                    metrics.value(64.0),
+                                    available_chip_width.max(metrics.value(64.0)),
+                                )
                             } else {
-                                file_name.clone()
+                                shared_chip_width
                             };
                             let chip_rect = egui::Rect::from_min_size(
                                 egui::pos2(x, y),
                                 egui::vec2(chip_width, chip_height),
                             );
+                            let available_text_chars =
+                                ((chip_width - metrics.value(34.0)) / metrics.value(7.0))
+                                    .floor()
+                                    .max(4.0) as usize;
+                            let display = if file_name.chars().count() > available_text_chars {
+                                let keep = available_text_chars.saturating_sub(1).max(3);
+                                format!("{}…", file_name.chars().take(keep).collect::<String>())
+                            } else {
+                                file_name.clone()
+                            };
                             let resp = ui.interact(
                                 chip_rect,
                                 ui.make_persistent_id(("text_expander_rules_file_chip", file_name)),
