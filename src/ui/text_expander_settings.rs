@@ -829,9 +829,13 @@ impl EntropyApp {
                         let reserved_right =
                             add_width + if has_more { gap + more_width } else { 0.0 };
                         let chip_width = if visible_count > 0 {
+                            let available_width = control_width - reserved_right - gap;
                             ((control_width - reserved_right - gap * visible_count as f32)
                                 / visible_count as f32)
-                                .clamp(metrics.value(64.0), metrics.value(92.0))
+                                .clamp(
+                                    metrics.value(64.0),
+                                    available_width.max(metrics.value(64.0)),
+                                )
                         } else {
                             0.0
                         };
@@ -879,7 +883,14 @@ impl EntropyApp {
                                 egui::StrokeKind::Inside,
                             );
                             let prefix = if file_ok { "✓ " } else { "⚠ " };
-                            ui.painter().text(
+                            let text_clip_rect = egui::Rect::from_min_max(
+                                egui::pos2(chip_rect.left() + metrics.value(8.0), chip_rect.top()),
+                                egui::pos2(
+                                    chip_rect.right() - metrics.value(24.0),
+                                    chip_rect.bottom(),
+                                ),
+                            );
+                            ui.painter().with_clip_rect(text_clip_rect).text(
                                 egui::pos2(
                                     chip_rect.left() + metrics.value(8.0),
                                     chip_rect.center().y,
@@ -1006,7 +1017,17 @@ impl EntropyApp {
                                                     option_fill,
                                                 );
                                                 let prefix = if file_ok { "✓ " } else { "⚠ " };
-                                                ui.painter().text(
+                                                let text_clip_rect = egui::Rect::from_min_max(
+                                                    egui::pos2(
+                                                        option_rect.left() + metrics.value(10.0),
+                                                        option_rect.top(),
+                                                    ),
+                                                    egui::pos2(
+                                                        option_rect.right() - metrics.value(28.0),
+                                                        option_rect.bottom(),
+                                                    ),
+                                                );
+                                                ui.painter().with_clip_rect(text_clip_rect).text(
                                                     egui::pos2(
                                                         option_rect.left() + metrics.value(10.0),
                                                         option_rect.center().y,
