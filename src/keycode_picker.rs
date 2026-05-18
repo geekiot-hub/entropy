@@ -24,6 +24,8 @@ mod keycode_picker_lighting_quantum;
 mod keycode_picker_macro;
 #[path = "keycode_picker_tap_dance.rs"]
 mod keycode_picker_tap_dance;
+#[path = "keycode_picker_tap_dance_picker.rs"]
+mod keycode_picker_tap_dance_picker;
 
 fn plain_modifier_tooltip(mod_name: &str) -> String {
     format!(
