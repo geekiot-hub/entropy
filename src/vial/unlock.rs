@@ -9,6 +9,8 @@ impl EntropyApp {
         self.unlock_open = false;
         self.vial_unlock_polling = false;
         self.vial_unlock_last_poll = None;
+        self.vial_unlock_counter = self.vial_unlock_total;
+        self.vial_unlock_best = self.vial_unlock_total;
         self.pending_layout_indicator_open_after_unlock = false;
     }
 
@@ -77,30 +79,10 @@ impl EntropyApp {
                                         save_app_settings(&self.app_settings);
                                     }
                                 } else if !in_progress {
-                                    match hid.get_unlock_status() {
-                                        Ok((_, keys)) => {
-                                            self.vial_unlock_keys = keys;
-                                        }
-                                        Err(e) => {
-                                            self.status_msg = format!("Unlock status failed: {e}");
-                                        }
-                                    }
-                                    match hid.unlock_start() {
-                                        Ok(()) => {
-                                            self.vial_unlock_counter = self.vial_unlock_total;
-                                            self.vial_unlock_best = self.vial_unlock_total;
-                                            self.vial_unlock_last_poll = None;
-                                            self.vial_unlock_animation_nonce =
-                                                self.vial_unlock_animation_nonce.wrapping_add(1);
-                                            self.status_msg = "Unlock timed out, try again".into();
-                                        }
-                                        Err(e) => {
-                                            self.stop_vial_unlock_with_status(format!(
-                                                "Unlock restart failed: {e}"
-                                            ));
-                                            return;
-                                        }
-                                    }
+                                    self.stop_vial_unlock_with_status(
+                                        "Unlock timed out — hold the highlighted keys and try again",
+                                    );
+                                    return;
                                 }
                             }
                             Err(e) => {
