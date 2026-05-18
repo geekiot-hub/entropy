@@ -41,12 +41,26 @@ impl HidDevice {
 
     /// Send exactly MSG_LEN bytes (with 0x00 report ID prepended), receive MSG_LEN bytes back.
     fn usb_send(&self, data: &[u8]) -> Result<[u8; MSG_LEN]> {
+        if data.len() > MSG_LEN {
+            bail!(
+                "HID command too long — {} bytes, max {} bytes",
+                data.len(),
+                MSG_LEN
+            );
+        }
+
         let mut write_buf = [0u8; MSG_LEN + 1];
         write_buf[0] = 0x00; // report ID
-        let n = data.len().min(MSG_LEN);
-        write_buf[1..1 + n].copy_from_slice(&data[..n]);
+        write_buf[1..1 + data.len()].copy_from_slice(data);
 
-        self.device.write(&write_buf).context("HID write failed")?;
+        let bytes_written = self.device.write(&write_buf).context("HID write failed")?;
+        if bytes_written != write_buf.len() {
+            bail!(
+                "HID short write — wrote {} bytes, expected {} bytes",
+                bytes_written,
+                write_buf.len()
+            );
+        }
 
         // Read response — hidapi on Windows returns MSG_LEN bytes (no report ID)
         // on Linux/macOS may include report ID prefix
@@ -58,6 +72,14 @@ impl HidDevice {
 
         if bytes_read == 0 {
             bail!("HID timeout — device did not respond");
+        }
+        if bytes_read != MSG_LEN && bytes_read != MSG_LEN + 1 {
+            bail!(
+                "HID invalid response length — read {} bytes, expected {} or {} bytes",
+                bytes_read,
+                MSG_LEN,
+                MSG_LEN + 1
+            );
         }
 
         let mut resp = [0u8; MSG_LEN];

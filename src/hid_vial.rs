@@ -6,7 +6,9 @@ use anyhow::{bail, Context, Result};
 #[cfg(not(target_arch = "wasm32"))]
 impl HidDevice {
     pub fn get_protocol_version(&self) -> Result<u16> {
-        let resp = self.usb_send(&[CMD_VIA_GET_PROTOCOL_VERSION])?;
+        let resp = self
+            .usb_send(&[CMD_VIA_GET_PROTOCOL_VERSION])
+            .context("failed to read VIA protocol version")?;
         // resp[1..3] = big-endian u16
         Ok(u16::from_be_bytes([resp[1], resp[2]]))
     }
@@ -22,7 +24,9 @@ impl HidDevice {
     }
 
     pub fn get_definition_size(&self) -> Result<u32> {
-        let resp = self.usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_GET_SIZE])?;
+        let resp = self
+            .usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_GET_SIZE])
+            .context("failed to read Vial definition size")?;
         // response: size as little-endian u32 starting at byte 0
         Ok(u32::from_le_bytes([resp[0], resp[1], resp[2], resp[3]]))
     }
@@ -43,7 +47,9 @@ impl HidDevice {
             cmd[0] = CMD_VIA_VIAL_PREFIX;
             cmd[1] = CMD_VIAL_GET_DEFINITION;
             cmd[2..6].copy_from_slice(&block.to_le_bytes());
-            let resp = self.usb_send(&cmd)?;
+            let resp = self
+                .usb_send(&cmd)
+                .with_context(|| format!("failed to read Vial definition block {block}"))?;
 
             let chunk = remaining.min(MSG_LEN);
             payload.extend_from_slice(&resp[..chunk]);
@@ -72,7 +78,9 @@ impl HidDevice {
     /// Check if keyboard is unlocked
     /// Returns (unlocked, unlock_keys: Vec<(row,col)>)
     pub fn get_unlock_status(&self) -> Result<(bool, Vec<(u8, u8)>)> {
-        let resp = self.usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_GET_UNLOCK_STATUS])?;
+        let resp = self
+            .usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_GET_UNLOCK_STATUS])
+            .context("failed to read Vial unlock status")?;
         // resp[0] = unlocked (1=yes), resp[1] = unlock_in_progress
         // resp[2..] = pairs of (row, col), rest filled with 0xFF
         Ok(parse_unlock_status_response(&resp))
@@ -80,21 +88,27 @@ impl HidDevice {
 
     /// Start unlock sequence — returns keys to hold (row, col pairs)
     pub fn unlock_start(&self) -> Result<()> {
-        self.usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_UNLOCK_START])?;
+        self
+            .usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_UNLOCK_START])
+            .context("failed to start Vial unlock sequence")?;
         Ok(())
     }
 
     /// Poll unlock status — returns (unlocked, in_progress)
     /// Returns (unlocked, in_progress, counter)
     pub fn unlock_poll(&self) -> Result<(bool, bool, u8)> {
-        let resp = self.usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_UNLOCK_POLL])?;
+        let resp = self
+            .usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_UNLOCK_POLL])
+            .context("failed to poll Vial unlock status")?;
         // resp[0] = unlocked, resp[1] = in_progress, resp[2] = counter
         Ok((resp[0] == 1, resp[1] == 1, resp[2]))
     }
 
     /// Lock the keyboard
     pub fn lock(&self) -> Result<()> {
-        self.usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_LOCK])?;
+        self
+            .usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_LOCK])
+            .context("failed to lock Vial keyboard")?;
         Ok(())
     }
 

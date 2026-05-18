@@ -1,7 +1,7 @@
 use super::hid_protocol::*;
 use super::hid_parse::{encode_macro_buffer, parse_macro_buffer};
 use super::HidDevice;
-use anyhow::Result;
+use anyhow::{Context, Result};
 
 #[cfg(not(target_arch = "wasm32"))]
 impl HidDevice {
@@ -9,13 +9,17 @@ impl HidDevice {
     /// Response: [cmd, value_id, data...] where data is ceil(rows*cols/8) bytes.
     /// Get macro count from device.
     pub fn get_macro_count(&self) -> Result<u8> {
-        let resp = self.usb_send(&[CMD_VIA_MACRO_GET_COUNT])?;
+        let resp = self
+            .usb_send(&[CMD_VIA_MACRO_GET_COUNT])
+            .context("failed to read macro count")?;
         Ok(resp[1])
     }
 
     /// Get macro buffer size.
     pub fn get_macro_buffer_size(&self) -> Result<u16> {
-        let resp = self.usb_send(&[CMD_VIA_MACRO_GET_BUFFER_SIZE])?;
+        let resp = self
+            .usb_send(&[CMD_VIA_MACRO_GET_BUFFER_SIZE])
+            .context("failed to read macro buffer size")?;
         Ok(u16::from_be_bytes([resp[1], resp[2]]))
     }
 
@@ -30,7 +34,9 @@ impl HidDevice {
             cmd[1] = (offset >> 8) as u8;
             cmd[2] = (offset & 0xFF) as u8;
             cmd[3] = chunk;
-            let resp = self.usb_send(&cmd)?;
+            let resp = self
+                .usb_send(&cmd)
+                .with_context(|| format!("failed to read macro buffer at offset {offset}"))?;
             let n = chunk.min((size - offset) as u8) as usize;
             buf.extend_from_slice(&resp[4..4 + n]);
             offset += chunk as u16;
@@ -51,7 +57,9 @@ impl HidDevice {
             cmd[3] = chunk as u8;
             let start = offset as usize;
             cmd[4..4 + chunk as usize].copy_from_slice(&data[start..start + chunk as usize]);
-            self.usb_send(&cmd)?;
+            self
+                .usb_send(&cmd)
+                .with_context(|| format!("failed to write macro buffer at offset {offset}"))?;
             offset += chunk;
         }
         Ok(())
