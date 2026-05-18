@@ -68,8 +68,12 @@ use layout_shared::*;
 #[path = "ui/top_dropdown.rs"]
 mod top_dropdown;
 use top_dropdown::*;
+#[path = "ui/layout_advanced_dropdown.rs"]
+mod layout_advanced_dropdown;
 #[path = "ui/layout_chrome.rs"]
 mod layout_chrome;
+#[path = "ui/layout_device_dropdown.rs"]
+mod layout_device_dropdown;
 #[path = "ui/layout_dropdowns.rs"]
 mod layout_dropdowns;
 #[path = "ui/layout_hints.rs"]
@@ -78,6 +82,8 @@ mod layout_hints;
 mod layout_keyboard;
 #[path = "ui/layout_layer_switcher.rs"]
 mod layout_layer_switcher;
+#[path = "ui/layout_settings_dropdown.rs"]
+mod layout_settings_dropdown;
 #[path = "ui/layout_top_tabs.rs"]
 mod layout_top_tabs;
 #[path = "ui/layout_view.rs"]
