@@ -60,6 +60,10 @@ mod key_override_settings_ui;
 mod layer_led_settings_ui;
 #[path = "ui/layout_indicator.rs"]
 mod layout_indicator;
+#[path = "ui/layout_indicator_preview.rs"]
+mod layout_indicator_preview;
+#[path = "ui/layout_indicator_window.rs"]
+mod layout_indicator_window;
 #[path = "ui/layout_options_settings.rs"]
 mod layout_options_settings_ui;
 #[path = "ui/layout_shared.rs"]
