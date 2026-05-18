@@ -1,0 +1,563 @@
+use super::*;
+
+impl EntropyApp {
+    pub(super) fn is_encoder_layout_option(option: &LayoutOption) -> bool {
+        option
+            .label
+            .trim_start()
+            .to_ascii_lowercase()
+            .starts_with("hide encoder")
+    }
+
+    pub(super) fn display_preset_choice_label(
+        language: crate::i18n::Language,
+        label: &str,
+    ) -> String {
+        let label = label
+            .replace(" (qmk-hid-host)", " (Entropy)")
+            .replace("qmk-hid-host", "Entropy");
+        if matches!(language, crate::i18n::Language::Russian) {
+            let lower = label.to_ascii_lowercase();
+            for (prefix, translated) in [
+                ("oled master", "OLED мастер"),
+                ("oled slave", "OLED ведомый"),
+            ] {
+                if lower == prefix || lower.starts_with(&format!("{} ", prefix)) {
+                    return format!("{}{}", translated, &label[prefix.len()..]);
+                }
+            }
+        }
+        crate::i18n::tr_text(language, &label)
+    }
+
+    pub(super) fn display_preset_needs_entropy(label: &str) -> bool {
+        let lower = label.to_ascii_lowercase();
+        lower.contains("qmk-hid-host")
+            || lower.contains("clock")
+            || lower.contains("volume")
+            || lower.contains("media")
+    }
+
+    pub(super) fn static_display_preset_fallback_idx(option: &LayoutOption) -> Option<usize> {
+        option
+            .choices
+            .iter()
+            .position(|choice| choice.eq_ignore_ascii_case("disabled"))
+    }
+
+    pub(super) fn is_display_preset_layout_option(option: &LayoutOption) -> bool {
+        !Self::is_encoder_layout_option(option)
+            && option
+                .choices
+                .iter()
+                .any(|choice| Self::display_preset_needs_entropy(choice))
+            && Self::static_display_preset_fallback_idx(option).is_some()
+    }
+
+    pub(super) fn selected_layout_option_idx(
+        option: &LayoutOption,
+        values: &[u32],
+        idx: usize,
+    ) -> usize {
+        values
+            .get(idx)
+            .copied()
+            .unwrap_or(0)
+            .min(option.choices.len().saturating_sub(1) as u32) as usize
+    }
+
+    pub(super) fn restore_display_preset_packed(
+        layout: &KeyboardLayout,
+        current_packed: u32,
+        restore_packed: u32,
+    ) -> Option<u32> {
+        let mut current_values =
+            Self::unpack_layout_option_values(&layout.layout_options, current_packed);
+        let restore_values =
+            Self::unpack_layout_option_values(&layout.layout_options, restore_packed);
+        let mut changed = false;
+
+        for (idx, option) in layout.layout_options.iter().enumerate() {
+            if !Self::is_display_preset_layout_option(option) {
+                continue;
+            }
+            let Some(disabled_idx) = Self::static_display_preset_fallback_idx(option) else {
+                continue;
+            };
+            let current_idx = Self::selected_layout_option_idx(option, &current_values, idx);
+            if current_idx != disabled_idx {
+                continue;
+            }
+            let restore_idx = Self::selected_layout_option_idx(option, &restore_values, idx);
+            let restore_needs_entropy = option
+                .choices
+                .get(restore_idx)
+                .map(|choice| Self::display_preset_needs_entropy(choice))
+                .unwrap_or(false);
+            if !restore_needs_entropy {
+                continue;
+            }
+            current_values[idx] = restore_idx as u32;
+            changed = true;
+        }
+
+        changed.then(|| Self::pack_layout_option_values(&layout.layout_options, &current_values))
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(super) fn save_display_preset_restore(&self, packed: u32) {
+        if self.current_device_name.is_empty() {
+            return;
+        }
+        if let Err(e) = std::fs::write(
+            display_preset_restore_path(&self.current_device_name),
+            packed.to_string(),
+        ) {
+            log::warn!("save display preset restore failed: {e}");
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(super) fn load_display_preset_restore(&self) -> Option<u32> {
+        if self.current_device_name.is_empty() {
+            return None;
+        }
+        std::fs::read_to_string(display_preset_restore_path(&self.current_device_name))
+            .ok()
+            .and_then(|text| text.trim().parse::<u32>().ok())
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(super) fn clear_display_preset_restore(&self) {
+        if self.current_device_name.is_empty() {
+            return;
+        }
+        let path = display_preset_restore_path(&self.current_device_name);
+        if let Err(e) = std::fs::remove_file(path) {
+            if e.kind() != std::io::ErrorKind::NotFound {
+                log::warn!("clear display preset restore failed: {e}");
+            }
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(super) fn restore_entropy_display_preset_after_connect(&mut self) {
+        let Some(layout) = self.layout.as_ref() else {
+            return;
+        };
+        let Some(current_packed) = self.layout_options_value else {
+            return;
+        };
+        let Some(restore_packed) = self.load_display_preset_restore() else {
+            return;
+        };
+        let Some(packed) =
+            Self::restore_display_preset_packed(layout, current_packed, restore_packed)
+        else {
+            return;
+        };
+
+        self.layout_options_value = Some(packed);
+        if let Some(hid) = &self.hid_device {
+            if let Err(e) = hid.set_layout_options(packed) {
+                log::warn!("restore display preset after connect failed: {e}");
+                self.layout_options_value = Some(current_packed);
+                return;
+            }
+        }
+        self.sync_qmk_hid_host_bridges();
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(super) fn device_uses_automatic_display_host_data(device: &crate::device::Device) -> bool {
+        if device.firmware != FirmwareProtocol::Vial {
+            return false;
+        }
+
+        let name = device.name.to_ascii_lowercase();
+        let ergohaven_macropad_display =
+            device.vendor_id == 0xE126 && matches!(device.product_id, 0x0041 | 0x0042);
+
+        ergohaven_macropad_display || name.contains("m4cr0pad v2") || name.contains("m4cr0pad v3")
+    }
+
+    pub(super) fn touchpad_setting_field(
+        json: &serde_json::Value,
+        qsid: u16,
+    ) -> Option<&serde_json::Value> {
+        json.get("settings")
+            .and_then(|value| value.as_array())?
+            .iter()
+            .find(|tab| {
+                tab.get("name")
+                    .and_then(|value| value.as_str())
+                    .map(|name| name.to_ascii_lowercase().contains("touchpad"))
+                    .unwrap_or(false)
+            })?
+            .get("fields")
+            .and_then(|value| value.as_array())?
+            .iter()
+            .find(|field| field.get("qsid").and_then(|value| value.as_u64()) == Some(qsid as u64))
+    }
+
+    pub(super) fn touchpad_setting_exists(json: &serde_json::Value, qsid: u16) -> bool {
+        Self::touchpad_setting_field(json, qsid).is_some()
+    }
+
+    pub(super) fn touchpad_setting_variants(json: &serde_json::Value, qsid: u16) -> Vec<String> {
+        Self::touchpad_setting_field(json, qsid)
+            .and_then(|field| field.get("variants"))
+            .and_then(|value| value.as_array())
+            .map(|variants| {
+                variants
+                    .iter()
+                    .filter_map(|value| value.as_str().map(|s| s.trim().to_string()))
+                    .filter(|s| !s.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    pub(super) fn layout_json_has_touchpad_settings(json: &serde_json::Value) -> bool {
+        let Some(tabs) = json.get("settings").and_then(|value| value.as_array()) else {
+            return false;
+        };
+
+        tabs.iter().any(|tab| {
+            let tab_name = tab
+                .get("name")
+                .and_then(|value| value.as_str())
+                .unwrap_or("")
+                .to_ascii_lowercase();
+            let has_touchpad_name = tab_name.contains("touchpad");
+            let has_touchpad_qsids = tab
+                .get("fields")
+                .and_then(|value| value.as_array())
+                .map(|fields| {
+                    [120u64, 121, 122, 123, 124].iter().all(|qsid| {
+                        fields.iter().any(|field| {
+                            field.get("qsid").and_then(|value| value.as_u64()) == Some(*qsid)
+                        })
+                    })
+                })
+                .unwrap_or(false);
+
+            has_touchpad_name && has_touchpad_qsids
+        })
+    }
+
+    pub(super) fn module_settings_fields(
+        json: &serde_json::Value,
+        supported_qmk_settings: &[u16],
+    ) -> Vec<ModuleSettingField> {
+        let Some(tabs) = json.get("settings").and_then(|value| value.as_array()) else {
+            return Vec::new();
+        };
+        let Some(tab) = tabs.iter().find(|tab| {
+            tab.get("name")
+                .and_then(|value| value.as_str())
+                .map(|name| name.to_ascii_lowercase().contains("module"))
+                .unwrap_or(false)
+        }) else {
+            return Vec::new();
+        };
+        let Some(fields) = tab.get("fields").and_then(|value| value.as_array()) else {
+            return Vec::new();
+        };
+
+        fields
+            .iter()
+            .filter_map(|field| {
+                let qsid = field.get("qsid")?.as_u64()? as u16;
+                if !supported_qmk_settings.contains(&qsid) {
+                    return None;
+                }
+                let title = field.get("title")?.as_str()?.trim().to_string();
+                if title.is_empty() {
+                    return None;
+                }
+                let kind = match field.get("type").and_then(|value| value.as_str())? {
+                    "boolean" => ModuleSettingKind::Boolean,
+                    "integer" => ModuleSettingKind::Integer,
+                    "select" => ModuleSettingKind::Select,
+                    _ => return None,
+                };
+                let width = field
+                    .get("width")
+                    .and_then(|value| value.as_u64())
+                    .unwrap_or(1)
+                    .clamp(1, 2) as u8;
+                let variants = field
+                    .get("variants")
+                    .and_then(|value| value.as_array())
+                    .map(|variants| {
+                        variants
+                            .iter()
+                            .filter_map(|value| value.as_str().map(|s| s.trim().to_string()))
+                            .filter(|s| !s.is_empty())
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default();
+                Some(ModuleSettingField {
+                    title,
+                    qsid,
+                    kind,
+                    bit: field
+                        .get("bit")
+                        .and_then(|value| value.as_u64())
+                        .unwrap_or(0)
+                        .min(15) as u8,
+                    width,
+                    min: field
+                        .get("min")
+                        .and_then(|value| value.as_u64())
+                        .unwrap_or(0)
+                        .min(u16::MAX as u64) as u16,
+                    max: field
+                        .get("max")
+                        .and_then(|value| value.as_u64())
+                        .unwrap_or(if matches!(kind, ModuleSettingKind::Select) {
+                            variants.len().saturating_sub(1) as u64
+                        } else if width > 1 {
+                            u16::MAX as u64
+                        } else {
+                            u8::MAX as u64
+                        })
+                        .min(u16::MAX as u64) as u16,
+                    variants,
+                })
+            })
+            .collect()
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(super) fn read_module_settings(
+        json: &serde_json::Value,
+        supported_qmk_settings: &[u16],
+        dev_conn: &crate::hid::HidDevice,
+    ) -> ModuleSettingsState {
+        let fields = Self::module_settings_fields(json, supported_qmk_settings);
+        if fields.is_empty() {
+            return ModuleSettingsState::default();
+        }
+
+        let mut settings = ModuleSettingsState {
+            fields,
+            values: std::collections::BTreeMap::new(),
+            supported: true,
+        };
+        let mut widths = std::collections::BTreeMap::<u16, u8>::new();
+        for field in &settings.fields {
+            widths
+                .entry(field.qsid)
+                .and_modify(|width| *width = (*width).max(field.width))
+                .or_insert(field.width);
+        }
+        for (qsid, width) in widths {
+            let value = if width > 1 {
+                dev_conn.get_qmk_setting_u16(qsid)
+            } else {
+                dev_conn.get_qmk_setting_u8(qsid).map(|value| value as u16)
+            }
+            .unwrap_or_else(|e| {
+                log::warn!("get_qmk_setting(module qsid {qsid}): {e}");
+                0
+            });
+            settings.values.insert(qsid, value);
+        }
+        settings
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(super) fn qmk_hid_host_mode_for(
+        layout: &KeyboardLayout,
+        packed: Option<u32>,
+    ) -> crate::qmk_hid_host::HostDataMode {
+        let values = Self::unpack_layout_option_values(&layout.layout_options, packed.unwrap_or(0));
+        let mut mode = crate::qmk_hid_host::HostDataMode::default();
+        for (idx, option) in layout.layout_options.iter().enumerate() {
+            if Self::is_encoder_layout_option(option) || option.choices.is_empty() {
+                continue;
+            }
+            let selected_idx = values
+                .get(idx)
+                .copied()
+                .unwrap_or(0)
+                .min(option.choices.len().saturating_sub(1) as u32)
+                as usize;
+            let selected = option
+                .choices
+                .get(selected_idx)
+                .map(|s| s.as_str())
+                .unwrap_or("");
+            let selected_lower = selected.to_ascii_lowercase();
+            if Self::display_preset_needs_entropy(selected)
+                && (selected_lower.contains("clock") || selected_lower.contains("volume"))
+            {
+                mode.clock_volume = true;
+            }
+            if Self::display_preset_needs_entropy(selected) && selected_lower.contains("media") {
+                mode.media = true;
+            }
+        }
+        mode
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(super) fn fallback_entropy_display_presets_before_exit(&mut self) {
+        let Some(layout) = self.layout.as_ref() else {
+            return;
+        };
+        if layout.layout_options.is_empty() {
+            return;
+        }
+
+        let mut values = Self::unpack_layout_option_values(
+            &layout.layout_options,
+            self.layout_options_value.unwrap_or(0),
+        );
+        let mut changed = false;
+
+        for (idx, option) in layout.layout_options.iter().enumerate() {
+            if Self::is_encoder_layout_option(option) || option.choices.is_empty() {
+                continue;
+            }
+            let selected_idx = values
+                .get(idx)
+                .copied()
+                .unwrap_or(0)
+                .min(option.choices.len().saturating_sub(1) as u32)
+                as usize;
+            let selected = option
+                .choices
+                .get(selected_idx)
+                .map(|s| s.as_str())
+                .unwrap_or("");
+            if !Self::display_preset_needs_entropy(selected) {
+                continue;
+            }
+            if let Some(fallback_idx) = Self::static_display_preset_fallback_idx(option) {
+                if fallback_idx != selected_idx {
+                    values[idx] = fallback_idx as u32;
+                    changed = true;
+                }
+            }
+        }
+
+        if !changed {
+            return;
+        }
+
+        let original_packed = self.layout_options_value.unwrap_or(0);
+        let packed = Self::pack_layout_option_values(&layout.layout_options, &values);
+        self.save_display_preset_restore(original_packed);
+        self.layout_options_value = Some(packed);
+        self.qmk_hid_hosts.clear();
+        if let Some(hid) = &self.hid_device {
+            if let Err(e) = hid.set_layout_options(packed) {
+                log::warn!("fallback display preset before exit failed: {e}");
+            }
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(super) fn sync_qmk_hid_host_bridges(&mut self) {
+        let selected_path = self
+            .selected_device
+            .and_then(|idx| self.device_manager.devices().get(idx))
+            .map(|device| device.path.as_str());
+
+        let mut desired =
+            std::collections::HashMap::<String, crate::qmk_hid_host::HostDataMode>::new();
+
+        for device in self.device_manager.devices() {
+            if device.firmware != FirmwareProtocol::Vial {
+                continue;
+            }
+
+            let mut mode = crate::qmk_hid_host::HostDataMode::default();
+            if Some(device.path.as_str()) == selected_path {
+                if let Some(layout) = self.layout.as_ref() {
+                    mode = Self::qmk_hid_host_mode_for(layout, self.layout_options_value);
+                }
+            }
+
+            if Self::device_uses_automatic_display_host_data(device) {
+                mode.clock_volume = true;
+                mode.media = true;
+            }
+
+            if !mode.is_empty() {
+                desired.insert(device.path.clone(), mode);
+            }
+        }
+
+        self.qmk_hid_hosts
+            .retain(|path, bridge| desired.get(path).copied() == Some(bridge.mode()));
+
+        for (path, mode) in desired {
+            self.qmk_hid_hosts
+                .entry(path.clone())
+                .or_insert_with(|| crate::qmk_hid_host::QmkHidHostBridge::start(path, mode));
+        }
+    }
+
+    pub(super) fn open_layout_options_settings_page(&mut self) {
+        self.settings_tab = SettingsTab::LayoutOptions;
+        self.main_menu_tab = MainMenuTab::Settings;
+    }
+
+    pub(super) fn open_modules_settings_page(&mut self) {
+        self.settings_tab = SettingsTab::Modules;
+        self.main_menu_tab = MainMenuTab::Settings;
+    }
+
+    pub(super) fn open_touchpad_settings_page(&mut self) {
+        self.settings_tab = SettingsTab::Touchpad;
+        self.main_menu_tab = MainMenuTab::Settings;
+    }
+
+    pub(super) fn open_live_features_settings_page(&mut self) {
+        self.settings_tab = SettingsTab::LiveFeatures;
+        self.main_menu_tab = MainMenuTab::Settings;
+    }
+
+    pub(super) fn layout_option_width(option: &LayoutOption) -> usize {
+        if option.choices.is_empty() {
+            1
+        } else {
+            let max_value = option.choices.len().saturating_sub(1).max(1);
+            (usize::BITS - max_value.leading_zeros()) as usize
+        }
+    }
+
+    pub(super) fn unpack_layout_option_values(options: &[LayoutOption], packed: u32) -> Vec<u32> {
+        let mut values = vec![0; options.len()];
+        let mut remaining = packed;
+        for (idx, option) in options.iter().enumerate().rev() {
+            let width = Self::layout_option_width(option);
+            let mask = if width >= 32 {
+                u32::MAX
+            } else {
+                (1u32 << width) - 1
+            };
+            values[idx] = remaining & mask;
+            remaining >>= width.min(31);
+        }
+        values
+    }
+
+    pub(super) fn pack_layout_option_values(options: &[LayoutOption], values: &[u32]) -> u32 {
+        let mut packed = 0u32;
+        for (idx, option) in options.iter().enumerate() {
+            let width = Self::layout_option_width(option);
+            let mask = if width >= 32 {
+                u32::MAX
+            } else {
+                (1u32 << width) - 1
+            };
+            packed = (packed << width.min(31)) | (values.get(idx).copied().unwrap_or(0) & mask);
+        }
+        packed
+    }
+}
