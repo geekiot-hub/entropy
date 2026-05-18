@@ -1,5 +1,42 @@
 use super::*;
 
+fn text_width_for_font(ui: &egui::Ui, text: &str, font_id: &FontId) -> f32 {
+    ui.fonts(|fonts| {
+        fonts
+            .layout_no_wrap(text.to_owned(), font_id.clone(), ui.visuals().text_color())
+            .size()
+            .x
+    })
+}
+
+fn truncate_prefixed_text_to_width(
+    ui: &egui::Ui,
+    prefix: &str,
+    text: &str,
+    font_id: &FontId,
+    max_width: f32,
+) -> String {
+    let full = format!("{prefix}{text}");
+    if text_width_for_font(ui, &full, font_id) <= max_width {
+        return full;
+    }
+
+    let char_count = text.chars().count();
+    let mut low = 0usize;
+    let mut high = char_count;
+    while low < high {
+        let mid = (low + high).div_ceil(2);
+        let candidate = format!("{}{}…", prefix, text.chars().take(mid).collect::<String>());
+        if text_width_for_font(ui, &candidate, font_id) <= max_width {
+            low = mid;
+        } else {
+            high = mid - 1;
+        }
+    }
+
+    format!("{}{}…", prefix, text.chars().take(low).collect::<String>())
+}
+
 impl EntropyApp {
     pub(super) fn text_expander_rule_issue(
         &self,
@@ -853,10 +890,15 @@ impl EntropyApp {
                                 &text_expander_extra_rules_path(file_name),
                             )
                             .is_some();
+                            let prefix = if file_ok { "✓ " } else { "⚠ " };
+                            let file_font_id = FontId::proportional(metrics.value(11.0));
                             let available_chip_width = control_width - reserved_right - gap;
                             let chip_width = if visible_count == 1 {
-                                let natural_width = metrics.value(50.0)
-                                    + file_name.chars().count() as f32 * metrics.value(7.0);
+                                let natural_width = text_width_for_font(
+                                    ui,
+                                    &format!("{prefix}{file_name}"),
+                                    &file_font_id,
+                                ) + metrics.value(32.0);
                                 natural_width.clamp(
                                     metrics.value(64.0),
                                     available_chip_width.max(metrics.value(64.0)),
@@ -868,16 +910,6 @@ impl EntropyApp {
                                 egui::pos2(x, y),
                                 egui::vec2(chip_width, chip_height),
                             );
-                            let available_text_chars =
-                                ((chip_width - metrics.value(34.0)) / metrics.value(7.0))
-                                    .floor()
-                                    .max(4.0) as usize;
-                            let display = if file_name.chars().count() > available_text_chars {
-                                let keep = available_text_chars.saturating_sub(1).max(3);
-                                format!("{}…", file_name.chars().take(keep).collect::<String>())
-                            } else {
-                                file_name.clone()
-                            };
                             let resp = ui.interact(
                                 chip_rect,
                                 ui.make_persistent_id(("text_expander_rules_file_chip", file_name)),
@@ -898,7 +930,6 @@ impl EntropyApp {
                                 crate::ui_style::modal_outline_stroke(dark),
                                 egui::StrokeKind::Inside,
                             );
-                            let prefix = if file_ok { "✓ " } else { "⚠ " };
                             let text_clip_rect = egui::Rect::from_min_max(
                                 egui::pos2(chip_rect.left() + metrics.value(8.0), chip_rect.top()),
                                 egui::pos2(
@@ -906,14 +937,21 @@ impl EntropyApp {
                                     chip_rect.bottom(),
                                 ),
                             );
+                            let display = truncate_prefixed_text_to_width(
+                                ui,
+                                prefix,
+                                file_name,
+                                &file_font_id,
+                                text_clip_rect.width(),
+                            );
                             ui.painter().with_clip_rect(text_clip_rect).text(
                                 egui::pos2(
                                     chip_rect.left() + metrics.value(8.0),
                                     chip_rect.center().y,
                                 ),
                                 egui::Align2::LEFT_CENTER,
-                                format!("{prefix}{display}"),
-                                FontId::proportional(metrics.value(11.0)),
+                                display,
+                                file_font_id,
                                 ui.visuals().text_color(),
                             );
                             ui.painter().text(
