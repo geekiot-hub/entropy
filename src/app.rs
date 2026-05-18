@@ -110,6 +110,10 @@ mod rgb_settings_ui;
 mod settings_shell;
 #[path = "ui/tap_hold_settings.rs"]
 mod tap_hold_settings_ui;
+#[path = "ui/text_expander_editor.rs"]
+mod text_expander_editor;
+#[path = "ui/text_expander_runtime.rs"]
+mod text_expander_runtime;
 #[path = "ui/text_expander_settings.rs"]
 mod text_expander_settings_ui;
 #[path = "ui/touchpad_settings.rs"]
