@@ -1,7 +1,14 @@
-use super::*;
+use super::hid_protocol::*;
+use super::HidDevice;
+use anyhow::Result;
 
 #[cfg(not(target_arch = "wasm32"))]
 impl HidDevice {
+    pub fn get_layer_count(&self) -> Result<u8> {
+        let resp = self.usb_send(&[CMD_VIA_GET_LAYER_COUNT])?;
+        Ok(resp[1])
+    }
+
     /// Read entire keymap buffer at once (faster than per-key requests).
     /// Returns Vec of keycodes indexed by [layer * rows * cols + row * cols + col].
     pub fn get_keymap_buffer(&self, layers: usize, rows: usize, cols: usize) -> Result<Vec<u16>> {

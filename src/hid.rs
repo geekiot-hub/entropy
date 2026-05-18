@@ -4,7 +4,7 @@ use anyhow::{bail, Context, Result};
 
 #[path = "hid_protocol.rs"]
 mod hid_protocol;
-use hid_protocol::*;
+use hid_protocol::MSG_LEN;
 
 #[path = "hid_dynamic.rs"]
 mod hid_dynamic;
@@ -66,11 +66,6 @@ impl HidDevice {
             resp[..copy].copy_from_slice(&read_buf[..copy]);
         }
         Ok(resp)
-    }
-
-    pub fn get_layer_count(&self) -> Result<u8> {
-        let resp = self.usb_send(&[CMD_VIA_GET_LAYER_COUNT])?;
-        Ok(resp[1])
     }
 
 }

@@ -1,4 +1,6 @@
-use super::*;
+use super::hid_protocol::*;
+use super::HidDevice;
+use anyhow::Result;
 
 #[cfg(not(target_arch = "wasm32"))]
 impl HidDevice {
