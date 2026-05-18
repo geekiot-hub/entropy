@@ -1,0 +1,500 @@
+use super::*;
+
+impl eframe::App for EntropyApp {
+    fn clear_color(&self, visuals: &egui::Visuals) -> [f32; 4] {
+        app_panel_fill(visuals.dark_mode).to_normalized_gamma_f32()
+    }
+
+    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        #[cfg(not(target_arch = "wasm32"))]
+        self.fallback_entropy_display_presets_before_exit();
+        std::process::exit(0);
+    }
+
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        self.apply_ui_scale(ctx);
+        self.handle_ui_scale_shortcuts(ctx);
+
+        #[cfg(target_os = "windows")]
+        self.cache_windows_hwnd(frame);
+        self.handle_close_to_tray(ctx);
+        #[cfg(target_os = "windows")]
+        self.poll_tray_events(ctx);
+        #[cfg(target_os = "windows")]
+        self.handle_tray_quit_request();
+
+        self.tour_target_rects.clear();
+
+        let combo_capture_open_at_frame_start = self.combo_capture_open;
+        let keyboard_input_wanted_at_frame_start = ctx.wants_keyboard_input();
+        let modal_or_popup_open_at_frame_start = self.keycode_picker.open
+            || self.unlock_open
+            || self.vial_unlock_polling
+            || self.top_dropdown_open(ctx)
+            || ctx.memory(|m| m.any_popup_open());
+
+        // Keep lightweight device detection alive even when the UI is otherwise idle.
+        #[cfg(not(target_arch = "wasm32"))]
+        ctx.request_repaint_after(std::time::Duration::from_millis(250));
+
+        #[cfg(not(target_arch = "wasm32"))]
+        self.poll_device_scan(ctx);
+
+        // Auto-scan for device connect/disconnect changes.
+        self.secondary_click_handled = false;
+        if let Some((layer, ki, kc)) = self.pending_handed_swap {
+            if !ctx.input(|i| i.modifiers.ctrl) {
+                #[cfg(not(target_arch = "wasm32"))]
+                self.assign_keycode(layer, ki, kc);
+                #[cfg(target_arch = "wasm32")]
+                if let Some(layout) = &mut self.layout {
+                    layout.set_keycode(layer, ki, kc);
+                }
+                self.pending_handed_swap = None;
+            }
+        }
+        let now = ctx.input(|i| i.time);
+        self.auto_reload_text_expander_rules_file(now);
+        if (self.last_device_scan_at == 0.0 || now - self.last_device_scan_at >= 1.0)
+            && !self.vial_unlock_polling
+        {
+            self.scan_frame = self.scan_frame.wrapping_add(1);
+            self.last_device_scan_at = now;
+            #[cfg(not(target_arch = "wasm32"))]
+            self.start_device_scan();
+        }
+
+        #[cfg(not(target_arch = "wasm32"))]
+        self.poll_single_instance_signal(ctx);
+
+        // Apply theme
+        if self.dark_mode {
+            let mut v = egui::Visuals::dark();
+            v.panel_fill = app_panel_fill(true);
+            v.window_fill = app_window_fill(true);
+            v.faint_bg_color = app_window_fill(true);
+            v.extreme_bg_color = Color32::from_rgb(24, 24, 24);
+            v.widgets.noninteractive.bg_fill = app_window_fill(true);
+            v.widgets.noninteractive.bg_stroke = Stroke::new(1.0, app_border_color(true));
+            v.widgets.inactive.bg_fill = app_surface_fill(true);
+            v.widgets.inactive.weak_bg_fill = app_surface_fill(true);
+            v.widgets.inactive.bg_stroke = Stroke::new(1.0, app_border_color(true));
+            v.widgets.hovered.bg_fill = app_hover_fill(true);
+            v.widgets.hovered.weak_bg_fill = app_hover_fill(true);
+            v.widgets.hovered.bg_stroke = Stroke::new(1.0, app_accent());
+            v.widgets.active.bg_fill = app_accent();
+            v.widgets.active.weak_bg_fill = app_accent();
+            v.widgets.active.bg_stroke = Stroke::new(1.0, app_accent());
+            v.selection.bg_fill = Color32::from_rgba_unmultiplied(82, 82, 86, 140);
+            v.selection.stroke = Stroke::new(1.0, Color32::from_rgb(245, 245, 245));
+            v.hyperlink_color = app_accent();
+            v.interact_cursor = Some(egui::CursorIcon::PointingHand);
+            ctx.set_visuals(v);
+        } else {
+            let mut v = egui::Visuals::light();
+            v.panel_fill = app_panel_fill(false);
+            v.window_fill = app_window_fill(false);
+            v.faint_bg_color = app_panel_fill(false);
+            v.extreme_bg_color = Color32::from_rgb(235, 235, 235);
+            v.widgets.noninteractive.bg_fill = app_panel_fill(false);
+            v.widgets.noninteractive.bg_stroke = Stroke::new(1.0, app_border_color(false));
+            v.widgets.inactive.bg_fill = app_surface_fill(false);
+            v.widgets.inactive.weak_bg_fill = app_surface_fill(false);
+            v.widgets.inactive.bg_stroke = Stroke::new(1.0, app_border_color(false));
+            v.widgets.hovered.bg_fill = app_hover_fill(false);
+            v.widgets.hovered.weak_bg_fill = app_hover_fill(false);
+            v.widgets.hovered.bg_stroke = Stroke::new(1.0, Color32::from_rgb(230, 230, 233));
+            v.widgets.active.bg_fill = app_accent();
+            v.widgets.active.weak_bg_fill = app_accent();
+            v.widgets.active.bg_stroke = Stroke::new(1.0, app_accent());
+            v.selection.bg_fill = Color32::from_rgba_unmultiplied(82, 82, 86, 72);
+            v.selection.stroke = Stroke::new(1.0, Color32::from_rgb(38, 38, 40));
+            v.hyperlink_color = app_accent();
+            v.interact_cursor = Some(egui::CursorIcon::PointingHand);
+            ctx.set_visuals(v);
+        }
+
+        // Poll background connect thread
+        #[cfg(not(target_arch = "wasm32"))]
+        self.poll_connect(ctx);
+
+        self.apply_picker_results();
+
+        // Deselect key when picker is closed without choosing
+        if !self.keycode_picker.open
+            && (self.selected_key.is_some() || self.selected_encoder.is_some())
+            && self.keycode_picker.result.is_none()
+        {
+            self.selected_key = None;
+            self.selected_encoder = None;
+        }
+
+        if !self.keycode_picker.open || self.keycode_picker.selected_tab != KeycodeTab::Macro {
+            self.macro_auto_unlock_cancelled = false;
+        }
+
+        if self.firmware == FirmwareProtocol::Vial
+            && self.keycode_picker.open
+            && self.keycode_picker.selected_tab == KeycodeTab::Macro
+            && !self.unlock_open
+            && !self.vial_unlock_polling
+            && !self.macro_auto_unlock_cancelled
+            && self.is_vial_locked()
+        {
+            self.unlock_open = true;
+            self.status_msg = crate::i18n::tr_catalog(
+                self.app_settings.language,
+                "connection.keyboard_locked_edit_macros",
+            )
+            .into();
+        }
+
+        // Arrow keys Left/Right switch layers (when picker is closed and no text field is focused)
+        if !self.tour_state.active && !self.keycode_picker.open && !ctx.wants_keyboard_input() {
+            let layer_count = self.layer_count;
+            ctx.input(|i| {
+                if i.key_pressed(egui::Key::ArrowLeft) && self.selected_layer > 0 {
+                    self.selected_layer -= 1;
+                    self.jump_back_stack.clear();
+                }
+                if i.key_pressed(egui::Key::ArrowRight) && self.selected_layer + 1 < layer_count {
+                    self.selected_layer += 1;
+                    self.jump_back_stack.clear();
+                }
+            });
+        }
+
+        // Check if loading
+        #[cfg(not(target_arch = "wasm32"))]
+        let is_loading = matches!(self.connect_state, ConnectState::Loading(_));
+        #[cfg(target_arch = "wasm32")]
+        let is_loading = false;
+
+        // Main canvas
+        egui::CentralPanel::default().show(ctx, |ui| {
+            if self.selected_device.is_none() {
+                let rect = ui.max_rect();
+                let empty_rect = egui::Rect::from_center_size(
+                    rect.center(),
+                    egui::vec2(rect.width().min(520.0), 150.0),
+                );
+                ui.allocate_ui_at_rect(empty_rect, |ui| {
+                    ui.vertical_centered(|ui| {
+                        ui.add_space(4.0);
+                        ui.label(RichText::new("✦").size(28.0).color(app_accent()));
+                        ui.add_space(10.0);
+                        ui.label(
+                            RichText::new(crate::i18n::tr_catalog(
+                                self.app_settings.language,
+                                "connection.waiting_for_keyboard",
+                            ))
+                            .size(20.0)
+                            .strong()
+                            .color(if self.dark_mode {
+                                Color32::from_rgb(235, 235, 235)
+                            } else {
+                                Color32::from_rgb(42, 42, 44)
+                            }),
+                        );
+                        ui.add_space(7.0);
+                        ui.label(
+                            RichText::new(crate::i18n::tr_catalog(
+                                self.app_settings.language,
+                                "connection.connect_vial_device",
+                            ))
+                            .size(13.0)
+                            .color(app_muted_text(self.dark_mode)),
+                        );
+                    });
+                });
+                return;
+            }
+
+            if is_loading {
+                let rect = ui.max_rect();
+                let text = crate::i18n::tr_catalog(
+                    self.app_settings.language,
+                    "connection.loading_keyboard",
+                );
+                let font_id = FontId::proportional(16.0);
+                let text_width = ui.fonts(|f| {
+                    f.layout_no_wrap(text.to_owned(), font_id.clone(), Color32::GRAY)
+                        .size()
+                        .x
+                });
+                let spinner_size = 18.0;
+                let gap = 8.0;
+                let row_width = spinner_size + gap + text_width;
+                let row_left = rect.center().x - row_width * 0.5;
+                let spinner_rect = egui::Rect::from_center_size(
+                    egui::pos2(row_left + spinner_size * 0.5, rect.center().y),
+                    egui::vec2(spinner_size, spinner_size),
+                );
+                egui::Spinner::new()
+                    .size(spinner_size)
+                    .color(Color32::GRAY)
+                    .paint_at(ui, spinner_rect);
+                ui.painter().text(
+                    egui::pos2(row_left + spinner_size + gap, rect.center().y),
+                    egui::Align2::LEFT_CENTER,
+                    text,
+                    font_id,
+                    Color32::GRAY,
+                );
+                return;
+            }
+
+            if self.layout.is_some() {
+                let layout = self.layout.clone().unwrap();
+                self.draw_layout(ui, &layout, ctx);
+            } else {
+                self.draw_placeholder(ui);
+            }
+        });
+
+        self.draw_sticky_layout_window(ctx);
+
+        egui::Area::new(egui::Id::new("made_by_signature"))
+            .anchor(egui::Align2::LEFT_BOTTOM, [16.0, -12.0])
+            .order(egui::Order::Foreground)
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    let muted = app_muted_text(self.dark_mode);
+                    ui.spacing_mut().item_spacing.x = 3.0;
+                    ui.label(
+                        RichText::new("tools of the future by")
+                            .size(11.0)
+                            .color(muted),
+                    );
+                    let (site_label, site_url) =
+                        if matches!(self.app_settings.language, crate::i18n::Language::Russian) {
+                            ("eh.works", "https://eh.works")
+                        } else {
+                            ("eh.industries", "https://eh.industries")
+                        };
+                    ui.add(egui::Hyperlink::from_label_and_url(
+                        RichText::new(site_label).size(11.0),
+                        site_url,
+                    ));
+                });
+            });
+
+        egui::Area::new(egui::Id::new("theme_selector"))
+            .anchor(egui::Align2::RIGHT_BOTTOM, [-16.0, -12.0])
+            .order(egui::Order::Foreground)
+            .show(ctx, |ui| {
+                draw_theme_selector_labels(
+                    ui,
+                    self.app_settings.language,
+                    &mut self.dark_mode,
+                    false,
+                );
+            });
+
+        // Keycode picker modal
+        self.draw_vial_unlock_overlay(ctx);
+
+        if self.keycode_picker.open {
+            let screen_rect = ctx.screen_rect();
+            egui::Area::new("window_backdrop".into())
+                .order(egui::Order::Foreground)
+                .fixed_pos(screen_rect.min)
+                .show(ctx, |ui| {
+                    let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, screen_rect.size());
+                    let response =
+                        ui.interact(rect, ui.id().with("backdrop_click"), egui::Sense::click());
+                    ui.painter().rect_filled(
+                        rect,
+                        0.0,
+                        Color32::from_black_alpha(crate::ui_style::modal_backdrop_alpha(
+                            ctx.style().visuals.dark_mode,
+                        )),
+                    );
+                    if response.clicked() {
+                        self.keycode_picker.open = false;
+                        if let Some(id) = ctx.memory(|m| m.focused()) {
+                            ctx.memory_mut(|m| m.surrender_focus(id));
+                        }
+                    }
+                });
+        }
+
+        if !self.unlock_open && !self.vial_unlock_polling {
+            self.keycode_picker.language = self.app_settings.language;
+            self.keycode_picker.key_legend_layout = self.app_settings.key_legend_layout;
+            self.keycode_picker.show_shifted_number_symbols =
+                self.app_settings.show_shifted_number_symbols;
+            self.keycode_picker.show(ctx);
+            self.apply_picker_results();
+        }
+
+        if self.combo_pick_target.is_some()
+            && !self.keycode_picker.open
+            && self.keycode_picker.result.is_none()
+        {
+            self.combo_pick_target = None;
+        }
+        if self.key_override_pick_target.is_some()
+            && !self.keycode_picker.open
+            && self.keycode_picker.result.is_none()
+        {
+            self.key_override_pick_target = None;
+        }
+        if self.alt_repeat_pick_target.is_some()
+            && !self.keycode_picker.open
+            && self.keycode_picker.result.is_none()
+        {
+            self.alt_repeat_pick_target = None;
+        }
+
+        // Write macros to device if changed
+        self.maybe_start_onboarding_tour(ctx);
+        self.draw_onboarding_tour(ctx);
+
+        if self.keycode_picker.macros_dirty {
+            if self.unlock_open || self.vial_unlock_polling {
+                // Defer macro write until unlock flow fully finishes.
+            } else if self.is_vial_locked() {
+                self.unlock_open = true;
+                self.status_msg = crate::i18n::tr_catalog(
+                    self.app_settings.language,
+                    "connection.keyboard_locked_edit_macros",
+                )
+                .into();
+            } else {
+                self.keycode_picker.macros_dirty = false;
+                if let Some(hid) = &self.hid_device {
+                    if let Ok(size) = hid.get_macro_buffer_size() {
+                        let buf = crate::hid::HidDevice::encode_macros(
+                            &self.keycode_picker.macro_texts,
+                            size,
+                        );
+                        match hid.set_macro_buffer(&buf) {
+                            Ok(()) => {
+                                self.status_msg = crate::i18n::tr_catalog(
+                                    self.app_settings.language,
+                                    "status_messages.macros_saved",
+                                )
+                                .into()
+                            }
+                            Err(e) => self.status_msg = format!("Macro write error: {e}"),
+                        }
+                    }
+                }
+            }
+        }
+
+        // Write combos to device if changed
+        if self.combo_dirty && !self.keycode_picker.open {
+            let mut combo_save_ok = true;
+            if let Some(hid) = &self.hid_device {
+                for (i, combo) in self.combo_entries.iter().enumerate() {
+                    match hid.set_combo(i as u8, combo.keys, combo.output) {
+                        Ok(()) => {}
+                        Err(e) => {
+                            self.status_msg = format!("Combo write error: {e}");
+                            combo_save_ok = false;
+                            break;
+                        }
+                    }
+                }
+            }
+            if combo_save_ok {
+                self.combo_dirty = false;
+                self.status_msg = crate::i18n::tr_catalog(
+                    self.app_settings.language,
+                    "status_messages.combos_saved",
+                )
+                .into();
+            }
+        }
+
+        if self.combo_term_dirty && !self.keycode_picker.open {
+            let mut term_save_ok = true;
+            if let (Some(hid), Some(value)) = (&self.hid_device, self.combo_term) {
+                if let Err(e) = hid.set_qmk_setting_u16(2, value) {
+                    self.status_msg = format!("Combo timeout write error: {e}");
+                    term_save_ok = false;
+                }
+            }
+            if term_save_ok {
+                self.combo_term_dirty = false;
+                self.status_msg = crate::i18n::tr_catalog(
+                    self.app_settings.language,
+                    "status_messages.combo_timeout_saved",
+                )
+                .into();
+            }
+        }
+
+        if self.combo_names_dirty {
+            save_combo_names(&self.combo_names, &self.current_device_name);
+            self.combo_names_dirty = false;
+        }
+
+        // Write tap dance to device if changed
+        if self.keycode_picker.tap_dance_dirty && !self.keycode_picker.open {
+            let mut td_save_ok = true;
+            if let Some(hid) = &self.hid_device {
+                for (i, td) in self.keycode_picker.tap_dance_entries.iter().enumerate() {
+                    match hid.set_tap_dance(
+                        i as u8,
+                        td.on_tap,
+                        td.on_hold,
+                        td.on_double_tap,
+                        td.on_tap_hold,
+                        td.tapping_term,
+                    ) {
+                        Ok(()) => {}
+                        Err(e) => {
+                            self.status_msg = format!("Tap dance write error: {e}");
+                            td_save_ok = false;
+                            break;
+                        }
+                    }
+                }
+            }
+            if td_save_ok {
+                save_tap_dance_names(
+                    &self.keycode_picker.tap_dance_names,
+                    &self.current_device_name,
+                );
+                self.keycode_picker.tap_dance_dirty = false;
+                if self.status_msg.is_empty() || self.status_msg.starts_with("✓") {
+                    self.status_msg = "✓ Tap dance saved".into();
+                }
+            }
+        }
+
+        let mut settings_page_navigation_handled = false;
+        if self.can_return_from_settings_page(
+            ctx,
+            modal_or_popup_open_at_frame_start,
+            combo_capture_open_at_frame_start,
+            keyboard_input_wanted_at_frame_start,
+        ) {
+            let esc_pressed = ctx.input(|i| i.key_pressed(egui::Key::Escape));
+            let rclick = ctx.input(|i| i.pointer.secondary_clicked());
+            if esc_pressed || rclick {
+                self.close_top_dropdowns(ctx);
+                self.main_menu_tab = MainMenuTab::Keyboard;
+                settings_page_navigation_handled = true;
+            }
+        }
+
+        // Right-click anywhere = pop back one step (only if NOT hovering a layer key and not handled by key)
+        if !settings_page_navigation_handled
+            && !self.jump_back_stack.is_empty()
+            && !self.keycode_picker.open
+            && !self.secondary_click_handled
+        {
+            let esc_pressed = ctx.input(|i| i.key_pressed(egui::Key::Escape));
+            let rclick = self.hover_layer.is_none() && ctx.input(|i| i.pointer.secondary_clicked());
+            if rclick || esc_pressed {
+                if let Some(back_layer) = self.jump_back_stack.pop() {
+                    self.selected_layer = back_layer;
+                }
+            }
+        }
+    }
+}
