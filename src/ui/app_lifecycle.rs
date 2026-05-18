@@ -244,8 +244,7 @@ impl eframe::App for EntropyApp {
                 return;
             }
 
-            if self.layout.is_some() {
-                let layout = self.layout.clone().unwrap();
+            if let Some(layout) = self.layout.clone() {
                 self.draw_layout(ui, &layout, ctx);
             } else {
                 self.draw_placeholder(ui);

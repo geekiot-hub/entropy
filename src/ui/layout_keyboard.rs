@@ -750,8 +750,7 @@ impl EntropyApp {
             draw_encoder_arrow(painter, center, radius, true, arrow_color_top);
             draw_encoder_arrow(painter, center, radius, false, arrow_color_bottom);
 
-            if let Some((press_ki, _)) = press_slot {
-                let middle_rect = middle_rect.unwrap();
+            if let (Some((press_ki, _)), Some(middle_rect)) = (press_slot, middle_rect) {
                 let top_divider_y = middle_rect.top();
                 let bottom_divider_y = middle_rect.bottom();
                 let divider_radius = (radius - 0.5).max(0.0);

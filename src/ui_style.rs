@@ -301,24 +301,23 @@ fn modern_text_field_impl(
         egui::StrokeKind::Inside,
     );
 
-    let mut edit_resp = None;
-    ui.allocate_ui_at_rect(field_rect.shrink2(Vec2::new(10.0, 0.0)), |ui| {
-        let resp = ui.add_sized(
-            [width - 20.0, height],
-            egui::TextEdit::singleline(text)
-                .id(id)
-                .desired_width(width - 20.0)
-                .hint_text(hint)
-                .font(FontId::proportional(font_size))
-                .char_limit(char_limit)
-                .frame(false)
-                .interactive(interactive)
-                .horizontal_align(horizontal_align)
-                .vertical_align(egui::Align::Center),
-        );
-        edit_resp = Some(resp);
-    });
-    let resp = edit_resp.expect("modern TextEdit response");
+    let resp = ui
+        .allocate_ui_at_rect(field_rect.shrink2(Vec2::new(10.0, 0.0)), |ui| {
+            ui.add_sized(
+                [width - 20.0, height],
+                egui::TextEdit::singleline(text)
+                    .id(id)
+                    .desired_width(width - 20.0)
+                    .hint_text(hint)
+                    .font(FontId::proportional(font_size))
+                    .char_limit(char_limit)
+                    .frame(false)
+                    .interactive(interactive)
+                    .horizontal_align(horizontal_align)
+                    .vertical_align(egui::Align::Center),
+            )
+        })
+        .inner;
     if resp.hovered() && interactive {
         ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
     }

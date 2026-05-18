@@ -493,8 +493,7 @@ impl EntropyApp {
             draw_sticky_encoder_arrow(&painter, center, radius, true, outline);
             draw_sticky_encoder_arrow(&painter, center, radius, false, outline);
 
-            if let Some((press_ki, _)) = press_slot {
-                let middle_rect = middle_rect.unwrap();
+            if let (Some((press_ki, _)), Some(middle_rect)) = (press_slot, middle_rect) {
                 let top_divider_y = middle_rect.top();
                 let bottom_divider_y = middle_rect.bottom();
                 let divider_radius = (radius - 0.5).max(0.0);
