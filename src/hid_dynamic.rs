@@ -1,4 +1,8 @@
 use super::hid_protocol::*;
+use super::hid_parse::{
+    parse_alt_repeat_response, parse_combo_response, parse_key_override_response,
+    parse_tap_dance_response,
+};
 use super::HidDevice;
 use anyhow::Result;
 
@@ -29,16 +33,7 @@ impl HidDevice {
             DYNAMIC_VIAL_COMBO_GET,
             idx,
         ])?;
-        if resp[0] != 0 {
-            anyhow::bail!("combo get error: {}", resp[0]);
-        }
-        let mut keys = [0u16; 4];
-        for i in 0..4 {
-            let off = 1 + i * 2;
-            keys[i] = u16::from_le_bytes([resp[off], resp[off + 1]]);
-        }
-        let output = u16::from_le_bytes([resp[9], resp[10]]);
-        Ok((keys, output))
+        parse_combo_response(&resp)
     }
 
     /// Set combo entry
@@ -85,21 +80,7 @@ impl HidDevice {
             DYNAMIC_VIAL_KEY_OVERRIDE_GET,
             idx,
         ])?;
-        if resp[0] != 0 {
-            anyhow::bail!("key override get error: {}", resp[0]);
-        }
-        let trigger = u16::from_le_bytes([resp[1], resp[2]]);
-        let replacement = u16::from_le_bytes([resp[3], resp[4]]);
-        let layers = u16::from_le_bytes([resp[5], resp[6]]);
-        Ok((
-            trigger,
-            replacement,
-            layers,
-            resp[7],
-            resp[8],
-            resp[9],
-            resp[10],
-        ))
+        parse_key_override_response(&resp)
     }
 
     /// Set key override entry
@@ -141,15 +122,7 @@ impl HidDevice {
             DYNAMIC_VIAL_ALT_REPEAT_KEY_GET,
             idx,
         ])?;
-        if resp[0] != 0 {
-            anyhow::bail!("alt repeat key get error: {}", resp[0]);
-        }
-        Ok((
-            u16::from_le_bytes([resp[1], resp[2]]),
-            u16::from_le_bytes([resp[3], resp[4]]),
-            resp[5],
-            resp[6],
-        ))
+        parse_alt_repeat_response(&resp)
     }
 
     /// Set alt repeat key entry
@@ -192,15 +165,7 @@ impl HidDevice {
             idx,
         ])?;
         // resp[0] = status (0=ok), resp[1..] = entry data
-        if resp[0] != 0 {
-            anyhow::bail!("tap dance get error: {}", resp[0]);
-        }
-        let on_tap = u16::from_le_bytes([resp[1], resp[2]]);
-        let on_hold = u16::from_le_bytes([resp[3], resp[4]]);
-        let on_double_tap = u16::from_le_bytes([resp[5], resp[6]]);
-        let on_tap_hold = u16::from_le_bytes([resp[7], resp[8]]);
-        let tapping_term = u16::from_le_bytes([resp[9], resp[10]]);
-        Ok((on_tap, on_hold, on_double_tap, on_tap_hold, tapping_term))
+        parse_tap_dance_response(&resp)
     }
 
     /// Set a tap dance entry

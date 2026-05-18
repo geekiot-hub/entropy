@@ -1,4 +1,5 @@
 use super::hid_protocol::*;
+use super::hid_parse::parse_keymap_u16_be;
 use super::HidDevice;
 use anyhow::Result;
 
@@ -31,11 +32,7 @@ impl HidDevice {
             offset += sz;
         }
 
-        let mut result = vec![0u16; layers * rows * cols];
-        for i in 0..result.len() {
-            result[i] = u16::from_be_bytes([keymap[i * 2], keymap[i * 2 + 1]]);
-        }
-        Ok(result)
+        Ok(parse_keymap_u16_be(&keymap))
     }
 
     pub fn set_keycode(&self, layer: u8, row: u8, col: u8, keycode: u16) -> Result<()> {

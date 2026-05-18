@@ -6,6 +6,9 @@ use anyhow::{bail, Context, Result};
 mod hid_protocol;
 use hid_protocol::MSG_LEN;
 
+#[path = "hid_parse.rs"]
+mod hid_parse;
+
 #[path = "hid_dynamic.rs"]
 mod hid_dynamic;
 

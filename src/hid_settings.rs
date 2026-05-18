@@ -1,4 +1,5 @@
 use super::hid_protocol::*;
+use super::hid_parse::{parse_switch_matrix_payload, parse_vialrgb_supported_effects_payload};
 use super::HidDevice;
 use anyhow::Result;
 
@@ -208,14 +209,11 @@ impl HidDevice {
             cmd[1] = VIALRGB_GET_SUPPORTED;
             cmd[2..4].copy_from_slice(&max_effect.to_le_bytes());
             let resp = self.usb_send(&cmd)?;
-            let mut batch_max = max_effect;
-            for chunk in resp[2..].chunks_exact(2) {
-                let value = u16::from_le_bytes([chunk[0], chunk[1]]);
-                if value != 0xFFFF && !effects.contains(&value) {
-                    effects.push(value);
-                }
-                batch_max = batch_max.max(value);
-            }
+            let batch_max = parse_vialrgb_supported_effects_payload(
+                &resp[2..],
+                &mut effects,
+                max_effect,
+            );
             if batch_max == 0xFFFF || batch_max == max_effect {
                 break;
             }
@@ -261,21 +259,6 @@ impl HidDevice {
         let resp = self.usb_send(&[CMD_VIA_GET_KEYBOARD_VALUE, VIA_SWITCH_MATRIX_STATE])?;
         // Matrix data is packed row-by-row, with each row padded to whole bytes.
         // QMK matrix bits are little-endian inside each row byte: bit 0 = col 0.
-        let data = &resp[2..];
-        let total = rows * cols;
-        let bytes_per_row = cols.div_ceil(8);
-        let mut pressed = vec![false; total];
-
-        for row in 0..rows {
-            for col in 0..cols {
-                let byte_idx = row * bytes_per_row + col / 8;
-                let bit_idx = col % 8;
-                if byte_idx < data.len() {
-                    pressed[row * cols + col] = ((data[byte_idx] >> bit_idx) & 1) != 0;
-                }
-            }
-        }
-
-        Ok(pressed)
+        Ok(parse_switch_matrix_payload(&resp[2..], rows, cols))
     }
 }

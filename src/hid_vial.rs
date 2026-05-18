@@ -1,4 +1,5 @@
 use super::hid_protocol::*;
+use super::hid_parse::parse_unlock_status_response;
 use super::HidDevice;
 use anyhow::{bail, Context, Result};
 
@@ -74,19 +75,7 @@ impl HidDevice {
         let resp = self.usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_GET_UNLOCK_STATUS])?;
         // resp[0] = unlocked (1=yes), resp[1] = unlock_in_progress
         // resp[2..] = pairs of (row, col), rest filled with 0xFF
-        let unlocked = resp[0] == 1;
-        let mut keys = Vec::new();
-        let mut i = 2;
-        while i + 1 < resp.len() {
-            let row = resp[i];
-            let col = resp[i + 1];
-            if row == 0xFF && col == 0xFF {
-                break;
-            }
-            keys.push((row, col));
-            i += 2;
-        }
-        Ok((unlocked, keys))
+        Ok(parse_unlock_status_response(&resp))
     }
 
     /// Start unlock sequence — returns keys to hold (row, col pairs)

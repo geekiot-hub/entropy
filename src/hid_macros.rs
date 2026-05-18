@@ -1,4 +1,5 @@
 use super::hid_protocol::*;
+use super::hid_parse::{encode_macro_buffer, parse_macro_buffer};
 use super::HidDevice;
 use anyhow::Result;
 
@@ -58,38 +59,12 @@ impl HidDevice {
 
     /// Parse macro buffer into individual macro strings.
     pub fn parse_macros(buf: &[u8], count: u8) -> Vec<String> {
-        let mut macros = Vec::new();
-        let mut start = 0;
-        for _ in 0..count {
-            let end = buf[start..]
-                .iter()
-                .position(|&b| b == 0)
-                .map(|p| start + p)
-                .unwrap_or(buf.len());
-            let s = String::from_utf8_lossy(&buf[start..end]).to_string();
-            macros.push(s);
-            start = end + 1;
-            if start >= buf.len() {
-                break;
-            }
-        }
-        while macros.len() < count as usize {
-            macros.push(String::new());
-        }
-        macros
+        parse_macro_buffer(buf, count)
     }
 
     /// Encode macro strings into buffer (null-separated).
     pub fn encode_macros(macros: &[String], buf_size: u16) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(buf_size as usize);
-        for (i, m) in macros.iter().enumerate() {
-            buf.extend_from_slice(m.as_bytes());
-            if i < macros.len() - 1 || buf.len() < buf_size as usize {
-                buf.push(0);
-            }
-        }
-        buf.resize(buf_size as usize, 0);
-        buf
+        encode_macro_buffer(macros, buf_size)
     }
 
 }
