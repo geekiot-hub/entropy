@@ -1262,3 +1262,65 @@ mod linux_x11 {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    static TEXT_EXPANDER_TEST_LOCK: Mutex<()> = Mutex::new(());
+
+    fn rule(trigger: &str, replacement: &str) -> TextExpansionRule {
+        TextExpansionRule {
+            enabled: true,
+            trigger: trigger.to_owned(),
+            replacement: replacement.to_owned(),
+        }
+    }
+
+    fn push_text(text: &str) -> Option<crate::text_expander::TextExpansionMatch> {
+        let mut matched = None;
+        let mut engine = text_expander_engine().lock().unwrap();
+        engine.reset();
+        for ch in text.chars() {
+            matched = engine.push_char(ch);
+        }
+        matched
+    }
+
+    #[test]
+    fn text_expander_runtime_config_enables_loaded_rules() {
+        let _guard = TEXT_EXPANDER_TEST_LOCK.lock().unwrap();
+        set_text_expander_config(
+            true,
+            vec![rule(":hello", "Привет")],
+            vec![" Notepad.EXE ".to_owned()],
+        );
+
+        assert!(text_expander_enabled());
+        assert_eq!(
+            text_expander_config().read().unwrap().app_blacklist,
+            vec!["notepad.exe".to_owned()]
+        );
+        assert_eq!(push_text(":hello").unwrap().replacement, "Привет");
+    }
+
+    #[test]
+    fn text_expander_runtime_config_replaces_previous_rules() {
+        let _guard = TEXT_EXPANDER_TEST_LOCK.lock().unwrap();
+        set_text_expander_config(true, vec![rule(":old", "Old")], Vec::new());
+        assert_eq!(push_text(":old").unwrap().replacement, "Old");
+
+        set_text_expander_config(true, vec![rule(":new", "New")], Vec::new());
+
+        assert!(push_text(":old").is_none());
+        assert_eq!(push_text(":new").unwrap().replacement, "New");
+    }
+
+    #[test]
+    fn text_expander_runtime_disabled_config_does_not_report_enabled() {
+        let _guard = TEXT_EXPANDER_TEST_LOCK.lock().unwrap();
+        set_text_expander_config(false, vec![rule(":hello", "Привет")], Vec::new());
+
+        assert!(!text_expander_enabled());
+    }
+}

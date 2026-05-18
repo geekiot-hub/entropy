@@ -577,3 +577,51 @@ pub(super) fn tap_dance_custom_name(tap_dance_names: &[String], idx: usize) -> O
 pub(super) fn tap_dance_display_name(tap_dance_names: &[String], idx: usize) -> String {
     tap_dance_custom_name(tap_dance_names, idx).unwrap_or_else(|| format!("TD{}", idx))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn text_expander_rules_json_parses_plain_array() {
+        let data = r#"[
+            {"enabled": true, "trigger": ":hello", "replacement": "Привет"}
+        ]"#;
+
+        let rules = parse_text_expansion_rules_json(data).unwrap();
+
+        assert_eq!(rules.len(), 1);
+        assert_eq!(rules[0].trigger, ":hello");
+        assert_eq!(rules[0].replacement, "Привет");
+    }
+
+    #[test]
+    fn text_expander_rules_json_parses_wrapped_rules_key() {
+        let data = r#"{
+            "rules": [
+                {"enabled": true, "trigger": ":sig", "replacement": "Best\\n$|$Regards"}
+            ]
+        }"#;
+
+        let rules = parse_text_expansion_rules_json(data).unwrap();
+
+        assert_eq!(rules.len(), 1);
+        assert_eq!(rules[0].trigger, ":sig");
+        assert_eq!(rules[0].replacement, "Best\\n$|$Regards");
+    }
+
+    #[test]
+    fn text_expander_rules_json_parses_legacy_settings_key() {
+        let data = r#"{
+            "text_expansion_rules": [
+                {"enabled": false, "trigger": ":off", "replacement": "Off"}
+            ]
+        }"#;
+
+        let rules = parse_text_expansion_rules_json(data).unwrap();
+
+        assert_eq!(rules.len(), 1);
+        assert!(!rules[0].enabled);
+        assert_eq!(rules[0].trigger, ":off");
+    }
+}
