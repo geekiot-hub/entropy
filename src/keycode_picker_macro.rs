@@ -554,7 +554,7 @@ impl KeycodePicker {
             previous,
             "macro_grid_inline",
             "add_action_inline",
-            "Saved to keyboard when you close the keycode picker",
+            "Saved to device when you close the keycode picker",
         );
         if selected != previous && (previous as usize) < self.macro_count {
             self.encode_macro(previous as usize);

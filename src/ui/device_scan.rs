@@ -46,7 +46,7 @@ impl EntropyApp {
         if self.device_manager.devices().is_empty() {
             if self.selected_device.is_some() || self.layout.is_some() || was_loading {
                 self.selected_device = None;
-                self.clear_connected_keyboard_state("No keyboard detected");
+                self.clear_connected_keyboard_state("No device detected");
             } else {
                 self.qmk_hid_hosts.clear();
             }

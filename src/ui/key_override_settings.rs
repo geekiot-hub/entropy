@@ -349,7 +349,7 @@ impl EntropyApp {
         if self.key_override_entries.is_empty() {
             crate::ui_style::modal_empty_state(
                 ui,
-                "This keyboard does not report any Key Override slots",
+                "This device does not report any Key Override slots",
                 None,
             );
             return;

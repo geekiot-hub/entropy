@@ -1209,7 +1209,7 @@ fn simple_key_tooltip(kc: &Keycode) -> String {
         "KC_KP_COMMA"    => "Numpad , (comma)",
         // QMK special
         "KC_GESC"   => return format!("Grave/Escape — sends Esc normally, ` when Shift or {} is held", gui_mod_name()),
-        "QK_BOOT"   => "Bootloader — put keyboard into flash mode",
+        "QK_BOOT"   => "Bootloader — put device into flash mode",
         "DB_TOGG"   => "Debug toggle — enable/disable debug output",
         "QK_LOCK"   => "Lock — lock a key in pressed state until pressed again",
         "KC_LSPO"   => "Left Shift when held, ( when tapped",

@@ -108,7 +108,7 @@ impl HidDevice {
     pub fn lock(&self) -> Result<()> {
         self
             .usb_send(&[CMD_VIA_VIAL_PREFIX, CMD_VIAL_LOCK])
-            .context("failed to lock Vial keyboard")?;
+            .context("failed to lock Vial device")?;
         Ok(())
     }
 

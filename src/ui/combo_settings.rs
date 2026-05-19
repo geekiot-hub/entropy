@@ -131,7 +131,7 @@ impl EntropyApp {
         if self.combo_entries.is_empty() {
             crate::ui_style::modal_empty_state(
                 ui,
-                "This keyboard does not report any dynamic combo slots",
+                "This device does not report any dynamic combo slots",
                 None,
             );
             return;
