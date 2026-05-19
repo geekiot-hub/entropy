@@ -31,9 +31,12 @@ impl EntropyApp {
                     match hid.unlock_start() {
                         Ok(()) => {
                             self.vial_unlock_polling = true;
-                            self.vial_unlock_counter = self.vial_unlock_total;
-                            self.vial_unlock_best = self.vial_unlock_total;
-                            self.vial_unlock_last_poll = None;
+                            self.vial_unlock_counter = 1;
+                            self.vial_unlock_best = 1;
+                            self.vial_unlock_total = 1;
+                            // Match Vial GUI: first poll happens after the timer interval,
+                            // so progress starts empty instead of jumping on the same frame.
+                            self.vial_unlock_last_poll = Some(std::time::Instant::now());
                             self.vial_unlock_animation_nonce =
                                 self.vial_unlock_animation_nonce.wrapping_add(1);
                         }
@@ -61,7 +64,7 @@ impl EntropyApp {
                     self.vial_unlock_last_poll = Some(now);
                     if let Some(hid) = &self.hid_device {
                         match hid.unlock_poll() {
-                            Ok((unlocked, in_progress, counter)) => {
+                            Ok((unlocked, _in_progress, counter)) => {
                                 self.vial_unlock_counter = counter;
                                 if counter > self.vial_unlock_total {
                                     self.vial_unlock_total = counter;
@@ -78,11 +81,6 @@ impl EntropyApp {
                                         self.sticky_layout_last_size = None;
                                         save_app_settings(&self.app_settings);
                                     }
-                                } else if !in_progress {
-                                    self.stop_vial_unlock_with_status(
-                                        "Unlock timed out — hold the highlighted keys and try again",
-                                    );
-                                    return;
                                 }
                             }
                             Err(e) => {
