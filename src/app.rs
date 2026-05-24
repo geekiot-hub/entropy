@@ -98,8 +98,6 @@ mod layout_settings_dropdown;
 mod layout_top_tabs;
 #[path = "ui/layout_view.rs"]
 mod layout_view;
-#[path = "ui/lazy_feature_load.rs"]
-mod lazy_feature_load;
 #[path = "ui/live_features_settings.rs"]
 mod live_features_settings_ui;
 #[path = "ui/magic_settings.rs"]

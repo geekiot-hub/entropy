@@ -68,8 +68,6 @@ impl eframe::App for EntropyApp {
 
         #[cfg(not(target_arch = "wasm32"))]
         self.poll_single_instance_signal(ctx);
-        #[cfg(not(target_arch = "wasm32"))]
-        self.poll_lazy_feature_loads(ctx);
 
         // Apply theme
         if self.dark_mode {
@@ -396,10 +394,6 @@ impl eframe::App for EntropyApp {
                             Err(e) => self.status_msg = format!("Macro write error: {e}"),
                         }
                     }
-                } else {
-                    self.status_msg =
-                        "Read-only: macro changed locally, firmware write disabled for this device"
-                            .into();
                 }
             }
         }

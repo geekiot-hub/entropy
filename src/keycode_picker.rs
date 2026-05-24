@@ -136,10 +136,6 @@ pub struct KeycodePicker {
     pub macro_actions: Vec<Vec<MacroAction>>,
     /// Flag: macro texts changed, need to write to device
     pub macros_dirty: bool,
-    pub macros_loaded: bool,
-    pub macros_loading: bool,
-    pub macro_load_requested: bool,
-    pub macro_load_error: Option<String>,
     /// Undo stack for macro editor: (macro_idx, previous_actions)
     macro_undo_stack: Vec<(usize, Vec<MacroAction>)>,
     /// Macro key picker: (macro_idx, action_idx) being edited
@@ -224,10 +220,6 @@ impl Default for KeycodePicker {
             macro_undo_stack: Vec::new(),
             macro_key_pick: None,
             macros_dirty: false,
-            macros_loaded: false,
-            macros_loading: false,
-            macro_load_requested: false,
-            macro_load_error: None,
             popup_state: PopupState::default(),
             language: crate::i18n::default_language(),
             key_legend_layout: KeyLegendLayout::default(),

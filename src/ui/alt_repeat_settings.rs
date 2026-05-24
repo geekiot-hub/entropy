@@ -106,33 +106,12 @@ impl EntropyApp {
         if self.alt_repeat_entries.is_empty() {
             crate::ui_style::modal_empty_state(
                 ui,
-                if self.alt_repeat_loading {
-                    "Loading Alt Repeat…"
-                } else {
-                    crate::i18n::tr(
-                        self.app_settings.language,
-                        crate::i18n::Key::AltRepeatUnavailable,
-                    )
-                },
-                self.alt_repeat_load_error.as_deref(),
+                crate::i18n::tr(
+                    self.app_settings.language,
+                    crate::i18n::Key::AltRepeatUnavailable,
+                ),
+                None,
             );
-            ui.horizontal_centered(|ui| {
-                ui.add_space(8.0);
-                if crate::ui_style::modern_button(
-                    ui,
-                    if self.alt_repeat_load_error.is_some() {
-                        "Retry Alt Repeat load"
-                    } else {
-                        "Load Alt Repeat"
-                    },
-                    egui::vec2(168.0, 32.0),
-                    !self.alt_repeat_loading,
-                )
-                .clicked()
-                {
-                    self.start_alt_repeat_lazy_load();
-                }
-            });
             return;
         }
 
