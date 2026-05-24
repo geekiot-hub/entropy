@@ -231,7 +231,32 @@ impl EntropyApp {
                     }
                 };
 
-                let macro_texts = Vec::new();
+                progress("Reading macros…");
+                let macro_texts = match dev_conn.get_macro_count() {
+                    Ok(count) => {
+                        log::info!("Macro count: {count}");
+                        match dev_conn.get_macro_buffer_size() {
+                            Ok(size) => {
+                                log::info!("Macro buffer size: {size}");
+                                match dev_conn.get_macro_buffer(size) {
+                                    Ok(buf) => crate::hid::HidDevice::parse_macros(&buf, count),
+                                    Err(e) => {
+                                        log::warn!("get_macro_buffer: {e}");
+                                        vec![String::new(); count as usize]
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                log::warn!("get_macro_buffer_size: {e}");
+                                vec![String::new(); count as usize]
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        log::warn!("get_macro_count: {e}");
+                        Vec::new()
+                    }
+                };
 
                 progress("Reading dynamic feature counts…");
                 let (
@@ -583,7 +608,17 @@ impl EntropyApp {
                     leds
                 };
 
-                let rgb_settings = RgbSettingsState::default();
+                progress("Reading RGB settings…");
+                let rgb_settings = if layer_led_settings.supported && layout.lighting_mode.is_none()
+                {
+                    // hpd3-style Ergohaven boards use QMK RGBLight internally only as a
+                    // transport for per-layer LEDs. If the Vial definition does not
+                    // explicitly advertise a standard lighting backend, expose Layer LEDs
+                    // instead of the generic RGB page.
+                    RgbSettingsState::default()
+                } else {
+                    load_rgb_settings(&dev_conn, &layout)
+                };
 
                 progress("Reading tap dance entries…");
                 let tap_dance_entries = {
