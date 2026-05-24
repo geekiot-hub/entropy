@@ -92,6 +92,11 @@ fn try_acquire_single_instance() -> bool {
 }
 
 fn main() -> eframe::Result<()> {
+    #[cfg(all(not(target_arch = "wasm32"), target_os = "windows"))]
+    if hid::run_hid_proxy_if_requested() {
+        return Ok(());
+    }
+
     env_logger::init();
 
     // Temporarily allow multiple instances: a frozen HID session can otherwise keep
