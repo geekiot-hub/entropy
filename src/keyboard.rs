@@ -89,8 +89,37 @@ fn default_firmware() -> FirmwareProtocol {
 
 /// Parse matrix (row, col) from vial KLE key label.
 /// Label first line format: "row,col"
-fn parse_matrix_from_label(label: &str) -> Option<(u8, u8)> {
-    let first_line = label.lines().next()?;
+const KLE_LABEL_MAP: [[i8; 12]; 8] = [
+    [0, 6, 2, 8, 9, 11, 3, 5, 1, 4, 7, 10],
+    [1, 7, -1, -1, 9, 11, 4, -1, -1, -1, -1, 10],
+    [3, -1, 5, -1, 9, 11, -1, -1, 4, -1, -1, 10],
+    [4, -1, -1, -1, 9, 11, -1, -1, -1, -1, -1, 10],
+    [0, 6, 2, 8, 10, -1, 3, 5, 1, 4, 7, -1],
+    [1, 7, -1, -1, 10, -1, 4, -1, -1, -1, -1, -1],
+    [3, -1, 5, -1, 10, -1, -1, -1, 4, -1, -1, -1],
+    [4, -1, -1, -1, 10, -1, -1, -1, -1, -1, -1, -1],
+];
+
+fn kle_labels(label: &str, align: usize) -> [String; 12] {
+    let mut labels: [String; 12] = std::array::from_fn(|_| String::new());
+    let map = KLE_LABEL_MAP.get(align).unwrap_or(&KLE_LABEL_MAP[4]);
+    for (raw_idx, line) in label.lines().enumerate() {
+        if line.is_empty() {
+            continue;
+        }
+        let Some(&mapped) = map.get(raw_idx) else {
+            continue;
+        };
+        if mapped >= 0 {
+            labels[mapped as usize] = line.to_string();
+        }
+    }
+    labels
+}
+
+fn parse_matrix_from_label(label: &str, align: usize) -> Option<(u8, u8)> {
+    let labels = kle_labels(label, align);
+    let first_line = labels[0].trim();
     let (r, c) = first_line.split_once(',')?;
     let row = r.trim().parse::<u8>().ok()?;
     let col = c.trim().parse::<u8>().ok()?;
@@ -99,14 +128,12 @@ fn parse_matrix_from_label(label: &str) -> Option<(u8, u8)> {
 
 /// Parse encoder metadata from a Vial KLE label.
 /// Vial marks encoders with label position 4 == "e" and label 0 == "idx,dir".
-fn parse_encoder_from_label(label: &str) -> Option<(u8, u8)> {
-    let lines: Vec<&str> = label.lines().collect();
-    let is_encoder = lines.get(4).map(|s| s.trim() == "e").unwrap_or(false)
-        || lines.get(9).map(|s| s.trim() == "e").unwrap_or(false);
-    if !is_encoder {
+fn parse_encoder_from_label(label: &str, align: usize) -> Option<(u8, u8)> {
+    let labels = kle_labels(label, align);
+    if labels[4].trim() != "e" {
         return None;
     }
-    let first_line = lines.first()?.trim();
+    let first_line = labels[0].trim();
     let (idx, dir) = first_line.split_once(',')?;
     Some((idx.trim().parse().ok()?, dir.trim().parse().ok()?))
 }
@@ -272,9 +299,6 @@ impl KeyboardLayout {
             .and_then(|v| v.as_array())
             .context("missing 'layouts.keymap'")?;
 
-        // Optional: "layout" array provides explicit [row, col] per key index
-        let layout_array = layouts.get("layout").and_then(|v| v.as_array());
-
         let mut keys = Vec::new();
         let mut encoders = Vec::new();
 
@@ -284,7 +308,7 @@ impl KeyboardLayout {
         let mut rotation_x: f32 = 0.0;
         let mut rotation_y: f32 = 0.0;
         let mut rotation_angle: f32 = 0.0; // degrees
-        let mut first_row = true;
+        let mut align: usize = 4; // KLE default: center front
 
         for kle_row in keymap {
             let row_items = match kle_row.as_array() {
@@ -292,29 +316,26 @@ impl KeyboardLayout {
                 None => continue,
             };
 
-            // KLE spec: at the start of each row (except first):
-            //   - y advances by 1, x resets to rotation_x
-            if !first_row {
-                cur_y += 1.0;
-                cur_x = rotation_x;
-            }
-            first_row = false;
-
             let mut next_w: f32 = 1.0;
             let mut next_h: f32 = 1.0;
 
             for item in row_items {
                 if let Some(obj) = item.as_object() {
+                    if let Some(r) = obj.get("r").and_then(|v| v.as_f64()) {
+                        rotation_angle = r as f32;
+                    }
                     if let Some(rx) = obj.get("rx").and_then(|v| v.as_f64()) {
                         rotation_x = rx as f32;
                         cur_x = rotation_x;
+                        cur_y = rotation_y;
                     }
                     if let Some(ry) = obj.get("ry").and_then(|v| v.as_f64()) {
                         rotation_y = ry as f32;
+                        cur_x = rotation_x;
                         cur_y = rotation_y;
                     }
-                    if let Some(r) = obj.get("r").and_then(|v| v.as_f64()) {
-                        rotation_angle = r as f32;
+                    if let Some(a) = obj.get("a").and_then(|v| v.as_u64()) {
+                        align = (a as usize).min(7);
                     }
                     if let Some(x) = obj.get("x").and_then(|v| v.as_f64()) {
                         cur_x += x as f32;
@@ -329,7 +350,7 @@ impl KeyboardLayout {
                         next_h = h as f32;
                     }
                 } else if let Some(label) = item.as_str() {
-                    if let Some((encoder_idx, direction)) = parse_encoder_from_label(label) {
+                    if let Some((encoder_idx, direction)) = parse_encoder_from_label(label, align) {
                         encoders.push(PhysicalEncoder {
                             x: cur_x,
                             y: cur_y,
@@ -348,7 +369,7 @@ impl KeyboardLayout {
                         continue;
                     }
 
-                    if let Some((mat_row, mat_col)) = parse_matrix_from_label(label) {
+                    if let Some((mat_row, mat_col)) = parse_matrix_from_label(label, align) {
                         keys.push(PhysicalKey {
                             x: cur_x,
                             y: cur_y,
@@ -368,6 +389,9 @@ impl KeyboardLayout {
                     next_h = 1.0;
                 }
             }
+
+            cur_y += 1.0;
+            cur_x = rotation_x;
         }
 
         let layer_names = parse_layer_names_from_json(json);
