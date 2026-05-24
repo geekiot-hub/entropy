@@ -443,28 +443,7 @@ impl KeyboardLayout {
             .get("lighting")
             .and_then(|v| v.as_str())
             .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
-            .or_else(|| {
-                let has_rgb_matrix = json.get("rgb_matrix").is_some()
-                    || json
-                        .get("features")
-                        .and_then(|v| v.get("rgb_matrix"))
-                        .and_then(|v| v.as_bool())
-                        .unwrap_or(false);
-                let has_rgblight = json.get("rgblight").is_some()
-                    || json
-                        .get("features")
-                        .and_then(|v| v.get("rgblight"))
-                        .and_then(|v| v.as_bool())
-                        .unwrap_or(false);
-                if has_rgb_matrix {
-                    Some("vialrgb".to_string())
-                } else if has_rgblight {
-                    Some("qmk_rgblight".to_string())
-                } else {
-                    None
-                }
-            });
+            .filter(|s| !s.is_empty());
         let supports_rgb = matches!(
             lighting_mode.as_deref(),
             Some("qmk_rgblight") | Some("qmk_backlight_rgblight") | Some("vialrgb")

@@ -26,7 +26,12 @@ impl EntropyApp {
                     .collect::<std::collections::BTreeSet<_>>()
                     .into_iter()
                     .collect::<Vec<_>>();
-                (indices, layout.name.clone())
+                let device_name = if self.current_device_name.is_empty() {
+                    layout.name.clone()
+                } else {
+                    self.current_device_name.clone()
+                };
+                (indices, device_name)
             })
             .unwrap_or((Vec::new(), String::new()));
         let visibility_len = encoder_indices
