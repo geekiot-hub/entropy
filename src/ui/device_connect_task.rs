@@ -162,7 +162,70 @@ impl EntropyApp {
                     }
                 }
 
-                let macro_texts = Vec::new();
+                progress("Reading Vial-core extras…");
+                if !layout.encoders.is_empty() {
+                    layout.encoder_layers = vec![vec![0u16; layout.encoders.len()]; layer_count];
+                    let encoder_count = layout.encoder_count();
+                    for layer in 0..layer_count {
+                        let mut per_encoder = vec![(0u16, 0u16); encoder_count];
+                        for encoder_idx in 0..encoder_count {
+                            match dev_conn.get_encoder(layer as u8, encoder_idx as u8) {
+                                Ok((ccw, cw)) => per_encoder[encoder_idx] = (ccw, cw),
+                                Err(e) => log::warn!(
+                                    "get_encoder(layer={}, idx={}): {}",
+                                    layer,
+                                    encoder_idx,
+                                    e
+                                ),
+                            }
+                        }
+                        for (visual_idx, encoder) in layout.encoders.iter().enumerate() {
+                            if let Some((ccw, cw)) = per_encoder.get(encoder.encoder_idx as usize) {
+                                layout.encoder_layers[layer][visual_idx] =
+                                    if encoder.direction == 0 { *ccw } else { *cw };
+                            }
+                        }
+                    }
+                }
+
+                let layout_options_value = if layout.layout_options.is_empty() {
+                    None
+                } else {
+                    match dev_conn.get_layout_options() {
+                        Ok(value) => Some(value),
+                        Err(e) => {
+                            log::warn!("get_layout_options: {e}");
+                            None
+                        }
+                    }
+                };
+
+                let macro_texts = match dev_conn.get_macro_count() {
+                    Ok(count) => {
+                        log::info!("Macro count: {count}");
+                        match dev_conn.get_macro_buffer_size() {
+                            Ok(size) => {
+                                log::info!("Macro buffer size: {size}");
+                                match dev_conn.get_macro_buffer(size) {
+                                    Ok(buf) => crate::hid::HidDevice::parse_macros(&buf, count),
+                                    Err(e) => {
+                                        log::warn!("get_macro_buffer: {e}");
+                                        vec![String::new(); count as usize]
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                log::warn!("get_macro_buffer_size: {e}");
+                                vec![String::new(); count as usize]
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        log::warn!("get_macro_count: {e}");
+                        vec![]
+                    }
+                };
+
                 let tap_dance_entries = Vec::new();
                 let combo_entries = Vec::new();
                 let combo_term = None;
@@ -177,7 +240,6 @@ impl EntropyApp {
                 let grave_escape_settings = GraveEscapeSettingsState::default();
                 let layer_led_settings = LayerLedSettingsState::default();
                 let rgb_settings = RgbSettingsState::default();
-                let layout_options_value = None;
                 let key_override_entries = Vec::new();
                 let alt_repeat_entries = Vec::new();
                 let vial_features = VialFeatureSupport::default();
