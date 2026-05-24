@@ -4,26 +4,42 @@ impl EntropyApp {
     /// Poll background thread for connect result.
     #[cfg(not(target_arch = "wasm32"))]
     pub(super) fn poll_connect(&mut self, ctx: &egui::Context) {
+        const CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(25);
+
         let result = match &self.connect_state {
-            ConnectState::Loading(rx) => match rx.try_recv() {
-                Ok(r) => Some(r),
-                Err(mpsc::TryRecvError::Empty) => {
-                    ctx.request_repaint(); // keep polling
-                    return;
-                }
-                Err(mpsc::TryRecvError::Disconnected) => {
-                    self.status_msg = "Connect thread died".into();
-                    self.connect_state = ConnectState::Idle;
-                    return;
+            ConnectState::Loading { rx, started_at } => loop {
+                match rx.try_recv() {
+                    Ok(ConnectTaskMessage::Progress(message)) => {
+                        self.status_msg = message;
+                    }
+                    Ok(ConnectTaskMessage::Done(result)) => break result,
+                    Err(mpsc::TryRecvError::Empty) => {
+                        if started_at.elapsed() > CONNECT_TIMEOUT {
+                            let stage = if self.status_msg.is_empty() {
+                                "unknown stage"
+                            } else {
+                                self.status_msg.as_str()
+                            };
+                            self.status_msg = format!(
+                                "Connect timeout — RMK/Vial device did not finish loading while: {stage}"
+                            );
+                            self.connect_state = ConnectState::Idle;
+                            return;
+                        }
+                        ctx.request_repaint(); // keep polling
+                        return;
+                    }
+                    Err(mpsc::TryRecvError::Disconnected) => {
+                        self.status_msg = "Connect thread died".into();
+                        self.connect_state = ConnectState::Idle;
+                        return;
+                    }
                 }
             },
             ConnectState::Idle => return,
         };
 
         self.connect_state = ConnectState::Idle;
-        let Some(result) = result else {
-            return;
-        };
 
         match result {
             Ok(r) => {

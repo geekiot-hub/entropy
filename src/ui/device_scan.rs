@@ -39,7 +39,7 @@ impl EntropyApp {
             .selected_device
             .and_then(|idx| self.device_manager.devices().get(idx))
             .map(|dev| dev.path.clone());
-        let was_loading = matches!(self.connect_state, ConnectState::Loading(_));
+        let was_loading = matches!(self.connect_state, ConnectState::Loading { .. });
 
         self.device_manager.replace_devices(devices);
 

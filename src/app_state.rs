@@ -221,9 +221,18 @@ pub(crate) struct ConnectResult {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
+pub(crate) enum ConnectTaskMessage {
+    Progress(String),
+    Done(Result<ConnectResult, String>),
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 pub(crate) enum ConnectState {
     Idle,
-    Loading(mpsc::Receiver<Result<ConnectResult, String>>),
+    Loading {
+        rx: mpsc::Receiver<ConnectTaskMessage>,
+        started_at: std::time::Instant,
+    },
 }
 
 #[cfg(not(target_arch = "wasm32"))]

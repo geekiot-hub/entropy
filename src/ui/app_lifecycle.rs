@@ -166,7 +166,7 @@ impl eframe::App for EntropyApp {
 
         // Check if loading
         #[cfg(not(target_arch = "wasm32"))]
-        let is_loading = matches!(self.connect_state, ConnectState::Loading(_));
+        let is_loading = matches!(self.connect_state, ConnectState::Loading { .. });
         #[cfg(target_arch = "wasm32")]
         let is_loading = false;
 
@@ -212,10 +212,14 @@ impl eframe::App for EntropyApp {
 
             if is_loading {
                 let rect = ui.max_rect();
-                let text = crate::i18n::tr_catalog(
-                    self.app_settings.language,
-                    "connection.loading_keyboard",
-                );
+                let text = if self.status_msg.is_empty() {
+                    crate::i18n::tr_catalog(
+                        self.app_settings.language,
+                        "connection.loading_keyboard",
+                    )
+                } else {
+                    self.status_msg.as_str()
+                };
                 let font_id = FontId::proportional(16.0);
                 let text_width = ui.fonts(|f| {
                     f.layout_no_wrap(text.to_owned(), font_id.clone(), Color32::GRAY)

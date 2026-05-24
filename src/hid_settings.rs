@@ -1,5 +1,5 @@
-use super::hid_protocol::*;
 use super::hid_parse::{parse_switch_matrix_payload, parse_vialrgb_supported_effects_payload};
+use super::hid_protocol::*;
 use super::HidDevice;
 use anyhow::Result;
 
@@ -30,7 +30,8 @@ impl HidDevice {
         let mut supported = Vec::new();
         let mut cur = 0u16;
 
-        loop {
+        let mut reached_end = false;
+        for _ in 0..16 {
             let mut cmd = [0u8; 32];
             cmd[0] = CMD_VIA_VIAL_PREFIX;
             cmd[1] = CMD_VIAL_QMK_SETTINGS_QUERY;
@@ -47,12 +48,16 @@ impl HidDevice {
             }
 
             if next == 0xFFFF {
+                reached_end = true;
                 break;
             }
             if next == cur {
                 anyhow::bail!("qmk settings query did not advance from qsid: {cur}");
             }
             cur = next;
+        }
+        if !reached_end {
+            anyhow::bail!("qmk settings query exceeded page limit");
         }
 
         supported.sort_unstable();
@@ -209,11 +214,8 @@ impl HidDevice {
             cmd[1] = VIALRGB_GET_SUPPORTED;
             cmd[2..4].copy_from_slice(&max_effect.to_le_bytes());
             let resp = self.usb_send(&cmd)?;
-            let batch_max = parse_vialrgb_supported_effects_payload(
-                &resp[2..],
-                &mut effects,
-                max_effect,
-            );
+            let batch_max =
+                parse_vialrgb_supported_effects_payload(&resp[2..], &mut effects, max_effect);
             if batch_max == 0xFFFF || batch_max == max_effect {
                 break;
             }
