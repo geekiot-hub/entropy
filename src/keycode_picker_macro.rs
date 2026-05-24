@@ -465,6 +465,22 @@ impl KeycodePicker {
                     }
                 }
             }
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if picker_button(
+                    ui,
+                    picker_ok_label(self.language),
+                    picker_scaled_size(ui.ctx(), 72.0, 30.0),
+                    true,
+                    false,
+                )
+                .clicked()
+                {
+                    self.encode_macro(n);
+                    self.result = Some(0x7700 + n as u16);
+                    self.macros_dirty = true;
+                    self.open = false;
+                }
+            });
         });
 
         selected_macro

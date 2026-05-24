@@ -296,6 +296,22 @@ impl KeycodePicker {
                     self.tap_dance_dirty = true;
                 }
             }
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if picker_button(
+                    ui,
+                    picker_ok_label(self.language),
+                    picker_scaled_size(ui.ctx(), 72.0, 30.0),
+                    true,
+                    false,
+                )
+                .clicked()
+                {
+                    self.result = Some(0x5700 + n as u16);
+                    self.tap_dance_dirty = true;
+                    self.tap_dance_editor_open = None;
+                    self.open = false;
+                }
+            });
         });
     }
 
