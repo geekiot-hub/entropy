@@ -15,8 +15,8 @@ impl EntropyApp {
         self.selected_key = None;
         self.selected_encoder = None;
         self.selected_layer = 0;
-        self.sync_qmk_hid_host_bridges();
         self.hid_device = None;
+        self.qmk_hid_hosts.clear();
         self.combo_visible_count = 1;
         self.combo_capture_open = false;
         self.combo_capture_keys.clear();

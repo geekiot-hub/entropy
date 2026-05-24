@@ -250,6 +250,15 @@ impl eframe::App for EntropyApp {
 
             if let Some(layout) = self.layout.clone() {
                 self.draw_layout(ui, &layout, ctx);
+            } else if !self.status_msg.is_empty() {
+                let rect = ui.max_rect();
+                ui.painter().text(
+                    rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    &self.status_msg,
+                    FontId::proportional(16.0),
+                    Color32::GRAY,
+                );
             } else {
                 self.draw_placeholder(ui);
             }
