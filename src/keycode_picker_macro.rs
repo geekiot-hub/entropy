@@ -549,15 +549,14 @@ impl KeycodePicker {
 
     pub(super) fn show_vial_macros(&mut self, ui: &mut egui::Ui) {
         if !self.macros_loaded {
-            if !self.macros_loading && self.macro_load_error.is_none() {
-                self.macro_load_requested = true;
-            }
             ui.vertical_centered(|ui| {
                 ui.add_space(72.0 * responsive_picker_element_scale(ui.ctx()));
-                let message = if self.macros_loading || self.macro_load_requested {
+                let message = if self.macros_loading {
                     "Loading macros…"
+                } else if self.macro_load_error.is_some() {
+                    "Macro preload failed or is unsupported by this firmware"
                 } else {
-                    "Macros are unavailable for this firmware"
+                    "Macros are loaded on demand to keep RMK devices safe"
                 };
                 ui.label(
                     RichText::new(message)
@@ -571,6 +570,22 @@ impl KeycodePicker {
                             .size(11.0 * responsive_picker_element_scale(ui.ctx()))
                             .color(Color32::from_gray(120)),
                     );
+                }
+                ui.add_space(12.0);
+                if picker_button(
+                    ui,
+                    if self.macro_load_error.is_some() {
+                        "Retry macro load"
+                    } else {
+                        "Load macros"
+                    },
+                    picker_scaled_size(ui.ctx(), 128.0, 30.0),
+                    !self.macros_loading,
+                    false,
+                )
+                .clicked()
+                {
+                    self.macro_load_requested = true;
                 }
             });
             return;
