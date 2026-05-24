@@ -1,25 +1,68 @@
 use super::*;
 
 impl EntropyApp {
+    fn module_setting_display_title<'a>(&self, title: &'a str) -> &'a str {
+        if self.module_settings.active_group_kind() == ModuleSettingsGroupKind::Other {
+            return title;
+        }
+        title
+            .strip_prefix("Left ")
+            .or_else(|| title.strip_prefix("Right "))
+            .unwrap_or(title)
+    }
+
     fn module_setting_label(&self, title: &str) -> String {
-        crate::i18n::tr_text(self.app_settings.language, title)
+        let lang = self.app_settings.language;
+        match self.module_setting_display_title(title) {
+            "Mode" | "mode" => crate::i18n::tr_catalog(lang, "modules_settings.mode").to_owned(),
+            "Ball axis" | "ball axis" => {
+                crate::i18n::tr_catalog(lang, "modules_settings.ball_axis").to_owned()
+            }
+            "Touch axis" | "touch axis" => {
+                crate::i18n::tr_catalog(lang, "modules_settings.touch_axis").to_owned()
+            }
+            "Ball DPI" | "ball DPI" => {
+                crate::i18n::tr_catalog(lang, "modules_settings.ball_dpi").to_owned()
+            }
+            "Touch DPI" | "touch DPI" => {
+                crate::i18n::tr_catalog(lang, "modules_settings.touch_dpi").to_owned()
+            }
+            "Scroll sens" | "scroll sens" => {
+                crate::i18n::tr_catalog(lang, "modules_settings.scroll_sens").to_owned()
+            }
+            "Sniper sens" | "sniper sens" => {
+                crate::i18n::tr_catalog(lang, "modules_settings.sniper_sens").to_owned()
+            }
+            "Text sens" | "text sens" => {
+                crate::i18n::tr_catalog(lang, "modules_settings.text_sens").to_owned()
+            }
+            "Invert scroll" | "invert scroll" => {
+                crate::i18n::tr_catalog(lang, "modules_settings.invert_scroll").to_owned()
+            }
+            "Invert text" | "invert text" => {
+                crate::i18n::tr_catalog(lang, "modules_settings.invert_text").to_owned()
+            }
+            "Acceleration" | "acceleration" => {
+                crate::i18n::tr_catalog(lang, "modules_settings.acceleration").to_owned()
+            }
+            title => crate::i18n::tr_text(lang, title),
+        }
     }
 
     fn module_setting_tooltip(&self, field: &ModuleSettingField) -> String {
         let lang = self.app_settings.language;
-        let key = match field.title.as_str() {
-            "Left mode" | "Right mode" => "modules_settings.mode_tooltip",
-            "Left ball axis" | "Right ball axis" => "modules_settings.ball_axis_tooltip",
-            "Left touch axis" | "Right touch axis" => "modules_settings.touch_axis_tooltip",
-            "Left ball DPI" | "Right ball DPI" => "modules_settings.ball_dpi_tooltip",
-            "Left touch DPI" | "Right touch DPI" => "modules_settings.touch_dpi_tooltip",
-            "Left scroll sens" | "Right scroll sens" => "modules_settings.scroll_sens_tooltip",
-            "Left sniper sens" | "Right sniper sens" => "modules_settings.sniper_sens_tooltip",
-            "Left text sens" | "Right text sens" => "modules_settings.text_sens_tooltip",
-            "Left invert scroll" | "Right invert scroll" => {
-                "modules_settings.invert_scroll_tooltip"
-            }
-            "Left acceleration" | "Right acceleration" => "modules_settings.acceleration_tooltip",
+        let key = match self.module_setting_display_title(&field.title) {
+            "Mode" | "mode" => "modules_settings.mode_tooltip",
+            "Ball axis" | "ball axis" => "modules_settings.ball_axis_tooltip",
+            "Touch axis" | "touch axis" => "modules_settings.touch_axis_tooltip",
+            "Ball DPI" | "ball DPI" => "modules_settings.ball_dpi_tooltip",
+            "Touch DPI" | "touch DPI" => "modules_settings.touch_dpi_tooltip",
+            "Scroll sens" | "scroll sens" => "modules_settings.scroll_sens_tooltip",
+            "Sniper sens" | "sniper sens" => "modules_settings.sniper_sens_tooltip",
+            "Text sens" | "text sens" => "modules_settings.text_sens_tooltip",
+            "Invert scroll" | "invert scroll" => "modules_settings.invert_scroll_tooltip",
+            "Invert text" | "invert text" => "modules_settings.invert_text_tooltip",
+            "Acceleration" | "acceleration" => "modules_settings.acceleration_tooltip",
             "Sticky mode" => "modules_settings.sticky_mode_tooltip",
             "LED blinks" => "modules_settings.led_blinks_tooltip",
             "Auto layer in Normal" => "modules_settings.auto_layer_normal_tooltip",
@@ -57,7 +100,8 @@ impl EntropyApp {
         row_height: f32,
         suppress_tooltips: bool,
     ) {
-        let Some(field) = self.module_settings.fields.get(row_idx).cloned() else {
+        let active_group = self.module_settings.active_group;
+        let Some(field) = self.module_settings.field(row_idx).cloned() else {
             return;
         };
         let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ui.ctx());
@@ -86,7 +130,7 @@ impl EntropyApp {
                     |ui| {
                         let resp = crate::ui_style::settings_switch_sized_stable(
                             ui,
-                            ("module_settings", field.qsid, field.bit),
+                            ("module_settings", active_group, field.qsid, field.bit),
                             &mut checked,
                             switch_size,
                         );
@@ -112,7 +156,8 @@ impl EntropyApp {
                     tooltip.as_deref(),
                     field_width,
                     |ui| {
-                        let edit_id = egui::Id::new(("module_setting_edit", field.qsid));
+                        let edit_id =
+                            egui::Id::new(("module_setting_edit", active_group, field.qsid));
                         let current = raw_value.clamp(field.min, field.max);
                         let mut text = ui.ctx().data_mut(|d| {
                             d.get_temp::<String>(edit_id)
@@ -168,8 +213,11 @@ impl EntropyApp {
                     tooltip.as_deref(),
                     dropdown_width,
                     |ui| {
-                        let dropdown_id =
-                            ui.make_persistent_id(("module_setting_dropdown", field.qsid));
+                        let dropdown_id = ui.make_persistent_id((
+                            "module_setting_dropdown",
+                            active_group,
+                            field.qsid,
+                        ));
                         let (_, picked) = Self::draw_touchpad_select_control(
                             ui,
                             dark,
@@ -185,6 +233,45 @@ impl EntropyApp {
                 );
             }
         }
+    }
+
+    fn module_settings_group_label(&self, group: &ModuleSettingsGroup) -> String {
+        let lang = self.app_settings.language;
+        match group.kind {
+            ModuleSettingsGroupKind::Left => {
+                crate::i18n::tr_catalog(lang, "modules_settings.left_half").to_owned()
+            }
+            ModuleSettingsGroupKind::Right => {
+                crate::i18n::tr_catalog(lang, "modules_settings.right_half").to_owned()
+            }
+            ModuleSettingsGroupKind::Other => crate::i18n::tr_text(lang, &group.title),
+        }
+    }
+
+    fn draw_module_settings_group_switcher(&mut self, ui: &mut egui::Ui) {
+        if self.module_settings.groups.len() <= 1 {
+            return;
+        }
+        let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ui.ctx());
+        let labels = self
+            .module_settings
+            .groups
+            .iter()
+            .map(|group| self.module_settings_group_label(group))
+            .collect::<Vec<_>>();
+        let width = metrics.value((labels.len() as f32 * 112.0).clamp(224.0, 360.0));
+        let size = metrics.size(width / metrics.scale, 34.0);
+        ui.horizontal_centered(|ui| {
+            if let Some(picked) = crate::ui_style::settings_segmented_control(
+                ui,
+                "module_settings_group_switcher",
+                &labels,
+                self.module_settings.active_group,
+                size,
+            ) {
+                self.module_settings.set_active_group(picked);
+            }
+        });
     }
 
     pub(super) fn draw_module_settings_page(
@@ -224,6 +311,11 @@ impl EntropyApp {
                         )),
                     );
                     return;
+                }
+
+                self.draw_module_settings_group_switcher(ui);
+                if self.module_settings.groups.len() > 1 {
+                    ui.add_space(14.0);
                 }
 
                 let list = allocate_adaptive_settings_list_viewport(

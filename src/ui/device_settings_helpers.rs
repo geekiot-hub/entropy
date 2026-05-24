@@ -246,88 +246,121 @@ impl EntropyApp {
         })
     }
 
-    pub(super) fn module_settings_fields(
+    fn parse_module_setting_field(
+        field: &serde_json::Value,
+        supported_qmk_settings: &[u16],
+    ) -> Option<ModuleSettingField> {
+        let qsid = field.get("qsid")?.as_u64()? as u16;
+        if !supported_qmk_settings.contains(&qsid) {
+            return None;
+        }
+        let title = field.get("title")?.as_str()?.trim().to_string();
+        if title.is_empty() {
+            return None;
+        }
+        let kind = match field.get("type").and_then(|value| value.as_str())? {
+            "boolean" => ModuleSettingKind::Boolean,
+            "integer" => ModuleSettingKind::Integer,
+            "select" => ModuleSettingKind::Select,
+            _ => return None,
+        };
+        let width = field
+            .get("width")
+            .and_then(|value| value.as_u64())
+            .unwrap_or(1)
+            .clamp(1, 2) as u8;
+        let variants = field
+            .get("variants")
+            .and_then(|value| value.as_array())
+            .map(|variants| {
+                variants
+                    .iter()
+                    .filter_map(|value| value.as_str().map(|s| s.trim().to_string()))
+                    .filter(|s| !s.is_empty())
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        Some(ModuleSettingField {
+            title,
+            qsid,
+            kind,
+            bit: field
+                .get("bit")
+                .and_then(|value| value.as_u64())
+                .unwrap_or(0)
+                .min(15) as u8,
+            width,
+            min: field
+                .get("min")
+                .and_then(|value| value.as_u64())
+                .unwrap_or(0)
+                .min(u16::MAX as u64) as u16,
+            max: field
+                .get("max")
+                .and_then(|value| value.as_u64())
+                .unwrap_or(if matches!(kind, ModuleSettingKind::Select) {
+                    variants.len().saturating_sub(1) as u64
+                } else if width > 1 {
+                    u16::MAX as u64
+                } else {
+                    u8::MAX as u64
+                })
+                .min(u16::MAX as u64) as u16,
+            variants,
+        })
+    }
+
+    fn module_settings_group_kind(tab_name: &str) -> ModuleSettingsGroupKind {
+        let name = tab_name.to_ascii_lowercase();
+        if name.contains("left") {
+            ModuleSettingsGroupKind::Left
+        } else if name.contains("right") {
+            ModuleSettingsGroupKind::Right
+        } else {
+            ModuleSettingsGroupKind::Other
+        }
+    }
+
+    pub(super) fn module_settings_groups(
         json: &serde_json::Value,
         supported_qmk_settings: &[u16],
-    ) -> Vec<ModuleSettingField> {
+    ) -> Vec<ModuleSettingsGroup> {
         let Some(tabs) = json.get("settings").and_then(|value| value.as_array()) else {
             return Vec::new();
         };
-        let Some(tab) = tabs.iter().find(|tab| {
-            tab.get("name")
-                .and_then(|value| value.as_str())
-                .map(|name| name.to_ascii_lowercase().contains("module"))
-                .unwrap_or(false)
-        }) else {
-            return Vec::new();
-        };
-        let Some(fields) = tab.get("fields").and_then(|value| value.as_array()) else {
-            return Vec::new();
-        };
 
-        fields
+        let mut groups = tabs
             .iter()
-            .filter_map(|field| {
-                let qsid = field.get("qsid")?.as_u64()? as u16;
-                if !supported_qmk_settings.contains(&qsid) {
+            .filter_map(|tab| {
+                let title = tab.get("name")?.as_str()?.trim().to_string();
+                if !title.to_ascii_lowercase().contains("module") {
                     return None;
                 }
-                let title = field.get("title")?.as_str()?.trim().to_string();
-                if title.is_empty() {
-                    return None;
-                }
-                let kind = match field.get("type").and_then(|value| value.as_str())? {
-                    "boolean" => ModuleSettingKind::Boolean,
-                    "integer" => ModuleSettingKind::Integer,
-                    "select" => ModuleSettingKind::Select,
-                    _ => return None,
-                };
-                let width = field
-                    .get("width")
-                    .and_then(|value| value.as_u64())
-                    .unwrap_or(1)
-                    .clamp(1, 2) as u8;
-                let variants = field
-                    .get("variants")
-                    .and_then(|value| value.as_array())
-                    .map(|variants| {
-                        variants
-                            .iter()
-                            .filter_map(|value| value.as_str().map(|s| s.trim().to_string()))
-                            .filter(|s| !s.is_empty())
-                            .collect::<Vec<_>>()
+                let fields = tab
+                    .get("fields")
+                    .and_then(|value| value.as_array())?
+                    .iter()
+                    .filter_map(|field| {
+                        Self::parse_module_setting_field(field, supported_qmk_settings)
                     })
-                    .unwrap_or_default();
-                Some(ModuleSettingField {
+                    .collect::<Vec<_>>();
+                if fields.is_empty() {
+                    return None;
+                }
+                Some(ModuleSettingsGroup {
+                    kind: Self::module_settings_group_kind(&title),
                     title,
-                    qsid,
-                    kind,
-                    bit: field
-                        .get("bit")
-                        .and_then(|value| value.as_u64())
-                        .unwrap_or(0)
-                        .min(15) as u8,
-                    width,
-                    min: field
-                        .get("min")
-                        .and_then(|value| value.as_u64())
-                        .unwrap_or(0)
-                        .min(u16::MAX as u64) as u16,
-                    max: field
-                        .get("max")
-                        .and_then(|value| value.as_u64())
-                        .unwrap_or(if matches!(kind, ModuleSettingKind::Select) {
-                            variants.len().saturating_sub(1) as u64
-                        } else if width > 1 {
-                            u16::MAX as u64
-                        } else {
-                            u8::MAX as u64
-                        })
-                        .min(u16::MAX as u64) as u16,
-                    variants,
+                    fields,
                 })
             })
-            .collect()
+            .collect::<Vec<_>>();
+
+        groups.sort_by_key(|group| match group.kind {
+            ModuleSettingsGroupKind::Left => 0,
+            ModuleSettingsGroupKind::Right => 1,
+            ModuleSettingsGroupKind::Other => 2,
+        });
+        groups
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -336,13 +369,19 @@ impl EntropyApp {
         supported_qmk_settings: &[u16],
         dev_conn: &crate::hid::HidDevice,
     ) -> ModuleSettingsState {
-        let fields = Self::module_settings_fields(json, supported_qmk_settings);
+        let groups = Self::module_settings_groups(json, supported_qmk_settings);
+        let fields = groups
+            .iter()
+            .flat_map(|group| group.fields.iter().cloned())
+            .collect::<Vec<_>>();
         if fields.is_empty() {
             return ModuleSettingsState::default();
         }
 
         let mut settings = ModuleSettingsState {
             fields,
+            groups,
+            active_group: 0,
             values: std::collections::BTreeMap::new(),
             supported: true,
         };

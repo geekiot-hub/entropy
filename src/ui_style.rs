@@ -139,6 +139,102 @@ pub fn modern_button(ui: &mut Ui, label: &str, size: Vec2, enabled: bool) -> egu
     modern_button_with_font(ui, label, size, 12.5, enabled)
 }
 
+pub fn settings_segmented_control(
+    ui: &mut Ui,
+    id_source: impl std::hash::Hash,
+    labels: &[String],
+    selected: usize,
+    size: Vec2,
+) -> Option<usize> {
+    if labels.is_empty() {
+        return None;
+    }
+
+    let dark = ui.visuals().dark_mode;
+    let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
+    let segment_width = rect.width() / labels.len() as f32;
+    let base_id = ui.id().with(id_source);
+    let mut picked = None;
+
+    ui.painter().rect(
+        rect,
+        10.0,
+        if dark {
+            Color32::from_rgb(38, 38, 41)
+        } else {
+            Color32::from_rgb(248, 248, 249)
+        },
+        modal_outline_stroke(dark),
+        egui::StrokeKind::Inside,
+    );
+
+    for (idx, label) in labels.iter().enumerate() {
+        let left = rect.left() + idx as f32 * segment_width;
+        let right = if idx + 1 == labels.len() {
+            rect.right()
+        } else {
+            left + segment_width
+        };
+        let segment_rect = egui::Rect::from_min_max(
+            egui::pos2(left, rect.top()),
+            egui::pos2(right, rect.bottom()),
+        );
+        let resp = ui.interact(segment_rect, base_id.with(idx), Sense::click());
+        let is_selected = idx == selected.min(labels.len() - 1);
+        let fill = if is_selected {
+            if dark {
+                Color32::from_rgb(58, 58, 62)
+            } else {
+                Color32::from_rgb(235, 235, 238)
+            }
+        } else if resp.hovered() {
+            hover_fill(dark)
+        } else {
+            Color32::TRANSPARENT
+        };
+        if fill != Color32::TRANSPARENT {
+            let rounding = if idx == 0 && idx + 1 == labels.len() {
+                9.0
+            } else if idx == 0 || idx + 1 == labels.len() {
+                8.0
+            } else {
+                4.0
+            };
+            ui.painter()
+                .rect_filled(segment_rect.shrink(2.0), rounding, fill);
+        }
+        if idx > 0 {
+            let x = segment_rect.left();
+            ui.painter().line_segment(
+                [
+                    egui::pos2(x, rect.top() + 7.0),
+                    egui::pos2(x, rect.bottom() - 7.0),
+                ],
+                Stroke::new(1.0, border_color(dark).gamma_multiply(0.75)),
+            );
+        }
+        ui.painter().text(
+            segment_rect.center(),
+            egui::Align2::CENTER_CENTER,
+            label,
+            FontId::proportional(12.5),
+            if is_selected {
+                ui.visuals().text_color()
+            } else {
+                muted_text(dark)
+            },
+        );
+        if resp.hovered() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+        }
+        if resp.clicked() && !is_selected {
+            picked = Some(idx);
+        }
+    }
+
+    picked
+}
+
 pub fn modern_button_with_font(
     ui: &mut Ui,
     label: &str,
