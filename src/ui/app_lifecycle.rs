@@ -55,8 +55,10 @@ impl eframe::App for EntropyApp {
         }
         let now = ctx.input(|i| i.time);
         self.auto_reload_text_expander_rules_file(now);
+        let is_connecting = matches!(self.connect_state, ConnectState::Loading { .. });
         if (self.last_device_scan_at == 0.0 || now - self.last_device_scan_at >= 1.0)
             && !self.vial_unlock_polling
+            && !is_connecting
         {
             self.scan_frame = self.scan_frame.wrapping_add(1);
             self.last_device_scan_at = now;
