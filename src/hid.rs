@@ -19,6 +19,8 @@ use hid_protocol::MSG_LEN;
 const VIAL_GUI_USB_RETRIES: usize = 20;
 const VIAL_GUI_READ_TIMEOUT_MS: i32 = 500;
 const VIAL_GUI_RETRY_DELAY: Duration = Duration::from_millis(500);
+const HID_OPEN_RETRIES: usize = 5;
+const HID_OPEN_RETRY_DELAY: Duration = Duration::from_millis(250);
 
 #[path = "hid_parse.rs"]
 mod hid_parse;
@@ -137,13 +139,13 @@ impl HidDevice {
 
     fn open_fresh_for_local(device: &crate::device::Device) -> Result<Self> {
         let mut last_error = None;
-        for attempt in 0..10 {
+        for attempt in 0..HID_OPEN_RETRIES {
             match Self::try_open_fresh_for(device) {
                 Ok(device) => return Ok(device),
                 Err(e) => {
                     last_error = Some(e);
-                    if attempt < 9 {
-                        std::thread::sleep(Duration::from_secs(1));
+                    if attempt + 1 < HID_OPEN_RETRIES {
+                        std::thread::sleep(HID_OPEN_RETRY_DELAY);
                     }
                 }
             }
@@ -213,6 +215,21 @@ impl HidDevice {
 
     fn try_open_fresh_for(device: &crate::device::Device) -> Result<Self> {
         let api = hidapi::HidApi::new().context("Failed to init hidapi")?;
+
+        if !device.path.is_empty() {
+            if let Ok(path) = std::ffi::CString::new(device.path.as_str()) {
+                match api.open_path(&path) {
+                    Ok(device) => {
+                        return Ok(Self {
+                            backend: HidBackend::Local(device),
+                        });
+                    }
+                    Err(e) => {
+                        log::debug!("direct HID path open failed, falling back to scan: {e}");
+                    }
+                }
+            }
+        }
 
         for info in api.device_list() {
             if !device_info_matches(info, device, true) {
