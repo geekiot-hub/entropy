@@ -20,9 +20,11 @@ impl EntropyApp {
         }
 
         let dark = ui.visuals().dark_mode;
+        let stable_hint_center_x = ui.max_rect().center().x;
+        let stable_hint_bottom = ui.max_rect().bottom();
         let content_rect = egui::Rect::from_min_max(
             egui::pos2(ui.min_rect().left() + 20.0, content_top),
-            egui::pos2(ui.min_rect().right() - 20.0, ui.max_rect().bottom() - 76.0),
+            egui::pos2(ui.min_rect().right() - 20.0, stable_hint_bottom - 76.0),
         );
 
         match self.settings_tab {
@@ -86,18 +88,23 @@ impl EntropyApp {
         }
 
         if self.settings_tab != SettingsTab::MatrixTester {
-            self.draw_settings_navigation_hint(ui);
+            self.draw_settings_navigation_hint(ui, stable_hint_center_x, stable_hint_bottom);
         }
     }
 
-    pub(super) fn draw_settings_navigation_hint(&self, ui: &mut egui::Ui) {
+    pub(super) fn draw_settings_navigation_hint(
+        &self,
+        ui: &mut egui::Ui,
+        center_x: f32,
+        bottom: f32,
+    ) {
         let hint_color = if ui.visuals().dark_mode {
             Color32::from_gray(100)
         } else {
             Color32::from_gray(160)
         };
         ui.painter().text(
-            egui::pos2(ui.max_rect().center().x, ui.max_rect().bottom() - 36.0),
+            egui::pos2(center_x, bottom - 36.0),
             egui::Align2::CENTER_CENTER,
             crate::i18n::tr_catalog(
                 self.app_settings.language,
