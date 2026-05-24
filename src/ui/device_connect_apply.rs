@@ -1,5 +1,20 @@
 use super::*;
 
+fn is_default_layer_name(index: usize, name: &str) -> bool {
+    let trimmed = name.trim();
+    trimmed.is_empty()
+        || trimmed == index.to_string()
+        || (index == 0 && trimmed.eq_ignore_ascii_case("main"))
+        || trimmed.eq_ignore_ascii_case(&format!("layer {index}"))
+}
+
+fn has_firmware_layer_names(names: &[String]) -> bool {
+    names
+        .iter()
+        .enumerate()
+        .any(|(index, name)| !is_default_layer_name(index, name))
+}
+
 impl EntropyApp {
     /// Poll background thread for connect result.
     #[cfg(not(target_arch = "wasm32"))]
@@ -191,14 +206,16 @@ impl EntropyApp {
                     layer_names.extend((start..r.layer_count).map(|layer| layer.to_string()));
                 }
                 layer_names.truncate(r.layer_count);
-                if let Some(local_layer_names) = load_saved_layer_names(&device_name) {
-                    for (idx, name) in local_layer_names
-                        .into_iter()
-                        .enumerate()
-                        .take(r.layer_count)
-                    {
-                        if !name.trim().is_empty() {
-                            layer_names[idx] = name;
+                if !has_firmware_layer_names(&layer_names) {
+                    if let Some(local_layer_names) = load_saved_layer_names(&device_name) {
+                        for (idx, name) in local_layer_names
+                            .into_iter()
+                            .enumerate()
+                            .take(r.layer_count)
+                        {
+                            if !name.trim().is_empty() {
+                                layer_names[idx] = name;
+                            }
                         }
                     }
                 }

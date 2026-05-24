@@ -138,38 +138,77 @@ fn parse_encoder_from_label(label: &str, align: usize) -> Option<(u8, u8)> {
     Some((idx.trim().parse().ok()?, dir.trim().parse().ok()?))
 }
 
+fn parse_layer_name_value(value: &serde_json::Value) -> Option<String> {
+    if let Some(name) = value.as_str() {
+        let name = name.trim();
+        return (!name.is_empty()).then(|| name.to_string());
+    }
+
+    if let Some(obj) = value.as_object() {
+        for key in ["name", "label", "title"] {
+            if let Some(name) = obj.get(key).and_then(parse_layer_name_value) {
+                return Some(name);
+            }
+        }
+    }
+
+    if let Some(arr) = value.as_array() {
+        return arr.first().and_then(parse_layer_name_value);
+    }
+
+    None
+}
+
+fn parse_layer_names_candidate(candidate: &serde_json::Value) -> Vec<String> {
+    if let Some(arr) = candidate.as_array() {
+        return arr.iter().filter_map(parse_layer_name_value).collect();
+    }
+
+    if let Some(obj) = candidate.as_object() {
+        let mut indexed_names: Vec<(usize, String)> = obj
+            .iter()
+            .filter_map(|(key, value)| {
+                let index = key.parse::<usize>().ok()?;
+                Some((index, parse_layer_name_value(value)?))
+            })
+            .collect();
+        indexed_names.sort_by_key(|(index, _)| *index);
+        if !indexed_names.is_empty() {
+            return indexed_names.into_iter().map(|(_, name)| name).collect();
+        }
+
+        for key in ["names", "layer_names", "layerNames", "layers"] {
+            if let Some(names) = obj.get(key).map(parse_layer_names_candidate) {
+                if !names.is_empty() {
+                    return names;
+                }
+            }
+        }
+    }
+
+    vec![]
+}
+
 fn parse_layer_names_from_json(json: &serde_json::Value) -> Vec<String> {
     let candidates = [
         json.get("layer_names"),
         json.get("layerNames"),
         json.get("layers"),
+        json.get("layout").and_then(|v| v.get("layer_names")),
+        json.get("layout").and_then(|v| v.get("layerNames")),
+        json.get("layout").and_then(|v| v.get("layers")),
         json.get("layouts").and_then(|v| v.get("layer_names")),
         json.get("layouts").and_then(|v| v.get("layerNames")),
+        json.get("layouts").and_then(|v| v.get("layers")),
         json.get("vial").and_then(|v| v.get("layer_names")),
         json.get("vial").and_then(|v| v.get("layerNames")),
+        json.get("vial").and_then(|v| v.get("layers")),
     ];
 
     for candidate in candidates.into_iter().flatten() {
-        if let Some(arr) = candidate.as_array() {
-            let names: Vec<String> = arr
-                .iter()
-                .filter_map(|v| {
-                    if let Some(s) = v.as_str() {
-                        Some(s.trim().to_string())
-                    } else if let Some(inner) = v.as_array() {
-                        inner
-                            .first()
-                            .and_then(|x| x.as_str())
-                            .map(|s| s.trim().to_string())
-                    } else {
-                        None
-                    }
-                })
-                .filter(|s| !s.is_empty())
-                .collect();
-            if !names.is_empty() {
-                return names;
-            }
+        let names = parse_layer_names_candidate(candidate);
+        if !names.is_empty() {
+            return names;
         }
     }
 
