@@ -99,18 +99,29 @@ impl EntropyApp {
             }
         }
 
-        let Some(conn) = &self.hid_device else {
-            self.status_msg =
-                "Read-only: encoder changed locally, firmware write disabled for this device"
-                    .into();
+        let result = if let Some(conn) = &self.hid_device {
+            conn.set_encoder(
+                layer as u8,
+                encoder.encoder_idx,
+                encoder.direction,
+                kc_value,
+            )
+        } else if let Some(dev) = self
+            .selected_device
+            .and_then(|i| self.device_manager.devices().get(i))
+        {
+            match crate::hid::HidDevice::open(&dev.path) {
+                Ok(conn) => conn.set_encoder(
+                    layer as u8,
+                    encoder.encoder_idx,
+                    encoder.direction,
+                    kc_value,
+                ),
+                Err(e) => Err(anyhow::anyhow!("{e}")),
+            }
+        } else {
             return;
         };
-        let result = conn.set_encoder(
-            layer as u8,
-            encoder.encoder_idx,
-            encoder.direction,
-            kc_value,
-        );
 
         match result {
             Ok(()) => {
@@ -254,15 +265,20 @@ impl EntropyApp {
             None => return,
         };
 
-        // Never open a fresh HID handle synchronously from the UI thread.
-        // RMK/Vial can hang on write/open here; if no persistent connection exists,
-        // keep the edit local/read-only instead of freezing the whole app.
-        let Some(conn) = &self.hid_device else {
-            self.status_msg =
-                "Read-only: key changed locally, firmware write disabled for this device".into();
+        // Use persistent connection if available, otherwise open fresh
+        let result = if let Some(conn) = &self.hid_device {
+            conn.set_keycode(layer as u8, key.row, key.col, kc_value)
+        } else if let Some(dev) = self
+            .selected_device
+            .and_then(|i| self.device_manager.devices().get(i))
+        {
+            match crate::hid::HidDevice::open(&dev.path) {
+                Ok(conn) => conn.set_keycode(layer as u8, key.row, key.col, kc_value),
+                Err(e) => Err(anyhow::anyhow!("{e}")),
+            }
+        } else {
             return;
         };
-        let result = conn.set_keycode(layer as u8, key.row, key.col, kc_value);
 
         match result {
             Ok(()) => self.status_msg = "✓ Saved".into(),

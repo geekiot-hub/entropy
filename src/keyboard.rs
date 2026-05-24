@@ -262,9 +262,6 @@ impl KeyboardLayout {
             .get("cols")
             .and_then(|v| v.as_u64())
             .context("missing matrix.cols")? as usize;
-        if rows == 0 || rows > 32 || cols == 0 || cols > 32 {
-            anyhow::bail!("invalid matrix dimensions in Vial JSON: rows={rows}, cols={cols}");
-        }
 
         let layouts = json.get("layouts").context("missing 'layouts' field")?;
         let keymap = layouts

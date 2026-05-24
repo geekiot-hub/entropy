@@ -1,13 +1,11 @@
 use crate::firmware::FirmwareProtocol;
 
 /// Represents a connected Vial/HID keyboard device.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone)]
 pub struct Device {
     pub name: String,
     pub vendor_id: u16,
     pub product_id: u16,
-    pub manufacturer: String,
-    pub serial_number: String,
     /// HID path used by Vial.
     pub path: String,
     pub firmware: FirmwareProtocol,
@@ -40,8 +38,6 @@ impl DeviceManager {
                             .to_string(),
                         vendor_id: info.vendor_id(),
                         product_id: info.product_id(),
-                        manufacturer: info.manufacturer_string().unwrap_or("").to_string(),
-                        serial_number: info.serial_number().unwrap_or("").to_string(),
                         path: info.path().to_string_lossy().to_string(),
                         firmware: FirmwareProtocol::Vial,
                     });

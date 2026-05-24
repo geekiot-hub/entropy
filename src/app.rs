@@ -100,8 +100,6 @@ mod layout_top_tabs;
 mod layout_view;
 #[path = "ui/live_features_settings.rs"]
 mod live_features_settings_ui;
-#[path = "ui/macro_save.rs"]
-mod macro_save;
 #[path = "ui/magic_settings.rs"]
 mod magic_settings_ui;
 #[path = "ui/matrix_tester.rs"]

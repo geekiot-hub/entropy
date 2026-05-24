@@ -92,16 +92,12 @@ fn try_acquire_single_instance() -> bool {
 }
 
 fn main() -> eframe::Result<()> {
-    #[cfg(all(not(target_arch = "wasm32"), target_os = "windows"))]
-    if hid::run_hid_proxy_if_requested() {
-        return Ok(());
-    }
-
     env_logger::init();
 
-    // Temporarily allow multiple instances: a frozen HID session can otherwise keep
-    // the global mutex and make a fixed build look like it "does not start".
-    let _single_instance_available = try_acquire_single_instance();
+    if !try_acquire_single_instance() {
+        notify_existing_instance();
+        return Ok(());
+    }
 
     smart_input::start();
 

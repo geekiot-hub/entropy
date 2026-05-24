@@ -1,5 +1,5 @@
-use super::hid_parse::{encode_macro_buffer, parse_macro_buffer};
 use super::hid_protocol::*;
+use super::hid_parse::{encode_macro_buffer, parse_macro_buffer};
 use super::HidDevice;
 use anyhow::{Context, Result};
 
@@ -12,11 +12,7 @@ impl HidDevice {
         let resp = self
             .usb_send(&[CMD_VIA_MACRO_GET_COUNT])
             .context("failed to read macro count")?;
-        let count = resp[1];
-        if count > 64 {
-            anyhow::bail!("invalid macro count: {count}");
-        }
-        Ok(count)
+        Ok(resp[1])
     }
 
     /// Get macro buffer size.
@@ -24,11 +20,7 @@ impl HidDevice {
         let resp = self
             .usb_send(&[CMD_VIA_MACRO_GET_BUFFER_SIZE])
             .context("failed to read macro buffer size")?;
-        let size = u16::from_be_bytes([resp[1], resp[2]]);
-        if size > 8192 {
-            anyhow::bail!("invalid macro buffer size: {size}");
-        }
-        Ok(size)
+        Ok(u16::from_be_bytes([resp[1], resp[2]]))
     }
 
     /// Read macro buffer (all macros as null-separated strings).
@@ -65,7 +57,8 @@ impl HidDevice {
             cmd[3] = chunk as u8;
             let start = offset as usize;
             cmd[4..4 + chunk as usize].copy_from_slice(&data[start..start + chunk as usize]);
-            self.usb_send(&cmd)
+            self
+                .usb_send(&cmd)
                 .with_context(|| format!("failed to write macro buffer at offset {offset}"))?;
             offset += chunk;
         }
@@ -81,4 +74,5 @@ impl HidDevice {
     pub fn encode_macros(macros: &[String], buf_size: u16) -> Vec<u8> {
         encode_macro_buffer(macros, buf_size)
     }
+
 }

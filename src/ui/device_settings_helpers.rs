@@ -508,10 +508,44 @@ impl EntropyApp {
 
     #[cfg(not(target_arch = "wasm32"))]
     pub(super) fn sync_qmk_hid_host_bridges(&mut self) {
-        // RMK-safe mode: do not start background raw-HID host bridges while
-        // stabilizing Vial/RMK compatibility. They open the same raw HID
-        // interface and can collide with connect/switch flows.
-        self.qmk_hid_hosts.clear();
+        let selected_path = self
+            .selected_device
+            .and_then(|idx| self.device_manager.devices().get(idx))
+            .map(|device| device.path.as_str());
+
+        let mut desired =
+            std::collections::HashMap::<String, crate::qmk_hid_host::HostDataMode>::new();
+
+        for device in self.device_manager.devices() {
+            if device.firmware != FirmwareProtocol::Vial {
+                continue;
+            }
+
+            let mut mode = crate::qmk_hid_host::HostDataMode::default();
+            if Some(device.path.as_str()) == selected_path {
+                if let Some(layout) = self.layout.as_ref() {
+                    mode = Self::qmk_hid_host_mode_for(layout, self.layout_options_value);
+                }
+            }
+
+            if Self::device_uses_automatic_display_host_data(device) {
+                mode.clock_volume = true;
+                mode.media = true;
+            }
+
+            if !mode.is_empty() {
+                desired.insert(device.path.clone(), mode);
+            }
+        }
+
+        self.qmk_hid_hosts
+            .retain(|path, bridge| desired.get(path).copied() == Some(bridge.mode()));
+
+        for (path, mode) in desired {
+            self.qmk_hid_hosts
+                .entry(path.clone())
+                .or_insert_with(|| crate::qmk_hid_host::QmkHidHostBridge::start(path, mode));
+        }
     }
 
     pub(super) fn open_layout_options_settings_page(&mut self) {

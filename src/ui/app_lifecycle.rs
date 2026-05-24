@@ -55,10 +55,8 @@ impl eframe::App for EntropyApp {
         }
         let now = ctx.input(|i| i.time);
         self.auto_reload_text_expander_rules_file(now);
-        let is_connecting = matches!(self.connect_state, ConnectState::Loading { .. });
         if (self.last_device_scan_at == 0.0 || now - self.last_device_scan_at >= 1.0)
             && !self.vial_unlock_polling
-            && !is_connecting
         {
             self.scan_frame = self.scan_frame.wrapping_add(1);
             self.last_device_scan_at = now;
@@ -68,8 +66,6 @@ impl eframe::App for EntropyApp {
 
         #[cfg(not(target_arch = "wasm32"))]
         self.poll_single_instance_signal(ctx);
-        #[cfg(not(target_arch = "wasm32"))]
-        self.poll_macro_save(ctx);
 
         // Apply theme
         if self.dark_mode {
@@ -170,7 +166,7 @@ impl eframe::App for EntropyApp {
 
         // Check if loading
         #[cfg(not(target_arch = "wasm32"))]
-        let is_loading = matches!(self.connect_state, ConnectState::Loading { .. });
+        let is_loading = matches!(self.connect_state, ConnectState::Loading(_));
         #[cfg(target_arch = "wasm32")]
         let is_loading = false;
 
@@ -216,14 +212,10 @@ impl eframe::App for EntropyApp {
 
             if is_loading {
                 let rect = ui.max_rect();
-                let text = if self.status_msg.is_empty() {
-                    crate::i18n::tr_catalog(
-                        self.app_settings.language,
-                        "connection.loading_keyboard",
-                    )
-                } else {
-                    self.status_msg.as_str()
-                };
+                let text = crate::i18n::tr_catalog(
+                    self.app_settings.language,
+                    "connection.loading_keyboard",
+                );
                 let font_id = FontId::proportional(16.0);
                 let text_width = ui.fonts(|f| {
                     f.layout_no_wrap(text.to_owned(), font_id.clone(), Color32::GRAY)
@@ -254,15 +246,6 @@ impl eframe::App for EntropyApp {
 
             if let Some(layout) = self.layout.clone() {
                 self.draw_layout(ui, &layout, ctx);
-            } else if !self.status_msg.is_empty() {
-                let rect = ui.max_rect();
-                ui.painter().text(
-                    rect.center(),
-                    egui::Align2::CENTER_CENTER,
-                    &self.status_msg,
-                    FontId::proportional(16.0),
-                    Color32::GRAY,
-                );
             } else {
                 self.draw_placeholder(ui);
             }
@@ -378,9 +361,24 @@ impl eframe::App for EntropyApp {
                 )
                 .into();
             } else {
-                if !self.macro_saving {
-                    self.keycode_picker.macros_dirty = false;
-                    self.start_macro_save();
+                self.keycode_picker.macros_dirty = false;
+                if let Some(hid) = &self.hid_device {
+                    if let Ok(size) = hid.get_macro_buffer_size() {
+                        let buf = crate::hid::HidDevice::encode_macros(
+                            &self.keycode_picker.macro_texts,
+                            size,
+                        );
+                        match hid.set_macro_buffer(&buf) {
+                            Ok(()) => {
+                                self.status_msg = crate::i18n::tr_catalog(
+                                    self.app_settings.language,
+                                    "status_messages.macros_saved",
+                                )
+                                .into()
+                            }
+                            Err(e) => self.status_msg = format!("Macro write error: {e}"),
+                        }
+                    }
                 }
             }
         }

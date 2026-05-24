@@ -15,8 +15,8 @@ impl EntropyApp {
         self.selected_key = None;
         self.selected_encoder = None;
         self.selected_layer = 0;
+        self.sync_qmk_hid_host_bridges();
         self.hid_device = None;
-        self.qmk_hid_hosts.clear();
         self.combo_visible_count = 1;
         self.combo_capture_open = false;
         self.combo_capture_keys.clear();
@@ -40,8 +40,6 @@ impl EntropyApp {
         self.selected_alt_repeat = 0;
         self.alt_repeat_visible_count = 1;
         self.alt_repeat_pick_target = None;
-        self.macro_save_rx = None;
-        self.macro_saving = false;
         self.rgb_settings = RgbSettingsState::default();
         self.layout_options_value = None;
         self.encoder_visibility.clear();
@@ -54,46 +52,32 @@ impl EntropyApp {
         self.reset_matrix_tester_state();
 
         let (tx, rx) = mpsc::channel();
-        self.connect_state = ConnectState::Loading {
-            rx,
-            started_at: std::time::Instant::now(),
-        };
+        self.connect_state = ConnectState::Loading(rx);
 
         std::thread::spawn(move || {
-            let progress = |message: &str| {
-                let _ = tx.send(ConnectTaskMessage::Progress(message.to_owned()));
-            };
             let result = (|| -> Result<ConnectResult, String> {
                 use crate::hid::HidDevice;
 
-                progress("Opening HID device…");
-                log::info!(
-                    "Opening HID device: {} {:04X}:{:04X}",
-                    dev.name,
-                    dev.vendor_id,
-                    dev.product_id
-                );
+                log::info!("Opening HID device: {}", dev.path);
                 let dev_conn =
-                    HidDevice::open_fresh_for(&dev).map_err(|e| format!("Open failed: {e}"))?;
+                    HidDevice::open(&dev.path).map_err(|e| format!("Open failed: {e}"))?;
 
-                progress("Reading VIA protocol version…");
                 log::info!("Getting protocol version…");
                 match dev_conn.get_protocol_version() {
                     Ok(v) => log::info!("VIA protocol version: {v}"),
                     Err(e) => log::warn!("get_protocol_version failed: {e}"),
                 }
 
-                progress("Reading Vial keyboard id…");
-                match dev_conn.get_keyboard_id() {
-                    Ok((vial_protocol, keyboard_id)) => {
-                        log::info!(
-                            "Vial protocol: {vial_protocol}, keyboard id: {keyboard_id:016X}"
-                        );
-                    }
-                    Err(e) => log::warn!("get_keyboard_id failed: {e}"),
-                }
+                log::info!("Getting layer count…");
+                let layer_count = dev_conn
+                    .get_layer_count()
+                    .map(|c| c as usize)
+                    .unwrap_or_else(|e| {
+                        log::warn!("get_layer_count failed: {e}, defaulting to 4");
+                        4
+                    });
+                log::info!("Layer count: {layer_count}");
 
-                progress("Reading Vial layout definition…");
                 log::info!("Getting layout JSON…");
                 let json = dev_conn
                     .get_layout_json()
@@ -101,14 +85,11 @@ impl EntropyApp {
 
                 let touchpad_settings_in_definition =
                     Self::layout_json_has_touchpad_settings(&json);
-                progress("Querying QMK settings…");
                 let supported_qmk_settings = dev_conn.query_qmk_settings().unwrap_or_else(|e| {
                     log::warn!("qmk settings query failed: {e}");
                     Vec::new()
                 });
-                let has_qmk_setting = |qsid: u16| supported_qmk_settings.contains(&qsid);
 
-                progress("Parsing keyboard layout…");
                 let mut layout = KeyboardLayout::from_vial_json(&json)
                     .map_err(|e| format!("Layout parse failed: {e}"))?;
 
@@ -139,21 +120,9 @@ impl EntropyApp {
                     log::info!("Patched {} key coordinates from embedded layout", patched);
                 }
 
-                progress("Reading layer count…");
-                log::info!("Getting layer count…");
-                let layer_count = dev_conn
-                    .get_layer_count()
-                    .map(|c| c as usize)
-                    .unwrap_or_else(|e| {
-                        log::warn!("get_layer_count failed: {e}, defaulting to 4");
-                        4
-                    });
-                log::info!("Layer count: {layer_count}");
-
                 let num_keys = layout.keys.len();
                 layout.layers = vec![vec![0u16; num_keys]; layer_count];
 
-                progress("Reading keymap…");
                 match dev_conn.get_keymap_buffer(layer_count, layout.rows, layout.cols) {
                     Ok(buf) => {
                         for layer in 0..layer_count {
@@ -173,29 +142,6 @@ impl EntropyApp {
                     }
                 }
 
-                let mut firmware_layer_names = Vec::new();
-                if has_qmk_setting(200) {
-                    for layer in 0..layer_count.min(16) {
-                        let qsid = 200 + layer as u16;
-                        if !has_qmk_setting(qsid) {
-                            firmware_layer_names.clear();
-                            break;
-                        }
-                        match dev_conn.get_qmk_setting_string(qsid) {
-                            Ok(name) if !name.is_empty() => firmware_layer_names.push(name),
-                            Ok(_) => firmware_layer_names.push(layer.to_string()),
-                            Err(_) => {
-                                firmware_layer_names.clear();
-                                break;
-                            }
-                        }
-                    }
-                }
-                if !firmware_layer_names.is_empty() {
-                    layout.layer_names = firmware_layer_names;
-                }
-
-                progress("Reading Vial-core extras…");
                 if !layout.encoders.is_empty() {
                     layout.encoder_layers = vec![vec![0u16; layout.encoders.len()]; layer_count];
                     let encoder_count = layout.encoder_count();
@@ -221,19 +167,22 @@ impl EntropyApp {
                     }
                 }
 
-                let layout_options_value = if layout.layout_options.is_empty() {
-                    None
-                } else {
-                    match dev_conn.get_layout_options() {
-                        Ok(value) => Some(value),
-                        Err(e) => {
-                            log::warn!("get_layout_options: {e}");
-                            None
+                let mut firmware_layer_names = Vec::new();
+                for layer in 0..layer_count.min(16) {
+                    match dev_conn.get_qmk_setting_string(200 + layer as u16) {
+                        Ok(name) if !name.is_empty() => firmware_layer_names.push(name),
+                        Ok(_) => firmware_layer_names.push(layer.to_string()),
+                        Err(_) => {
+                            firmware_layer_names.clear();
+                            break;
                         }
                     }
-                };
+                }
+                if !firmware_layer_names.is_empty() {
+                    layout.layer_names = firmware_layer_names;
+                }
 
-                progress("Reading macros…");
+                // Read macros
                 let macro_texts = match dev_conn.get_macro_count() {
                     Ok(count) => {
                         log::info!("Macro count: {count}");
@@ -256,16 +205,15 @@ impl EntropyApp {
                     }
                     Err(e) => {
                         log::warn!("get_macro_count: {e}");
-                        Vec::new()
+                        vec![]
                     }
                 };
 
-                progress("Reading dynamic feature counts…");
                 let (
                     tap_dance_count,
                     combo_count,
                     key_override_count,
-                    reported_alt_repeat_count,
+                    alt_repeat_count,
                     dynamic_feature_bits,
                 ) = match dev_conn.get_dynamic_entry_counts() {
                     Ok(counts) => counts,
@@ -274,19 +222,13 @@ impl EntropyApp {
                         (0, 0, 0, 0, 0)
                     }
                 };
-                if reported_alt_repeat_count > 0 {
-                    log::warn!(
-                        "Skipping Alt Repeat preload: firmware reported {reported_alt_repeat_count} entries, but this optional command can hang on RMK/Vial devices"
-                    );
-                }
                 let vial_features = VialFeatureSupport {
                     caps_word: dynamic_feature_bits & (1 << 0) != 0,
                     layer_lock: dynamic_feature_bits & (1 << 1) != 0,
                     persistent_default_layer: key_override_count > 0,
-                    repeat_key: false,
+                    repeat_key: alt_repeat_count > 0,
                 };
 
-                progress("Reading combos…");
                 let combo_entries = {
                     let count = combo_count;
                     log::info!("Combo count: {count}");
@@ -303,51 +245,37 @@ impl EntropyApp {
                     entries
                 };
 
-                progress("Reading QMK settings values…");
-                let combo_term = if has_qmk_setting(2) {
-                    match dev_conn.get_qmk_setting_u16(2) {
-                        Ok(value) => Some(value),
-                        Err(e) => {
-                            log::warn!("get_qmk_setting_u16(combo_term): {e}");
-                            None
-                        }
+                let combo_term = match dev_conn.get_qmk_setting_u16(2) {
+                    Ok(value) => Some(value),
+                    Err(e) => {
+                        log::warn!("get_qmk_setting_u16(combo_term): {e}");
+                        None
                     }
-                } else {
-                    None
                 };
-                let auto_shift_options = if has_qmk_setting(3) {
-                    match dev_conn.get_qmk_setting_u8(3) {
-                        Ok(value) => Some(AutoShiftOptionsState::from_bits(value)),
-                        Err(e) => {
-                            log::warn!("get_qmk_setting_u8(auto_shift_flags): {e}");
-                            None
-                        }
+                let auto_shift_options = match dev_conn.get_qmk_setting_u8(3) {
+                    Ok(value) => Some(AutoShiftOptionsState::from_bits(value)),
+                    Err(e) => {
+                        log::warn!("get_qmk_setting_u8(auto_shift_flags): {e}");
+                        None
                     }
-                } else {
-                    None
                 };
-                let auto_shift_timeout = if has_qmk_setting(4) {
-                    match dev_conn.get_qmk_setting_u16(4) {
-                        Ok(value) => Some(value),
-                        Err(e) => {
-                            log::warn!("get_qmk_setting_u16(auto_shift_timeout): {e}");
-                            None
-                        }
+                let auto_shift_timeout = match dev_conn.get_qmk_setting_u16(4) {
+                    Ok(value) => Some(value),
+                    Err(e) => {
+                        log::warn!("get_qmk_setting_u16(auto_shift_timeout): {e}");
+                        None
                     }
-                } else {
-                    None
                 };
 
+                // Mouse keys settings (qsid 9..=17, all u16). If qsid 9 is unsupported,
+                // we assume the whole group is unavailable.
                 let mouse_keys_settings = {
                     let mut mk = MouseKeysSettingsState::default();
-                    match has_qmk_setting(9).then(|| dev_conn.get_qmk_setting_u8(9)) {
-                        Some(Ok(v)) => {
+                    match dev_conn.get_qmk_setting_u8(9) {
+                        Ok(v) => {
                             mk.delay = v as u16;
                             mk.supported = true;
                             let read = |qsid: u16| -> u16 {
-                                if !has_qmk_setting(qsid) {
-                                    return 0;
-                                }
                                 match dev_conn.get_qmk_setting_u8(qsid) {
                                     Ok(val) => val as u16,
                                     Err(e) => {
@@ -367,14 +295,16 @@ impl EntropyApp {
                             mk.wheel_max_speed = read(16);
                             mk.wheel_time_to_max = read(17);
                         }
-                        Some(Err(e)) => {
-                            log::warn!("get_qmk_setting_u8(mouse_keys delay): {e}");
+                        Err(e) => {
+                            log::warn!("get_qmk_setting_u16(mouse_keys delay): {e}");
                         }
-                        None => {}
                     }
                     mk
                 };
 
+                // Ergohaven K:03 Pro touchpad settings (qsid 120..=124). These qsids
+                // overlap with other Ergohaven pointing devices, so expose the page only
+                // for known K:03 Pro identities.
                 let touchpad_settings = {
                     let mut tp = TouchpadSettingsState::default();
                     if touchpad_settings_in_definition
@@ -416,14 +346,14 @@ impl EntropyApp {
                                 {
                                     tp.auto_layer_enable_supported = true;
                                     tp.auto_layer_enable = dev_conn
-                                        .get_qmk_setting_u8(142)
-                                        .map(|value| value != 0)
-                                        .unwrap_or_else(|e| {
-                                            log::warn!(
-                                                "get_qmk_setting_u8(touchpad auto layer enable): {e}"
-                                            );
-                                            false
-                                        });
+                                                .get_qmk_setting_u8(142)
+                                                .map(|value| value != 0)
+                                                .unwrap_or_else(|e| {
+                                                    log::warn!(
+                                                        "get_qmk_setting_u8(touchpad auto layer enable): {e}"
+                                                    );
+                                                    false
+                                                });
                                 }
                                 if supported_qmk_settings.contains(&143)
                                     && Self::touchpad_setting_exists(&json, 143)
@@ -447,20 +377,17 @@ impl EntropyApp {
                     tp
                 };
 
-                progress("Reading module settings…");
                 let module_settings =
                     Self::read_module_settings(&json, &supported_qmk_settings, &dev_conn);
 
+                // Tap-Hold settings. If qsid 7 is unsupported, we treat the page as unavailable.
                 let tap_hold_settings = {
                     let mut th = TapHoldSettingsState::default();
-                    match has_qmk_setting(7).then(|| dev_conn.get_qmk_setting_u16(7)) {
-                        Some(Ok(v)) => {
+                    match dev_conn.get_qmk_setting_u16(7) {
+                        Ok(v) => {
                             th.tapping_term = v;
                             th.supported = true;
                             let read_bool = |qsid: u16| -> bool {
-                                if !has_qmk_setting(qsid) {
-                                    return false;
-                                }
                                 match dev_conn.get_qmk_setting_u8(qsid) {
                                     Ok(val) => val != 0,
                                     Err(e) => {
@@ -470,9 +397,6 @@ impl EntropyApp {
                                 }
                             };
                             let read_u16 = |qsid: u16| -> u16 {
-                                if !has_qmk_setting(qsid) {
-                                    return 0;
-                                }
                                 match dev_conn.get_qmk_setting_u16(qsid) {
                                     Ok(val) => val,
                                     Err(e) => {
@@ -489,128 +413,121 @@ impl EntropyApp {
                             th.quick_tap_term = read_u16(25);
                             th.tap_code_delay = read_u16(18);
                             th.tap_hold_caps_delay = read_u16(19);
-                            th.tapping_toggle = if has_qmk_setting(20) {
-                                dev_conn
-                                    .get_qmk_setting_u8(20)
-                                    .map(|value| value as u16)
-                                    .unwrap_or_else(|e| {
-                                        log::warn!("get_qmk_setting_u8(tap_hold qsid 20): {e}");
-                                        0
-                                    })
-                            } else {
-                                0
-                            };
+                            th.tapping_toggle = dev_conn
+                                .get_qmk_setting_u8(20)
+                                .map(|value| value as u16)
+                                .unwrap_or_else(|e| {
+                                    log::warn!("get_qmk_setting_u8(tap_hold qsid 20): {e}");
+                                    0
+                                });
                             th.chordal_hold = read_bool(26);
                             th.flow_tap = read_u16(27);
                         }
-                        Some(Err(e)) => {
+                        Err(e) => {
                             log::warn!("get_qmk_setting_u16(tap_hold tapping_term): {e}");
                         }
-                        None => {}
                     }
                     th
                 };
 
+                // Magic settings (qsid 21 bits 0..=9). These are global QMK runtime swaps/options.
                 let magic_settings = {
-                    match has_qmk_setting(21).then(|| dev_conn.get_qmk_setting_u16(21)) {
-                        Some(Ok(bits)) => MagicSettingsState {
+                    match dev_conn.get_qmk_setting_u16(21) {
+                        Ok(bits) => MagicSettingsState {
                             bits,
                             supported: true,
                         },
-                        Some(Err(e)) => {
+                        Err(e) => {
                             log::warn!("get_qmk_setting_u16(magic qsid 21): {e}");
                             MagicSettingsState::default()
                         }
-                        None => MagicSettingsState::default(),
                     }
                 };
 
+                // One Shot Keys settings (qsid 5..=6). These affect OSM(...) and OSL(...).
                 let one_shot_settings = {
                     let mut os = OneShotSettingsState::default();
-                    match has_qmk_setting(5).then(|| dev_conn.get_qmk_setting_u8(5)) {
-                        Some(Ok(v)) => {
+                    match dev_conn.get_qmk_setting_u8(5) {
+                        Ok(v) => {
                             os.tap_toggle = v;
                             os.supported = true;
-                            os.timeout = if has_qmk_setting(6) {
-                                dev_conn.get_qmk_setting_u16(6).unwrap_or_else(|e| {
-                                    log::warn!("get_qmk_setting_u16(one_shot timeout qsid 6): {e}");
-                                    0
-                                })
-                            } else {
+                            os.timeout = dev_conn.get_qmk_setting_u16(6).unwrap_or_else(|e| {
+                                log::warn!("get_qmk_setting_u16(one_shot timeout qsid 6): {e}");
                                 0
-                            };
+                            });
                         }
-                        Some(Err(e)) => {
+                        Err(e) => {
                             log::warn!("get_qmk_setting_u8(one_shot tap toggle qsid 5): {e}");
                         }
-                        None => {}
                     }
                     os
                 };
 
+                // Grave Escape settings (qsid 1 bits 0..=3). These affect KC_GESC,
+                // not the physical Escape key.
                 let grave_escape_settings = {
-                    match has_qmk_setting(1).then(|| dev_conn.get_qmk_setting_u8(1)) {
-                        Some(Ok(bits)) => GraveEscapeSettingsState {
+                    match dev_conn.get_qmk_setting_u8(1) {
+                        Ok(bits) => GraveEscapeSettingsState {
                             bits,
                             supported: true,
                         },
-                        Some(Err(e)) => {
+                        Err(e) => {
                             log::warn!("get_qmk_setting_u8(grave_escape qsid 1): {e}");
                             GraveEscapeSettingsState::default()
                         }
-                        None => GraveEscapeSettingsState::default(),
                     }
                 };
 
+                // Ergohaven per-layer LED settings (qsid 300..=317). If qsid 300 is
+                // unsupported, we assume the whole group is unavailable.
                 let layer_led_settings = {
                     let mut leds = LayerLedSettingsState::default();
-                    match has_qmk_setting(300).then(|| dev_conn.get_qmk_setting_u8(300)) {
-                        Some(Ok(v)) => {
+                    match dev_conn.get_qmk_setting_u8(300) {
+                        Ok(v) => {
                             leds.layer_colors[0] = v;
                             leds.supported = true;
                             for layer in 1..16 {
                                 let qsid = 300 + layer as u16;
-                                if has_qmk_setting(qsid) {
-                                    leds.layer_colors[layer] =
-                                        dev_conn.get_qmk_setting_u8(qsid).unwrap_or_else(|e| {
-                                            log::warn!(
-                                                "get_qmk_setting_u8(layer_led qsid {qsid}): {e}"
-                                            );
-                                            0
-                                        });
-                                }
-                            }
-                            leds.brightness = if has_qmk_setting(316) {
-                                dev_conn
-                                    .get_qmk_setting_u16(316)
-                                    .unwrap_or_else(|e| {
+                                leds.layer_colors[layer] =
+                                    dev_conn.get_qmk_setting_u8(qsid).unwrap_or_else(|e| {
                                         log::warn!(
-                                            "get_qmk_setting_u16(layer_led brightness): {e}"
+                                            "get_qmk_setting_u8(layer_led qsid {qsid}): {e}"
                                         );
                                         0
-                                    })
-                                    .min(255)
-                            } else {
-                                0
-                            };
-                            leds.timeout_mins = if has_qmk_setting(317) {
+                                    });
+                            }
+                            leds.brightness = dev_conn
+                                .get_qmk_setting_u16(316)
+                                .unwrap_or_else(|e| {
+                                    log::warn!("get_qmk_setting_u16(layer_led brightness): {e}");
+                                    0
+                                })
+                                .min(255);
+                            leds.timeout_mins =
                                 dev_conn.get_qmk_setting_u8(317).unwrap_or_else(|e| {
                                     log::warn!("get_qmk_setting_u8(layer_led timeout): {e}");
                                     0
-                                })
-                            } else {
-                                0
-                            };
+                                });
                         }
-                        Some(Err(e)) => {
+                        Err(e) => {
                             log::warn!("get_qmk_setting_u8(layer_led layer 0 color): {e}");
                         }
-                        None => {}
                     }
                     leds
                 };
 
-                progress("Reading RGB settings…");
+                let layout_options_value = if layout.layout_options.is_empty() {
+                    None
+                } else {
+                    match dev_conn.get_layout_options() {
+                        Ok(value) => Some(value),
+                        Err(e) => {
+                            log::warn!("get_layout_options: {e}");
+                            None
+                        }
+                    }
+                };
+
                 let rgb_settings = if layer_led_settings.supported && layout.lighting_mode.is_none()
                 {
                     // hpd3-style Ergohaven boards use QMK RGBLight internally only as a
@@ -622,7 +539,7 @@ impl EntropyApp {
                     load_rgb_settings(&dev_conn, &layout)
                 };
 
-                progress("Reading tap dance entries…");
+                // Read tap dance entries
                 let tap_dance_entries = {
                     let count = tap_dance_count;
                     log::info!("Tap dance count: {count}");
@@ -646,8 +563,6 @@ impl EntropyApp {
                     }
                     entries
                 };
-
-                progress("Reading key overrides…");
                 let key_override_entries = {
                     let count = key_override_count;
                     log::info!("Key Override count: {count}");
@@ -682,9 +597,29 @@ impl EntropyApp {
                     entries
                 };
 
-                let alt_repeat_entries = Vec::new();
+                let alt_repeat_entries = {
+                    let count = alt_repeat_count;
+                    log::info!("Alt Repeat count: {count}");
+                    let mut entries = Vec::new();
+                    for i in 0..count {
+                        match dev_conn.get_alt_repeat_key(i) {
+                            Ok((keycode, alt_keycode, allowed_mods, options)) => {
+                                entries.push(AltRepeatKeyEntry {
+                                    keycode,
+                                    alt_keycode,
+                                    allowed_mods,
+                                    options: AltRepeatKeyOptionsState::from_bits(options),
+                                });
+                            }
+                            Err(e) => {
+                                log::warn!("get_alt_repeat_key({i}): {e}");
+                                entries.push(Default::default());
+                            }
+                        }
+                    }
+                    entries
+                };
 
-                progress("Applying keyboard layout…");
                 Ok(ConnectResult {
                     device_name: dev.name.clone(),
                     macro_texts,
@@ -711,7 +646,7 @@ impl EntropyApp {
                 })
             })();
 
-            let _ = tx.send(ConnectTaskMessage::Done(result));
+            let _ = tx.send(result);
         });
     }
 }
