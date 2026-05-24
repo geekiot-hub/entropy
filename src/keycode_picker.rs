@@ -117,6 +117,7 @@ pub struct KeycodePicker {
     pub supports_repeat_key: bool,
     pub supports_layer_lock: bool,
     pub supports_persistent_default_layer: bool,
+    pub supports_bluetooth_custom_keycodes: bool,
     pub layer_names: Vec<String>,
     pub layer_count: usize,
     pub layer_has_content: Vec<bool>,
@@ -225,6 +226,7 @@ impl Default for KeycodePicker {
             supports_repeat_key: true,
             supports_layer_lock: true,
             supports_persistent_default_layer: true,
+            supports_bluetooth_custom_keycodes: false,
             layer_names: (0..16).map(|i| i.to_string()).collect(),
             layer_count: 4,
             layer_has_content: vec![true; 16],
@@ -802,14 +804,16 @@ impl KeycodePicker {
             KeycodeTab::Rgb => self.supports_rgb,
             KeycodeTab::Macro => self.supports_macro,
             KeycodeTab::TapDance => self.supports_tap_dance,
-            KeycodeTab::Bluetooth => self
-                .custom_keycodes
-                .iter()
-                .any(|(name, label, title, _)| is_bluetooth_custom_keycode(name, label, title)),
-            KeycodeTab::Custom => self
-                .custom_keycodes
-                .iter()
-                .any(|(name, label, title, _)| !is_bluetooth_custom_keycode(name, label, title)),
+            KeycodeTab::Bluetooth => {
+                self.supports_bluetooth_custom_keycodes
+                    && self.custom_keycodes.iter().any(|(name, label, title, _)| {
+                        is_bluetooth_custom_keycode(name, label, title)
+                    })
+            }
+            KeycodeTab::Custom => self.custom_keycodes.iter().any(|(name, label, title, _)| {
+                !self.supports_bluetooth_custom_keycodes
+                    || !is_bluetooth_custom_keycode(name, label, title)
+            }),
             _ => true,
         }
     }

@@ -237,6 +237,7 @@ impl EntropyApp {
                 self.keycode_picker.supports_layer_lock = r.vial_features.layer_lock;
                 self.keycode_picker.supports_persistent_default_layer =
                     r.vial_features.persistent_default_layer;
+                self.keycode_picker.supports_bluetooth_custom_keycodes = r.is_likely_rmk;
                 self.keycode_picker.layer_count = r.layout.layers.len().max(1);
                 self.keycode_picker.tap_dance_names = load_tap_dance_names(&device_name);
                 // Vial GUI maps customKeycodes to USER00.. at QK_KB + index.

@@ -189,8 +189,12 @@ impl KeycodePicker {
         ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| {
             for (name, label, title, value) in custom_keycodes {
+                let bluetooth_keycode = is_bluetooth_custom_keycode(&name, &label, &title);
                 if label.is_empty()
-                    || is_bluetooth_custom_keycode(&name, &label, &title) != include_bluetooth
+                    || (include_bluetooth && !bluetooth_keycode)
+                    || (!include_bluetooth
+                        && self.supports_bluetooth_custom_keycodes
+                        && bluetooth_keycode)
                 {
                     continue;
                 }
