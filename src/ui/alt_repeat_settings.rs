@@ -104,6 +104,12 @@ impl EntropyApp {
     fn draw_alt_repeat_editor_content(&mut self, ui: &mut egui::Ui) {
         let dark = ui.visuals().dark_mode;
         if self.alt_repeat_entries.is_empty() {
+            if !self.alt_repeat_loaded
+                && !self.alt_repeat_loading
+                && self.alt_repeat_load_error.is_none()
+            {
+                self.start_alt_repeat_lazy_load();
+            }
             crate::ui_style::modal_empty_state(
                 ui,
                 if self.alt_repeat_loading {
@@ -116,23 +122,6 @@ impl EntropyApp {
                 },
                 self.alt_repeat_load_error.as_deref(),
             );
-            ui.horizontal_centered(|ui| {
-                ui.add_space(8.0);
-                if crate::ui_style::modern_button(
-                    ui,
-                    if self.alt_repeat_load_error.is_some() {
-                        "Retry Alt Repeat load"
-                    } else {
-                        "Load Alt Repeat"
-                    },
-                    egui::vec2(168.0, 32.0),
-                    !self.alt_repeat_loading,
-                )
-                .clicked()
-                {
-                    self.start_alt_repeat_lazy_load();
-                }
-            });
             return;
         }
 
