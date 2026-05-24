@@ -1,5 +1,59 @@
 use super::*;
 
+fn vial_cache_dir() -> Option<std::path::PathBuf> {
+    let dir = dirs::config_dir()?.join("entropy").join("vial_cache");
+    std::fs::create_dir_all(&dir).ok()?;
+    Some(dir)
+}
+
+fn cached_vial_definition_path(keyboard_id: u64) -> Option<std::path::PathBuf> {
+    Some(vial_cache_dir()?.join(format!("definition_{keyboard_id:016x}.json")))
+}
+
+fn cached_qmk_settings_path(keyboard_id: u64) -> Option<std::path::PathBuf> {
+    Some(vial_cache_dir()?.join(format!("qmk_settings_{keyboard_id:016x}.json")))
+}
+
+fn load_cached_vial_definition(keyboard_id: u64) -> Option<serde_json::Value> {
+    let path = cached_vial_definition_path(keyboard_id)?;
+    let text = std::fs::read_to_string(path).ok()?;
+    serde_json::from_str(&text).ok()
+}
+
+fn save_cached_vial_definition(keyboard_id: u64, json: &serde_json::Value) {
+    let Some(path) = cached_vial_definition_path(keyboard_id) else {
+        return;
+    };
+    match serde_json::to_vec(json) {
+        Ok(bytes) => {
+            if let Err(e) = std::fs::write(path, bytes) {
+                log::warn!("failed to write Vial definition cache: {e}");
+            }
+        }
+        Err(e) => log::warn!("failed to serialize Vial definition cache: {e}"),
+    }
+}
+
+fn load_cached_qmk_settings(keyboard_id: u64) -> Option<Vec<u16>> {
+    let path = cached_qmk_settings_path(keyboard_id)?;
+    let text = std::fs::read_to_string(path).ok()?;
+    serde_json::from_str(&text).ok()
+}
+
+fn save_cached_qmk_settings(keyboard_id: u64, settings: &[u16]) {
+    let Some(path) = cached_qmk_settings_path(keyboard_id) else {
+        return;
+    };
+    match serde_json::to_vec(settings) {
+        Ok(bytes) => {
+            if let Err(e) = std::fs::write(path, bytes) {
+                log::warn!("failed to write QMK settings cache: {e}");
+            }
+        }
+        Err(e) => log::warn!("failed to serialize QMK settings cache: {e}"),
+    }
+}
+
 impl EntropyApp {
     pub(super) fn start_connect(&mut self, device_idx: usize) {
         let dev = match self.device_manager.devices().get(device_idx) {
@@ -102,18 +156,41 @@ impl EntropyApp {
 
                 progress("Reading Vial layout definition…");
                 log::info!("Getting layout JSON…");
-                let json = dev_conn
-                    .get_layout_json()
-                    .map_err(|e| format!("Layout read failed: {e}"))?;
+                let json = if let Some(cached) = load_cached_vial_definition(keyboard_id) {
+                    log::info!(
+                        "Loaded Vial definition from cache for keyboard id {keyboard_id:016X}"
+                    );
+                    cached
+                } else {
+                    let json = dev_conn
+                        .get_layout_json()
+                        .map_err(|e| format!("Layout read failed: {e}"))?;
+                    save_cached_vial_definition(keyboard_id, &json);
+                    json
+                };
 
                 let touchpad_settings_in_definition =
                     Self::layout_json_has_touchpad_settings(&json);
                 let supported_qmk_settings = if vial_protocol >= 4 {
-                    progress("Querying QMK settings…");
-                    dev_conn.query_qmk_settings().unwrap_or_else(|e| {
-                        log::warn!("qmk settings query failed: {e}");
-                        Vec::new()
-                    })
+                    if let Some(cached) = load_cached_qmk_settings(keyboard_id) {
+                        log::info!(
+                            "Loaded {} QMK settings from cache for keyboard id {keyboard_id:016X}",
+                            cached.len()
+                        );
+                        cached
+                    } else {
+                        progress("Querying QMK settings…");
+                        match dev_conn.query_qmk_settings() {
+                            Ok(settings) => {
+                                save_cached_qmk_settings(keyboard_id, &settings);
+                                settings
+                            }
+                            Err(e) => {
+                                log::warn!("qmk settings query failed: {e}");
+                                Vec::new()
+                            }
+                        }
+                    }
                 } else {
                     Vec::new()
                 };
