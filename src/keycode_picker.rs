@@ -169,6 +169,25 @@ fn picker_mod_tap_label(base: u16) -> String {
     format!("Hold {}/key", modifier_label_from_bits((base >> 8) & 0x1F))
 }
 
+fn is_bluetooth_custom_keycode(name: &str, label: &str, title: &str) -> bool {
+    let upper_name = name.trim().to_ascii_uppercase();
+    let lower_text = format!("{} {}", label, title).to_ascii_lowercase();
+    let mentions_wireless = lower_text.contains("bluetooth") || lower_text.contains("ble");
+    let bt_channel = upper_name
+        .strip_prefix("BT")
+        .map(|suffix| !suffix.is_empty() && suffix.chars().all(|c| c.is_ascii_digit()))
+        .unwrap_or(false);
+    bt_channel
+        || matches!(
+            upper_name.as_str(),
+            "NEXT_BT" | "PREV_BT" | "CLR_BT" | "CLEAR_BT"
+        )
+        || upper_name.contains("_BT")
+        || upper_name.contains("BT_")
+        || mentions_wireless
+        || (upper_name == "SWITCH" && lower_text.contains("usb") && lower_text.contains("output"))
+}
+
 fn picker_action_label(label: &str) -> String {
     match label {
         "Brightness -" => "Bright\n-".to_string(),
@@ -783,7 +802,14 @@ impl KeycodePicker {
             KeycodeTab::Rgb => self.supports_rgb,
             KeycodeTab::Macro => self.supports_macro,
             KeycodeTab::TapDance => self.supports_tap_dance,
-            KeycodeTab::Custom => !self.custom_keycodes.is_empty(),
+            KeycodeTab::Bluetooth => self
+                .custom_keycodes
+                .iter()
+                .any(|(name, label, title, _)| is_bluetooth_custom_keycode(name, label, title)),
+            KeycodeTab::Custom => self
+                .custom_keycodes
+                .iter()
+                .any(|(name, label, title, _)| !is_bluetooth_custom_keycode(name, label, title)),
             _ => true,
         }
     }
@@ -812,6 +838,7 @@ impl KeycodePicker {
             KeycodeTab::Macro => self.show_vial_macros(ui),
             KeycodeTab::TapDance => self.show_vial_tap_dance(ui),
             KeycodeTab::Special => self.show_vial_special(ui),
+            KeycodeTab::Bluetooth => self.show_vial_bluetooth(ui),
             KeycodeTab::Custom => self.show_vial_custom(ui),
             _ => self.show_vial_generic(ui),
         }
