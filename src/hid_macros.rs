@@ -12,11 +12,10 @@ impl HidDevice {
         let resp = self
             .usb_send(&[CMD_VIA_MACRO_GET_COUNT])
             .context("failed to read macro count")?;
-        let count = resp[1];
-        if count > 64 {
-            anyhow::bail!("invalid macro count: {count}");
-        }
-        Ok(count)
+        // Vial GUI trusts the firmware-provided one-byte macro count.
+        // Some QMK/Vial keyboards legitimately expose more than 64 slots
+        // (for example 109), and Entropy's macro keycodes cover 0x7700..0x77FF.
+        Ok(resp[1])
     }
 
     /// Get macro buffer size.
