@@ -174,24 +174,20 @@ impl KeycodePicker {
         });
     }
 
-    fn show_vial_custom_filtered(
-        &mut self,
-        ui: &mut egui::Ui,
-        section_key: &'static str,
-        include_bluetooth: bool,
-    ) {
+    pub(super) fn show_vial_custom(&mut self, ui: &mut egui::Ui) {
         let custom_keycodes = self.custom_keycodes.clone();
         ui.label(
-            RichText::new(tr_picker(self.language, section_key))
-                .size(11.0)
-                .color(Color32::from_gray(150)),
+            RichText::new(tr_picker(
+                self.language,
+                "key_picker.section_custom_keycodes",
+            ))
+            .size(11.0)
+            .color(Color32::from_gray(150)),
         );
         ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| {
             for (name, label, title, value) in custom_keycodes {
-                if label.is_empty()
-                    || is_bluetooth_custom_keycode(&name, &label, &title) != include_bluetooth
-                {
+                if label.is_empty() {
                     continue;
                 }
                 let tip = if title.trim().is_empty() {
@@ -209,14 +205,6 @@ impl KeycodePicker {
                 resp.on_hover_text(crate::i18n::tr_text(self.language, &tip));
             }
         });
-    }
-
-    pub(super) fn show_vial_bluetooth(&mut self, ui: &mut egui::Ui) {
-        self.show_vial_custom_filtered(ui, "key_picker.section_bluetooth_keycodes", true);
-    }
-
-    pub(super) fn show_vial_custom(&mut self, ui: &mut egui::Ui) {
-        self.show_vial_custom_filtered(ui, "key_picker.section_custom_keycodes", false);
     }
 
     pub(super) fn show_vial_layers(&mut self, ui: &mut egui::Ui) {

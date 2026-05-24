@@ -177,7 +177,6 @@ pub enum KeycodeTab {
     Macro,
     TapDance,
     Quantum,
-    Bluetooth,
     Custom,
 }
 
@@ -190,7 +189,6 @@ impl KeycodeTab {
         KeycodeTab::Rgb,
         KeycodeTab::Macro,
         KeycodeTab::TapDance,
-        KeycodeTab::Bluetooth,
         KeycodeTab::Custom,
     ];
 
@@ -210,7 +208,6 @@ impl KeycodeTab {
             KeycodeTab::Macro => "key_picker.tab_macro",
             KeycodeTab::TapDance => "key_picker.tab_tap_dance",
             KeycodeTab::Quantum => "key_picker.tab_quantum",
-            KeycodeTab::Bluetooth => "key_picker.tab_bluetooth",
             KeycodeTab::Custom => "key_picker.tab_custom",
         }
     }
