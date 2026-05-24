@@ -31,7 +31,7 @@ impl HidDevice {
         let mut cur = 0u16;
 
         let mut reached_end = false;
-        for _ in 0..16 {
+        for _ in 0..1024 {
             let mut cmd = [0u8; 32];
             cmd[0] = CMD_VIA_VIAL_PREFIX;
             cmd[1] = CMD_VIAL_QMK_SETTINGS_QUERY;
@@ -57,7 +57,7 @@ impl HidDevice {
             cur = next;
         }
         if !reached_end {
-            anyhow::bail!("qmk settings query exceeded page limit");
+            anyhow::bail!("qmk settings query did not reach terminator");
         }
 
         supported.sort_unstable();

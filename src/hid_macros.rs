@@ -32,21 +32,25 @@ impl HidDevice {
     }
 
     /// Read macro buffer (all macros as null-separated strings).
-    pub fn get_macro_buffer(&self, size: u16) -> Result<Vec<u8>> {
+    pub fn get_macro_buffer(&self, size: u16, count: u8) -> Result<Vec<u8>> {
         let mut buf = Vec::with_capacity(size as usize);
         let mut offset: u16 = 0;
         while offset < size {
-            let chunk = 28u8; // max payload per HID message
-            let mut cmd = [0u8; 32];
-            cmd[0] = CMD_VIA_MACRO_GET_BUFFER;
-            cmd[1] = (offset >> 8) as u8;
-            cmd[2] = (offset & 0xFF) as u8;
-            cmd[3] = chunk;
+            let chunk = 28u16.min(size - offset) as u8; // vial-gui BUFFER_FETCH_CHUNK
+            let cmd = [
+                CMD_VIA_MACRO_GET_BUFFER,
+                (offset >> 8) as u8,
+                (offset & 0xFF) as u8,
+                chunk,
+            ];
             let resp = self
                 .usb_send(&cmd)
                 .with_context(|| format!("failed to read macro buffer at offset {offset}"))?;
-            let n = chunk.min((size - offset) as u8) as usize;
+            let n = chunk as usize;
             buf.extend_from_slice(&resp[4..4 + n]);
+            if buf.iter().filter(|&&byte| byte == 0).count() > count as usize {
+                break;
+            }
             offset += chunk as u16;
         }
         Ok(buf)

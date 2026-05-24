@@ -508,9 +508,8 @@ impl EntropyApp {
 
     #[cfg(not(target_arch = "wasm32"))]
     pub(super) fn sync_qmk_hid_host_bridges(&mut self) {
-        // RMK-safe mode: do not start background raw-HID host bridges while
-        // stabilizing Vial/RMK compatibility. They open the same raw HID
-        // interface and can collide with connect/switch flows.
+        // Match vial-gui's single-owner HID model: avoid background raw-HID bridges
+        // that can open the same interface while the active Vial connection is in use.
         self.qmk_hid_hosts.clear();
     }
 

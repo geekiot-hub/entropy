@@ -255,7 +255,7 @@ impl EntropyApp {
         };
 
         // Never open a fresh HID handle synchronously from the UI thread.
-        // RMK/Vial can hang on write/open here; if no persistent connection exists,
+        // Connect keeps the active Vial handle alive; if it is unavailable,
         // keep the edit local/read-only instead of freezing the whole app.
         let Some(conn) = &self.hid_device else {
             self.status_msg =

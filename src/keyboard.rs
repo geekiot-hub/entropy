@@ -348,23 +348,20 @@ impl KeyboardLayout {
                         continue;
                     }
 
-                    let (mat_row, mat_col) = parse_matrix_from_label(label).unwrap_or((
-                        (keys.len() / cols.max(1)) as u8,
-                        (keys.len() % cols.max(1)) as u8,
-                    ));
-
-                    keys.push(PhysicalKey {
-                        x: cur_x,
-                        y: cur_y,
-                        w: next_w,
-                        h: next_h,
-                        row: mat_row,
-                        col: mat_col,
-                        label: format!("{},{}", mat_row, mat_col),
-                        rotation: rotation_angle,
-                        rotation_x,
-                        rotation_y,
-                    });
+                    if let Some((mat_row, mat_col)) = parse_matrix_from_label(label) {
+                        keys.push(PhysicalKey {
+                            x: cur_x,
+                            y: cur_y,
+                            w: next_w,
+                            h: next_h,
+                            row: mat_row,
+                            col: mat_col,
+                            label: format!("{},{}", mat_row, mat_col),
+                            rotation: rotation_angle,
+                            rotation_x,
+                            rotation_y,
+                        });
+                    }
 
                     cur_x += next_w;
                     next_w = 1.0;

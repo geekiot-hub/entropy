@@ -170,8 +170,20 @@ impl EntropyApp {
 
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn reopen_vial_hid(&mut self) {
-        self.hid_device = None;
-        self.status_msg = "Live writes disabled in RMK-safe mode".into();
+        let Some(dev) = self
+            .selected_device
+            .and_then(|idx| self.device_manager.devices().get(idx))
+        else {
+            self.hid_device = None;
+            return;
+        };
+        match crate::hid::HidDevice::open_fresh_for(dev) {
+            Ok(hid) => self.hid_device = Some(hid),
+            Err(e) => {
+                self.hid_device = None;
+                self.status_msg = format!("HID reopen failed: {e}");
+            }
+        }
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -197,6 +209,5 @@ impl EntropyApp {
         if suppress_macro_auto_unlock {
             self.macro_auto_unlock_cancelled = true;
         }
-        self.reopen_vial_hid();
     }
 }

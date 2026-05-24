@@ -16,6 +16,10 @@ use std::sync::{mpsc, Mutex};
 mod hid_protocol;
 use hid_protocol::MSG_LEN;
 
+const VIAL_GUI_USB_RETRIES: usize = 20;
+const VIAL_GUI_READ_TIMEOUT_MS: i32 = 500;
+const VIAL_GUI_RETRY_DELAY: Duration = Duration::from_millis(500);
+
 #[path = "hid_parse.rs"]
 mod hid_parse;
 
@@ -258,46 +262,67 @@ fn usb_send_local(device: &hidapi::HidDevice, data: &[u8]) -> Result<[u8; MSG_LE
     }
 
     let mut write_buf = [0u8; MSG_LEN + 1];
-    write_buf[0] = 0x00; // report ID
+    write_buf[0] = 0x00; // hidapi report ID, exactly like vial-gui
     write_buf[1..1 + data.len()].copy_from_slice(data);
 
-    let bytes_written = device.write(&write_buf).context("HID write failed")?;
-    if bytes_written != write_buf.len() {
-        bail!(
-            "HID short write — wrote {} bytes, expected {} bytes",
-            bytes_written,
-            write_buf.len()
-        );
+    let mut last_error: Option<anyhow::Error> = None;
+    for attempt in 0..VIAL_GUI_USB_RETRIES {
+        if attempt > 0 {
+            std::thread::sleep(VIAL_GUI_RETRY_DELAY);
+        }
+
+        match device.write(&write_buf) {
+            Ok(bytes_written) if bytes_written == write_buf.len() => {}
+            Ok(bytes_written) => {
+                last_error = Some(anyhow::anyhow!(
+                    "HID short write — wrote {} bytes, expected {} bytes",
+                    bytes_written,
+                    write_buf.len()
+                ));
+                continue;
+            }
+            Err(e) => {
+                last_error = Some(anyhow::anyhow!("HID write failed: {e}"));
+                continue;
+            }
+        }
+
+        // Read response — hidapi on Windows returns MSG_LEN bytes (no report ID);
+        // Linux/macOS may include a report ID prefix. vial-gui accepts any non-empty
+        // read; Entropy normalizes it into a fixed MSG_LEN packet for parsers.
+        let mut read_buf = [0u8; MSG_LEN + 1];
+        let bytes_read = match device.read_timeout(&mut read_buf, VIAL_GUI_READ_TIMEOUT_MS) {
+            Ok(bytes_read) => bytes_read,
+            Err(e) => {
+                last_error = Some(anyhow::anyhow!("HID read failed: {e}"));
+                continue;
+            }
+        };
+
+        if bytes_read == 0 {
+            last_error = Some(anyhow::anyhow!("HID timeout — device did not respond"));
+            continue;
+        }
+        if bytes_read != MSG_LEN && bytes_read != MSG_LEN + 1 {
+            last_error = Some(anyhow::anyhow!(
+                "HID invalid response length — read {} bytes, expected {} or {} bytes",
+                bytes_read,
+                MSG_LEN,
+                MSG_LEN + 1
+            ));
+            continue;
+        }
+
+        let mut resp = [0u8; MSG_LEN];
+        if bytes_read == MSG_LEN + 1 {
+            resp.copy_from_slice(&read_buf[1..MSG_LEN + 1]);
+        } else {
+            resp.copy_from_slice(&read_buf[..MSG_LEN]);
+        }
+        return Ok(resp);
     }
 
-    // Read response — hidapi on Windows returns MSG_LEN bytes (no report ID)
-    // on Linux/macOS may include report ID prefix
-    let mut read_buf = [0u8; MSG_LEN + 1];
-    let bytes_read = device
-        .read_timeout(&mut read_buf, 500)
-        .context("HID read failed")?;
-
-    if bytes_read == 0 {
-        bail!("HID timeout — device did not respond");
-    }
-    if bytes_read != MSG_LEN && bytes_read != MSG_LEN + 1 {
-        bail!(
-            "HID invalid response length — read {} bytes, expected {} or {} bytes",
-            bytes_read,
-            MSG_LEN,
-            MSG_LEN + 1
-        );
-    }
-
-    let mut resp = [0u8; MSG_LEN];
-    if bytes_read == MSG_LEN + 1 {
-        // platform included report ID
-        resp.copy_from_slice(&read_buf[1..MSG_LEN + 1]);
-    } else {
-        let copy = bytes_read.min(MSG_LEN);
-        resp[..copy].copy_from_slice(&read_buf[..copy]);
-    }
-    Ok(resp)
+    Err(last_error.unwrap_or_else(|| anyhow::anyhow!("failed to communicate with the device")))
 }
 
 #[cfg(target_os = "windows")]
@@ -328,7 +353,7 @@ impl HidProxy {
                 .rx
                 .lock()
                 .map_err(|_| anyhow::anyhow!("HID helper receiver lock poisoned"))?;
-            rx.recv_timeout(Duration::from_secs(2))
+            rx.recv_timeout(Duration::from_secs(25))
                 .context("HID helper timed out during command")?
         };
         let response: ProxyResponse =

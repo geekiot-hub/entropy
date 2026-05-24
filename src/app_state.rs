@@ -178,6 +178,8 @@ pub(crate) struct VialFeatureSupport {
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) struct ConnectResult {
     pub(crate) device_name: String,
+    /// Open HID connection used during loading; kept for live writes just like vial-gui.
+    pub(crate) hid_device: Option<crate::hid::HidDevice>,
     pub(crate) layout: KeyboardLayout,
     pub(crate) layer_count: usize,
     /// Macro texts read from device

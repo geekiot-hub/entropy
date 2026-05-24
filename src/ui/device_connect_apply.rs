@@ -243,29 +243,10 @@ impl EntropyApp {
                 self.layout = Some(r.layout);
                 self.refresh_layer_picker_content_flags();
 
-                let persistent_hid_allowed = self
-                    .selected_device
-                    .and_then(|idx| self.device_manager.devices().get(idx))
-                    .map(|dev| !dev.is_likely_rmk())
-                    .unwrap_or(false);
-                if persistent_hid_allowed {
-                    if let Some(dev) = self
-                        .selected_device
-                        .and_then(|idx| self.device_manager.devices().get(idx))
-                    {
-                        match crate::hid::HidDevice::open_fresh_for(dev) {
-                            Ok(hid) => self.hid_device = Some(hid),
-                            Err(e) => {
-                                log::warn!("persistent HID reopen failed: {e}");
-                                self.hid_device = None;
-                            }
-                        }
-                    }
-                } else {
-                    // RMK devices can hang when Entropy opens/keeps an additional HID handle
-                    // after the one-shot read. Keep them on the safe, non-persistent path.
-                    self.hid_device = None;
-                }
+                // Keep the same HID owner that loaded the keyboard, matching vial-gui's
+                // open-once/reload/use model. Avoid Entropy-only reopen churn when switching
+                // between qmk-vial and RMK devices.
+                self.hid_device = r.hid_device;
 
                 log::info!(
                     "Connected: {} ({} layers, {:?})",

@@ -78,26 +78,26 @@ impl EntropyApp {
                 );
                 let dev_conn =
                     HidDevice::open_fresh_for(&dev).map_err(|e| format!("Open failed: {e}"))?;
-                let rmk_safe_mode = dev.is_likely_rmk();
-                if rmk_safe_mode {
-                    log::info!("RMK-compatible safe mode enabled for {}", dev.name);
-                }
 
                 progress("Reading VIA protocol version…");
                 log::info!("Getting protocol version…");
-                match dev_conn.get_protocol_version() {
-                    Ok(v) => log::info!("VIA protocol version: {v}"),
-                    Err(e) => log::warn!("get_protocol_version failed: {e}"),
-                }
+                let via_protocol = dev_conn
+                    .get_protocol_version()
+                    .map_err(|e| format!("VIA protocol read failed: {e}"))?;
+                log::info!("VIA protocol version: {via_protocol}");
 
                 progress("Reading Vial keyboard id…");
-                match dev_conn.get_keyboard_id() {
-                    Ok((vial_protocol, keyboard_id)) => {
-                        log::info!(
-                            "Vial protocol: {vial_protocol}, keyboard id: {keyboard_id:016X}"
-                        );
-                    }
-                    Err(e) => log::warn!("get_keyboard_id failed: {e}"),
+                let (vial_protocol, keyboard_id) = dev_conn
+                    .get_keyboard_id()
+                    .map_err(|e| format!("Vial keyboard id read failed: {e}"))?;
+                log::info!("Vial protocol: {vial_protocol}, keyboard id: {keyboard_id:016X}");
+                if ![-1i32, 9].contains(&(via_protocol as i32)) {
+                    return Err(format!("Unsupported VIA protocol version: {via_protocol}"));
+                }
+                if !matches!(vial_protocol, 0..=6) {
+                    return Err(format!(
+                        "Unsupported Vial protocol version: {vial_protocol}"
+                    ));
                 }
 
                 progress("Reading Vial layout definition…");
@@ -108,43 +108,20 @@ impl EntropyApp {
 
                 let touchpad_settings_in_definition =
                     Self::layout_json_has_touchpad_settings(&json);
-                progress("Querying QMK settings…");
-                let supported_qmk_settings = dev_conn.query_qmk_settings().unwrap_or_else(|e| {
-                    log::warn!("qmk settings query failed: {e}");
+                let supported_qmk_settings = if vial_protocol >= 4 {
+                    progress("Querying QMK settings…");
+                    dev_conn.query_qmk_settings().unwrap_or_else(|e| {
+                        log::warn!("qmk settings query failed: {e}");
+                        Vec::new()
+                    })
+                } else {
                     Vec::new()
-                });
+                };
                 let has_qmk_setting = |qsid: u16| supported_qmk_settings.contains(&qsid);
 
                 progress("Parsing keyboard layout…");
                 let mut layout = KeyboardLayout::from_vial_json(&json)
                     .map_err(|e| format!("Layout parse failed: {e}"))?;
-
-                log::info!("Looking up embedded layout for '{}'", dev.name);
-                if let Some((embedded, reference_keys)) = crate::layouts::lookup_layout(&dev.name) {
-                    log::info!(
-                        "Found embedded layout '{}' with {} keys",
-                        embedded.name,
-                        reference_keys.len()
-                    );
-                    use std::collections::HashMap;
-                    let reference_by_matrix: HashMap<(u8, u8), &crate::keyboard::PhysicalKey> =
-                        reference_keys
-                            .iter()
-                            .map(|key| ((key.row, key.col), key))
-                            .collect();
-                    let mut patched = 0usize;
-                    for key in &mut layout.keys {
-                        if let Some(reference_key) = reference_by_matrix.get(&(key.row, key.col)) {
-                            key.x = reference_key.x;
-                            key.y = reference_key.y;
-                            key.rotation = reference_key.rotation;
-                            key.rotation_x = reference_key.rotation_x;
-                            key.rotation_y = reference_key.rotation_y;
-                            patched += 1;
-                        }
-                    }
-                    log::info!("Patched {} key coordinates from embedded layout", patched);
-                }
 
                 progress("Reading layer count…");
                 log::info!("Getting layer count…");
@@ -240,62 +217,56 @@ impl EntropyApp {
                     }
                 };
 
-                let macro_texts = if rmk_safe_mode {
-                    log::info!("Skipping macro preload for RMK-compatible device");
-                    Vec::new()
-                } else {
-                    progress("Reading macros…");
-                    match dev_conn.get_macro_count() {
-                        Ok(count) => {
-                            log::info!("Macro count: {count}");
-                            match dev_conn.get_macro_buffer_size() {
-                                Ok(size) => {
-                                    log::info!("Macro buffer size: {size}");
-                                    match dev_conn.get_macro_buffer(size) {
-                                        Ok(buf) => crate::hid::HidDevice::parse_macros(&buf, count),
-                                        Err(e) => {
-                                            log::warn!("get_macro_buffer: {e}");
-                                            vec![String::new(); count as usize]
-                                        }
+                progress("Reading macros…");
+                let macro_texts = match dev_conn.get_macro_count() {
+                    Ok(count) => {
+                        log::info!("Macro count: {count}");
+                        match dev_conn.get_macro_buffer_size() {
+                            Ok(size) => {
+                                log::info!("Macro buffer size: {size}");
+                                match dev_conn.get_macro_buffer(size, count) {
+                                    Ok(buf) => crate::hid::HidDevice::parse_macros(&buf, count),
+                                    Err(e) => {
+                                        log::warn!("get_macro_buffer: {e}");
+                                        vec![String::new(); count as usize]
                                     }
                                 }
-                                Err(e) => {
-                                    log::warn!("get_macro_buffer_size: {e}");
-                                    vec![String::new(); count as usize]
-                                }
+                            }
+                            Err(e) => {
+                                log::warn!("get_macro_buffer_size: {e}");
+                                vec![String::new(); count as usize]
                             }
                         }
-                        Err(e) => {
-                            log::warn!("get_macro_count: {e}");
-                            Vec::new()
-                        }
+                    }
+                    Err(e) => {
+                        log::warn!("get_macro_count: {e}");
+                        Vec::new()
                     }
                 };
 
-                progress("Reading dynamic feature counts…");
                 let (
                     tap_dance_count,
                     combo_count,
                     key_override_count,
                     reported_alt_repeat_count,
                     dynamic_feature_bits,
-                ) = match dev_conn.get_dynamic_entry_counts() {
-                    Ok(counts) => counts,
-                    Err(e) => {
-                        log::warn!("get_dynamic_entry_counts: {e}");
-                        (0, 0, 0, 0, 0)
+                ) = if vial_protocol >= 4 {
+                    progress("Reading dynamic feature counts…");
+                    match dev_conn.get_dynamic_entry_counts() {
+                        Ok(counts) => counts,
+                        Err(e) => {
+                            log::warn!("get_dynamic_entry_counts: {e}");
+                            (0, 0, 0, 0, 0)
+                        }
                     }
+                } else {
+                    (0, 0, 0, 0, 0)
                 };
-                if rmk_safe_mode && reported_alt_repeat_count > 0 {
-                    log::warn!(
-                        "Skipping Alt Repeat preload: firmware reported {reported_alt_repeat_count} entries, but this optional command can hang on RMK/Vial devices"
-                    );
-                }
                 let vial_features = VialFeatureSupport {
                     caps_word: dynamic_feature_bits & (1 << 0) != 0,
                     layer_lock: dynamic_feature_bits & (1 << 1) != 0,
-                    persistent_default_layer: key_override_count > 0,
-                    repeat_key: !rmk_safe_mode && reported_alt_repeat_count > 0,
+                    persistent_default_layer: vial_protocol >= 5,
+                    repeat_key: reported_alt_repeat_count > 0,
                 };
 
                 progress("Reading combos…");
@@ -622,10 +593,8 @@ impl EntropyApp {
                     leds
                 };
 
-                let rgb_settings = if rmk_safe_mode {
-                    log::info!("Skipping RGB preload for RMK-compatible device");
-                    RgbSettingsState::default()
-                } else if layer_led_settings.supported && layout.lighting_mode.is_none() {
+                let rgb_settings = if layer_led_settings.supported && layout.lighting_mode.is_none()
+                {
                     // hpd3-style Ergohaven boards use QMK RGBLight internally only as a
                     // transport for per-layer LEDs. If the Vial definition does not
                     // explicitly advertise a standard lighting backend, expose Layer LEDs
@@ -696,9 +665,7 @@ impl EntropyApp {
                     entries
                 };
 
-                let alt_repeat_entries = if rmk_safe_mode {
-                    Vec::new()
-                } else {
+                let alt_repeat_entries = {
                     let count = reported_alt_repeat_count;
                     log::info!("Alt Repeat count: {count}");
                     let mut entries = Vec::new();
@@ -724,6 +691,7 @@ impl EntropyApp {
                 progress("Applying keyboard layout…");
                 Ok(ConnectResult {
                     device_name: dev.name.clone(),
+                    hid_device: Some(dev_conn),
                     macro_texts,
                     tap_dance_entries,
                     combo_entries,
