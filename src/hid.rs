@@ -1,6 +1,7 @@
 /// Vial protocol implementation over HID.
 /// Based on vial-gui Python source: protocol/keyboard_comm.py
 use anyhow::{bail, Context, Result};
+use std::time::Duration;
 
 #[path = "hid_protocol.rs"]
 mod hid_protocol;
@@ -30,6 +31,42 @@ pub struct HidDevice {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
+fn device_info_matches(
+    info: &hidapi::DeviceInfo,
+    device: &crate::device::Device,
+    strict_identity: bool,
+) -> bool {
+    if info.usage_page() != 0xFF60
+        || info.usage() != 0x61
+        || info.vendor_id() != device.vendor_id
+        || info.product_id() != device.product_id
+    {
+        return false;
+    }
+
+    if !strict_identity {
+        return true;
+    }
+
+    let serial_matches = !device.serial_number.is_empty()
+        && info
+            .serial_number()
+            .map(|serial| serial == device.serial_number)
+            .unwrap_or(false);
+    let product_matches = info
+        .product_string()
+        .map(|product| product == device.name)
+        .unwrap_or(false);
+    let manufacturer_matches = device.manufacturer.is_empty()
+        || info
+            .manufacturer_string()
+            .map(|manufacturer| manufacturer == device.manufacturer)
+            .unwrap_or(false);
+
+    serial_matches || (product_matches && manufacturer_matches)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 impl HidDevice {
     pub fn open(path: &str) -> Result<Self> {
         let api = hidapi::HidApi::new().context("Failed to init hidapi")?;
@@ -40,20 +77,28 @@ impl HidDevice {
     }
 
     pub fn open_fresh_for(device: &crate::device::Device) -> Result<Self> {
-        let api = hidapi::HidApi::new().context("Failed to init hidapi")?;
-        let selected_name = device.name.as_str();
-        let mut candidates = api.device_list().filter(|info| {
-            info.usage_page() == 0xFF60
-                && info.usage() == 0x61
-                && info.vendor_id() == device.vendor_id
-                && info.product_id() == device.product_id
-        });
+        let mut last_error = None;
+        for attempt in 0..10 {
+            match Self::try_open_fresh_for(device) {
+                Ok(device) => return Ok(device),
+                Err(e) => {
+                    last_error = Some(e);
+                    if attempt < 9 {
+                        std::thread::sleep(Duration::from_secs(1));
+                    }
+                }
+            }
+        }
+        Err(last_error.unwrap_or_else(|| anyhow::anyhow!("unable to open the device")))
+    }
 
-        if let Some(info) = candidates.find(|info| {
-            info.product_string()
-                .map(|name| name == selected_name)
-                .unwrap_or(false)
-        }) {
+    fn try_open_fresh_for(device: &crate::device::Device) -> Result<Self> {
+        let api = hidapi::HidApi::new().context("Failed to init hidapi")?;
+
+        for info in api.device_list() {
+            if !device_info_matches(info, device, true) {
+                continue;
+            }
             return info
                 .open_device(&api)
                 .map(|device| Self { device })
@@ -61,16 +106,13 @@ impl HidDevice {
         }
 
         for info in api.device_list() {
-            if info.usage_page() == 0xFF60
-                && info.usage() == 0x61
-                && info.vendor_id() == device.vendor_id
-                && info.product_id() == device.product_id
-            {
-                return info
-                    .open_device(&api)
-                    .map(|device| Self { device })
-                    .context("Failed to open HID device");
+            if !device_info_matches(info, device, false) {
+                continue;
             }
+            return info
+                .open_device(&api)
+                .map(|device| Self { device })
+                .context("Failed to open HID device");
         }
 
         anyhow::bail!("HID device disappeared during reconnect")
@@ -104,7 +146,7 @@ impl HidDevice {
         let mut read_buf = [0u8; MSG_LEN + 1];
         let bytes_read = self
             .device
-            .read_timeout(&mut read_buf, 2000)
+            .read_timeout(&mut read_buf, 500)
             .context("HID read failed")?;
 
         if bytes_read == 0 {
