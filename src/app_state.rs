@@ -1209,6 +1209,9 @@ pub struct EntropyApp {
     pub(crate) selected_alt_repeat: usize,
     pub(crate) alt_repeat_visible_count: usize,
     pub(crate) alt_repeat_pick_target: Option<AltRepeatPickField>,
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) macro_save_rx: Option<mpsc::Receiver<Result<(), String>>>,
+    pub(crate) macro_saving: bool,
     pub(crate) last_single_instance_signal: String,
     pub(crate) rgb_settings: RgbSettingsState,
     pub(crate) layout_options_value: Option<u32>,

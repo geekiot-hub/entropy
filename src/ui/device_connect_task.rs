@@ -40,6 +40,8 @@ impl EntropyApp {
         self.selected_alt_repeat = 0;
         self.alt_repeat_visible_count = 1;
         self.alt_repeat_pick_target = None;
+        self.macro_save_rx = None;
+        self.macro_saving = false;
         self.rgb_settings = RgbSettingsState::default();
         self.layout_options_value = None;
         self.encoder_visibility.clear();

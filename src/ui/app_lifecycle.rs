@@ -68,6 +68,8 @@ impl eframe::App for EntropyApp {
 
         #[cfg(not(target_arch = "wasm32"))]
         self.poll_single_instance_signal(ctx);
+        #[cfg(not(target_arch = "wasm32"))]
+        self.poll_macro_save(ctx);
 
         // Apply theme
         if self.dark_mode {
@@ -376,24 +378,9 @@ impl eframe::App for EntropyApp {
                 )
                 .into();
             } else {
-                self.keycode_picker.macros_dirty = false;
-                if let Some(hid) = &self.hid_device {
-                    if let Ok(size) = hid.get_macro_buffer_size() {
-                        let buf = crate::hid::HidDevice::encode_macros(
-                            &self.keycode_picker.macro_texts,
-                            size,
-                        );
-                        match hid.set_macro_buffer(&buf) {
-                            Ok(()) => {
-                                self.status_msg = crate::i18n::tr_catalog(
-                                    self.app_settings.language,
-                                    "status_messages.macros_saved",
-                                )
-                                .into()
-                            }
-                            Err(e) => self.status_msg = format!("Macro write error: {e}"),
-                        }
-                    }
+                if !self.macro_saving {
+                    self.keycode_picker.macros_dirty = false;
+                    self.start_macro_save();
                 }
             }
         }
