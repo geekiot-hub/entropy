@@ -14,6 +14,14 @@ pub struct Device {
 }
 
 /// Scans for connected Vial HID keyboard devices.
+impl Device {
+    pub fn is_likely_rmk(&self) -> bool {
+        let manufacturer = self.manufacturer.to_ascii_lowercase();
+        let name = self.name.to_ascii_lowercase();
+        manufacturer.contains("rmk") || name.contains("rmk")
+    }
+}
+
 pub struct DeviceManager {
     devices: Vec<Device>,
 }

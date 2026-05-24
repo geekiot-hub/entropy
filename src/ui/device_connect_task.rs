@@ -43,6 +43,11 @@ impl EntropyApp {
         self.rgb_settings = RgbSettingsState::default();
         self.layout_options_value = None;
         self.encoder_visibility.clear();
+        self.keycode_picker.macro_count = 16;
+        self.keycode_picker.macro_texts = vec![String::new(); 16];
+        self.keycode_picker.macro_names = vec![String::new(); 16];
+        self.keycode_picker.macro_actions = vec![Vec::new(); 16];
+        self.keycode_picker.macros_dirty = false;
         self.key_override_entries.clear();
         self.key_override_names.clear();
         self.key_override_visible_count = 1;
@@ -73,6 +78,10 @@ impl EntropyApp {
                 );
                 let dev_conn =
                     HidDevice::open_fresh_for(&dev).map_err(|e| format!("Open failed: {e}"))?;
+                let rmk_safe_mode = dev.is_likely_rmk();
+                if rmk_safe_mode {
+                    log::info!("RMK-compatible safe mode enabled for {}", dev.name);
+                }
 
                 progress("Reading VIA protocol version…");
                 log::info!("Getting protocol version…");
@@ -231,7 +240,37 @@ impl EntropyApp {
                     }
                 };
 
-                let macro_texts = Vec::new();
+                let macro_texts = if rmk_safe_mode {
+                    log::info!("Skipping macro preload for RMK-compatible device");
+                    Vec::new()
+                } else {
+                    progress("Reading macros…");
+                    match dev_conn.get_macro_count() {
+                        Ok(count) => {
+                            log::info!("Macro count: {count}");
+                            match dev_conn.get_macro_buffer_size() {
+                                Ok(size) => {
+                                    log::info!("Macro buffer size: {size}");
+                                    match dev_conn.get_macro_buffer(size) {
+                                        Ok(buf) => crate::hid::HidDevice::parse_macros(&buf, count),
+                                        Err(e) => {
+                                            log::warn!("get_macro_buffer: {e}");
+                                            vec![String::new(); count as usize]
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    log::warn!("get_macro_buffer_size: {e}");
+                                    vec![String::new(); count as usize]
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            log::warn!("get_macro_count: {e}");
+                            Vec::new()
+                        }
+                    }
+                };
 
                 progress("Reading dynamic feature counts…");
                 let (
@@ -247,7 +286,7 @@ impl EntropyApp {
                         (0, 0, 0, 0, 0)
                     }
                 };
-                if reported_alt_repeat_count > 0 {
+                if rmk_safe_mode && reported_alt_repeat_count > 0 {
                     log::warn!(
                         "Skipping Alt Repeat preload: firmware reported {reported_alt_repeat_count} entries, but this optional command can hang on RMK/Vial devices"
                     );
@@ -256,7 +295,7 @@ impl EntropyApp {
                     caps_word: dynamic_feature_bits & (1 << 0) != 0,
                     layer_lock: dynamic_feature_bits & (1 << 1) != 0,
                     persistent_default_layer: key_override_count > 0,
-                    repeat_key: false,
+                    repeat_key: !rmk_safe_mode && reported_alt_repeat_count > 0,
                 };
 
                 progress("Reading combos…");
@@ -583,7 +622,19 @@ impl EntropyApp {
                     leds
                 };
 
-                let rgb_settings = RgbSettingsState::default();
+                let rgb_settings = if rmk_safe_mode {
+                    log::info!("Skipping RGB preload for RMK-compatible device");
+                    RgbSettingsState::default()
+                } else if layer_led_settings.supported && layout.lighting_mode.is_none() {
+                    // hpd3-style Ergohaven boards use QMK RGBLight internally only as a
+                    // transport for per-layer LEDs. If the Vial definition does not
+                    // explicitly advertise a standard lighting backend, expose Layer LEDs
+                    // instead of the generic RGB page.
+                    RgbSettingsState::default()
+                } else {
+                    progress("Reading RGB settings…");
+                    load_rgb_settings(&dev_conn, &layout)
+                };
 
                 progress("Reading tap dance entries…");
                 let tap_dance_entries = {
@@ -645,7 +696,30 @@ impl EntropyApp {
                     entries
                 };
 
-                let alt_repeat_entries = Vec::new();
+                let alt_repeat_entries = if rmk_safe_mode {
+                    Vec::new()
+                } else {
+                    let count = reported_alt_repeat_count;
+                    log::info!("Alt Repeat count: {count}");
+                    let mut entries = Vec::new();
+                    for i in 0..count {
+                        match dev_conn.get_alt_repeat_key(i) {
+                            Ok((keycode, alt_keycode, allowed_mods, options)) => {
+                                entries.push(AltRepeatKeyEntry {
+                                    keycode,
+                                    alt_keycode,
+                                    allowed_mods,
+                                    options: AltRepeatKeyOptionsState::from_bits(options),
+                                });
+                            }
+                            Err(e) => {
+                                log::warn!("get_alt_repeat_key({i}): {e}");
+                                entries.push(Default::default());
+                            }
+                        }
+                    }
+                    entries
+                };
 
                 progress("Applying keyboard layout…");
                 Ok(ConnectResult {

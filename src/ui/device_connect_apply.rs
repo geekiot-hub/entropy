@@ -204,7 +204,7 @@ impl EntropyApp {
                 // Populate picker
                 self.keycode_picker.supports_rgb =
                     r.layout.supports_rgb || self.rgb_settings.supported;
-                self.keycode_picker.supports_macro = !r.macro_texts.is_empty();
+                self.keycode_picker.supports_macro = true;
                 self.keycode_picker.supports_tap_dance = !r.tap_dance_entries.is_empty();
                 self.keycode_picker.supports_mouse_keys = self.mouse_keys_settings.supported;
                 self.keycode_picker.supports_combo = !self.combo_entries.is_empty();
@@ -243,11 +243,29 @@ impl EntropyApp {
                 self.layout = Some(r.layout);
                 self.refresh_layer_picker_content_flags();
 
-                // Do not open a second persistent HID handle during result application.
-                // Some RMK/Vial devices hang here after the one-shot load succeeds, leaving
-                // the UI stuck on the last progress stage. Re-enable persistent writes via a
-                // lazy/non-blocking path after RMK compatibility is stable.
-                self.hid_device = None;
+                let persistent_hid_allowed = self
+                    .selected_device
+                    .and_then(|idx| self.device_manager.devices().get(idx))
+                    .map(|dev| !dev.is_likely_rmk())
+                    .unwrap_or(false);
+                if persistent_hid_allowed {
+                    if let Some(dev) = self
+                        .selected_device
+                        .and_then(|idx| self.device_manager.devices().get(idx))
+                    {
+                        match crate::hid::HidDevice::open_fresh_for(dev) {
+                            Ok(hid) => self.hid_device = Some(hid),
+                            Err(e) => {
+                                log::warn!("persistent HID reopen failed: {e}");
+                                self.hid_device = None;
+                            }
+                        }
+                    }
+                } else {
+                    // RMK devices can hang when Entropy opens/keeps an additional HID handle
+                    // after the one-shot read. Keep them on the safe, non-persistent path.
+                    self.hid_device = None;
+                }
 
                 log::info!(
                     "Connected: {} ({} layers, {:?})",
