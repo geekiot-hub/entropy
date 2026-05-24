@@ -519,6 +519,7 @@ pub(crate) struct ModuleSettingField {
 pub(crate) enum ModuleSettingsGroupKind {
     Left,
     Right,
+    AutoLayer,
     Other,
 }
 

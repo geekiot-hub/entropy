@@ -2,7 +2,10 @@ use super::*;
 
 impl EntropyApp {
     fn module_setting_display_title<'a>(&self, title: &'a str) -> &'a str {
-        if self.module_settings.active_group_kind() == ModuleSettingsGroupKind::Other {
+        if !matches!(
+            self.module_settings.active_group_kind(),
+            ModuleSettingsGroupKind::Left | ModuleSettingsGroupKind::Right
+        ) {
             return title;
         }
         title
@@ -243,6 +246,9 @@ impl EntropyApp {
             }
             ModuleSettingsGroupKind::Right => {
                 crate::i18n::tr_catalog(lang, "modules_settings.right_half").to_owned()
+            }
+            ModuleSettingsGroupKind::AutoLayer => {
+                crate::i18n::tr_catalog(lang, "modules_settings.auto_layer").to_owned()
             }
             ModuleSettingsGroupKind::Other => crate::i18n::tr_text(lang, &group.title),
         }

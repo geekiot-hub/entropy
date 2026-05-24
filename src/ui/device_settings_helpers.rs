@@ -316,6 +316,8 @@ impl EntropyApp {
             ModuleSettingsGroupKind::Left
         } else if name.contains("right") {
             ModuleSettingsGroupKind::Right
+        } else if name.contains("auto") && name.contains("layer") {
+            ModuleSettingsGroupKind::AutoLayer
         } else {
             ModuleSettingsGroupKind::Other
         }
@@ -333,7 +335,11 @@ impl EntropyApp {
             .iter()
             .filter_map(|tab| {
                 let title = tab.get("name")?.as_str()?.trim().to_string();
-                if !title.to_ascii_lowercase().contains("module") {
+                let normalized_title = title.to_ascii_lowercase();
+                let is_modules_tab = normalized_title.contains("module");
+                let is_auto_layer_tab =
+                    normalized_title.contains("auto") && normalized_title.contains("layer");
+                if !is_modules_tab && !is_auto_layer_tab {
                     return None;
                 }
                 let fields = tab
@@ -358,7 +364,8 @@ impl EntropyApp {
         groups.sort_by_key(|group| match group.kind {
             ModuleSettingsGroupKind::Left => 0,
             ModuleSettingsGroupKind::Right => 1,
-            ModuleSettingsGroupKind::Other => 2,
+            ModuleSettingsGroupKind::AutoLayer => 2,
+            ModuleSettingsGroupKind::Other => 3,
         });
         groups
     }
