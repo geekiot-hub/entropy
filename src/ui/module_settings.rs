@@ -261,17 +261,15 @@ impl EntropyApp {
             .collect::<Vec<_>>();
         let width = metrics.value((labels.len() as f32 * 112.0).clamp(224.0, 360.0));
         let size = metrics.size(width / metrics.scale, 34.0);
-        ui.horizontal_centered(|ui| {
-            if let Some(picked) = crate::ui_style::settings_segmented_control(
-                ui,
-                "module_settings_group_switcher",
-                &labels,
-                self.module_settings.active_group,
-                size,
-            ) {
-                self.module_settings.set_active_group(picked);
-            }
-        });
+        if let Some(picked) = crate::ui_style::settings_segmented_control(
+            ui,
+            "module_settings_group_switcher",
+            &labels,
+            self.module_settings.active_group,
+            size,
+        ) {
+            self.module_settings.set_active_group(picked);
+        }
     }
 
     pub(super) fn draw_module_settings_page(
