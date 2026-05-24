@@ -97,6 +97,15 @@ impl EntropyApp {
                     .get_layout_json()
                     .map_err(|e| format!("Layout read failed: {e}"))?;
 
+                let touchpad_settings_in_definition =
+                    Self::layout_json_has_touchpad_settings(&json);
+                progress("Querying QMK settings…");
+                let supported_qmk_settings = dev_conn.query_qmk_settings().unwrap_or_else(|e| {
+                    log::warn!("qmk settings query failed: {e}");
+                    Vec::new()
+                });
+                let has_qmk_setting = |qsid: u16| supported_qmk_settings.contains(&qsid);
+
                 progress("Parsing keyboard layout…");
                 let mut layout = KeyboardLayout::from_vial_json(&json)
                     .map_err(|e| format!("Layout parse failed: {e}"))?;
@@ -162,6 +171,28 @@ impl EntropyApp {
                     }
                 }
 
+                let mut firmware_layer_names = Vec::new();
+                if has_qmk_setting(200) {
+                    for layer in 0..layer_count.min(16) {
+                        let qsid = 200 + layer as u16;
+                        if !has_qmk_setting(qsid) {
+                            firmware_layer_names.clear();
+                            break;
+                        }
+                        match dev_conn.get_qmk_setting_string(qsid) {
+                            Ok(name) if !name.is_empty() => firmware_layer_names.push(name),
+                            Ok(_) => firmware_layer_names.push(layer.to_string()),
+                            Err(_) => {
+                                firmware_layer_names.clear();
+                                break;
+                            }
+                        }
+                    }
+                }
+                if !firmware_layer_names.is_empty() {
+                    layout.layer_names = firmware_layer_names;
+                }
+
                 progress("Reading Vial-core extras…");
                 if !layout.encoders.is_empty() {
                     layout.encoder_layers = vec![vec![0u16; layout.encoders.len()]; layer_count];
@@ -204,17 +235,314 @@ impl EntropyApp {
 
                 let tap_dance_entries = Vec::new();
                 let combo_entries = Vec::new();
-                let combo_term = None;
-                let auto_shift_options = None;
-                let auto_shift_timeout = None;
-                let mouse_keys_settings = MouseKeysSettingsState::default();
-                let touchpad_settings = TouchpadSettingsState::default();
-                let module_settings = ModuleSettingsState::default();
-                let tap_hold_settings = TapHoldSettingsState::default();
-                let magic_settings = MagicSettingsState::default();
-                let one_shot_settings = OneShotSettingsState::default();
-                let grave_escape_settings = GraveEscapeSettingsState::default();
-                let layer_led_settings = LayerLedSettingsState::default();
+
+                progress("Reading QMK settings values…");
+                let combo_term = if has_qmk_setting(2) {
+                    match dev_conn.get_qmk_setting_u16(2) {
+                        Ok(value) => Some(value),
+                        Err(e) => {
+                            log::warn!("get_qmk_setting_u16(combo_term): {e}");
+                            None
+                        }
+                    }
+                } else {
+                    None
+                };
+                let auto_shift_options = if has_qmk_setting(3) {
+                    match dev_conn.get_qmk_setting_u8(3) {
+                        Ok(value) => Some(AutoShiftOptionsState::from_bits(value)),
+                        Err(e) => {
+                            log::warn!("get_qmk_setting_u8(auto_shift_flags): {e}");
+                            None
+                        }
+                    }
+                } else {
+                    None
+                };
+                let auto_shift_timeout = if has_qmk_setting(4) {
+                    match dev_conn.get_qmk_setting_u16(4) {
+                        Ok(value) => Some(value),
+                        Err(e) => {
+                            log::warn!("get_qmk_setting_u16(auto_shift_timeout): {e}");
+                            None
+                        }
+                    }
+                } else {
+                    None
+                };
+
+                let mouse_keys_settings = {
+                    let mut mk = MouseKeysSettingsState::default();
+                    match has_qmk_setting(9).then(|| dev_conn.get_qmk_setting_u8(9)) {
+                        Some(Ok(v)) => {
+                            mk.delay = v as u16;
+                            mk.supported = true;
+                            let read = |qsid: u16| -> u16 {
+                                if !has_qmk_setting(qsid) {
+                                    return 0;
+                                }
+                                match dev_conn.get_qmk_setting_u8(qsid) {
+                                    Ok(val) => val as u16,
+                                    Err(e) => {
+                                        log::warn!(
+                                            "get_qmk_setting_u8(mouse_keys qsid {qsid}): {e}"
+                                        );
+                                        0
+                                    }
+                                }
+                            };
+                            mk.interval = read(10);
+                            mk.move_delta = read(11);
+                            mk.max_speed = read(12);
+                            mk.time_to_max = read(13);
+                            mk.wheel_delay = read(14);
+                            mk.wheel_interval = read(15);
+                            mk.wheel_max_speed = read(16);
+                            mk.wheel_time_to_max = read(17);
+                        }
+                        Some(Err(e)) => {
+                            log::warn!("get_qmk_setting_u8(mouse_keys delay): {e}");
+                        }
+                        None => {}
+                    }
+                    mk
+                };
+
+                let touchpad_settings = {
+                    let mut tp = TouchpadSettingsState::default();
+                    if touchpad_settings_in_definition
+                        && [120u16, 121, 122, 123, 124]
+                            .iter()
+                            .all(|qsid| supported_qmk_settings.contains(qsid))
+                    {
+                        tp.dpi_variants = Self::touchpad_setting_variants(&json, 120);
+                        let dpi_read = if tp.dpi_variants.is_empty() {
+                            dev_conn.get_qmk_setting_u16(120)
+                        } else {
+                            dev_conn.get_qmk_setting_u8(120).map(|value| value as u16)
+                        };
+                        match dpi_read {
+                            Ok(v) => {
+                                tp.dpi = v;
+                                tp.supported = true;
+                                tp.sniper_sens =
+                                    dev_conn.get_qmk_setting_u8(121).unwrap_or_else(|e| {
+                                        log::warn!("get_qmk_setting_u8(touchpad sniper sens): {e}");
+                                        0
+                                    });
+                                tp.scroll_sens =
+                                    dev_conn.get_qmk_setting_u8(122).unwrap_or_else(|e| {
+                                        log::warn!("get_qmk_setting_u8(touchpad scroll sens): {e}");
+                                        0
+                                    });
+                                tp.text_sens =
+                                    dev_conn.get_qmk_setting_u8(123).unwrap_or_else(|e| {
+                                        log::warn!("get_qmk_setting_u8(touchpad text sens): {e}");
+                                        0
+                                    });
+                                tp.bits = dev_conn.get_qmk_setting_u8(124).unwrap_or_else(|e| {
+                                    log::warn!("get_qmk_setting_u8(touchpad bits): {e}");
+                                    0
+                                });
+                                if supported_qmk_settings.contains(&142)
+                                    && Self::touchpad_setting_exists(&json, 142)
+                                {
+                                    tp.auto_layer_enable_supported = true;
+                                    tp.auto_layer_enable = dev_conn
+                                        .get_qmk_setting_u8(142)
+                                        .map(|value| value != 0)
+                                        .unwrap_or_else(|e| {
+                                            log::warn!(
+                                                "get_qmk_setting_u8(touchpad auto layer enable): {e}"
+                                            );
+                                            false
+                                        });
+                                }
+                                if supported_qmk_settings.contains(&143)
+                                    && Self::touchpad_setting_exists(&json, 143)
+                                {
+                                    tp.auto_layer_variants =
+                                        Self::touchpad_setting_variants(&json, 143);
+                                    tp.auto_layer =
+                                        dev_conn.get_qmk_setting_u8(143).unwrap_or_else(|e| {
+                                            log::warn!(
+                                                "get_qmk_setting_u8(touchpad auto layer): {e}"
+                                            );
+                                            0
+                                        });
+                                }
+                            }
+                            Err(e) => {
+                                log::warn!("get_qmk_setting(touchpad dpi): {e}");
+                            }
+                        }
+                    }
+                    tp
+                };
+
+                progress("Reading module settings…");
+                let module_settings =
+                    Self::read_module_settings(&json, &supported_qmk_settings, &dev_conn);
+
+                let tap_hold_settings = {
+                    let mut th = TapHoldSettingsState::default();
+                    match has_qmk_setting(7).then(|| dev_conn.get_qmk_setting_u16(7)) {
+                        Some(Ok(v)) => {
+                            th.tapping_term = v;
+                            th.supported = true;
+                            let read_bool = |qsid: u16| -> bool {
+                                if !has_qmk_setting(qsid) {
+                                    return false;
+                                }
+                                match dev_conn.get_qmk_setting_u8(qsid) {
+                                    Ok(val) => val != 0,
+                                    Err(e) => {
+                                        log::warn!("get_qmk_setting_u8(tap_hold qsid {qsid}): {e}");
+                                        false
+                                    }
+                                }
+                            };
+                            let read_u16 = |qsid: u16| -> u16 {
+                                if !has_qmk_setting(qsid) {
+                                    return 0;
+                                }
+                                match dev_conn.get_qmk_setting_u16(qsid) {
+                                    Ok(val) => val,
+                                    Err(e) => {
+                                        log::warn!(
+                                            "get_qmk_setting_u16(tap_hold qsid {qsid}): {e}"
+                                        );
+                                        0
+                                    }
+                                }
+                            };
+                            th.permissive_hold = read_bool(22);
+                            th.hold_on_other_key_press = read_bool(23);
+                            th.retro_tapping = read_bool(24);
+                            th.quick_tap_term = read_u16(25);
+                            th.tap_code_delay = read_u16(18);
+                            th.tap_hold_caps_delay = read_u16(19);
+                            th.tapping_toggle = if has_qmk_setting(20) {
+                                dev_conn
+                                    .get_qmk_setting_u8(20)
+                                    .map(|value| value as u16)
+                                    .unwrap_or_else(|e| {
+                                        log::warn!("get_qmk_setting_u8(tap_hold qsid 20): {e}");
+                                        0
+                                    })
+                            } else {
+                                0
+                            };
+                            th.chordal_hold = read_bool(26);
+                            th.flow_tap = read_u16(27);
+                        }
+                        Some(Err(e)) => {
+                            log::warn!("get_qmk_setting_u16(tap_hold tapping_term): {e}");
+                        }
+                        None => {}
+                    }
+                    th
+                };
+
+                let magic_settings = {
+                    match has_qmk_setting(21).then(|| dev_conn.get_qmk_setting_u16(21)) {
+                        Some(Ok(bits)) => MagicSettingsState {
+                            bits,
+                            supported: true,
+                        },
+                        Some(Err(e)) => {
+                            log::warn!("get_qmk_setting_u16(magic qsid 21): {e}");
+                            MagicSettingsState::default()
+                        }
+                        None => MagicSettingsState::default(),
+                    }
+                };
+
+                let one_shot_settings = {
+                    let mut os = OneShotSettingsState::default();
+                    match has_qmk_setting(5).then(|| dev_conn.get_qmk_setting_u8(5)) {
+                        Some(Ok(v)) => {
+                            os.tap_toggle = v;
+                            os.supported = true;
+                            os.timeout = if has_qmk_setting(6) {
+                                dev_conn.get_qmk_setting_u16(6).unwrap_or_else(|e| {
+                                    log::warn!("get_qmk_setting_u16(one_shot timeout qsid 6): {e}");
+                                    0
+                                })
+                            } else {
+                                0
+                            };
+                        }
+                        Some(Err(e)) => {
+                            log::warn!("get_qmk_setting_u8(one_shot tap toggle qsid 5): {e}");
+                        }
+                        None => {}
+                    }
+                    os
+                };
+
+                let grave_escape_settings = {
+                    match has_qmk_setting(1).then(|| dev_conn.get_qmk_setting_u8(1)) {
+                        Some(Ok(bits)) => GraveEscapeSettingsState {
+                            bits,
+                            supported: true,
+                        },
+                        Some(Err(e)) => {
+                            log::warn!("get_qmk_setting_u8(grave_escape qsid 1): {e}");
+                            GraveEscapeSettingsState::default()
+                        }
+                        None => GraveEscapeSettingsState::default(),
+                    }
+                };
+
+                let layer_led_settings = {
+                    let mut leds = LayerLedSettingsState::default();
+                    match has_qmk_setting(300).then(|| dev_conn.get_qmk_setting_u8(300)) {
+                        Some(Ok(v)) => {
+                            leds.layer_colors[0] = v;
+                            leds.supported = true;
+                            for layer in 1..16 {
+                                let qsid = 300 + layer as u16;
+                                if has_qmk_setting(qsid) {
+                                    leds.layer_colors[layer] =
+                                        dev_conn.get_qmk_setting_u8(qsid).unwrap_or_else(|e| {
+                                            log::warn!(
+                                                "get_qmk_setting_u8(layer_led qsid {qsid}): {e}"
+                                            );
+                                            0
+                                        });
+                                }
+                            }
+                            leds.brightness = if has_qmk_setting(316) {
+                                dev_conn
+                                    .get_qmk_setting_u16(316)
+                                    .unwrap_or_else(|e| {
+                                        log::warn!(
+                                            "get_qmk_setting_u16(layer_led brightness): {e}"
+                                        );
+                                        0
+                                    })
+                                    .min(255)
+                            } else {
+                                0
+                            };
+                            leds.timeout_mins = if has_qmk_setting(317) {
+                                dev_conn.get_qmk_setting_u8(317).unwrap_or_else(|e| {
+                                    log::warn!("get_qmk_setting_u8(layer_led timeout): {e}");
+                                    0
+                                })
+                            } else {
+                                0
+                            };
+                        }
+                        Some(Err(e)) => {
+                            log::warn!("get_qmk_setting_u8(layer_led layer 0 color): {e}");
+                        }
+                        None => {}
+                    }
+                    leds
+                };
+
                 let rgb_settings = RgbSettingsState::default();
                 let key_override_entries = Vec::new();
                 let alt_repeat_entries = Vec::new();
