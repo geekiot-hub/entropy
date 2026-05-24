@@ -123,6 +123,36 @@ impl EntropyApp {
                 let mut layout = KeyboardLayout::from_vial_json(&json)
                     .map_err(|e| format!("Layout parse failed: {e}"))?;
 
+                // Entropy has curated coordinates for Ergohaven layouts where the raw
+                // Vial JSON is mechanically correct but visually less useful. Keep the
+                // firmware matrix/order authoritative, patch only drawing coordinates.
+                log::info!("Looking up embedded layout for '{}'", dev.name);
+                if let Some((embedded, reference_keys)) = crate::layouts::lookup_layout(&dev.name) {
+                    log::info!(
+                        "Found embedded layout '{}' with {} keys",
+                        embedded.name,
+                        reference_keys.len()
+                    );
+                    use std::collections::HashMap;
+                    let reference_by_matrix: HashMap<(u8, u8), &crate::keyboard::PhysicalKey> =
+                        reference_keys
+                            .iter()
+                            .map(|key| ((key.row, key.col), key))
+                            .collect();
+                    let mut patched = 0usize;
+                    for key in &mut layout.keys {
+                        if let Some(reference_key) = reference_by_matrix.get(&(key.row, key.col)) {
+                            key.x = reference_key.x;
+                            key.y = reference_key.y;
+                            key.rotation = reference_key.rotation;
+                            key.rotation_x = reference_key.rotation_x;
+                            key.rotation_y = reference_key.rotation_y;
+                            patched += 1;
+                        }
+                    }
+                    log::info!("Patched {} key coordinates from embedded layout", patched);
+                }
+
                 progress("Reading layer count…");
                 log::info!("Getting layer count…");
                 let layer_count = dev_conn
