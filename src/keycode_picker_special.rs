@@ -218,11 +218,7 @@ Repeat"
             .filter(|value| self.picker_value_supported(*value))
             .collect();
 
-        if !self.supports_mouse_keys {
-            return;
-        }
-
-        if !mouse_values.is_empty() {
+        if self.supports_mouse_keys && !mouse_values.is_empty() {
             ui.add_space(10.0);
             ui.label(
                 RichText::new(crate::i18n::tr_catalog(
@@ -345,6 +341,12 @@ Repeat"
                 ("macOS", "Copy", 0x0800 | 0x0006, "Command + C"),
                 ("macOS", "Paste", 0x0800 | 0x0019, "Command + V"),
                 ("macOS", "Find", 0x0800 | 0x0009, "Command + F"),
+                ("macOS", "Select\nAll", 0x0800 | 0x0004, "Command + A"),
+                ("macOS", "Save", 0x0800 | 0x0016, "Command + S"),
+                ("macOS", "New", 0x0800 | 0x0011, "Command + N"),
+                ("macOS", "Open", 0x0800 | 0x0012, "Command + O"),
+                ("macOS", "Close", 0x0800 | 0x001A, "Command + W"),
+                ("macOS", "New\nTab", 0x0800 | 0x0017, "Command + T"),
                 (
                     "macOS",
                     "Prev\nWord",
@@ -375,6 +377,12 @@ Repeat"
                 ("Windows", "Copy", 0x0100 | 0x0006, "Ctrl + C"),
                 ("Windows", "Paste", 0x0100 | 0x0019, "Ctrl + V"),
                 ("Windows", "Find", 0x0100 | 0x0009, "Ctrl + F"),
+                ("Windows", "Select\nAll", 0x0100 | 0x0004, "Ctrl + A"),
+                ("Windows", "Save", 0x0100 | 0x0016, "Ctrl + S"),
+                ("Windows", "New", 0x0100 | 0x0011, "Ctrl + N"),
+                ("Windows", "Open", 0x0100 | 0x0012, "Ctrl + O"),
+                ("Windows", "Close", 0x0100 | 0x001A, "Ctrl + W"),
+                ("Windows", "New\nTab", 0x0100 | 0x0017, "Ctrl + T"),
                 (
                     "Windows",
                     "Prev\nWord",
@@ -400,6 +408,12 @@ Repeat"
                 ("Linux", "Copy", 0x0100 | 0x0006, "Ctrl + C"),
                 ("Linux", "Paste", 0x0100 | 0x0019, "Ctrl + V"),
                 ("Linux", "Find", 0x0100 | 0x0009, "Ctrl + F"),
+                ("Linux", "Select\nAll", 0x0100 | 0x0004, "Ctrl + A"),
+                ("Linux", "Save", 0x0100 | 0x0016, "Ctrl + S"),
+                ("Linux", "New", 0x0100 | 0x0011, "Ctrl + N"),
+                ("Linux", "Open", 0x0100 | 0x0012, "Ctrl + O"),
+                ("Linux", "Close", 0x0100 | 0x001A, "Ctrl + W"),
+                ("Linux", "New\nTab", 0x0100 | 0x0017, "Ctrl + T"),
                 ("Linux", "Prev\nWord", 0x0100 | 0x0050, "Ctrl + Left Arrow"),
                 ("Linux", "Next\nWord", 0x0100 | 0x004F, "Ctrl + Right Arrow"),
                 ("Linux", "Prev\nApp", 0x0600 | 0x002B, "Shift + Alt + Tab"),
@@ -509,6 +523,10 @@ Repeat"
                 }
             }
         });
+
+        if !self.supports_mouse_keys {
+            return;
+        }
 
         let magic_keys: &[u16] = &[
             0x7000, 0x7001, 0x7002, 0x7004, 0x7003, 0x7020, 0x7021, 0x7022, 0x7017, 0x7018, 0x7019,
