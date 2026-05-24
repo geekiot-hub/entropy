@@ -9,7 +9,12 @@ impl KeycodePicker {
         _add_action_id: &'static str,
         _footer_text: &'static str,
     ) -> u8 {
-        let mut selected_macro = raw_n;
+        let slot_count = self.macro_count.min(u8::MAX as usize + 1);
+        let mut selected_macro = if slot_count > 0 && (raw_n as usize) < slot_count {
+            raw_n
+        } else {
+            0
+        };
         ui.label(
             RichText::new(crate::i18n::tr_catalog(
                 self.language,
@@ -19,6 +24,17 @@ impl KeycodePicker {
             .color(Color32::from_gray(150)),
         );
         ui.add_space(4.0);
+        if slot_count == 0 {
+            ui.label(
+                RichText::new(crate::i18n::tr_catalog(
+                    self.language,
+                    "macro_editor.no_macro_slots_available_on_this_keyboard",
+                ))
+                .size(16.0)
+                .color(Color32::from_gray(140)),
+            );
+            return 254;
+        }
         egui::Frame::NONE.show(ui, |ui| {
             let slot_scroll_height = 86.0 * responsive_picker_element_scale(ui.ctx());
             ui.set_max_height(slot_scroll_height);
@@ -30,7 +46,8 @@ impl KeycodePicker {
                         .num_columns(16)
                         .spacing([4.0, 4.0])
                         .show(ui, |ui| {
-                            for i in 0..128u8 {
+                            for i in 0..slot_count {
+                                let i = i as u8;
                                 let is_active = i == selected_macro;
                                 let has_content = self.macro_has_content(i as usize);
                                 let display_name = self.macro_display_name(i as usize);

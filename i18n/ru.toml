@@ -634,6 +634,7 @@ toggle_caps_lock_and_escape_swap = "Переключить обмен Caps Lock 
 
 [macro_editor]
 choose_macro = "Выбрать макрос"
+no_macro_slots_available_on_this_keyboard = "На этом устройстве нет слотов макросов"
 select_a_macro_above_to_edit = "Выберите макрос выше для редактирования"
 macro_name = "Имя макроса"
 move_up = "Выше"
