@@ -43,10 +43,10 @@ impl EntropyApp {
         self.rgb_settings = RgbSettingsState::default();
         self.layout_options_value = None;
         self.encoder_visibility.clear();
-        self.keycode_picker.macro_count = 16;
-        self.keycode_picker.macro_texts = vec![String::new(); 16];
-        self.keycode_picker.macro_names = vec![String::new(); 16];
-        self.keycode_picker.macro_actions = vec![Vec::new(); 16];
+        self.keycode_picker.macro_count = 0;
+        self.keycode_picker.macro_texts.clear();
+        self.keycode_picker.macro_names.clear();
+        self.keycode_picker.macro_actions.clear();
         self.keycode_picker.macros_dirty = false;
         self.key_override_entries.clear();
         self.key_override_names.clear();
@@ -128,10 +128,7 @@ impl EntropyApp {
                 let layer_count = dev_conn
                     .get_layer_count()
                     .map(|c| c as usize)
-                    .unwrap_or_else(|e| {
-                        log::warn!("get_layer_count failed: {e}, defaulting to 4");
-                        4
-                    });
+                    .map_err(|e| format!("Layer count read failed: {e}"))?;
                 log::info!("Layer count: {layer_count}");
 
                 let num_keys = layout.keys.len();

@@ -115,74 +115,70 @@ impl EntropyApp {
                 self.selected_combo = self
                     .selected_combo
                     .min(self.combo_visible_count.saturating_sub(1));
-                if !r.macro_texts.is_empty() {
-                    self.keycode_picker.macro_count = r.macro_texts.len();
-                    self.keycode_picker.macro_texts = r.macro_texts.clone();
-                    self.keycode_picker.macro_names = vec![String::new(); r.macro_texts.len()];
-                    // Parse macro texts into actions
-                    // Parse macro texts → actions (Vial protocol v2: prefix 0x01 before actions)
-                    self.keycode_picker.macro_actions = r
-                        .macro_texts
-                        .iter()
-                        .map(|text| {
-                            let bytes = text.as_bytes();
-                            let mut actions = Vec::new();
-                            let mut i = 0;
-                            while i < bytes.len() {
-                                if bytes[i] == 1 && i + 1 < bytes.len() {
-                                    // SS_QMK_PREFIX
-                                    match bytes[i + 1] {
-                                        1 if i + 2 < bytes.len() => {
-                                            // SS_TAP
-                                            actions.push(crate::keycode_picker::MacroAction::Tap(
-                                                bytes[i + 2],
-                                            ));
-                                            i += 3;
-                                        }
-                                        2 if i + 2 < bytes.len() => {
-                                            // SS_DOWN
-                                            actions.push(crate::keycode_picker::MacroAction::Down(
-                                                bytes[i + 2],
-                                            ));
-                                            i += 3;
-                                        }
-                                        3 if i + 2 < bytes.len() => {
-                                            // SS_UP
-                                            actions.push(crate::keycode_picker::MacroAction::Up(
-                                                bytes[i + 2],
-                                            ));
-                                            i += 3;
-                                        }
-                                        4 if i + 3 < bytes.len() => {
-                                            // SS_DELAY
-                                            let ms = (bytes[i + 2] as u16 - 1)
-                                                + (bytes[i + 3] as u16 - 1) * 255;
-                                            actions.push(
-                                                crate::keycode_picker::MacroAction::Delay(ms),
-                                            );
-                                            i += 4;
-                                        }
-                                        _ => {
-                                            i += 2;
-                                        } // skip unknown
-                                    }
-                                } else {
-                                    // Text character
-                                    let start = i;
-                                    while i < bytes.len() && bytes[i] != 1 {
-                                        i += 1;
-                                    }
-                                    if let Ok(s) = std::str::from_utf8(&bytes[start..i]) {
-                                        actions.push(crate::keycode_picker::MacroAction::Text(
-                                            s.to_string(),
+                self.keycode_picker.macro_count = r.macro_texts.len();
+                self.keycode_picker.macro_texts = r.macro_texts.clone();
+                self.keycode_picker.macro_names = vec![String::new(); r.macro_texts.len()];
+                // Parse macro texts into actions
+                // Parse macro texts → actions (Vial protocol v2: prefix 0x01 before actions)
+                self.keycode_picker.macro_actions = r
+                    .macro_texts
+                    .iter()
+                    .map(|text| {
+                        let bytes = text.as_bytes();
+                        let mut actions = Vec::new();
+                        let mut i = 0;
+                        while i < bytes.len() {
+                            if bytes[i] == 1 && i + 1 < bytes.len() {
+                                // SS_QMK_PREFIX
+                                match bytes[i + 1] {
+                                    1 if i + 2 < bytes.len() => {
+                                        // SS_TAP
+                                        actions.push(crate::keycode_picker::MacroAction::Tap(
+                                            bytes[i + 2],
                                         ));
+                                        i += 3;
                                     }
+                                    2 if i + 2 < bytes.len() => {
+                                        // SS_DOWN
+                                        actions.push(crate::keycode_picker::MacroAction::Down(
+                                            bytes[i + 2],
+                                        ));
+                                        i += 3;
+                                    }
+                                    3 if i + 2 < bytes.len() => {
+                                        // SS_UP
+                                        actions.push(crate::keycode_picker::MacroAction::Up(
+                                            bytes[i + 2],
+                                        ));
+                                        i += 3;
+                                    }
+                                    4 if i + 3 < bytes.len() => {
+                                        // SS_DELAY
+                                        let ms = (bytes[i + 2] as u16 - 1)
+                                            + (bytes[i + 3] as u16 - 1) * 255;
+                                        actions.push(crate::keycode_picker::MacroAction::Delay(ms));
+                                        i += 4;
+                                    }
+                                    _ => {
+                                        i += 2;
+                                    } // skip unknown
+                                }
+                            } else {
+                                // Text character
+                                let start = i;
+                                while i < bytes.len() && bytes[i] != 1 {
+                                    i += 1;
+                                }
+                                if let Ok(s) = std::str::from_utf8(&bytes[start..i]) {
+                                    actions.push(crate::keycode_picker::MacroAction::Text(
+                                        s.to_string(),
+                                    ));
                                 }
                             }
-                            actions
-                        })
-                        .collect();
-                }
+                        }
+                        actions
+                    })
+                    .collect();
 
                 self.status_msg = format!("Connected: {}", r.device_name);
 
@@ -204,7 +200,7 @@ impl EntropyApp {
                 // Populate picker
                 self.keycode_picker.supports_rgb =
                     r.layout.supports_rgb || self.rgb_settings.supported;
-                self.keycode_picker.supports_macro = true;
+                self.keycode_picker.supports_macro = self.keycode_picker.macro_count > 0;
                 self.keycode_picker.supports_tap_dance = !r.tap_dance_entries.is_empty();
                 self.keycode_picker.supports_mouse_keys = self.mouse_keys_settings.supported;
                 self.keycode_picker.supports_combo = !self.combo_entries.is_empty();

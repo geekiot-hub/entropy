@@ -16,20 +16,9 @@ impl HidDevice {
             CMD_VIAL_DYNAMIC_ENTRY_OP,
             DYNAMIC_VIAL_GET_NUM_ENTRIES,
         ])?;
-        let counts = (resp[0], resp[1], resp[2], resp[3], resp[31]);
-        if [counts.0, counts.1, counts.2, counts.3]
-            .iter()
-            .any(|count| *count > 64)
-        {
-            anyhow::bail!(
-                "invalid Vial dynamic entry counts: tap_dance={}, combo={}, key_override={}, alt_repeat={}",
-                counts.0,
-                counts.1,
-                counts.2,
-                counts.3
-            );
-        }
-        Ok(counts)
+        // Vial GUI trusts the firmware-provided one-byte dynamic entry counts.
+        // Do not impose Entropy-only caps here: the firmware/Vial protocol is authoritative.
+        Ok((resp[0], resp[1], resp[2], resp[3], resp[31]))
     }
 
     /// Get number of combo entries available
