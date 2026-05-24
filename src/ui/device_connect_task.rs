@@ -236,7 +236,7 @@ impl EntropyApp {
                     tap_dance_count,
                     combo_count,
                     key_override_count,
-                    alt_repeat_count,
+                    reported_alt_repeat_count,
                     dynamic_feature_bits,
                 ) = match dev_conn.get_dynamic_entry_counts() {
                     Ok(counts) => counts,
@@ -245,11 +245,17 @@ impl EntropyApp {
                         (0, 0, 0, 0, 0)
                     }
                 };
+                if reported_alt_repeat_count > 0 {
+                    log::warn!(
+                        "Skipping Alt Repeat preload: firmware reported {reported_alt_repeat_count} entries, but this optional command can hang on RMK/Vial devices"
+                    );
+                }
+                let alt_repeat_count = 0;
                 let vial_features = VialFeatureSupport {
                     caps_word: dynamic_feature_bits & (1 << 0) != 0,
                     layer_lock: dynamic_feature_bits & (1 << 1) != 0,
                     persistent_default_layer: key_override_count > 0,
-                    repeat_key: alt_repeat_count > 0,
+                    repeat_key: false,
                 };
 
                 progress("Reading combos…");
@@ -671,7 +677,7 @@ impl EntropyApp {
                     entries
                 };
 
-                progress("Reading alt repeat entries…");
+                progress("Skipping alt repeat preload…");
                 let alt_repeat_entries = {
                     let count = alt_repeat_count;
                     log::info!("Alt Repeat count: {count}");
@@ -695,6 +701,7 @@ impl EntropyApp {
                     entries
                 };
 
+                progress("Applying keyboard layout…");
                 Ok(ConnectResult {
                     device_name: dev.name.clone(),
                     macro_texts,

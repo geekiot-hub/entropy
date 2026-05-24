@@ -11,6 +11,8 @@ impl EntropyApp {
                 match rx.try_recv() {
                     Ok(ConnectTaskMessage::Progress(message)) => {
                         self.status_msg = message;
+                        ctx.request_repaint();
+                        return;
                     }
                     Ok(ConnectTaskMessage::Done(result)) => break result,
                     Err(mpsc::TryRecvError::Empty) => {
