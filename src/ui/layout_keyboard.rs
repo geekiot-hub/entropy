@@ -404,20 +404,39 @@ impl EntropyApp {
         let encoder_macro_names = self.keycode_picker.macro_names.clone();
         let encoder_tap_dance_names = self.keycode_picker.tap_dance_names.clone();
         let encoder_key_legend_layout = self.app_settings.key_legend_layout;
-        let encoder_label = |kc: u16| -> String {
+        let encoder_value_label = |kc: u16| -> String {
+            keycode_label_with_macro_names(
+                kc,
+                &encoder_custom_keycodes,
+                &encoder_layer_names,
+                &encoder_macro_names,
+                &encoder_tap_dance_names,
+                encoder_key_legend_layout,
+            )
+            .replace('\n', " ")
+        };
+        let encoder_label = |layer_idx: usize, visual_idx: usize, kc: u16| -> (String, bool) {
             match kc {
-                0x0000 => String::new(),
-                0x0001 => "▽".to_string(),
-                _ => keycode_label_with_macro_names(
-                    kc,
-                    &encoder_custom_keycodes,
-                    &encoder_layer_names,
-                    &encoder_macro_names,
-                    &encoder_tap_dance_names,
-                    encoder_key_legend_layout,
-                )
-                .replace('\n', " "),
+                0x0000 => (String::new(), false),
+                0x0001 => {
+                    let fallback = (0..layer_idx)
+                        .rev()
+                        .map(|fallback_layer| {
+                            layout.get_encoder_keycode(fallback_layer, visual_idx)
+                        })
+                        .find(|fallback| !matches!(*fallback, 0x0000 | 0x0001));
+                    match fallback {
+                        Some(fallback_kc) => (encoder_value_label(fallback_kc), true),
+                        None => ("▽".to_string(), false),
+                    }
+                }
+                value => (encoder_value_label(value), false),
             }
+        };
+        let encoder_dim_text_color = if dark {
+            Color32::from_rgb(62, 56, 56)
+        } else {
+            Color32::from_rgb(200, 200, 208)
         };
 
         let draw_encoder_arrow = |painter: &egui::Painter,
@@ -678,8 +697,12 @@ impl EntropyApp {
             let has_press_button = encoder_press_rects
                 .iter()
                 .any(|(_, press_rect)| press_rect.center().distance(center) < 1.0);
-            let top_label = encoder_label(cw.map(|(_, kc)| kc).unwrap_or(0x0000));
-            let bottom_label = encoder_label(ccw.map(|(_, kc)| kc).unwrap_or(0x0000));
+            let (top_label, top_dimmed) = cw
+                .map(|(visual_idx, kc)| encoder_label(layer, visual_idx, kc))
+                .unwrap_or_else(|| (String::new(), false));
+            let (bottom_label, bottom_dimmed) = ccw
+                .map(|(visual_idx, kc)| encoder_label(layer, visual_idx, kc))
+                .unwrap_or_else(|| (String::new(), false));
             let top_font = if has_press_button {
                 egui::FontId::proportional(
                     if top_label.chars().count() > 9 {
@@ -716,14 +739,18 @@ impl EntropyApp {
             };
             let top_label_y = center.y - radius * if has_press_button { 0.52 } else { 0.30 };
             let bottom_label_y = center.y + radius * if has_press_button { 0.52 } else { 0.30 };
-            let top_text_color = if top_selected {
+            let top_text_color = if top_dimmed {
+                encoder_dim_text_color
+            } else if top_selected {
                 visuals.active.fg_stroke.color
             } else if top_resp.hovered() {
                 visuals.hovered.fg_stroke.color
             } else {
                 visuals.inactive.fg_stroke.color
             };
-            let bottom_text_color = if bottom_selected {
+            let bottom_text_color = if bottom_dimmed {
+                encoder_dim_text_color
+            } else if bottom_selected {
                 visuals.active.fg_stroke.color
             } else if bottom_resp.hovered() {
                 visuals.hovered.fg_stroke.color
@@ -776,52 +803,57 @@ impl EntropyApp {
                     ],
                     Stroke::new(1.0, outline.color),
                 );
-                let is_hovering = hover_alpha > 0.05;
-                let text_color = if middle_selected {
+                let press_text_rect = middle_rect.shrink2(egui::vec2(4.0, 2.0));
+
+                let (press_label, press_dimmed) = {
+                    let kc = layout.get_keycode(layer, press_ki);
+                    if kc == 0x0001 {
+                        let fallback_kc = (0..layer)
+                            .rev()
+                            .map(|l| layout.get_keycode(l, press_ki))
+                            .find(|&k| !matches!(k, 0x0000 | 0x0001))
+                            .unwrap_or(0x0000);
+                        if fallback_kc == 0x0000 {
+                            ("▽".to_string(), false)
+                        } else {
+                            (
+                                keycode_label_with_macro_names(
+                                    fallback_kc,
+                                    &layout.custom_keycodes,
+                                    &self.layer_names,
+                                    &self.keycode_picker.macro_names,
+                                    &self.keycode_picker.tap_dance_names,
+                                    self.app_settings.key_legend_layout,
+                                ),
+                                true,
+                            )
+                        }
+                    } else if kc == 0x0000 {
+                        (String::new(), false)
+                    } else {
+                        (
+                            keycode_label_with_macro_names(
+                                kc,
+                                &layout.custom_keycodes,
+                                &self.layer_names,
+                                &self.keycode_picker.macro_names,
+                                &self.keycode_picker.tap_dance_names,
+                                self.app_settings.key_legend_layout,
+                            ),
+                            false,
+                        )
+                    }
+                };
+                let press_label = press_label.replace('\n', " ");
+                let text_color = if press_dimmed {
+                    encoder_dim_text_color
+                } else if middle_selected {
                     visuals.active.fg_stroke.color
                 } else if middle_hovered {
                     visuals.hovered.fg_stroke.color
                 } else {
                     visuals.inactive.fg_stroke.color
                 };
-                let press_text_rect = middle_rect.shrink2(egui::vec2(4.0, 2.0));
-
-                let press_label = {
-                    let kc = layout.get_keycode(layer, press_ki);
-                    if kc == 0x0001 && !is_hovering {
-                        let fallback_kc = (0..layer)
-                            .rev()
-                            .map(|l| layout.get_keycode(l, press_ki))
-                            .find(|&k| k != 0x0001)
-                            .unwrap_or(0x0000);
-                        if fallback_kc == 0x0000 || fallback_kc == 0x0001 {
-                            "▽".to_string()
-                        } else {
-                            keycode_label_with_macro_names(
-                                fallback_kc,
-                                &layout.custom_keycodes,
-                                &self.layer_names,
-                                &self.keycode_picker.macro_names,
-                                &self.keycode_picker.tap_dance_names,
-                                self.app_settings.key_legend_layout,
-                            )
-                        }
-                    } else if kc == 0x0001 {
-                        "▽".to_string()
-                    } else if kc == 0x0000 {
-                        String::new()
-                    } else {
-                        keycode_label_with_macro_names(
-                            kc,
-                            &layout.custom_keycodes,
-                            &self.layer_names,
-                            &self.keycode_picker.macro_names,
-                            &self.keycode_picker.tap_dance_names,
-                            self.app_settings.key_legend_layout,
-                        )
-                    }
-                }
-                .replace('\n', " ");
                 let press_font = FontId::proportional(
                     if press_label.chars().count() > 8 {
                         7.2

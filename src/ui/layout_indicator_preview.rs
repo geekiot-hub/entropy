@@ -354,26 +354,48 @@ impl EntropyApp {
             );
         }
 
-        let label_for = |kc: Option<u16>| -> String {
-            let label = match kc.unwrap_or(0) {
-                0x0000 => String::new(),
-                0x0001 => "▽".to_string(),
-                value => keycode_label_with_macro_names(
-                    value,
-                    &layout.custom_keycodes,
-                    layer_names,
-                    macro_names,
-                    tap_dance_names,
-                    key_legend_layout,
-                )
-                .replace('\n', " "),
+        let encoder_value_label = |kc: u16| -> String {
+            keycode_label_with_macro_names(
+                kc,
+                &layout.custom_keycodes,
+                layer_names,
+                macro_names,
+                tap_dance_names,
+                key_legend_layout,
+            )
+            .replace('\n', " ")
+        };
+        let label_for = |encoder_target: Option<(usize, u16)>| -> (String, bool) {
+            let Some((visual_idx, kc)) = encoder_target else {
+                return (String::new(), false);
             };
-            sticky_compact_label(&label, 9)
+            let (label, dimmed) = match kc {
+                0x0000 => (String::new(), false),
+                0x0001 => {
+                    let fallback = (0..layer)
+                        .rev()
+                        .map(|fallback_layer| {
+                            layout.get_encoder_keycode(fallback_layer, visual_idx)
+                        })
+                        .find(|fallback| !matches!(*fallback, 0x0000 | 0x0001));
+                    match fallback {
+                        Some(fallback_kc) => (encoder_value_label(fallback_kc), true),
+                        None => ("▽".to_string(), false),
+                    }
+                }
+                value => (encoder_value_label(value), false),
+            };
+            (sticky_compact_label(&label, 9), dimmed)
         };
         let text_color = if dark {
             Color32::from_gray(232)
         } else {
             Color32::from_gray(32)
+        };
+        let dim_text_color = if dark {
+            Color32::from_rgb(62, 56, 56)
+        } else {
+            Color32::from_rgb(200, 200, 208)
         };
 
         for (_, group_rect, ccw, cw) in encoder_groups {
@@ -445,8 +467,8 @@ impl EntropyApp {
             painter.circle_stroke(center, radius, Stroke::new(1.0, outline));
 
             let has_press_button = press_slot.is_some();
-            let top_label = label_for(cw.map(|(_, kc)| kc));
-            let bottom_label = label_for(ccw.map(|(_, kc)| kc));
+            let (top_label, top_dimmed) = label_for(cw);
+            let (bottom_label, bottom_dimmed) = label_for(ccw);
             let top_font = if has_press_button {
                 egui::FontId::proportional(if top_label.chars().count() > 9 {
                     6.6
@@ -480,14 +502,22 @@ impl EntropyApp {
                 egui::Align2::CENTER_CENTER,
                 top_label,
                 top_font,
-                text_color,
+                if top_dimmed {
+                    dim_text_color
+                } else {
+                    text_color
+                },
             );
             painter.text(
                 egui::pos2(center.x, bottom_label_y),
                 egui::Align2::CENTER_CENTER,
                 bottom_label,
                 bottom_font,
-                text_color,
+                if bottom_dimmed {
+                    dim_text_color
+                } else {
+                    text_color
+                },
             );
 
             draw_sticky_encoder_arrow(&painter, center, radius, true, outline);
@@ -520,7 +550,7 @@ impl EntropyApp {
                     Stroke::new(1.0, outline),
                 );
 
-                let press_label = {
+                let (press_label, press_dimmed) = {
                     let key = &layout.keys[press_ki];
                     let matrix_idx = key.row as usize * layout.cols + key.col as usize;
                     let press_layer = pressed_key_layers
@@ -536,31 +566,37 @@ impl EntropyApp {
                             .find(|fallback| !matches!(*fallback, 0x0000 | 0x0001))
                             .unwrap_or(0x0000);
                         if fallback_kc == 0x0000 {
-                            "▽".to_string()
+                            ("▽".to_string(), false)
                         } else {
+                            (
+                                keycode_label_with_macro_names(
+                                    fallback_kc,
+                                    &layout.custom_keycodes,
+                                    layer_names,
+                                    macro_names,
+                                    tap_dance_names,
+                                    key_legend_layout,
+                                ),
+                                true,
+                            )
+                        }
+                    } else if kc == 0x0000 {
+                        (String::new(), false)
+                    } else {
+                        (
                             keycode_label_with_macro_names(
-                                fallback_kc,
+                                kc,
                                 &layout.custom_keycodes,
                                 layer_names,
                                 macro_names,
                                 tap_dance_names,
                                 key_legend_layout,
-                            )
-                        }
-                    } else if kc == 0x0000 {
-                        String::new()
-                    } else {
-                        keycode_label_with_macro_names(
-                            kc,
-                            &layout.custom_keycodes,
-                            layer_names,
-                            macro_names,
-                            tap_dance_names,
-                            key_legend_layout,
+                            ),
+                            false,
                         )
                     }
-                }
-                .replace('\n', " ");
+                };
+                let press_label = press_label.replace('\n', " ");
                 let press_label = sticky_compact_label(&press_label, 8);
                 let press_text_rect = middle_rect.shrink2(egui::vec2(4.0, 2.0));
                 let press_font = FontId::proportional(if press_label.chars().count() > 8 {
@@ -573,7 +609,11 @@ impl EntropyApp {
                     egui::Align2::CENTER_CENTER,
                     press_label,
                     press_font,
-                    text_color,
+                    if press_dimmed {
+                        dim_text_color
+                    } else {
+                        text_color
+                    },
                 );
             } else {
                 let divider_half_width = (radius - 0.5).max(0.0);
