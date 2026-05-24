@@ -94,10 +94,9 @@ fn try_acquire_single_instance() -> bool {
 fn main() -> eframe::Result<()> {
     env_logger::init();
 
-    if !try_acquire_single_instance() {
-        notify_existing_instance();
-        return Ok(());
-    }
+    // Temporarily allow multiple instances: a frozen HID session can otherwise keep
+    // the global mutex and make a fixed build look like it "does not start".
+    let _single_instance_available = try_acquire_single_instance();
 
     smart_input::start();
 
