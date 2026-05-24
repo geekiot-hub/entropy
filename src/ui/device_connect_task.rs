@@ -102,7 +102,6 @@ impl EntropyApp {
         self.keycode_picker.macro_names.clear();
         self.keycode_picker.macro_actions.clear();
         self.keycode_picker.macros_dirty = false;
-        self.keycode_picker.supports_bluetooth_custom_keycodes = false;
         self.key_override_entries.clear();
         self.key_override_names.clear();
         self.key_override_visible_count = 1;
@@ -769,7 +768,6 @@ impl EntropyApp {
                 progress("Applying keyboard layout…");
                 Ok(ConnectResult {
                     device_name: dev.name.clone(),
-                    is_likely_rmk: dev.is_likely_rmk(),
                     hid_device: Some(dev_conn),
                     macro_texts,
                     tap_dance_entries,

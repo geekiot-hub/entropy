@@ -13,14 +13,6 @@ pub struct Device {
     pub firmware: FirmwareProtocol,
 }
 
-impl Device {
-    pub fn is_likely_rmk(&self) -> bool {
-        self.manufacturer.to_ascii_lowercase().contains("rmk")
-            || self.name.to_ascii_lowercase().contains("rmk")
-            || self.serial_number.to_ascii_lowercase().contains("rmk")
-    }
-}
-
 /// Scans for connected Vial HID keyboard devices.
 pub struct DeviceManager {
     devices: Vec<Device>,
