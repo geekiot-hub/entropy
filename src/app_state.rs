@@ -673,10 +673,10 @@ impl GraveEscapeSettingsState {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct LayerLedSettingsState {
-    /// qsid 300..=315: palette color index for each logical layer
-    pub(crate) layer_colors: [u8; 16],
+    /// qsid 300+: palette color index for each firmware-supported logical layer
+    pub(crate) layer_colors: Vec<u8>,
     /// qsid 316: global LED brightness, clamped by firmware to 0..=255
     pub(crate) brightness: u16,
     /// qsid 317: timeout in minutes, 0 disables timeout
@@ -688,7 +688,7 @@ pub(crate) struct LayerLedSettingsState {
 impl Default for LayerLedSettingsState {
     fn default() -> Self {
         Self {
-            layer_colors: [0; 16],
+            layer_colors: Vec::new(),
             brightness: 0,
             timeout_mins: 0,
             supported: false,

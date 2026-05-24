@@ -646,7 +646,7 @@ impl KeycodePicker {
                 );
                 ui.add_space(crate::ui_style::modal_space_sm());
                 ui.horizontal_wrapped(|ui| {
-                    for n in 0u16..self.layer_names.len().max(4) as u16 {
+                    for n in 0u16..self.layer_count.max(1) as u16 {
                         let raw = self
                             .layer_names
                             .get(n as usize)

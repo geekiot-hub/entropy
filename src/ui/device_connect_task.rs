@@ -154,26 +154,27 @@ impl EntropyApp {
                     }
                 }
 
-                let mut firmware_layer_names = Vec::new();
+                if layout.layer_names.len() < layer_count {
+                    let start = layout.layer_names.len();
+                    layout
+                        .layer_names
+                        .extend((start..layer_count).map(|layer| layer.to_string()));
+                }
+                layout.layer_names.truncate(layer_count);
                 if has_qmk_setting(200) {
-                    for layer in 0..layer_count.min(16) {
+                    for layer in 0..layer_count {
                         let qsid = 200 + layer as u16;
                         if !has_qmk_setting(qsid) {
-                            firmware_layer_names.clear();
-                            break;
+                            continue;
                         }
                         match dev_conn.get_qmk_setting_string(qsid) {
-                            Ok(name) if !name.is_empty() => firmware_layer_names.push(name),
-                            Ok(_) => firmware_layer_names.push(layer.to_string()),
-                            Err(_) => {
-                                firmware_layer_names.clear();
-                                break;
+                            Ok(name) if !name.is_empty() => layout.layer_names[layer] = name,
+                            Ok(_) => {}
+                            Err(e) => {
+                                log::warn!("get_qmk_setting_string(layer name qsid {qsid}): {e}")
                             }
                         }
                     }
-                }
-                if !firmware_layer_names.is_empty() {
-                    layout.layer_names = firmware_layer_names;
                 }
 
                 progress("Reading Vial-core extras…");
@@ -544,22 +545,28 @@ impl EntropyApp {
 
                 let layer_led_settings = {
                     let mut leds = LayerLedSettingsState::default();
-                    match has_qmk_setting(300).then(|| dev_conn.get_qmk_setting_u8(300)) {
-                        Some(Ok(v)) => {
-                            leds.layer_colors[0] = v;
-                            leds.supported = true;
-                            for layer in 1..16 {
-                                let qsid = 300 + layer as u16;
-                                if has_qmk_setting(qsid) {
-                                    leds.layer_colors[layer] =
-                                        dev_conn.get_qmk_setting_u8(qsid).unwrap_or_else(|e| {
-                                            log::warn!(
-                                                "get_qmk_setting_u8(layer_led qsid {qsid}): {e}"
-                                            );
-                                            0
-                                        });
-                                }
+                    if has_qmk_setting(300) {
+                        // Layer LED color settings are the contiguous firmware-declared
+                        // QMK settings starting at qsid 300. Stop at the fixed global
+                        // brightness qsid 316 so we do not invent color slots.
+                        const LAYER_LED_COLOR_QSID_BASE: u16 = 300;
+                        const LAYER_LED_BRIGHTNESS_QSID: u16 = 316;
+                        let max_color_layers = layer_count
+                            .min((LAYER_LED_BRIGHTNESS_QSID - LAYER_LED_COLOR_QSID_BASE) as usize);
+                        for layer in 0..max_color_layers {
+                            let qsid = LAYER_LED_COLOR_QSID_BASE + layer as u16;
+                            if has_qmk_setting(qsid) {
+                                let value = dev_conn.get_qmk_setting_u8(qsid).unwrap_or_else(|e| {
+                                    log::warn!("get_qmk_setting_u8(layer_led qsid {qsid}): {e}");
+                                    0
+                                });
+                                leds.layer_colors.push(value);
+                            } else {
+                                break;
                             }
+                        }
+                        leds.supported = !leds.layer_colors.is_empty();
+                        if leds.supported {
                             leds.brightness = if has_qmk_setting(316) {
                                 dev_conn
                                     .get_qmk_setting_u16(316)
@@ -582,10 +589,6 @@ impl EntropyApp {
                                 0
                             };
                         }
-                        Some(Err(e)) => {
-                            log::warn!("get_qmk_setting_u8(layer_led layer 0 color): {e}");
-                        }
-                        None => {}
                     }
                     leds
                 };

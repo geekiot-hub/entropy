@@ -56,13 +56,13 @@ impl EntropyApp {
                     return;
                 }
 
-                const TOTAL_ROWS: usize = 18;
+                let total_rows = 2 + self.layer_led_settings.layer_colors.len();
                 let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ui.ctx());
                 let list = allocate_adaptive_settings_list_viewport(
                     ui,
                     "layer_led_settings",
                     metrics,
-                    TOTAL_ROWS,
+                    total_rows,
                     0.0,
                 );
                 ui.allocate_ui_at_rect(list.content_rect, |ui| {
@@ -261,9 +261,11 @@ impl EntropyApp {
                         },
                     );
                 }
-                2..=17 => {
+                _ if row_idx >= 2 => {
                     let layer = row_idx - 2;
-                    let current = self.layer_led_settings.layer_colors[layer];
+                    let Some(&current) = self.layer_led_settings.layer_colors.get(layer) else {
+                        continue;
+                    };
                     let layer_name = self
                         .layer_names
                         .get(layer)
@@ -439,8 +441,13 @@ impl EntropyApp {
                                                     ),
                                                 );
                                                 if cell_resp.clicked() {
-                                                    self.layer_led_settings.layer_colors[layer] =
-                                                        color_idx_u8;
+                                                    if let Some(current) = self
+                                                        .layer_led_settings
+                                                        .layer_colors
+                                                        .get_mut(layer)
+                                                    {
+                                                        *current = color_idx_u8;
+                                                    }
                                                     self.write_layer_led_color(layer, color_idx_u8);
                                                     ui.memory_mut(|m| m.close_popup());
                                                 }

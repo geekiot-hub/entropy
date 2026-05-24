@@ -342,13 +342,9 @@ pub(super) fn compact_dropdown_popup_height(
 pub(super) fn load_saved_layer_names(device_name: &str) -> Option<Vec<String>> {
     let path = layer_names_path(device_name);
     let data = std::fs::read_to_string(&path).ok()?;
-    let mut v = serde_json::from_str::<Vec<String>>(&data).ok()?;
+    let v = serde_json::from_str::<Vec<String>>(&data).ok()?;
     if v.is_empty() {
         return None;
-    }
-    while v.len() < 16 {
-        let n = v.len();
-        v.push(n.to_string());
     }
     Some(v)
 }
@@ -404,13 +400,7 @@ pub(super) fn save_encoder_visibility(visibility: &[bool], device_name: &str) {
 }
 
 pub(super) fn save_layer_names(names: &[String], device_name: &str) {
-    // Always save at least 16 slots so load_layer_names can detect a valid file
-    let mut full = names.to_vec();
-    while full.len() < 16 {
-        let n = full.len();
-        full.push(n.to_string());
-    }
-    if let Ok(data) = serde_json::to_string(&full) {
+    if let Ok(data) = serde_json::to_string(names) {
         let path = layer_names_path(device_name);
         if let Err(e) = std::fs::write(&path, &data) {
             log::warn!("save_layer_names failed at {:?}: {e}", path);

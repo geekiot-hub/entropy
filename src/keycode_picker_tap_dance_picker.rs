@@ -229,7 +229,7 @@ impl KeycodePicker {
     }
 
     fn tap_dance_layer_choices(&self) -> Vec<(u16, String)> {
-        let count = self.layer_count.max(1).min(self.layer_names.len().max(1));
+        let count = self.layer_count.max(1);
         (0..count)
             .map(|layer| {
                 let name = self

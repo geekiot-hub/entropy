@@ -257,7 +257,7 @@ impl EntropyApp {
         let layer_led_color_idx = if self.layer_led_settings.supported {
             self.layer_led_settings
                 .layer_colors
-                .get(layer.min(15))
+                .get(layer)
                 .copied()
                 .filter(|color_idx| !matches!(color_idx, 0 | 1))
         } else {

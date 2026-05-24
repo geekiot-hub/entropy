@@ -186,11 +186,21 @@ impl EntropyApp {
                 let device_name = r.device_name.clone();
                 // Prefer names from descriptor/firmware, then overlay local overrides only if a real saved file exists
                 let mut layer_names = r.layout.layer_names.clone();
-                if let Some(local_layer_names) = load_saved_layer_names(&device_name) {
-                    layer_names = local_layer_names;
+                if layer_names.len() < r.layer_count {
+                    let start = layer_names.len();
+                    layer_names.extend((start..r.layer_count).map(|layer| layer.to_string()));
                 }
-                if layer_names.is_empty() {
-                    layer_names = load_layer_names(&device_name);
+                layer_names.truncate(r.layer_count);
+                if let Some(local_layer_names) = load_saved_layer_names(&device_name) {
+                    for (idx, name) in local_layer_names
+                        .into_iter()
+                        .enumerate()
+                        .take(r.layer_count)
+                    {
+                        if !name.trim().is_empty() {
+                            layer_names[idx] = name;
+                        }
+                    }
                 }
                 self.layer_names = layer_names;
 
