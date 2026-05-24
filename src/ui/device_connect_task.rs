@@ -233,8 +233,48 @@ impl EntropyApp {
 
                 let macro_texts = Vec::new();
 
-                let tap_dance_entries = Vec::new();
-                let combo_entries = Vec::new();
+                progress("Reading dynamic feature counts…");
+                let (
+                    tap_dance_count,
+                    combo_count,
+                    key_override_count,
+                    reported_alt_repeat_count,
+                    dynamic_feature_bits,
+                ) = match dev_conn.get_dynamic_entry_counts() {
+                    Ok(counts) => counts,
+                    Err(e) => {
+                        log::warn!("get_dynamic_entry_counts: {e}");
+                        (0, 0, 0, 0, 0)
+                    }
+                };
+                if reported_alt_repeat_count > 0 {
+                    log::warn!(
+                        "Skipping Alt Repeat preload: firmware reported {reported_alt_repeat_count} entries, but this optional command can hang on RMK/Vial devices"
+                    );
+                }
+                let vial_features = VialFeatureSupport {
+                    caps_word: dynamic_feature_bits & (1 << 0) != 0,
+                    layer_lock: dynamic_feature_bits & (1 << 1) != 0,
+                    persistent_default_layer: key_override_count > 0,
+                    repeat_key: false,
+                };
+
+                progress("Reading combos…");
+                let combo_entries = {
+                    let count = combo_count;
+                    log::info!("Combo count: {count}");
+                    let mut entries = Vec::new();
+                    for i in 0..count {
+                        match dev_conn.get_combo(i) {
+                            Ok((keys, output)) => entries.push(ComboEntry { keys, output }),
+                            Err(e) => {
+                                log::warn!("get_combo({i}): {e}");
+                                entries.push(Default::default());
+                            }
+                        }
+                    }
+                    entries
+                };
 
                 progress("Reading QMK settings values…");
                 let combo_term = if has_qmk_setting(2) {
@@ -544,9 +584,68 @@ impl EntropyApp {
                 };
 
                 let rgb_settings = RgbSettingsState::default();
-                let key_override_entries = Vec::new();
+
+                progress("Reading tap dance entries…");
+                let tap_dance_entries = {
+                    let count = tap_dance_count;
+                    log::info!("Tap dance count: {count}");
+                    let mut entries = Vec::new();
+                    for i in 0..count {
+                        match dev_conn.get_tap_dance(i) {
+                            Ok((tap, hold, dtap, taphold, term)) => {
+                                entries.push(crate::keycode_picker::TapDanceEntry {
+                                    on_tap: tap,
+                                    on_hold: hold,
+                                    on_double_tap: dtap,
+                                    on_tap_hold: taphold,
+                                    tapping_term: term,
+                                });
+                            }
+                            Err(e) => {
+                                log::warn!("get_tap_dance({i}): {e}");
+                                entries.push(Default::default());
+                            }
+                        }
+                    }
+                    entries
+                };
+
+                progress("Reading key overrides…");
+                let key_override_entries = {
+                    let count = key_override_count;
+                    log::info!("Key Override count: {count}");
+                    let mut entries = Vec::new();
+                    for i in 0..count {
+                        match dev_conn.get_key_override(i) {
+                            Ok((
+                                trigger,
+                                replacement,
+                                layers,
+                                trigger_mods,
+                                negative_mod_mask,
+                                suppressed_mods,
+                                options,
+                            )) => {
+                                entries.push(KeyOverrideEntry {
+                                    trigger,
+                                    replacement,
+                                    layers,
+                                    trigger_mods,
+                                    negative_mod_mask,
+                                    suppressed_mods,
+                                    options: KeyOverrideOptionsState::from_bits(options),
+                                });
+                            }
+                            Err(e) => {
+                                log::warn!("get_key_override({i}): {e}");
+                                entries.push(Default::default());
+                            }
+                        }
+                    }
+                    entries
+                };
+
                 let alt_repeat_entries = Vec::new();
-                let vial_features = VialFeatureSupport::default();
 
                 progress("Applying keyboard layout…");
                 Ok(ConnectResult {
