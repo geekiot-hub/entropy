@@ -241,6 +241,16 @@ pub(crate) enum DeviceScanState {
     Scanning(mpsc::Receiver<Vec<Device>>),
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) struct MacroLoadResult {
+    pub(crate) macro_texts: Vec<String>,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) struct AltRepeatLoadResult {
+    pub(crate) entries: Vec<AltRepeatKeyEntry>,
+}
+
 pub(crate) fn toggle_handed_modifier(value: u16) -> Option<u16> {
     match value {
         0x00E0 => Some(0x00E4),
@@ -1209,6 +1219,13 @@ pub struct EntropyApp {
     pub(crate) selected_alt_repeat: usize,
     pub(crate) alt_repeat_visible_count: usize,
     pub(crate) alt_repeat_pick_target: Option<AltRepeatPickField>,
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) macro_load_rx: Option<mpsc::Receiver<Result<MacroLoadResult, String>>>,
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) alt_repeat_load_rx: Option<mpsc::Receiver<Result<AltRepeatLoadResult, String>>>,
+    pub(crate) alt_repeat_loaded: bool,
+    pub(crate) alt_repeat_loading: bool,
+    pub(crate) alt_repeat_load_error: Option<String>,
     pub(crate) last_single_instance_signal: String,
     pub(crate) rgb_settings: RgbSettingsState,
     pub(crate) layout_options_value: Option<u32>,

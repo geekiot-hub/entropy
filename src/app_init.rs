@@ -80,6 +80,13 @@ impl EntropyApp {
             selected_alt_repeat: 0,
             alt_repeat_visible_count: 1,
             alt_repeat_pick_target: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            macro_load_rx: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            alt_repeat_load_rx: None,
+            alt_repeat_loaded: false,
+            alt_repeat_loading: false,
+            alt_repeat_load_error: None,
             last_single_instance_signal: read_single_instance_signal(),
             rgb_settings: RgbSettingsState::default(),
             layout_options_value: None,

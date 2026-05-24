@@ -182,6 +182,8 @@ impl EntropyApp {
                             actions
                         })
                         .collect();
+                    self.keycode_picker.macros_loaded = true;
+                    self.keycode_picker.macro_load_error = None;
                 }
 
                 self.status_msg = format!("Connected: {}", r.device_name);
@@ -204,7 +206,7 @@ impl EntropyApp {
                 // Populate picker
                 self.keycode_picker.supports_rgb =
                     r.layout.supports_rgb || self.rgb_settings.supported;
-                self.keycode_picker.supports_macro = !r.macro_texts.is_empty();
+                self.keycode_picker.supports_macro = true;
                 self.keycode_picker.supports_tap_dance = !r.tap_dance_entries.is_empty();
                 self.keycode_picker.supports_mouse_keys = self.mouse_keys_settings.supported;
                 self.keycode_picker.supports_combo = !self.combo_entries.is_empty();

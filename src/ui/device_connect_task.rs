@@ -40,6 +40,15 @@ impl EntropyApp {
         self.selected_alt_repeat = 0;
         self.alt_repeat_visible_count = 1;
         self.alt_repeat_pick_target = None;
+        self.alt_repeat_loaded = false;
+        self.alt_repeat_loading = false;
+        self.alt_repeat_load_error = None;
+        self.macro_load_rx = None;
+        self.alt_repeat_load_rx = None;
+        self.keycode_picker.macros_loaded = false;
+        self.keycode_picker.macros_loading = false;
+        self.keycode_picker.macro_load_requested = false;
+        self.keycode_picker.macro_load_error = None;
         self.rgb_settings = RgbSettingsState::default();
         self.layout_options_value = None;
         self.encoder_visibility.clear();

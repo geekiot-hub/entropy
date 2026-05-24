@@ -548,6 +548,49 @@ impl KeycodePicker {
     }
 
     pub(super) fn show_vial_macros(&mut self, ui: &mut egui::Ui) {
+        if !self.macros_loaded {
+            ui.vertical_centered(|ui| {
+                ui.add_space(72.0 * responsive_picker_element_scale(ui.ctx()));
+                let message = if self.macros_loading {
+                    "Loading macros…"
+                } else if self.macro_load_error.is_some() {
+                    "Macro preload failed or is unsupported by this firmware"
+                } else {
+                    "Macros are loaded on demand to keep RMK devices safe"
+                };
+                ui.label(
+                    RichText::new(message)
+                        .size(13.0 * responsive_picker_element_scale(ui.ctx()))
+                        .color(Color32::from_gray(150)),
+                );
+                if let Some(error) = &self.macro_load_error {
+                    ui.add_space(6.0);
+                    ui.label(
+                        RichText::new(error)
+                            .size(11.0 * responsive_picker_element_scale(ui.ctx()))
+                            .color(Color32::from_gray(120)),
+                    );
+                }
+                ui.add_space(12.0);
+                if picker_button(
+                    ui,
+                    if self.macro_load_error.is_some() {
+                        "Retry macro load"
+                    } else {
+                        "Load macros"
+                    },
+                    picker_scaled_size(ui.ctx(), 128.0, 30.0),
+                    !self.macros_loading,
+                    false,
+                )
+                .clicked()
+                {
+                    self.macro_load_requested = true;
+                }
+            });
+            return;
+        }
+
         let previous = self.macro_inline_selected.unwrap_or(0);
         let selected = self.show_macro_editor_contents(
             ui,
