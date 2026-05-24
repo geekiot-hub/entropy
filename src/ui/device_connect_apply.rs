@@ -243,22 +243,11 @@ impl EntropyApp {
                 self.layout = Some(r.layout);
                 self.refresh_layer_picker_content_flags();
 
-                // Open persistent HID connection for Vial real-time writes
-                if self.firmware == FirmwareProtocol::Vial {
-                    if let Some(dev) = self
-                        .selected_device
-                        .and_then(|i| self.device_manager.devices().get(i))
-                    {
-                        match crate::hid::HidDevice::open(&dev.path) {
-                            Ok(v) => {
-                                self.hid_device = Some(v);
-                                self.restore_entropy_display_preset_after_connect();
-                            }
-                            Err(e) => log::warn!("Could not open persistent HID: {e}"),
-                        }
-                        self.sync_qmk_hid_host_bridges();
-                    }
-                }
+                // Do not open a second persistent HID handle during result application.
+                // Some RMK/Vial devices hang here after the one-shot load succeeds, leaving
+                // the UI stuck on the last progress stage. Re-enable persistent writes via a
+                // lazy/non-blocking path after RMK compatibility is stable.
+                self.hid_device = None;
 
                 log::info!(
                     "Connected: {} ({} layers, {:?})",
