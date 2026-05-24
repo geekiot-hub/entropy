@@ -356,7 +356,7 @@ impl EntropyApp {
 
         let label_for = |kc: Option<u16>| -> String {
             let label = match kc.unwrap_or(0) {
-                0x0000 => "✕".to_string(),
+                0x0000 => String::new(),
                 0x0001 => "▽".to_string(),
                 value => keycode_label_with_macro_names(
                     value,
@@ -548,7 +548,7 @@ impl EntropyApp {
                             )
                         }
                     } else if kc == 0x0000 {
-                        "✕".to_string()
+                        String::new()
                     } else {
                         keycode_label_with_macro_names(
                             kc,

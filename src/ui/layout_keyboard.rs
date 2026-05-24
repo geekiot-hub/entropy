@@ -406,7 +406,7 @@ impl EntropyApp {
         let encoder_key_legend_layout = self.app_settings.key_legend_layout;
         let encoder_label = |kc: u16| -> String {
             match kc {
-                0x0000 => "✕".to_string(),
+                0x0000 => String::new(),
                 0x0001 => "▽".to_string(),
                 _ => keycode_label_with_macro_names(
                     kc,
@@ -809,7 +809,7 @@ impl EntropyApp {
                     } else if kc == 0x0001 {
                         "▽".to_string()
                     } else if kc == 0x0000 {
-                        "✕".to_string()
+                        String::new()
                     } else {
                         keycode_label_with_macro_names(
                             kc,
