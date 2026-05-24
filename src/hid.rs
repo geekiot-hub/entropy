@@ -39,6 +39,43 @@ impl HidDevice {
         Ok(Self { device })
     }
 
+    pub fn open_fresh_for(device: &crate::device::Device) -> Result<Self> {
+        let api = hidapi::HidApi::new().context("Failed to init hidapi")?;
+        let selected_name = device.name.as_str();
+        let mut candidates = api.device_list().filter(|info| {
+            info.usage_page() == 0xFF60
+                && info.usage() == 0x61
+                && info.vendor_id() == device.vendor_id
+                && info.product_id() == device.product_id
+        });
+
+        if let Some(info) = candidates.find(|info| {
+            info.product_string()
+                .map(|name| name == selected_name)
+                .unwrap_or(false)
+        }) {
+            return info
+                .open_device(&api)
+                .map(|device| Self { device })
+                .context("Failed to open HID device");
+        }
+
+        for info in api.device_list() {
+            if info.usage_page() == 0xFF60
+                && info.usage() == 0x61
+                && info.vendor_id() == device.vendor_id
+                && info.product_id() == device.product_id
+            {
+                return info
+                    .open_device(&api)
+                    .map(|device| Self { device })
+                    .context("Failed to open HID device");
+            }
+        }
+
+        anyhow::bail!("HID device disappeared during reconnect")
+    }
+
     /// Send exactly MSG_LEN bytes (with 0x00 report ID prepended), receive MSG_LEN bytes back.
     fn usb_send(&self, data: &[u8]) -> Result<[u8; MSG_LEN]> {
         if data.len() > MSG_LEN {
@@ -92,5 +129,4 @@ impl HidDevice {
         }
         Ok(resp)
     }
-
 }

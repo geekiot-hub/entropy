@@ -65,9 +65,14 @@ impl EntropyApp {
                 use crate::hid::HidDevice;
 
                 progress("Opening HID device…");
-                log::info!("Opening HID device: {}", dev.path);
+                log::info!(
+                    "Opening HID device: {} {:04X}:{:04X}",
+                    dev.name,
+                    dev.vendor_id,
+                    dev.product_id
+                );
                 let dev_conn =
-                    HidDevice::open(&dev.path).map_err(|e| format!("Open failed: {e}"))?;
+                    HidDevice::open_fresh_for(&dev).map_err(|e| format!("Open failed: {e}"))?;
 
                 progress("Reading VIA protocol version…");
                 log::info!("Getting protocol version…");
