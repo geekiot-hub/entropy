@@ -1,8 +1,8 @@
-use super::hid_protocol::*;
 use super::hid_parse::{
     parse_alt_repeat_response, parse_combo_response, parse_key_override_response,
     parse_tap_dance_response,
 };
+use super::hid_protocol::*;
 use super::HidDevice;
 use anyhow::Result;
 
@@ -16,7 +16,20 @@ impl HidDevice {
             CMD_VIAL_DYNAMIC_ENTRY_OP,
             DYNAMIC_VIAL_GET_NUM_ENTRIES,
         ])?;
-        Ok((resp[0], resp[1], resp[2], resp[3], resp[31]))
+        let counts = (resp[0], resp[1], resp[2], resp[3], resp[31]);
+        if [counts.0, counts.1, counts.2, counts.3]
+            .iter()
+            .any(|count| *count > 64)
+        {
+            anyhow::bail!(
+                "invalid Vial dynamic entry counts: tap_dance={}, combo={}, key_override={}, alt_repeat={}",
+                counts.0,
+                counts.1,
+                counts.2,
+                counts.3
+            );
+        }
+        Ok(counts)
     }
 
     /// Get number of combo entries available
@@ -194,5 +207,4 @@ impl HidDevice {
         }
         Ok(())
     }
-
 }

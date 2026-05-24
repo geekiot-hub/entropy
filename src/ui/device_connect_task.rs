@@ -89,6 +89,7 @@ impl EntropyApp {
                     log::warn!("qmk settings query failed: {e}");
                     Vec::new()
                 });
+                let has_qmk_setting = |qsid: u16| supported_qmk_settings.contains(&qsid);
 
                 let mut layout = KeyboardLayout::from_vial_json(&json)
                     .map_err(|e| format!("Layout parse failed: {e}"))?;
@@ -168,13 +169,20 @@ impl EntropyApp {
                 }
 
                 let mut firmware_layer_names = Vec::new();
-                for layer in 0..layer_count.min(16) {
-                    match dev_conn.get_qmk_setting_string(200 + layer as u16) {
-                        Ok(name) if !name.is_empty() => firmware_layer_names.push(name),
-                        Ok(_) => firmware_layer_names.push(layer.to_string()),
-                        Err(_) => {
+                if has_qmk_setting(200) {
+                    for layer in 0..layer_count.min(16) {
+                        let qsid = 200 + layer as u16;
+                        if !has_qmk_setting(qsid) {
                             firmware_layer_names.clear();
                             break;
+                        }
+                        match dev_conn.get_qmk_setting_string(qsid) {
+                            Ok(name) if !name.is_empty() => firmware_layer_names.push(name),
+                            Ok(_) => firmware_layer_names.push(layer.to_string()),
+                            Err(_) => {
+                                firmware_layer_names.clear();
+                                break;
+                            }
                         }
                     }
                 }
@@ -245,37 +253,52 @@ impl EntropyApp {
                     entries
                 };
 
-                let combo_term = match dev_conn.get_qmk_setting_u16(2) {
-                    Ok(value) => Some(value),
-                    Err(e) => {
-                        log::warn!("get_qmk_setting_u16(combo_term): {e}");
-                        None
+                let combo_term = if has_qmk_setting(2) {
+                    match dev_conn.get_qmk_setting_u16(2) {
+                        Ok(value) => Some(value),
+                        Err(e) => {
+                            log::warn!("get_qmk_setting_u16(combo_term): {e}");
+                            None
+                        }
                     }
+                } else {
+                    None
                 };
-                let auto_shift_options = match dev_conn.get_qmk_setting_u8(3) {
-                    Ok(value) => Some(AutoShiftOptionsState::from_bits(value)),
-                    Err(e) => {
-                        log::warn!("get_qmk_setting_u8(auto_shift_flags): {e}");
-                        None
+                let auto_shift_options = if has_qmk_setting(3) {
+                    match dev_conn.get_qmk_setting_u8(3) {
+                        Ok(value) => Some(AutoShiftOptionsState::from_bits(value)),
+                        Err(e) => {
+                            log::warn!("get_qmk_setting_u8(auto_shift_flags): {e}");
+                            None
+                        }
                     }
+                } else {
+                    None
                 };
-                let auto_shift_timeout = match dev_conn.get_qmk_setting_u16(4) {
-                    Ok(value) => Some(value),
-                    Err(e) => {
-                        log::warn!("get_qmk_setting_u16(auto_shift_timeout): {e}");
-                        None
+                let auto_shift_timeout = if has_qmk_setting(4) {
+                    match dev_conn.get_qmk_setting_u16(4) {
+                        Ok(value) => Some(value),
+                        Err(e) => {
+                            log::warn!("get_qmk_setting_u16(auto_shift_timeout): {e}");
+                            None
+                        }
                     }
+                } else {
+                    None
                 };
 
                 // Mouse keys settings (qsid 9..=17, all u16). If qsid 9 is unsupported,
                 // we assume the whole group is unavailable.
                 let mouse_keys_settings = {
                     let mut mk = MouseKeysSettingsState::default();
-                    match dev_conn.get_qmk_setting_u8(9) {
-                        Ok(v) => {
+                    match has_qmk_setting(9).then(|| dev_conn.get_qmk_setting_u8(9)) {
+                        Some(Ok(v)) => {
                             mk.delay = v as u16;
                             mk.supported = true;
                             let read = |qsid: u16| -> u16 {
+                                if !has_qmk_setting(qsid) {
+                                    return 0;
+                                }
                                 match dev_conn.get_qmk_setting_u8(qsid) {
                                     Ok(val) => val as u16,
                                     Err(e) => {
@@ -295,9 +318,10 @@ impl EntropyApp {
                             mk.wheel_max_speed = read(16);
                             mk.wheel_time_to_max = read(17);
                         }
-                        Err(e) => {
+                        Some(Err(e)) => {
                             log::warn!("get_qmk_setting_u16(mouse_keys delay): {e}");
                         }
+                        None => {}
                     }
                     mk
                 };
@@ -383,11 +407,14 @@ impl EntropyApp {
                 // Tap-Hold settings. If qsid 7 is unsupported, we treat the page as unavailable.
                 let tap_hold_settings = {
                     let mut th = TapHoldSettingsState::default();
-                    match dev_conn.get_qmk_setting_u16(7) {
-                        Ok(v) => {
+                    match has_qmk_setting(7).then(|| dev_conn.get_qmk_setting_u16(7)) {
+                        Some(Ok(v)) => {
                             th.tapping_term = v;
                             th.supported = true;
                             let read_bool = |qsid: u16| -> bool {
+                                if !has_qmk_setting(qsid) {
+                                    return false;
+                                }
                                 match dev_conn.get_qmk_setting_u8(qsid) {
                                     Ok(val) => val != 0,
                                     Err(e) => {
@@ -397,6 +424,9 @@ impl EntropyApp {
                                 }
                             };
                             let read_u16 = |qsid: u16| -> u16 {
+                                if !has_qmk_setting(qsid) {
+                                    return 0;
+                                }
                                 match dev_conn.get_qmk_setting_u16(qsid) {
                                     Ok(val) => val,
                                     Err(e) => {
@@ -413,52 +443,63 @@ impl EntropyApp {
                             th.quick_tap_term = read_u16(25);
                             th.tap_code_delay = read_u16(18);
                             th.tap_hold_caps_delay = read_u16(19);
-                            th.tapping_toggle = dev_conn
-                                .get_qmk_setting_u8(20)
-                                .map(|value| value as u16)
-                                .unwrap_or_else(|e| {
-                                    log::warn!("get_qmk_setting_u8(tap_hold qsid 20): {e}");
-                                    0
-                                });
+                            th.tapping_toggle = if has_qmk_setting(20) {
+                                dev_conn
+                                    .get_qmk_setting_u8(20)
+                                    .map(|value| value as u16)
+                                    .unwrap_or_else(|e| {
+                                        log::warn!("get_qmk_setting_u8(tap_hold qsid 20): {e}");
+                                        0
+                                    })
+                            } else {
+                                0
+                            };
                             th.chordal_hold = read_bool(26);
                             th.flow_tap = read_u16(27);
                         }
-                        Err(e) => {
+                        Some(Err(e)) => {
                             log::warn!("get_qmk_setting_u16(tap_hold tapping_term): {e}");
                         }
+                        None => {}
                     }
                     th
                 };
 
                 // Magic settings (qsid 21 bits 0..=9). These are global QMK runtime swaps/options.
                 let magic_settings = {
-                    match dev_conn.get_qmk_setting_u16(21) {
-                        Ok(bits) => MagicSettingsState {
+                    match has_qmk_setting(21).then(|| dev_conn.get_qmk_setting_u16(21)) {
+                        Some(Ok(bits)) => MagicSettingsState {
                             bits,
                             supported: true,
                         },
-                        Err(e) => {
+                        Some(Err(e)) => {
                             log::warn!("get_qmk_setting_u16(magic qsid 21): {e}");
                             MagicSettingsState::default()
                         }
+                        None => MagicSettingsState::default(),
                     }
                 };
 
                 // One Shot Keys settings (qsid 5..=6). These affect OSM(...) and OSL(...).
                 let one_shot_settings = {
                     let mut os = OneShotSettingsState::default();
-                    match dev_conn.get_qmk_setting_u8(5) {
-                        Ok(v) => {
+                    match has_qmk_setting(5).then(|| dev_conn.get_qmk_setting_u8(5)) {
+                        Some(Ok(v)) => {
                             os.tap_toggle = v;
                             os.supported = true;
-                            os.timeout = dev_conn.get_qmk_setting_u16(6).unwrap_or_else(|e| {
-                                log::warn!("get_qmk_setting_u16(one_shot timeout qsid 6): {e}");
+                            os.timeout = if has_qmk_setting(6) {
+                                dev_conn.get_qmk_setting_u16(6).unwrap_or_else(|e| {
+                                    log::warn!("get_qmk_setting_u16(one_shot timeout qsid 6): {e}");
+                                    0
+                                })
+                            } else {
                                 0
-                            });
+                            };
                         }
-                        Err(e) => {
+                        Some(Err(e)) => {
                             log::warn!("get_qmk_setting_u8(one_shot tap toggle qsid 5): {e}");
                         }
+                        None => {}
                     }
                     os
                 };
@@ -466,15 +507,16 @@ impl EntropyApp {
                 // Grave Escape settings (qsid 1 bits 0..=3). These affect KC_GESC,
                 // not the physical Escape key.
                 let grave_escape_settings = {
-                    match dev_conn.get_qmk_setting_u8(1) {
-                        Ok(bits) => GraveEscapeSettingsState {
+                    match has_qmk_setting(1).then(|| dev_conn.get_qmk_setting_u8(1)) {
+                        Some(Ok(bits)) => GraveEscapeSettingsState {
                             bits,
                             supported: true,
                         },
-                        Err(e) => {
+                        Some(Err(e)) => {
                             log::warn!("get_qmk_setting_u8(grave_escape qsid 1): {e}");
                             GraveEscapeSettingsState::default()
                         }
+                        None => GraveEscapeSettingsState::default(),
                     }
                 };
 
@@ -482,36 +524,48 @@ impl EntropyApp {
                 // unsupported, we assume the whole group is unavailable.
                 let layer_led_settings = {
                     let mut leds = LayerLedSettingsState::default();
-                    match dev_conn.get_qmk_setting_u8(300) {
-                        Ok(v) => {
+                    match has_qmk_setting(300).then(|| dev_conn.get_qmk_setting_u8(300)) {
+                        Some(Ok(v)) => {
                             leds.layer_colors[0] = v;
                             leds.supported = true;
                             for layer in 1..16 {
                                 let qsid = 300 + layer as u16;
-                                leds.layer_colors[layer] =
-                                    dev_conn.get_qmk_setting_u8(qsid).unwrap_or_else(|e| {
+                                if has_qmk_setting(qsid) {
+                                    leds.layer_colors[layer] =
+                                        dev_conn.get_qmk_setting_u8(qsid).unwrap_or_else(|e| {
+                                            log::warn!(
+                                                "get_qmk_setting_u8(layer_led qsid {qsid}): {e}"
+                                            );
+                                            0
+                                        });
+                                }
+                            }
+                            leds.brightness = if has_qmk_setting(316) {
+                                dev_conn
+                                    .get_qmk_setting_u16(316)
+                                    .unwrap_or_else(|e| {
                                         log::warn!(
-                                            "get_qmk_setting_u8(layer_led qsid {qsid}): {e}"
+                                            "get_qmk_setting_u16(layer_led brightness): {e}"
                                         );
                                         0
-                                    });
-                            }
-                            leds.brightness = dev_conn
-                                .get_qmk_setting_u16(316)
-                                .unwrap_or_else(|e| {
-                                    log::warn!("get_qmk_setting_u16(layer_led brightness): {e}");
-                                    0
-                                })
-                                .min(255);
-                            leds.timeout_mins =
+                                    })
+                                    .min(255)
+                            } else {
+                                0
+                            };
+                            leds.timeout_mins = if has_qmk_setting(317) {
                                 dev_conn.get_qmk_setting_u8(317).unwrap_or_else(|e| {
                                     log::warn!("get_qmk_setting_u8(layer_led timeout): {e}");
                                     0
-                                });
+                                })
+                            } else {
+                                0
+                            };
                         }
-                        Err(e) => {
+                        Some(Err(e)) => {
                             log::warn!("get_qmk_setting_u8(layer_led layer 0 color): {e}");
                         }
+                        None => {}
                     }
                     leds
                 };
