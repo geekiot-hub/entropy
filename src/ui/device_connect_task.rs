@@ -200,31 +200,7 @@ impl EntropyApp {
                     }
                 };
 
-                let macro_texts = match dev_conn.get_macro_count() {
-                    Ok(count) => {
-                        log::info!("Macro count: {count}");
-                        match dev_conn.get_macro_buffer_size() {
-                            Ok(size) => {
-                                log::info!("Macro buffer size: {size}");
-                                match dev_conn.get_macro_buffer(size) {
-                                    Ok(buf) => crate::hid::HidDevice::parse_macros(&buf, count),
-                                    Err(e) => {
-                                        log::warn!("get_macro_buffer: {e}");
-                                        vec![String::new(); count as usize]
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                log::warn!("get_macro_buffer_size: {e}");
-                                vec![String::new(); count as usize]
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        log::warn!("get_macro_count: {e}");
-                        vec![]
-                    }
-                };
+                let macro_texts = Vec::new();
 
                 let tap_dance_entries = Vec::new();
                 let combo_entries = Vec::new();
