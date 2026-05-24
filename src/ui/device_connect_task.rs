@@ -52,22 +52,31 @@ impl EntropyApp {
         self.reset_matrix_tester_state();
 
         let (tx, rx) = mpsc::channel();
-        self.connect_state = ConnectState::Loading(rx);
+        self.connect_state = ConnectState::Loading {
+            rx,
+            started_at: std::time::Instant::now(),
+        };
 
         std::thread::spawn(move || {
+            let progress = |message: &str| {
+                let _ = tx.send(ConnectTaskMessage::Progress(message.to_owned()));
+            };
             let result = (|| -> Result<ConnectResult, String> {
                 use crate::hid::HidDevice;
 
+                progress("Opening HID device…");
                 log::info!("Opening HID device: {}", dev.path);
                 let dev_conn =
                     HidDevice::open(&dev.path).map_err(|e| format!("Open failed: {e}"))?;
 
+                progress("Reading VIA protocol version…");
                 log::info!("Getting protocol version…");
                 match dev_conn.get_protocol_version() {
                     Ok(v) => log::info!("VIA protocol version: {v}"),
                     Err(e) => log::warn!("get_protocol_version failed: {e}"),
                 }
 
+                progress("Reading layer count…");
                 log::info!("Getting layer count…");
                 let layer_count = dev_conn
                     .get_layer_count()
@@ -78,6 +87,7 @@ impl EntropyApp {
                     });
                 log::info!("Layer count: {layer_count}");
 
+                progress("Reading Vial layout definition…");
                 log::info!("Getting layout JSON…");
                 let json = dev_conn
                     .get_layout_json()
@@ -85,12 +95,14 @@ impl EntropyApp {
 
                 let touchpad_settings_in_definition =
                     Self::layout_json_has_touchpad_settings(&json);
+                progress("Querying firmware settings…");
                 let supported_qmk_settings = dev_conn.query_qmk_settings().unwrap_or_else(|e| {
                     log::warn!("qmk settings query failed: {e}");
                     Vec::new()
                 });
                 let has_qmk_setting = |qsid: u16| supported_qmk_settings.contains(&qsid);
 
+                progress("Parsing keyboard layout…");
                 let mut layout = KeyboardLayout::from_vial_json(&json)
                     .map_err(|e| format!("Layout parse failed: {e}"))?;
 
@@ -124,6 +136,7 @@ impl EntropyApp {
                 let num_keys = layout.keys.len();
                 layout.layers = vec![vec![0u16; num_keys]; layer_count];
 
+                progress("Reading keymap…");
                 match dev_conn.get_keymap_buffer(layer_count, layout.rows, layout.cols) {
                     Ok(buf) => {
                         for layer in 0..layer_count {
@@ -191,6 +204,7 @@ impl EntropyApp {
                 }
 
                 // Read macros
+                progress("Reading macros…");
                 let macro_texts = match dev_conn.get_macro_count() {
                     Ok(count) => {
                         log::info!("Macro count: {count}");
@@ -217,6 +231,7 @@ impl EntropyApp {
                     }
                 };
 
+                progress("Reading dynamic feature counts…");
                 let (
                     tap_dance_count,
                     combo_count,
@@ -237,6 +252,7 @@ impl EntropyApp {
                     repeat_key: alt_repeat_count > 0,
                 };
 
+                progress("Reading combos…");
                 let combo_entries = {
                     let count = combo_count;
                     log::info!("Combo count: {count}");
@@ -401,6 +417,7 @@ impl EntropyApp {
                     tp
                 };
 
+                progress("Reading module settings…");
                 let module_settings =
                     Self::read_module_settings(&json, &supported_qmk_settings, &dev_conn);
 
@@ -582,6 +599,7 @@ impl EntropyApp {
                     }
                 };
 
+                progress("Reading RGB settings…");
                 let rgb_settings = if layer_led_settings.supported && layout.lighting_mode.is_none()
                 {
                     // hpd3-style Ergohaven boards use QMK RGBLight internally only as a
@@ -594,6 +612,7 @@ impl EntropyApp {
                 };
 
                 // Read tap dance entries
+                progress("Reading tap dance entries…");
                 let tap_dance_entries = {
                     let count = tap_dance_count;
                     log::info!("Tap dance count: {count}");
@@ -617,6 +636,7 @@ impl EntropyApp {
                     }
                     entries
                 };
+                progress("Reading key overrides…");
                 let key_override_entries = {
                     let count = key_override_count;
                     log::info!("Key Override count: {count}");
@@ -651,6 +671,7 @@ impl EntropyApp {
                     entries
                 };
 
+                progress("Reading alt repeat entries…");
                 let alt_repeat_entries = {
                     let count = alt_repeat_count;
                     log::info!("Alt Repeat count: {count}");
@@ -700,7 +721,7 @@ impl EntropyApp {
                 })
             })();
 
-            let _ = tx.send(result);
+            let _ = tx.send(ConnectTaskMessage::Done(result));
         });
     }
 }

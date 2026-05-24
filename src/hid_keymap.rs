@@ -1,19 +1,36 @@
-use super::hid_protocol::*;
 use super::hid_parse::parse_keymap_u16_be;
+use super::hid_protocol::*;
 use super::HidDevice;
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 
 #[cfg(not(target_arch = "wasm32"))]
 impl HidDevice {
     pub fn get_layer_count(&self) -> Result<u8> {
         let resp = self.usb_send(&[CMD_VIA_GET_LAYER_COUNT])?;
-        Ok(resp[1])
+        let count = resp[1];
+        if count == 0 || count > 32 {
+            bail!("invalid layer count reported by firmware: {count}");
+        }
+        Ok(count)
     }
 
     /// Read entire keymap buffer at once (faster than per-key requests).
     /// Returns Vec of keycodes indexed by [layer * rows * cols + row * cols + col].
     pub fn get_keymap_buffer(&self, layers: usize, rows: usize, cols: usize) -> Result<Vec<u16>> {
-        let total_bytes = layers * rows * cols * 2;
+        if layers == 0 || layers > 32 || rows == 0 || rows > 32 || cols == 0 || cols > 32 {
+            bail!("invalid keymap dimensions: layers={layers}, rows={rows}, cols={cols}");
+        }
+        let total_keys = layers
+            .checked_mul(rows)
+            .and_then(|v| v.checked_mul(cols))
+            .context("keymap dimensions overflow")?;
+        if total_keys > 4096 {
+            bail!("keymap is too large: {total_keys} keys");
+        }
+        let total_bytes = total_keys.checked_mul(2).context("keymap size overflow")?;
+        if total_bytes > u16::MAX as usize {
+            bail!("keymap buffer is too large for VIA offset: {total_bytes} bytes");
+        }
         let mut keymap = vec![0u8; total_bytes];
 
         let mut offset = 0usize;
@@ -39,9 +56,10 @@ impl HidDevice {
 
     pub fn set_keycode(&self, layer: u8, row: u8, col: u8, keycode: u16) -> Result<()> {
         let [hi, lo] = keycode.to_be_bytes();
-        self
-            .usb_send(&[CMD_VIA_SET_KEYCODE, layer, row, col, hi, lo])
-            .with_context(|| format!("failed to set keycode at layer {layer}, row {row}, col {col}"))?;
+        self.usb_send(&[CMD_VIA_SET_KEYCODE, layer, row, col, hi, lo])
+            .with_context(|| {
+                format!("failed to set keycode at layer {layer}, row {row}, col {col}")
+            })?;
         Ok(())
     }
 
@@ -75,5 +93,4 @@ impl HidDevice {
             })?;
         Ok(())
     }
-
 }
