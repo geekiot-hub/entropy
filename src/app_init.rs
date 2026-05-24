@@ -134,12 +134,6 @@ impl EntropyApp {
             #[cfg(not(target_arch = "wasm32"))]
             device_scan_state: DeviceScanState::Idle,
         };
-        // Auto-connect to first device if available
-        #[cfg(not(target_arch = "wasm32"))]
-        if !app.device_manager.devices().is_empty() {
-            app.selected_device = Some(0);
-            app.start_connect(0);
-        }
         app
     }
 
@@ -176,20 +170,8 @@ impl EntropyApp {
 
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn reopen_vial_hid(&mut self) {
-        if let Some(dev) = self
-            .selected_device
-            .and_then(|i| self.device_manager.devices().get(i))
-        {
-            match crate::hid::HidDevice::open(&dev.path) {
-                Ok(hid) => {
-                    self.hid_device = Some(hid);
-                }
-                Err(e) => {
-                    self.hid_device = None;
-                    self.status_msg = format!("Reconnect failed: {e}");
-                }
-            }
-        }
+        self.hid_device = None;
+        self.status_msg = "Live writes disabled in RMK-safe mode".into();
     }
 
     #[cfg(not(target_arch = "wasm32"))]
