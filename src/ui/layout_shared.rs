@@ -52,16 +52,34 @@ pub(crate) fn layout_geometry_with_reserved(
     let mut max_x: f32 = f32::MIN;
     let mut max_y: f32 = f32::MIN;
     for key in &layout.keys {
-        min_x = min_x.min(key.x);
-        min_y = min_y.min(key.y);
-        max_x = max_x.max(key.x + key.w);
-        max_y = max_y.max(key.y + key.h);
+        let (x1, y1, x2, y2) = rotated_item_aabb(
+            key.x,
+            key.y,
+            key.w,
+            key.h,
+            key.rotation,
+            key.rotation_x,
+            key.rotation_y,
+        );
+        min_x = min_x.min(x1);
+        min_y = min_y.min(y1);
+        max_x = max_x.max(x2);
+        max_y = max_y.max(y2);
     }
     for encoder in &layout.encoders {
-        min_x = min_x.min(encoder.x);
-        min_y = min_y.min(encoder.y);
-        max_x = max_x.max(encoder.x + encoder.w);
-        max_y = max_y.max(encoder.y + encoder.h);
+        let (x1, y1, x2, y2) = rotated_item_aabb(
+            encoder.x,
+            encoder.y,
+            encoder.w,
+            encoder.h,
+            encoder.rotation,
+            encoder.rotation_x,
+            encoder.rotation_y,
+        );
+        min_x = min_x.min(x1);
+        min_y = min_y.min(y1);
+        max_x = max_x.max(x2);
+        max_y = max_y.max(y2);
     }
     if min_x == f32::MAX {
         min_x = 0.0;
@@ -110,16 +128,80 @@ pub(crate) fn layout_keycap_rect(
     )
 }
 
+fn rotate_layout_point(
+    x: f32,
+    y: f32,
+    origin_x: f32,
+    origin_y: f32,
+    rotation_deg: f32,
+) -> (f32, f32) {
+    if rotation_deg == 0.0 {
+        return (x, y);
+    }
+    let angle = rotation_deg.to_radians();
+    let dx = x - origin_x;
+    let dy = y - origin_y;
+    (
+        origin_x + dx * angle.cos() - dy * angle.sin(),
+        origin_y + dx * angle.sin() + dy * angle.cos(),
+    )
+}
+
+fn rotated_item_center(
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+    rotation: f32,
+    rotation_x: f32,
+    rotation_y: f32,
+) -> (f32, f32) {
+    rotate_layout_point(x + w * 0.5, y + h * 0.5, rotation_x, rotation_y, rotation)
+}
+
+fn rotated_item_aabb(
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+    rotation: f32,
+    rotation_x: f32,
+    rotation_y: f32,
+) -> (f32, f32, f32, f32) {
+    let corners = [(x, y), (x + w, y), (x + w, y + h), (x, y + h)];
+    let mut min_x = f32::MAX;
+    let mut min_y = f32::MAX;
+    let mut max_x = f32::MIN;
+    let mut max_y = f32::MIN;
+    for (cx, cy) in corners {
+        let (rx, ry) = rotate_layout_point(cx, cy, rotation_x, rotation_y, rotation);
+        min_x = min_x.min(rx);
+        min_y = min_y.min(ry);
+        max_x = max_x.max(rx);
+        max_y = max_y.max(ry);
+    }
+    (min_x, min_y, max_x, max_y)
+}
+
 pub(crate) fn layout_physical_key_rect(key: &PhysicalKey, geometry: LayoutGeometry) -> egui::Rect {
-    layout_keycap_rect(
-        geometry.offset_x,
-        geometry.offset_y,
-        geometry.unit,
-        geometry.padding,
+    let (center_x, center_y) = rotated_item_center(
         key.x,
         key.y,
         key.w,
         key.h,
+        key.rotation,
+        key.rotation_x,
+        key.rotation_y,
+    );
+    egui::Rect::from_center_size(
+        egui::pos2(
+            geometry.offset_x + center_x * geometry.unit,
+            geometry.offset_y + center_y * geometry.unit,
+        ),
+        Vec2::new(
+            key.w * geometry.unit - geometry.padding * 2.0,
+            key.h * geometry.unit - geometry.padding * 2.0,
+        ),
     )
 }
 
@@ -127,15 +209,24 @@ pub(crate) fn layout_physical_encoder_rect(
     encoder: &PhysicalEncoder,
     geometry: LayoutGeometry,
 ) -> egui::Rect {
-    layout_keycap_rect(
-        geometry.offset_x,
-        geometry.offset_y,
-        geometry.unit,
-        geometry.padding,
+    let (center_x, center_y) = rotated_item_center(
         encoder.x,
         encoder.y,
         encoder.w,
         encoder.h,
+        encoder.rotation,
+        encoder.rotation_x,
+        encoder.rotation_y,
+    );
+    egui::Rect::from_center_size(
+        egui::pos2(
+            geometry.offset_x + center_x * geometry.unit,
+            geometry.offset_y + center_y * geometry.unit,
+        ),
+        Vec2::new(
+            encoder.w * geometry.unit - geometry.padding * 2.0,
+            encoder.h * geometry.unit - geometry.padding * 2.0,
+        ),
     )
 }
 
