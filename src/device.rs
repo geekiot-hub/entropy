@@ -1,7 +1,7 @@
 use crate::firmware::FirmwareProtocol;
 
 /// Represents a connected Vial/HID keyboard device.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Device {
     pub name: String,
     pub vendor_id: u16,
