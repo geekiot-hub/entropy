@@ -60,7 +60,15 @@ impl EntropyApp {
                 #[cfg(not(target_arch = "wasm32"))]
                 {
                     ui.add_space(metrics.value(12.0));
-                    ui.horizontal(|ui| {
+                    let action_width = metrics.size(346.0, 32.0).x;
+                    let action_rect = egui::Rect::from_min_size(
+                        egui::pos2(
+                            list.viewport.center().x - action_width / 2.0,
+                            ui.cursor().top(),
+                        ),
+                        egui::vec2(action_width, metrics.value(32.0)),
+                    );
+                    ui.allocate_ui_at_rect(action_rect, |ui| {
                         ui.spacing_mut().item_spacing.x = metrics.value(10.0);
                         let button_size = metrics.size(168.0, 32.0);
                         if crate::ui_style::modern_button(
