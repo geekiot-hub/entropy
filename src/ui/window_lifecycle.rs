@@ -153,16 +153,16 @@ impl EntropyApp {
             title,
             egui::Id::new("close_to_tray_prompt_window"),
             &mut open,
-            Vec2::new(460.0, 220.0),
+            Vec2::new(460.0, 176.0),
         )
         .show(ctx, |ui| {
-            ui.set_min_size(Vec2::new(440.0, 170.0));
+            ui.set_min_size(Vec2::new(440.0, 126.0));
             let rect = ui.max_rect();
             let center_x = rect.center().x;
 
             let body_rect = egui::Rect::from_center_size(
-                egui::pos2(center_x, rect.top() + 42.0),
-                Vec2::new(390.0, 34.0),
+                egui::pos2(center_x, rect.top() + 20.0),
+                Vec2::new(400.0, 28.0),
             );
             ui.allocate_ui_at_rect(body_rect, |ui| {
                 ui.add_sized(
@@ -178,7 +178,7 @@ impl EntropyApp {
             });
 
             let remember_rect = egui::Rect::from_center_size(
-                egui::pos2(center_x, rect.top() + 91.0),
+                egui::pos2(center_x, rect.top() + 58.0),
                 Vec2::new(220.0, 24.0),
             );
             ui.allocate_ui_at_rect(remember_rect, |ui| {
@@ -192,7 +192,7 @@ impl EntropyApp {
             let cancel_size = Vec2::new(104.0, 32.0);
             let gap = 8.0;
             let total_width = close_size.x + tray_size.x + cancel_size.x + gap * 2.0;
-            let top = rect.top() + 132.0;
+            let top = rect.top() + 95.0;
             let mut left = center_x - total_width * 0.5;
 
             let close_rect = egui::Rect::from_min_size(egui::pos2(left, top), close_size);
