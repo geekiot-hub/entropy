@@ -425,7 +425,7 @@ impl eframe::App for EntropyApp {
                 &self.import_report_title,
                 egui::Id::new("import_report_window"),
                 &mut open,
-                Vec2::new(560.0, 420.0),
+                Vec2::new(640.0, 560.0),
             )
             .show(ctx, |ui| {
                 crate::ui_style::modal_content(
@@ -433,7 +433,7 @@ impl eframe::App for EntropyApp {
                     crate::ui_style::ModalLayout::new(510.0).with_top_padding(8.0),
                     |ui| {
                         egui::ScrollArea::vertical()
-                            .max_height(310.0)
+                            .max_height(440.0)
                             .auto_shrink([false, false])
                             .show(ui, |ui| {
                                 ui.label(
