@@ -455,6 +455,15 @@ impl EntropyApp {
         if let Err(err) = (|| -> Result<()> {
             for (layer_idx, layer_codes) in bundle.data.keymap.iter().enumerate() {
                 for (key_idx, keycode) in layer_codes.iter().copied().enumerate() {
+                    if layout
+                        .layers
+                        .get(layer_idx)
+                        .and_then(|layer| layer.get(key_idx))
+                        .copied()
+                        == Some(keycode)
+                    {
+                        continue;
+                    }
                     let key = &layout.keys[key_idx];
                     hid.set_keycode(layer_idx as u8, key.row, key.col, keycode)?;
                 }
@@ -467,6 +476,15 @@ impl EntropyApp {
         if let Err(err) = (|| -> Result<()> {
             for (layer_idx, layer_codes) in bundle.data.encoder_keymap.iter().enumerate() {
                 for (visual_idx, keycode) in layer_codes.iter().copied().enumerate() {
+                    if layout
+                        .encoder_layers
+                        .get(layer_idx)
+                        .and_then(|layer| layer.get(visual_idx))
+                        .copied()
+                        == Some(keycode)
+                    {
+                        continue;
+                    }
                     let encoder = &layout.encoders[visual_idx];
                     hid.set_encoder(
                         layer_idx as u8,
@@ -482,7 +500,7 @@ impl EntropyApp {
         }
 
         if let Some(options) = bundle.data.layout_options {
-            if self.layout_options_value.is_some() {
+            if self.layout_options_value.is_some() && self.layout_options_value != Some(options) {
                 if let Err(err) = hid.set_layout_options(options) {
                     failures.push(format!("layout options ({err})"));
                 }
@@ -491,10 +509,18 @@ impl EntropyApp {
 
         if !bundle.data.macros.texts.is_empty() && self.keycode_picker.macro_count > 0 {
             if let Err(err) = (|| -> Result<()> {
-                let size = hid.get_macro_buffer_size()?;
                 let mut macro_texts = bundle.data.macros.texts.clone();
                 macro_texts.resize(self.keycode_picker.macro_count, String::new());
                 macro_texts.truncate(self.keycode_picker.macro_count);
+
+                let mut current_macro_texts = self.keycode_picker.macro_texts.clone();
+                current_macro_texts.resize(self.keycode_picker.macro_count, String::new());
+                current_macro_texts.truncate(self.keycode_picker.macro_count);
+                if macro_texts == current_macro_texts {
+                    return Ok(());
+                }
+
+                let size = hid.get_macro_buffer_size()?;
                 let buf = crate::hid::HidDevice::encode_macros(&macro_texts, size);
                 hid.set_macro_buffer(&buf)?;
                 Ok(())
@@ -512,6 +538,10 @@ impl EntropyApp {
                 .take(self.combo_entries.len())
                 .enumerate()
             {
+                let current = &self.combo_entries[idx];
+                if current.keys == combo.keys && current.output == combo.output {
+                    continue;
+                }
                 hid.set_combo(idx as u8, combo.keys, combo.output)?;
             }
             Ok(())
@@ -519,7 +549,7 @@ impl EntropyApp {
             failures.push(format!("combos ({err})"));
         }
         if let Some(term) = bundle.data.combos.term {
-            if self.combo_term.is_some() {
+            if self.combo_term.is_some() && self.combo_term != Some(term) {
                 if let Err(err) = hid.set_qmk_setting_u16(2, term) {
                     failures.push(format!("combo term ({err})"));
                 }
@@ -535,6 +565,15 @@ impl EntropyApp {
                 .take(self.keycode_picker.tap_dance_entries.len())
                 .enumerate()
             {
+                let current = &self.keycode_picker.tap_dance_entries[idx];
+                if current.on_tap == td.on_tap
+                    && current.on_hold == td.on_hold
+                    && current.on_double_tap == td.on_double_tap
+                    && current.on_tap_hold == td.on_tap_hold
+                    && current.tapping_term == td.tapping_term
+                {
+                    continue;
+                }
                 hid.set_tap_dance(
                     idx as u8,
                     td.on_tap,
@@ -558,6 +597,17 @@ impl EntropyApp {
                 .take(self.key_override_entries.len())
                 .enumerate()
             {
+                let current = &self.key_override_entries[idx];
+                if current.trigger == ko.trigger
+                    && current.replacement == ko.replacement
+                    && current.layers == ko.layers
+                    && current.trigger_mods == ko.trigger_mods
+                    && current.negative_mod_mask == ko.negative_mod_mask
+                    && current.suppressed_mods == ko.suppressed_mods
+                    && current.options.bits() == ko.options
+                {
+                    continue;
+                }
                 hid.set_key_override(
                     idx as u8,
                     ko.trigger,
@@ -583,6 +633,14 @@ impl EntropyApp {
                 .take(self.alt_repeat_entries.len())
                 .enumerate()
             {
+                let current = &self.alt_repeat_entries[idx];
+                if current.keycode == ar.keycode
+                    && current.alt_keycode == ar.alt_keycode
+                    && current.allowed_mods == ar.allowed_mods
+                    && current.options.bits() == ar.options
+                {
+                    continue;
+                }
                 hid.set_alt_repeat_key(
                     idx as u8,
                     ar.keycode,
