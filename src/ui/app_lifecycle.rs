@@ -94,16 +94,9 @@ impl EntropyApp {
                 ui.label(RichText::new(line).size(16.0).strong().color(success));
             } else if let Some(value) = line.strip_prefix("Mode: ") {
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("Mode").size(12.0).color(muted));
-                    let pill = RichText::new(value).size(12.0).strong().color(text);
-                    egui::Frame::new()
-                        .fill(crate::ui_style::surface_fill(dark))
-                        .stroke(crate::ui_style::modal_outline_stroke(dark))
-                        .corner_radius(8.0)
-                        .inner_margin(egui::Margin::symmetric(9, 4))
-                        .show(ui, |ui| {
-                            ui.label(pill);
-                        });
+                    ui.spacing_mut().item_spacing.x = 5.0;
+                    ui.label(RichText::new("Mode:").size(12.0).color(muted));
+                    ui.label(RichText::new(value).size(12.0).strong().color(text));
                 });
             } else {
                 ui.label(RichText::new(line).size(12.0).color(text));
@@ -127,7 +120,10 @@ impl EntropyApp {
                     for line in lines {
                         let line = line.strip_prefix("• ").unwrap_or(&line);
                         let is_none = line == "none";
-                        let is_path = line.contains('\\') || line.contains('/');
+                        let is_path = line.contains('\\')
+                            || line.starts_with('/')
+                            || line.starts_with("~/")
+                            || line.contains(":/");
                         let is_warning = !is_none
                             && (line.contains("failed")
                                 || line.contains("skipped")
