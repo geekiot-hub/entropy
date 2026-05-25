@@ -160,50 +160,55 @@ impl EntropyApp {
                 ui,
                 crate::ui_style::ModalLayout::new(390.0).with_top_padding(8.0),
                 |ui| {
-                    ui.add(
-                        egui::Label::new(
-                            RichText::new(body)
-                                .size(12.5)
-                                .color(ui.visuals().text_color()),
-                        )
-                        .wrap(),
-                    );
-                    ui.add_space(14.0);
-                    ui.checkbox(&mut self.close_to_tray_prompt_remember, remember);
-                    ui.add_space(18.0);
-                    ui.horizontal_centered(|ui| {
-                        if crate::ui_style::modern_button(
-                            ui,
-                            close_label,
-                            Vec2::new(104.0, 32.0),
-                            false,
-                        )
-                        .clicked()
-                        {
-                            close_app = true;
-                        }
-                        ui.add_space(8.0);
-                        if crate::ui_style::modern_button(
-                            ui,
-                            tray_label,
-                            Vec2::new(142.0, 32.0),
-                            true,
-                        )
-                        .clicked()
-                        {
-                            minimize_to_tray = true;
-                        }
-                        ui.add_space(8.0);
-                        if crate::ui_style::modern_button(
-                            ui,
-                            cancel_label,
-                            Vec2::new(104.0, 32.0),
-                            false,
-                        )
-                        .clicked()
-                        {
-                            cancel = true;
-                        }
+                    ui.vertical_centered(|ui| {
+                        ui.add(
+                            egui::Label::new(
+                                RichText::new(body)
+                                    .size(12.5)
+                                    .color(ui.visuals().text_color()),
+                            )
+                            .wrap()
+                            .halign(egui::Align::Center),
+                        );
+                        ui.add_space(14.0);
+                        ui.horizontal_centered(|ui| {
+                            ui.checkbox(&mut self.close_to_tray_prompt_remember, remember);
+                        });
+                        ui.add_space(18.0);
+                        ui.horizontal_centered(|ui| {
+                            if crate::ui_style::modern_button(
+                                ui,
+                                close_label,
+                                Vec2::new(104.0, 32.0),
+                                true,
+                            )
+                            .clicked()
+                            {
+                                close_app = true;
+                            }
+                            ui.add_space(8.0);
+                            if crate::ui_style::modern_button(
+                                ui,
+                                tray_label,
+                                Vec2::new(142.0, 32.0),
+                                true,
+                            )
+                            .clicked()
+                            {
+                                minimize_to_tray = true;
+                            }
+                            ui.add_space(8.0);
+                            if crate::ui_style::modern_button(
+                                ui,
+                                cancel_label,
+                                Vec2::new(104.0, 32.0),
+                                true,
+                            )
+                            .clicked()
+                            {
+                                cancel = true;
+                            }
+                        });
                     });
                 },
             );
@@ -214,7 +219,8 @@ impl EntropyApp {
                 self.persist_close_to_tray_behavior(CloseToTrayBehavior::Close);
             }
             self.close_to_tray_prompt_open = false;
-            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            self.fallback_entropy_display_presets_before_exit();
+            std::process::exit(0);
         } else if minimize_to_tray {
             if self.close_to_tray_prompt_remember {
                 self.persist_close_to_tray_behavior(CloseToTrayBehavior::Tray);
