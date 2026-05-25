@@ -110,6 +110,13 @@ impl EntLayoutImportMapping {
     }
 }
 
+#[derive(Clone, Copy)]
+struct EntLayoutKeycodeImportLimits {
+    layer_count: usize,
+    macro_count: usize,
+    tap_dance_count: usize,
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 struct EntTextExpanderData {
     enabled: bool,
@@ -453,6 +460,14 @@ impl EntropyApp {
         Ok((firmware_failures, mapping))
     }
 
+    fn entlayout_keycode_import_limits(&self) -> EntLayoutKeycodeImportLimits {
+        EntLayoutKeycodeImportLimits {
+            layer_count: self.layer_count,
+            macro_count: self.keycode_picker.macro_count,
+            tap_dance_count: self.keycode_picker.tap_dance_entries.len(),
+        }
+    }
+
     #[cfg(not(target_arch = "wasm32"))]
     fn entlayout_import_report(
         &self,
@@ -476,44 +491,40 @@ impl EntropyApp {
             } else if bundle.data.layout_options.is_some() {
                 skipped.push("layout options (unsupported by connected keyboard)");
             }
+        } else if bundle.data.layout_options.is_some() {
+            skipped.push("layout options (exact layout only)");
+        }
 
-            if !bundle.data.macros.texts.is_empty() && self.keycode_picker.macro_count > 0 {
-                imported.push("macros");
-            } else {
-                skipped.push("macros (not available)");
-            }
-
-            if !bundle.data.combos.entries.is_empty() && !self.combo_entries.is_empty() {
-                imported.push("combos");
-            } else {
-                skipped.push("combos (not available)");
-            }
-
-            if !bundle.data.tap_dance.entries.is_empty()
-                && !self.keycode_picker.tap_dance_entries.is_empty()
-            {
-                imported.push("tap dance");
-            } else {
-                skipped.push("tap dance (not available)");
-            }
-
-            if !bundle.data.key_overrides.entries.is_empty()
-                && !self.key_override_entries.is_empty()
-            {
-                imported.push("key overrides");
-            } else {
-                skipped.push("key overrides (not available)");
-            }
-
-            if !bundle.data.alt_repeat.entries.is_empty() && !self.alt_repeat_entries.is_empty() {
-                imported.push("alt repeat");
-            } else {
-                skipped.push("alt repeat (not available)");
-            }
+        if !bundle.data.macros.texts.is_empty() && self.keycode_picker.macro_count > 0 {
+            imported.push("macros");
         } else {
-            skipped.push(
-                "layout options/dynamic features (universal mode imports physical keymap only)",
-            );
+            skipped.push("macros (not available)");
+        }
+
+        if !bundle.data.combos.entries.is_empty() && !self.combo_entries.is_empty() {
+            imported.push("combos");
+        } else {
+            skipped.push("combos (not available)");
+        }
+
+        if !bundle.data.tap_dance.entries.is_empty()
+            && !self.keycode_picker.tap_dance_entries.is_empty()
+        {
+            imported.push("tap dance");
+        } else {
+            skipped.push("tap dance (not available)");
+        }
+
+        if !bundle.data.key_overrides.entries.is_empty() && !self.key_override_entries.is_empty() {
+            imported.push("key overrides");
+        } else {
+            skipped.push("key overrides (not available)");
+        }
+
+        if !bundle.data.alt_repeat.entries.is_empty() && !self.alt_repeat_entries.is_empty() {
+            imported.push("alt repeat");
+        } else {
+            skipped.push("alt repeat (not available)");
         }
 
         let skipped = if skipped.is_empty() {
@@ -554,6 +565,7 @@ impl EntropyApp {
             bail!("no active keyboard connection for firmware import");
         };
         let layout = self.layout.as_ref().context("no connected layout")?.clone();
+        let limits = self.entlayout_keycode_import_limits();
         let mut failures = Vec::new();
 
         if let Err(err) = (|| -> Result<()> {
@@ -568,7 +580,7 @@ impl EntropyApp {
                     else {
                         continue;
                     };
-                    let keycode = map_entlayout_keycode(keycode, bundle, &layout);
+                    let keycode = map_entlayout_keycode(keycode, bundle, &layout, limits);
                     if layout
                         .layers
                         .get(target_layer_idx)
@@ -602,7 +614,7 @@ impl EntropyApp {
                     else {
                         continue;
                     };
-                    let keycode = map_entlayout_keycode(keycode, bundle, &layout);
+                    let keycode = map_entlayout_keycode(keycode, bundle, &layout, limits);
                     if layout
                         .encoder_layers
                         .get(target_layer_idx)
@@ -637,10 +649,7 @@ impl EntropyApp {
             }
         }
 
-        if mapping.exact_layout
-            && !bundle.data.macros.texts.is_empty()
-            && self.keycode_picker.macro_count > 0
-        {
+        if !bundle.data.macros.texts.is_empty() && self.keycode_picker.macro_count > 0 {
             if let Err(err) = (|| -> Result<()> {
                 let mut macro_texts = bundle.data.macros.texts.clone();
                 macro_texts.resize(self.keycode_picker.macro_count, String::new());
@@ -662,131 +671,141 @@ impl EntropyApp {
             }
         }
 
-        if mapping.exact_layout {
-            if let Err(err) = (|| -> Result<()> {
-                for (idx, combo) in bundle
-                    .data
-                    .combos
-                    .entries
-                    .iter()
-                    .take(self.combo_entries.len())
-                    .enumerate()
-                {
-                    let current = &self.combo_entries[idx];
-                    if current.keys == combo.keys && current.output == combo.output {
-                        continue;
-                    }
-                    hid.set_combo(idx as u8, combo.keys, combo.output)?;
+        if let Err(err) = (|| -> Result<()> {
+            for (idx, combo) in bundle
+                .data
+                .combos
+                .entries
+                .iter()
+                .take(self.combo_entries.len())
+                .enumerate()
+            {
+                let Some(combo) = remap_entcombo_entry(combo, bundle, &layout, limits) else {
+                    continue;
+                };
+                let current = &self.combo_entries[idx];
+                if current.keys == combo.keys && current.output == combo.output {
+                    continue;
                 }
-                Ok(())
-            })() {
-                failures.push(format!("combos ({err})"));
+                hid.set_combo(idx as u8, combo.keys, combo.output)?;
             }
-            if let Some(term) = bundle.data.combos.term {
-                if self.combo_term.is_some() && self.combo_term != Some(term) {
-                    if let Err(err) = hid.set_qmk_setting_u16(2, term) {
-                        failures.push(format!("combo term ({err})"));
-                    }
+            Ok(())
+        })() {
+            failures.push(format!("combos ({err})"));
+        }
+        if let Some(term) = bundle.data.combos.term {
+            if self.combo_term.is_some() && self.combo_term != Some(term) {
+                if let Err(err) = hid.set_qmk_setting_u16(2, term) {
+                    failures.push(format!("combo term ({err})"));
                 }
             }
+        }
 
-            if let Err(err) = (|| -> Result<()> {
-                for (idx, td) in bundle
-                    .data
-                    .tap_dance
-                    .entries
-                    .iter()
-                    .take(self.keycode_picker.tap_dance_entries.len())
-                    .enumerate()
+        if let Err(err) = (|| -> Result<()> {
+            for (idx, td) in bundle
+                .data
+                .tap_dance
+                .entries
+                .iter()
+                .take(self.keycode_picker.tap_dance_entries.len())
+                .enumerate()
+            {
+                let Some(td) = remap_enttap_dance_entry(td, bundle, &layout, limits) else {
+                    continue;
+                };
+                let current = &self.keycode_picker.tap_dance_entries[idx];
+                if current.on_tap == td.on_tap
+                    && current.on_hold == td.on_hold
+                    && current.on_double_tap == td.on_double_tap
+                    && current.on_tap_hold == td.on_tap_hold
+                    && current.tapping_term == td.tapping_term
                 {
-                    let current = &self.keycode_picker.tap_dance_entries[idx];
-                    if current.on_tap == td.on_tap
-                        && current.on_hold == td.on_hold
-                        && current.on_double_tap == td.on_double_tap
-                        && current.on_tap_hold == td.on_tap_hold
-                        && current.tapping_term == td.tapping_term
-                    {
-                        continue;
-                    }
-                    hid.set_tap_dance(
-                        idx as u8,
-                        td.on_tap,
-                        td.on_hold,
-                        td.on_double_tap,
-                        td.on_tap_hold,
-                        td.tapping_term,
-                    )?;
+                    continue;
                 }
-                Ok(())
-            })() {
-                failures.push(format!("tap dance ({err})"));
+                hid.set_tap_dance(
+                    idx as u8,
+                    td.on_tap,
+                    td.on_hold,
+                    td.on_double_tap,
+                    td.on_tap_hold,
+                    td.tapping_term,
+                )?;
             }
+            Ok(())
+        })() {
+            failures.push(format!("tap dance ({err})"));
+        }
 
-            if let Err(err) = (|| -> Result<()> {
-                for (idx, ko) in bundle
-                    .data
-                    .key_overrides
-                    .entries
-                    .iter()
-                    .take(self.key_override_entries.len())
-                    .enumerate()
+        if let Err(err) = (|| -> Result<()> {
+            for (idx, ko) in bundle
+                .data
+                .key_overrides
+                .entries
+                .iter()
+                .take(self.key_override_entries.len())
+                .enumerate()
+            {
+                let Some(ko) = remap_entkey_override_entry(ko, bundle, &layout, limits) else {
+                    continue;
+                };
+                let current = &self.key_override_entries[idx];
+                if current.trigger == ko.trigger
+                    && current.replacement == ko.replacement
+                    && current.layers == ko.layers
+                    && current.trigger_mods == ko.trigger_mods
+                    && current.negative_mod_mask == ko.negative_mod_mask
+                    && current.suppressed_mods == ko.suppressed_mods
+                    && current.options.bits() == ko.options
                 {
-                    let current = &self.key_override_entries[idx];
-                    if current.trigger == ko.trigger
-                        && current.replacement == ko.replacement
-                        && current.layers == ko.layers
-                        && current.trigger_mods == ko.trigger_mods
-                        && current.negative_mod_mask == ko.negative_mod_mask
-                        && current.suppressed_mods == ko.suppressed_mods
-                        && current.options.bits() == ko.options
-                    {
-                        continue;
-                    }
-                    hid.set_key_override(
-                        idx as u8,
-                        ko.trigger,
-                        ko.replacement,
-                        ko.layers,
-                        ko.trigger_mods,
-                        ko.negative_mod_mask,
-                        ko.suppressed_mods,
-                        ko.options,
-                    )?;
+                    continue;
                 }
-                Ok(())
-            })() {
-                failures.push(format!("key overrides ({err})"));
+                hid.set_key_override(
+                    idx as u8,
+                    ko.trigger,
+                    ko.replacement,
+                    ko.layers,
+                    ko.trigger_mods,
+                    ko.negative_mod_mask,
+                    ko.suppressed_mods,
+                    ko.options,
+                )?;
             }
+            Ok(())
+        })() {
+            failures.push(format!("key overrides ({err})"));
+        }
 
-            if let Err(err) = (|| -> Result<()> {
-                for (idx, ar) in bundle
-                    .data
-                    .alt_repeat
-                    .entries
-                    .iter()
-                    .take(self.alt_repeat_entries.len())
-                    .enumerate()
+        if let Err(err) = (|| -> Result<()> {
+            for (idx, ar) in bundle
+                .data
+                .alt_repeat
+                .entries
+                .iter()
+                .take(self.alt_repeat_entries.len())
+                .enumerate()
+            {
+                let Some(ar) = remap_entalt_repeat_entry(ar, bundle, &layout, limits) else {
+                    continue;
+                };
+                let current = &self.alt_repeat_entries[idx];
+                if current.keycode == ar.keycode
+                    && current.alt_keycode == ar.alt_keycode
+                    && current.allowed_mods == ar.allowed_mods
+                    && current.options.bits() == ar.options
                 {
-                    let current = &self.alt_repeat_entries[idx];
-                    if current.keycode == ar.keycode
-                        && current.alt_keycode == ar.alt_keycode
-                        && current.allowed_mods == ar.allowed_mods
-                        && current.options.bits() == ar.options
-                    {
-                        continue;
-                    }
-                    hid.set_alt_repeat_key(
-                        idx as u8,
-                        ar.keycode,
-                        ar.alt_keycode,
-                        ar.allowed_mods,
-                        ar.options,
-                    )?;
+                    continue;
                 }
-                Ok(())
-            })() {
-                failures.push(format!("alt repeat ({err})"));
+                hid.set_alt_repeat_key(
+                    idx as u8,
+                    ar.keycode,
+                    ar.alt_keycode,
+                    ar.allowed_mods,
+                    ar.options,
+                )?;
             }
+            Ok(())
+        })() {
+            failures.push(format!("alt repeat ({err})"));
         }
         Ok(failures)
     }
@@ -796,6 +815,7 @@ impl EntropyApp {
         bundle: &EntLayoutFile,
         mapping: &EntLayoutImportMapping,
     ) -> Result<()> {
+        let limits = self.entlayout_keycode_import_limits();
         if let Some(layout) = &mut self.layout {
             let mut target_layers = layout.layers.clone();
             for (source_layer_idx, layer_codes) in bundle.data.keymap.iter().enumerate() {
@@ -813,7 +833,7 @@ impl EntropyApp {
                         .get_mut(target_layer_idx)
                         .and_then(|layer| layer.get_mut(target_key_idx))
                     {
-                        *slot = map_entlayout_keycode(keycode, bundle, layout);
+                        *slot = map_entlayout_keycode(keycode, bundle, layout, limits);
                     }
                 }
             }
@@ -839,7 +859,7 @@ impl EntropyApp {
                         .get_mut(target_layer_idx)
                         .and_then(|layer| layer.get_mut(target_encoder_idx))
                     {
-                        *slot = map_entlayout_keycode(keycode, bundle, layout);
+                        *slot = map_entlayout_keycode(keycode, bundle, layout, limits);
                     }
                 }
             }
@@ -908,27 +928,27 @@ impl EntropyApp {
             text_expander_rules_signature(&self.app_settings.text_expander_rule_files);
         self.sync_text_expander_runtime();
 
-        if mapping.exact_layout {
-            self.keycode_picker.macro_texts = normalized_strings(
-                &bundle.data.macros.texts,
-                self.keycode_picker
-                    .macro_count
-                    .max(bundle.data.macros.texts.len()),
-            );
+        self.keycode_picker.macro_texts = normalized_strings(
+            &bundle.data.macros.texts,
             self.keycode_picker
-                .macro_texts
-                .truncate(self.keycode_picker.macro_count);
-            self.keycode_picker.macro_names = normalized_strings(
-                &bundle.data.macros.names,
-                self.keycode_picker
-                    .macro_count
-                    .max(bundle.data.macros.names.len()),
-            );
+                .macro_count
+                .max(bundle.data.macros.texts.len()),
+        );
+        self.keycode_picker
+            .macro_texts
+            .truncate(self.keycode_picker.macro_count);
+        self.keycode_picker.macro_names = normalized_strings(
+            &bundle.data.macros.names,
             self.keycode_picker
-                .macro_names
-                .truncate(self.keycode_picker.macro_count);
-            self.keycode_picker.macros_dirty = false;
+                .macro_count
+                .max(bundle.data.macros.names.len()),
+        );
+        self.keycode_picker
+            .macro_names
+            .truncate(self.keycode_picker.macro_count);
+        self.keycode_picker.macros_dirty = false;
 
+        if let Some(layout) = &self.layout {
             let mut combo_entries = self.combo_entries.clone();
             for (idx, entry) in bundle
                 .data
@@ -938,19 +958,14 @@ impl EntropyApp {
                 .take(combo_entries.len())
                 .enumerate()
             {
-                combo_entries[idx] = ComboEntry {
-                    keys: entry.keys,
-                    output: entry.output,
-                };
+                if let Some(entry) = remap_entcombo_entry(entry, bundle, layout, limits) {
+                    combo_entries[idx] = ComboEntry {
+                        keys: entry.keys,
+                        output: entry.output,
+                    };
+                }
             }
             self.combo_entries = combo_entries;
-            self.combo_names =
-                normalized_strings(&bundle.data.combos.names, self.combo_entries.len());
-            self.combo_term = bundle.data.combos.term.or(self.combo_term);
-            save_combo_names(&self.combo_names, &self.current_device_name);
-            self.combo_dirty = false;
-            self.combo_names_dirty = false;
-            self.combo_term_dirty = false;
 
             let mut tap_dance_entries = self.keycode_picker.tap_dance_entries.clone();
             for (idx, entry) in bundle
@@ -961,24 +976,17 @@ impl EntropyApp {
                 .take(tap_dance_entries.len())
                 .enumerate()
             {
-                tap_dance_entries[idx] = crate::keycode_picker::TapDanceEntry {
-                    on_tap: entry.on_tap,
-                    on_hold: entry.on_hold,
-                    on_double_tap: entry.on_double_tap,
-                    on_tap_hold: entry.on_tap_hold,
-                    tapping_term: entry.tapping_term,
-                };
+                if let Some(entry) = remap_enttap_dance_entry(entry, bundle, layout, limits) {
+                    tap_dance_entries[idx] = crate::keycode_picker::TapDanceEntry {
+                        on_tap: entry.on_tap,
+                        on_hold: entry.on_hold,
+                        on_double_tap: entry.on_double_tap,
+                        on_tap_hold: entry.on_tap_hold,
+                        tapping_term: entry.tapping_term,
+                    };
+                }
             }
             self.keycode_picker.tap_dance_entries = tap_dance_entries;
-            self.keycode_picker.tap_dance_names = normalized_strings(
-                &bundle.data.tap_dance.names,
-                self.keycode_picker.tap_dance_entries.len(),
-            );
-            save_tap_dance_names(
-                &self.keycode_picker.tap_dance_names,
-                &self.current_device_name,
-            );
-            self.keycode_picker.tap_dance_dirty = false;
 
             let mut key_override_entries = self.key_override_entries.clone();
             for (idx, entry) in bundle
@@ -989,24 +997,21 @@ impl EntropyApp {
                 .take(key_override_entries.len())
                 .enumerate()
             {
-                let mut mapped = KeyOverrideEntry {
-                    trigger: entry.trigger,
-                    replacement: entry.replacement,
-                    layers: entry.layers,
-                    trigger_mods: entry.trigger_mods,
-                    negative_mod_mask: entry.negative_mod_mask,
-                    suppressed_mods: entry.suppressed_mods,
-                    options: KeyOverrideOptionsState::from_bits(entry.options),
-                };
-                Self::normalize_key_override_entry(&mut mapped);
-                key_override_entries[idx] = mapped;
+                if let Some(entry) = remap_entkey_override_entry(entry, bundle, layout, limits) {
+                    let mut mapped = KeyOverrideEntry {
+                        trigger: entry.trigger,
+                        replacement: entry.replacement,
+                        layers: entry.layers,
+                        trigger_mods: entry.trigger_mods,
+                        negative_mod_mask: entry.negative_mod_mask,
+                        suppressed_mods: entry.suppressed_mods,
+                        options: KeyOverrideOptionsState::from_bits(entry.options),
+                    };
+                    Self::normalize_key_override_entry(&mut mapped);
+                    key_override_entries[idx] = mapped;
+                }
             }
             self.key_override_entries = key_override_entries;
-            self.key_override_names = normalized_strings(
-                &bundle.data.key_overrides.names,
-                self.key_override_entries.len(),
-            );
-            save_key_override_names(&self.key_override_names, &self.current_device_name);
 
             let mut alt_repeat_entries = self.alt_repeat_entries.clone();
             for (idx, entry) in bundle
@@ -1017,20 +1022,47 @@ impl EntropyApp {
                 .take(alt_repeat_entries.len())
                 .enumerate()
             {
-                let mut mapped = AltRepeatKeyEntry {
-                    keycode: entry.keycode,
-                    alt_keycode: entry.alt_keycode,
-                    allowed_mods: entry.allowed_mods,
-                    options: AltRepeatKeyOptionsState::from_bits(entry.options),
-                };
-                Self::normalize_alt_repeat_entry(&mut mapped);
-                alt_repeat_entries[idx] = mapped;
+                if let Some(entry) = remap_entalt_repeat_entry(entry, bundle, layout, limits) {
+                    let mut mapped = AltRepeatKeyEntry {
+                        keycode: entry.keycode,
+                        alt_keycode: entry.alt_keycode,
+                        allowed_mods: entry.allowed_mods,
+                        options: AltRepeatKeyOptionsState::from_bits(entry.options),
+                    };
+                    Self::normalize_alt_repeat_entry(&mut mapped);
+                    alt_repeat_entries[idx] = mapped;
+                }
             }
             self.alt_repeat_entries = alt_repeat_entries;
-            self.alt_repeat_names =
-                normalized_strings(&bundle.data.alt_repeat.names, self.alt_repeat_entries.len());
-            save_alt_repeat_names(&self.alt_repeat_names, &self.current_device_name);
         }
+
+        self.combo_names = normalized_strings(&bundle.data.combos.names, self.combo_entries.len());
+        self.combo_term = bundle.data.combos.term.or(self.combo_term);
+        save_combo_names(&self.combo_names, &self.current_device_name);
+        self.combo_dirty = false;
+        self.combo_names_dirty = false;
+        self.combo_term_dirty = false;
+
+        self.keycode_picker.tap_dance_names = normalized_strings(
+            &bundle.data.tap_dance.names,
+            self.keycode_picker.tap_dance_entries.len(),
+        );
+        save_tap_dance_names(
+            &self.keycode_picker.tap_dance_names,
+            &self.current_device_name,
+        );
+        self.keycode_picker.tap_dance_dirty = false;
+
+        self.key_override_names = normalized_strings(
+            &bundle.data.key_overrides.names,
+            self.key_override_entries.len(),
+        );
+        save_key_override_names(&self.key_override_names, &self.current_device_name);
+
+        self.alt_repeat_names =
+            normalized_strings(&bundle.data.alt_repeat.names, self.alt_repeat_entries.len());
+        save_alt_repeat_names(&self.alt_repeat_names, &self.current_device_name);
+
         Ok(())
     }
 }
@@ -1316,48 +1348,148 @@ fn point_distance_squared(a: (f32, f32), b: (f32, f32)) -> f32 {
     dx * dx + dy * dy
 }
 
-fn map_entlayout_keycode(keycode: u16, bundle: &EntLayoutFile, layout: &KeyboardLayout) -> u16 {
-    map_custom_keycode_by_name(keycode, bundle, layout)
-        .unwrap_or_else(|| map_layer_keycode(keycode, layout.layers.len()))
+fn map_entlayout_keycode(
+    keycode: u16,
+    bundle: &EntLayoutFile,
+    layout: &KeyboardLayout,
+    limits: EntLayoutKeycodeImportLimits,
+) -> u16 {
+    try_map_entlayout_keycode(keycode, bundle, layout, limits).unwrap_or(0)
+}
+
+fn try_map_entlayout_keycode(
+    keycode: u16,
+    bundle: &EntLayoutFile,
+    layout: &KeyboardLayout,
+    limits: EntLayoutKeycodeImportLimits,
+) -> Option<u16> {
+    let keycode = map_custom_keycode_by_name(keycode, bundle, layout).flatten()?;
+    validate_macro_keycode(keycode, limits.macro_count)?;
+    validate_tap_dance_keycode(keycode, limits.tap_dance_count)?;
+    map_layer_keycode(keycode, limits.layer_count)
 }
 
 fn map_custom_keycode_by_name(
     keycode: u16,
     bundle: &EntLayoutFile,
     layout: &KeyboardLayout,
-) -> Option<u16> {
+) -> Option<Option<u16>> {
     const QK_KB: u16 = 0x7E00;
+    if keycode < QK_KB {
+        return Some(Some(keycode));
+    }
     let source_idx = keycode.checked_sub(QK_KB)? as usize;
-    let source_custom = bundle
-        .data
-        .source_layout
-        .as_ref()?
+    let Some(source_layout) = bundle.data.source_layout.as_ref() else {
+        return Some((source_idx < layout.custom_keycodes.len()).then_some(keycode));
+    };
+    let Some(source_custom) = source_layout
         .custom_keycodes
         .iter()
-        .find(|custom| custom.index == source_idx)?;
+        .find(|custom| custom.index == source_idx)
+    else {
+        return Some(Some(keycode));
+    };
     let target_idx = layout
         .custom_keycodes
         .iter()
         .position(|custom| custom.name == source_custom.name)?;
-    Some(QK_KB + target_idx as u16)
+    Some(Some(QK_KB + target_idx as u16))
 }
 
-fn map_layer_keycode(keycode: u16, target_layer_count: usize) -> u16 {
+fn validate_macro_keycode(keycode: u16, macro_count: usize) -> Option<()> {
+    if (0x7700..=0x77FF).contains(&keycode) {
+        (((keycode - 0x7700) as usize) < macro_count).then_some(())
+    } else {
+        Some(())
+    }
+}
+
+fn validate_tap_dance_keycode(keycode: u16, tap_dance_count: usize) -> Option<()> {
+    if (0x5700..=0x57FF).contains(&keycode) {
+        (((keycode - 0x5700) as usize) < tap_dance_count).then_some(())
+    } else {
+        Some(())
+    }
+}
+
+fn map_layer_keycode(keycode: u16, target_layer_count: usize) -> Option<u16> {
     if (0x5200..0x5300).contains(&keycode) {
         let op = (keycode >> 5) & 0x7;
         if op != 5 {
             let target = (keycode & 0x1F) as usize;
             if target >= target_layer_count {
-                return 0;
+                return None;
             }
         }
     } else if keycode & 0xF000 == 0x4000 {
         let target = ((keycode >> 8) & 0xF) as usize;
         if target >= target_layer_count {
-            return 0;
+            return None;
         }
     }
-    keycode
+    Some(keycode)
+}
+
+fn remap_entcombo_entry(
+    entry: &EntComboEntry,
+    bundle: &EntLayoutFile,
+    layout: &KeyboardLayout,
+    limits: EntLayoutKeycodeImportLimits,
+) -> Option<EntComboEntry> {
+    let mut keys = [0u16; 4];
+    for (idx, keycode) in entry.keys.iter().copied().enumerate() {
+        keys[idx] = try_map_entlayout_keycode(keycode, bundle, layout, limits)?;
+    }
+    Some(EntComboEntry {
+        keys,
+        output: try_map_entlayout_keycode(entry.output, bundle, layout, limits)?,
+    })
+}
+
+fn remap_enttap_dance_entry(
+    entry: &EntTapDanceEntry,
+    bundle: &EntLayoutFile,
+    layout: &KeyboardLayout,
+    limits: EntLayoutKeycodeImportLimits,
+) -> Option<EntTapDanceEntry> {
+    Some(EntTapDanceEntry {
+        on_tap: try_map_entlayout_keycode(entry.on_tap, bundle, layout, limits)?,
+        on_hold: try_map_entlayout_keycode(entry.on_hold, bundle, layout, limits)?,
+        on_double_tap: try_map_entlayout_keycode(entry.on_double_tap, bundle, layout, limits)?,
+        on_tap_hold: try_map_entlayout_keycode(entry.on_tap_hold, bundle, layout, limits)?,
+        tapping_term: entry.tapping_term,
+    })
+}
+
+fn remap_entkey_override_entry(
+    entry: &EntKeyOverrideEntry,
+    bundle: &EntLayoutFile,
+    layout: &KeyboardLayout,
+    limits: EntLayoutKeycodeImportLimits,
+) -> Option<EntKeyOverrideEntry> {
+    Some(EntKeyOverrideEntry {
+        trigger: try_map_entlayout_keycode(entry.trigger, bundle, layout, limits)?,
+        replacement: try_map_entlayout_keycode(entry.replacement, bundle, layout, limits)?,
+        layers: entry.layers,
+        trigger_mods: entry.trigger_mods,
+        negative_mod_mask: entry.negative_mod_mask,
+        suppressed_mods: entry.suppressed_mods,
+        options: entry.options,
+    })
+}
+
+fn remap_entalt_repeat_entry(
+    entry: &EntAltRepeatEntry,
+    bundle: &EntLayoutFile,
+    layout: &KeyboardLayout,
+    limits: EntLayoutKeycodeImportLimits,
+) -> Option<EntAltRepeatEntry> {
+    Some(EntAltRepeatEntry {
+        keycode: try_map_entlayout_keycode(entry.keycode, bundle, layout, limits)?,
+        alt_keycode: try_map_entlayout_keycode(entry.alt_keycode, bundle, layout, limits)?,
+        allowed_mods: entry.allowed_mods,
+        options: entry.options,
+    })
 }
 
 fn write_entlayout_file(path: &Path, bundle: &EntLayoutFile) -> Result<()> {
