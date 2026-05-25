@@ -1145,6 +1145,16 @@ pub struct EntropyApp {
     pub(crate) import_report_title: String,
     pub(crate) import_report_body: String,
     #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) pending_entlayout_import_path: Option<std::path::PathBuf>,
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) pending_entsettings_import_path: Option<std::path::PathBuf>,
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) import_progress_started_at: Option<f64>,
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) import_progress_title: String,
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) import_progress_body: String,
+    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) connect_state: ConnectState,
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) device_scan_state: DeviceScanState,

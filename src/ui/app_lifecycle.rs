@@ -1,5 +1,97 @@
 use super::*;
 
+impl EntropyApp {
+    #[cfg(not(target_arch = "wasm32"))]
+    fn import_pending(&self) -> bool {
+        self.pending_entlayout_import_path.is_some()
+            || self.pending_entsettings_import_path.is_some()
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn handle_pending_imports(&mut self, ctx: &egui::Context, now: f64) {
+        if !self.import_pending() {
+            self.import_progress_started_at = None;
+            return;
+        }
+        let Some(started_at) = self.import_progress_started_at else {
+            self.import_progress_started_at = Some(now);
+            ctx.request_repaint_after(std::time::Duration::from_millis(80));
+            return;
+        };
+        if now - started_at < 0.05 {
+            ctx.request_repaint_after(std::time::Duration::from_millis(80));
+            return;
+        }
+
+        if let Some(path) = self.pending_entlayout_import_path.take() {
+            match self.import_entlayout_from_path(&path) {
+                Ok(report) => {
+                    self.status_msg = "Imported .entlayout".into();
+                    self.import_report_title = "Layout import report".into();
+                    self.import_report_body = report;
+                    self.import_report_open = true;
+                }
+                Err(e) => self.status_msg = format!("Import failed: {e}"),
+            }
+        }
+        if let Some(path) = self.pending_entsettings_import_path.take() {
+            match self.import_entsettings_from_path(ctx, &path) {
+                Ok(report) => {
+                    self.status_msg = "Imported app settings".into();
+                    self.import_report_title = "App settings import report".into();
+                    self.import_report_body = report;
+                    self.import_report_open = true;
+                }
+                Err(e) => self.status_msg = format!("Import app settings failed: {e}"),
+            }
+        }
+        self.import_progress_started_at = None;
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn draw_import_progress_overlay(&mut self, ctx: &egui::Context) {
+        if !self.import_pending() {
+            return;
+        }
+        let screen_rect = ctx.screen_rect();
+        egui::Area::new("import_progress_backdrop".into())
+            .order(egui::Order::Foreground)
+            .fixed_pos(screen_rect.min)
+            .show(ctx, |ui| {
+                let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, screen_rect.size());
+                ui.painter().rect_filled(
+                    rect,
+                    0.0,
+                    Color32::from_black_alpha(crate::ui_style::modal_backdrop_alpha(
+                        ctx.style().visuals.dark_mode,
+                    )),
+                );
+            });
+
+        let mut open = true;
+        crate::ui_style::centered_modal_window(
+            ctx,
+            &self.import_progress_title,
+            egui::Id::new("import_progress_window"),
+            &mut open,
+            Vec2::new(420.0, 150.0),
+        )
+        .show(ctx, |ui| {
+            crate::ui_style::modal_content(
+                ui,
+                crate::ui_style::ModalLayout::new(360.0).with_top_padding(14.0),
+                |ui| {
+                    ui.horizontal_centered(|ui| {
+                        ui.add(egui::Spinner::new().size(20.0));
+                        ui.add_space(10.0);
+                        ui.label(RichText::new(&self.import_progress_body).size(12.0));
+                    });
+                },
+            );
+        });
+    }
+}
+
 impl eframe::App for EntropyApp {
     fn clear_color(&self, visuals: &egui::Visuals) -> [f32; 4] {
         app_panel_fill(visuals.dark_mode).to_normalized_gamma_f32()
@@ -54,6 +146,8 @@ impl eframe::App for EntropyApp {
             }
         }
         let now = ctx.input(|i| i.time);
+        #[cfg(not(target_arch = "wasm32"))]
+        self.handle_pending_imports(ctx, now);
         self.auto_reload_text_expander_rules_file(now);
         let is_connecting = matches!(self.connect_state, ConnectState::Loading { .. });
         if (self.last_device_scan_at == 0.0 || now - self.last_device_scan_at >= 1.0)
@@ -304,6 +398,9 @@ impl eframe::App for EntropyApp {
                     false,
                 );
             });
+
+        #[cfg(not(target_arch = "wasm32"))]
+        self.draw_import_progress_overlay(ctx);
 
         if self.import_report_open {
             let screen_rect = ctx.screen_rect();

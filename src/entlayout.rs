@@ -303,19 +303,15 @@ impl EntropyApp {
         else {
             return;
         };
-        match self.import_entlayout_from_path(&path) {
-            Ok(report) => {
-                self.status_msg = "Imported .entlayout".into();
-                self.import_report_title = "Layout import report".into();
-                self.import_report_body = report;
-                self.import_report_open = true;
-            }
-            Err(e) => self.status_msg = format!("Import failed: {e}"),
-        }
+        self.pending_entlayout_import_path = Some(path);
+        self.import_progress_started_at = None;
+        self.import_progress_title = "Importing layout".into();
+        self.import_progress_body =
+            "Applying layout to the connected keyboard. This can take a moment.".into();
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn import_entlayout_from_path(&mut self, path: &Path) -> Result<String> {
+    pub(super) fn import_entlayout_from_path(&mut self, path: &Path) -> Result<String> {
         let data = std::fs::read_to_string(path)
             .with_context(|| format!("failed to read {}", path.display()))?;
         let bundle: EntLayoutFile =
@@ -697,13 +693,74 @@ impl EntropyApp {
             "universal"
         };
         let dynamic_report = self.entlayout_dynamic_import_report(bundle);
+        let firmware_failures = if firmware_failures == "none" {
+            "none".to_owned()
+        } else {
+            firmware_failures
+                .split(", ")
+                .map(|failure| format!("• {failure}"))
+                .collect::<Vec<_>>()
+                .join(
+                    "
+",
+                )
+        };
+        let skipped = if skipped == "none" {
+            "none".to_owned()
+        } else {
+            skipped
+                .split(", ")
+                .map(|entry| format!("• {entry}"))
+                .collect::<Vec<_>>()
+                .join(
+                    "
+",
+                )
+        };
+        let imported = imported
+            .iter()
+            .map(|section| format!("• {section}"))
+            .collect::<Vec<_>>()
+            .join(
+                "
+",
+            );
+        let dynamic_report = dynamic_report
+            .split("; ")
+            .map(|section| format!("• {section}"))
+            .collect::<Vec<_>>()
+            .join(
+                "
+",
+            );
         format!(
-            "Imported .entlayout ({mode}): {}. Mapped: {}/{} keys, {}/{} encoder slots. Dynamic: {}. Skipped: {}. Firmware failures: {}. Auto-backup: {}",
-            imported.join(", "),
+            "Layout import complete
+
+Mode: {mode}
+
+Mapped layout:
+• Keys: {}/{}
+• Encoder slots: {}/{}
+
+Imported sections:
+{}
+
+Dynamic sections:
+{}
+
+Skipped:
+{}
+
+Firmware issues:
+{}
+
+Auto-backup:
+{}",
             mapping.mapped_keys(),
             mapping.key_mapping.len(),
             mapping.mapped_encoders(),
             mapping.encoder_mapping.len(),
+            imported,
             dynamic_report,
             skipped,
             firmware_failures,

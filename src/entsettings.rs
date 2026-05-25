@@ -48,19 +48,19 @@ impl EntropyApp {
         else {
             return;
         };
-        match self.import_entsettings_from_path(ctx, &path) {
-            Ok(report) => {
-                self.status_msg = "Imported app settings".into();
-                self.import_report_title = "App settings import report".into();
-                self.import_report_body = report;
-                self.import_report_open = true;
-            }
-            Err(e) => self.status_msg = format!("Import app settings failed: {e}"),
-        }
+        self.pending_entsettings_import_path = Some(path);
+        self.import_progress_started_at = None;
+        self.import_progress_title = "Importing app settings".into();
+        self.import_progress_body = "Applying Entropy app settings.".into();
+        ctx.request_repaint();
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn import_entsettings_from_path(&mut self, ctx: &egui::Context, path: &Path) -> Result<String> {
+    pub(super) fn import_entsettings_from_path(
+        &mut self,
+        ctx: &egui::Context,
+        path: &Path,
+    ) -> Result<String> {
         let data = std::fs::read_to_string(path)
             .with_context(|| format!("failed to read {}", path.display()))?;
         let bundle: EntSettingsFile = serde_json::from_str(&data)
@@ -69,7 +69,7 @@ impl EntropyApp {
         let backup_path = write_entsettings_auto_backup(&self.entsettings_snapshot())?;
         self.apply_entsettings(ctx, bundle)?;
         Ok(format!(
-            "Imported app settings: {}. Auto-backup: {}",
+            "App settings import complete\n\nFile:\n{}\n\nAuto-backup:\n{}",
             path.display(),
             backup_path.display()
         ))
