@@ -2,15 +2,15 @@ use super::*;
 
 fn entlayout_import_label(lang: crate::i18n::Language) -> &'static str {
     match lang {
-        crate::i18n::Language::Russian => "Импорт раскладки…",
-        crate::i18n::Language::English => "Import layout…",
+        crate::i18n::Language::Russian => "Импорт раскладки",
+        crate::i18n::Language::English => "Import layout",
     }
 }
 
 fn entlayout_export_label(lang: crate::i18n::Language) -> &'static str {
     match lang {
-        crate::i18n::Language::Russian => "Экспорт раскладки…",
-        crate::i18n::Language::English => "Export layout…",
+        crate::i18n::Language::Russian => "Экспорт раскладки",
+        crate::i18n::Language::English => "Export layout",
     }
 }
 

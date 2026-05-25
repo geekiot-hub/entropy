@@ -168,8 +168,8 @@ impl EntropyApp {
             serde_json::from_str(&data).context("invalid .entlayout JSON")?;
         self.validate_entlayout_file(&bundle)?;
         let backup_path = self.write_entlayout_auto_backup()?;
-        self.apply_entlayout(&bundle)?;
-        Ok(self.entlayout_import_report(&bundle, &backup_path))
+        let firmware_failures = self.apply_entlayout(&bundle)?;
+        Ok(self.entlayout_import_report(&bundle, &backup_path, &firmware_failures))
     }
 
     fn entlayout_snapshot(&self) -> Option<EntLayoutFile> {
@@ -363,15 +363,20 @@ impl EntropyApp {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn apply_entlayout(&mut self, bundle: &EntLayoutFile) -> Result<()> {
-        self.apply_entlayout_firmware_state(bundle)?;
+    fn apply_entlayout(&mut self, bundle: &EntLayoutFile) -> Result<Vec<String>> {
+        let firmware_failures = self.apply_entlayout_firmware_state(bundle)?;
         self.apply_entlayout_local_state(bundle)?;
         self.refresh_layer_picker_content_flags();
-        Ok(())
+        Ok(firmware_failures)
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn entlayout_import_report(&self, bundle: &EntLayoutFile, backup_path: &Path) -> String {
+    fn entlayout_import_report(
+        &self,
+        bundle: &EntLayoutFile,
+        backup_path: &Path,
+        firmware_failures: &[String],
+    ) -> String {
         let mut imported = vec![
             "keymap",
             "encoder keymap",
@@ -425,126 +430,172 @@ impl EntropyApp {
         } else {
             skipped.join(", ")
         };
+        let firmware_failures = if firmware_failures.is_empty() {
+            "none".to_owned()
+        } else {
+            firmware_failures.join(", ")
+        };
         format!(
-            "Imported .entlayout: {}. Skipped: {}. Auto-backup: {}",
+            "Imported .entlayout: {}. Skipped: {}. Firmware failures: {}. Auto-backup: {}",
             imported.join(", "),
             skipped,
+            firmware_failures,
             backup_path.display()
         )
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn apply_entlayout_firmware_state(&mut self, bundle: &EntLayoutFile) -> Result<()> {
+    fn apply_entlayout_firmware_state(&mut self, bundle: &EntLayoutFile) -> Result<Vec<String>> {
         let Some(hid) = &self.hid_device else {
             bail!("no active keyboard connection for firmware import");
         };
         let layout = self.layout.as_ref().context("no connected layout")?.clone();
+        let mut failures = Vec::new();
 
-        for (layer_idx, layer_codes) in bundle.data.keymap.iter().enumerate() {
-            for (key_idx, keycode) in layer_codes.iter().copied().enumerate() {
-                let key = &layout.keys[key_idx];
-                hid.set_keycode(layer_idx as u8, key.row, key.col, keycode)?;
+        if let Err(err) = (|| -> Result<()> {
+            for (layer_idx, layer_codes) in bundle.data.keymap.iter().enumerate() {
+                for (key_idx, keycode) in layer_codes.iter().copied().enumerate() {
+                    let key = &layout.keys[key_idx];
+                    hid.set_keycode(layer_idx as u8, key.row, key.col, keycode)?;
+                }
             }
+            Ok(())
+        })() {
+            failures.push(format!("keymap ({err})"));
         }
 
-        for (layer_idx, layer_codes) in bundle.data.encoder_keymap.iter().enumerate() {
-            for (visual_idx, keycode) in layer_codes.iter().copied().enumerate() {
-                let encoder = &layout.encoders[visual_idx];
-                hid.set_encoder(
-                    layer_idx as u8,
-                    encoder.encoder_idx,
-                    encoder.direction,
-                    keycode,
-                )?;
+        if let Err(err) = (|| -> Result<()> {
+            for (layer_idx, layer_codes) in bundle.data.encoder_keymap.iter().enumerate() {
+                for (visual_idx, keycode) in layer_codes.iter().copied().enumerate() {
+                    let encoder = &layout.encoders[visual_idx];
+                    hid.set_encoder(
+                        layer_idx as u8,
+                        encoder.encoder_idx,
+                        encoder.direction,
+                        keycode,
+                    )?;
+                }
             }
+            Ok(())
+        })() {
+            failures.push(format!("encoder keymap ({err})"));
         }
 
         if let Some(options) = bundle.data.layout_options {
             if self.layout_options_value.is_some() {
-                hid.set_layout_options(options)?;
+                if let Err(err) = hid.set_layout_options(options) {
+                    failures.push(format!("layout options ({err})"));
+                }
             }
         }
 
         if !bundle.data.macros.texts.is_empty() && self.keycode_picker.macro_count > 0 {
-            let size = hid.get_macro_buffer_size()?;
-            let mut macro_texts = bundle.data.macros.texts.clone();
-            macro_texts.resize(self.keycode_picker.macro_count, String::new());
-            macro_texts.truncate(self.keycode_picker.macro_count);
-            let buf = crate::hid::HidDevice::encode_macros(&macro_texts, size);
-            hid.set_macro_buffer(&buf)?;
-        }
-
-        for (idx, combo) in bundle
-            .data
-            .combos
-            .entries
-            .iter()
-            .take(self.combo_entries.len())
-            .enumerate()
-        {
-            hid.set_combo(idx as u8, combo.keys, combo.output)?;
-        }
-        if let Some(term) = bundle.data.combos.term {
-            if self.combo_term.is_some() {
-                hid.set_qmk_setting_u16(2, term)?;
+            if let Err(err) = (|| -> Result<()> {
+                let size = hid.get_macro_buffer_size()?;
+                let mut macro_texts = bundle.data.macros.texts.clone();
+                macro_texts.resize(self.keycode_picker.macro_count, String::new());
+                macro_texts.truncate(self.keycode_picker.macro_count);
+                let buf = crate::hid::HidDevice::encode_macros(&macro_texts, size);
+                hid.set_macro_buffer(&buf)?;
+                Ok(())
+            })() {
+                failures.push(format!("macros ({err})"));
             }
         }
 
-        for (idx, td) in bundle
-            .data
-            .tap_dance
-            .entries
-            .iter()
-            .take(self.keycode_picker.tap_dance_entries.len())
-            .enumerate()
-        {
-            hid.set_tap_dance(
-                idx as u8,
-                td.on_tap,
-                td.on_hold,
-                td.on_double_tap,
-                td.on_tap_hold,
-                td.tapping_term,
-            )?;
+        if let Err(err) = (|| -> Result<()> {
+            for (idx, combo) in bundle
+                .data
+                .combos
+                .entries
+                .iter()
+                .take(self.combo_entries.len())
+                .enumerate()
+            {
+                hid.set_combo(idx as u8, combo.keys, combo.output)?;
+            }
+            Ok(())
+        })() {
+            failures.push(format!("combos ({err})"));
+        }
+        if let Some(term) = bundle.data.combos.term {
+            if self.combo_term.is_some() {
+                if let Err(err) = hid.set_qmk_setting_u16(2, term) {
+                    failures.push(format!("combo term ({err})"));
+                }
+            }
         }
 
-        for (idx, ko) in bundle
-            .data
-            .key_overrides
-            .entries
-            .iter()
-            .take(self.key_override_entries.len())
-            .enumerate()
-        {
-            hid.set_key_override(
-                idx as u8,
-                ko.trigger,
-                ko.replacement,
-                ko.layers,
-                ko.trigger_mods,
-                ko.negative_mod_mask,
-                ko.suppressed_mods,
-                ko.options,
-            )?;
+        if let Err(err) = (|| -> Result<()> {
+            for (idx, td) in bundle
+                .data
+                .tap_dance
+                .entries
+                .iter()
+                .take(self.keycode_picker.tap_dance_entries.len())
+                .enumerate()
+            {
+                hid.set_tap_dance(
+                    idx as u8,
+                    td.on_tap,
+                    td.on_hold,
+                    td.on_double_tap,
+                    td.on_tap_hold,
+                    td.tapping_term,
+                )?;
+            }
+            Ok(())
+        })() {
+            failures.push(format!("tap dance ({err})"));
         }
 
-        for (idx, ar) in bundle
-            .data
-            .alt_repeat
-            .entries
-            .iter()
-            .take(self.alt_repeat_entries.len())
-            .enumerate()
-        {
-            hid.set_alt_repeat_key(
-                idx as u8,
-                ar.keycode,
-                ar.alt_keycode,
-                ar.allowed_mods,
-                ar.options,
-            )?;
+        if let Err(err) = (|| -> Result<()> {
+            for (idx, ko) in bundle
+                .data
+                .key_overrides
+                .entries
+                .iter()
+                .take(self.key_override_entries.len())
+                .enumerate()
+            {
+                hid.set_key_override(
+                    idx as u8,
+                    ko.trigger,
+                    ko.replacement,
+                    ko.layers,
+                    ko.trigger_mods,
+                    ko.negative_mod_mask,
+                    ko.suppressed_mods,
+                    ko.options,
+                )?;
+            }
+            Ok(())
+        })() {
+            failures.push(format!("key overrides ({err})"));
         }
-        Ok(())
+
+        if let Err(err) = (|| -> Result<()> {
+            for (idx, ar) in bundle
+                .data
+                .alt_repeat
+                .entries
+                .iter()
+                .take(self.alt_repeat_entries.len())
+                .enumerate()
+            {
+                hid.set_alt_repeat_key(
+                    idx as u8,
+                    ar.keycode,
+                    ar.alt_keycode,
+                    ar.allowed_mods,
+                    ar.options,
+                )?;
+            }
+            Ok(())
+        })() {
+            failures.push(format!("alt repeat ({err})"));
+        }
+        Ok(failures)
     }
 
     fn apply_entlayout_local_state(&mut self, bundle: &EntLayoutFile) -> Result<()> {
