@@ -164,7 +164,7 @@ impl EntropyApp {
             ))
             .show(ctx, |ui| {
                 ui.set_min_size(panel_size);
-                let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, panel_size);
+                let rect = egui::Rect::from_min_size(ui.min_rect().min, panel_size);
                 let painter = ui.painter().clone();
 
                 let close_rect = egui::Rect::from_center_size(
