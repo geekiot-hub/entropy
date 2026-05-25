@@ -128,7 +128,7 @@ impl EntropyApp {
         let (title, body, remember, close_label, tray_label, cancel_label) = match lang {
             crate::i18n::Language::Russian => (
                 "Закрыть Entropy?",
-                "Text Expander и фоновые функции остановятся, если закрыть приложение.",
+                "Text Expander и фоновые функции остановятся, если закрыть приложение",
                 "Запомнить выбор",
                 "Закрыть",
                 "Свернуть в трей",
@@ -136,7 +136,7 @@ impl EntropyApp {
             ),
             crate::i18n::Language::English => (
                 "Close Entropy?",
-                "Text Expander and background features will stop if Entropy is closed.",
+                "Text Expander and background features will stop if Entropy is closed",
                 "Remember my choice",
                 "Close",
                 "Minimize to tray",
@@ -156,62 +156,66 @@ impl EntropyApp {
             Vec2::new(460.0, 220.0),
         )
         .show(ctx, |ui| {
-            crate::ui_style::modal_content(
-                ui,
-                crate::ui_style::ModalLayout::new(390.0).with_top_padding(8.0),
-                |ui| {
-                    ui.vertical_centered(|ui| {
-                        ui.add(
-                            egui::Label::new(
-                                RichText::new(body)
-                                    .size(12.5)
-                                    .color(ui.visuals().text_color()),
-                            )
-                            .wrap()
-                            .halign(egui::Align::Center),
-                        );
-                        ui.add_space(14.0);
-                        ui.horizontal_centered(|ui| {
-                            ui.checkbox(&mut self.close_to_tray_prompt_remember, remember);
-                        });
-                        ui.add_space(18.0);
-                        ui.horizontal_centered(|ui| {
-                            if crate::ui_style::modern_button(
-                                ui,
-                                close_label,
-                                Vec2::new(104.0, 32.0),
-                                true,
-                            )
-                            .clicked()
-                            {
-                                close_app = true;
-                            }
-                            ui.add_space(8.0);
-                            if crate::ui_style::modern_button(
-                                ui,
-                                tray_label,
-                                Vec2::new(142.0, 32.0),
-                                true,
-                            )
-                            .clicked()
-                            {
-                                minimize_to_tray = true;
-                            }
-                            ui.add_space(8.0);
-                            if crate::ui_style::modern_button(
-                                ui,
-                                cancel_label,
-                                Vec2::new(104.0, 32.0),
-                                true,
-                            )
-                            .clicked()
-                            {
-                                cancel = true;
-                            }
-                        });
-                    });
-                },
+            ui.set_min_size(Vec2::new(440.0, 170.0));
+            let rect = ui.max_rect();
+            let center_x = rect.center().x;
+
+            let body_rect = egui::Rect::from_center_size(
+                egui::pos2(center_x, rect.top() + 42.0),
+                Vec2::new(390.0, 34.0),
             );
+            ui.allocate_ui_at_rect(body_rect, |ui| {
+                ui.add_sized(
+                    body_rect.size(),
+                    egui::Label::new(
+                        RichText::new(body)
+                            .size(12.5)
+                            .color(ui.visuals().text_color()),
+                    )
+                    .wrap()
+                    .halign(egui::Align::Center),
+                );
+            });
+
+            let remember_rect = egui::Rect::from_center_size(
+                egui::pos2(center_x, rect.top() + 91.0),
+                Vec2::new(220.0, 24.0),
+            );
+            ui.allocate_ui_at_rect(remember_rect, |ui| {
+                ui.horizontal_centered(|ui| {
+                    ui.checkbox(&mut self.close_to_tray_prompt_remember, remember);
+                });
+            });
+
+            let close_size = Vec2::new(104.0, 32.0);
+            let tray_size = Vec2::new(142.0, 32.0);
+            let cancel_size = Vec2::new(104.0, 32.0);
+            let gap = 8.0;
+            let total_width = close_size.x + tray_size.x + cancel_size.x + gap * 2.0;
+            let top = rect.top() + 132.0;
+            let mut left = center_x - total_width * 0.5;
+
+            let close_rect = egui::Rect::from_min_size(egui::pos2(left, top), close_size);
+            left += close_size.x + gap;
+            let tray_rect = egui::Rect::from_min_size(egui::pos2(left, top), tray_size);
+            left += tray_size.x + gap;
+            let cancel_rect = egui::Rect::from_min_size(egui::pos2(left, top), cancel_size);
+
+            ui.allocate_ui_at_rect(close_rect, |ui| {
+                if crate::ui_style::modern_button(ui, close_label, close_size, true).clicked() {
+                    close_app = true;
+                }
+            });
+            ui.allocate_ui_at_rect(tray_rect, |ui| {
+                if crate::ui_style::modern_button(ui, tray_label, tray_size, true).clicked() {
+                    minimize_to_tray = true;
+                }
+            });
+            ui.allocate_ui_at_rect(cancel_rect, |ui| {
+                if crate::ui_style::modern_button(ui, cancel_label, cancel_size, true).clicked() {
+                    cancel = true;
+                }
+            });
         });
 
         if close_app {
