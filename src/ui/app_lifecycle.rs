@@ -172,6 +172,11 @@ impl EntropyApp {
             .fixed_pos(screen_rect.min)
             .show(ctx, |ui| {
                 let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, screen_rect.size());
+                ui.interact(
+                    rect,
+                    egui::Id::new("import_progress_backdrop_blocker"),
+                    egui::Sense::click_and_drag(),
+                );
                 ui.painter().rect_filled(
                     rect,
                     0.0,
@@ -232,10 +237,16 @@ impl eframe::App for EntropyApp {
 
         let combo_capture_open_at_frame_start = self.combo_capture_open;
         let keyboard_input_wanted_at_frame_start = ctx.wants_keyboard_input();
+        #[cfg(not(target_arch = "wasm32"))]
+        let import_pending_at_frame_start = self.import_pending();
+        #[cfg(target_arch = "wasm32")]
+        let import_pending_at_frame_start = false;
         let modal_or_popup_open_at_frame_start = self.keycode_picker.open
             || self.unlock_open
             || self.vial_unlock_polling
             || self.close_to_tray_prompt_open
+            || self.import_report_open
+            || import_pending_at_frame_start
             || self.top_dropdown_open(ctx)
             || ctx.memory(|m| m.any_popup_open());
 
@@ -523,6 +534,11 @@ impl eframe::App for EntropyApp {
                 .fixed_pos(screen_rect.min)
                 .show(ctx, |ui| {
                     let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, screen_rect.size());
+                    ui.interact(
+                        rect,
+                        egui::Id::new("import_report_backdrop_blocker"),
+                        egui::Sense::click_and_drag(),
+                    );
                     ui.painter().rect_filled(
                         rect,
                         0.0,
