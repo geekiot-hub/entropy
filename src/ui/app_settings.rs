@@ -59,38 +59,41 @@ impl EntropyApp {
 
                 #[cfg(not(target_arch = "wasm32"))]
                 {
-                    ui.add_space(metrics.value(12.0));
-                    let action_width = metrics.size(346.0, 32.0).x;
-                    let action_rect = egui::Rect::from_min_size(
+                    let button_size = metrics.size(168.0, 32.0);
+                    let button_gap = metrics.value(10.0);
+                    let actions_width = button_size.x * 2.0 + button_gap;
+                    let actions_rect = egui::Rect::from_center_size(
                         egui::pos2(
-                            list.viewport.center().x - action_width / 2.0,
-                            ui.cursor().top(),
+                            list.viewport.center().x,
+                            list.viewport.bottom() + metrics.value(34.0),
                         ),
-                        egui::vec2(action_width, metrics.value(32.0)),
+                        egui::vec2(actions_width, button_size.y),
                     );
-                    ui.allocate_ui_at_rect(action_rect, |ui| {
-                        ui.spacing_mut().item_spacing.x = metrics.value(10.0);
-                        let button_size = metrics.size(168.0, 32.0);
-                        if crate::ui_style::modern_button(
-                            ui,
-                            crate::i18n::tr_catalog(lang, "ui.import_app_settings"),
-                            button_size,
-                            true,
-                        )
-                        .clicked()
-                        {
-                            self.import_entsettings_dialog(ui.ctx());
-                        }
-                        if crate::ui_style::modern_button(
-                            ui,
-                            crate::i18n::tr_catalog(lang, "ui.export_app_settings"),
-                            button_size,
-                            true,
-                        )
-                        .clicked()
-                        {
-                            self.export_entsettings_dialog();
-                        }
+                    ui.allocate_ui_at_rect(actions_rect, |ui| {
+                        ui.set_min_size(actions_rect.size());
+                        ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                            ui.spacing_mut().item_spacing.x = button_gap;
+                            if crate::ui_style::modern_button(
+                                ui,
+                                crate::i18n::tr_catalog(lang, "ui.import_app_settings"),
+                                button_size,
+                                true,
+                            )
+                            .clicked()
+                            {
+                                self.import_entsettings_dialog(ui.ctx());
+                            }
+                            if crate::ui_style::modern_button(
+                                ui,
+                                crate::i18n::tr_catalog(lang, "ui.export_app_settings"),
+                                button_size,
+                                true,
+                            )
+                            .clicked()
+                            {
+                                self.export_entsettings_dialog();
+                            }
+                        });
                     });
                 }
             });
