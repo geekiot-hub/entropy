@@ -117,6 +117,83 @@ struct EntLayoutKeycodeImportLimits {
     tap_dance_count: usize,
 }
 
+#[derive(Clone, Copy)]
+enum EntLayoutSkipReason {
+    UnsupportedSlot,
+    UnmappableCustomKeycode,
+    MissingLayer,
+    MissingMacroSlot,
+    MissingTapDanceSlot,
+}
+
+#[derive(Default)]
+struct EntLayoutSectionImportStats {
+    imported: usize,
+    unsupported_slot: usize,
+    unmappable_custom_keycode: usize,
+    missing_layer: usize,
+    missing_macro_slot: usize,
+    missing_tap_dance_slot: usize,
+}
+
+impl EntLayoutSectionImportStats {
+    fn skipped(&self) -> usize {
+        self.unsupported_slot
+            + self.unmappable_custom_keycode
+            + self.missing_layer
+            + self.missing_macro_slot
+            + self.missing_tap_dance_slot
+    }
+
+    fn record_imported(&mut self) {
+        self.imported += 1;
+    }
+
+    fn record_skipped(&mut self, reason: EntLayoutSkipReason) {
+        match reason {
+            EntLayoutSkipReason::UnsupportedSlot => self.unsupported_slot += 1,
+            EntLayoutSkipReason::UnmappableCustomKeycode => self.unmappable_custom_keycode += 1,
+            EntLayoutSkipReason::MissingLayer => self.missing_layer += 1,
+            EntLayoutSkipReason::MissingMacroSlot => self.missing_macro_slot += 1,
+            EntLayoutSkipReason::MissingTapDanceSlot => self.missing_tap_dance_slot += 1,
+        }
+    }
+
+    fn summary(&self, label: &str) -> String {
+        if self.skipped() == 0 {
+            return format!("{label} {}/{}", self.imported, self.imported);
+        }
+        let mut reasons = Vec::new();
+        if self.unsupported_slot > 0 {
+            reasons.push(format!("{} unsupported slot", self.unsupported_slot));
+        }
+        if self.unmappable_custom_keycode > 0 {
+            reasons.push(format!(
+                "{} unmappable custom keycode",
+                self.unmappable_custom_keycode
+            ));
+        }
+        if self.missing_layer > 0 {
+            reasons.push(format!("{} missing layer", self.missing_layer));
+        }
+        if self.missing_macro_slot > 0 {
+            reasons.push(format!("{} missing macro slot", self.missing_macro_slot));
+        }
+        if self.missing_tap_dance_slot > 0 {
+            reasons.push(format!(
+                "{} missing tap dance slot",
+                self.missing_tap_dance_slot
+            ));
+        }
+        format!(
+            "{label} {}/{} (skipped: {})",
+            self.imported,
+            self.imported + self.skipped(),
+            reasons.join(", ")
+        )
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 struct EntTextExpanderData {
     enabled: bool,
@@ -468,6 +545,78 @@ impl EntropyApp {
         }
     }
 
+    fn entlayout_dynamic_import_report(&self, bundle: &EntLayoutFile) -> String {
+        let Some(layout) = self.layout.as_ref() else {
+            return "none".to_owned();
+        };
+        let limits = self.entlayout_keycode_import_limits();
+        let mut macro_stats = EntLayoutSectionImportStats::default();
+        for (idx, _) in bundle.data.macros.texts.iter().enumerate() {
+            if idx < self.keycode_picker.macro_count {
+                macro_stats.record_imported();
+            } else {
+                macro_stats.record_skipped(EntLayoutSkipReason::UnsupportedSlot);
+            }
+        }
+
+        let mut combo_stats = EntLayoutSectionImportStats::default();
+        for (idx, entry) in bundle.data.combos.entries.iter().enumerate() {
+            if idx >= self.combo_entries.len() {
+                combo_stats.record_skipped(EntLayoutSkipReason::UnsupportedSlot);
+                continue;
+            }
+            match check_entcombo_entry(entry, bundle, layout, limits) {
+                Ok(()) => combo_stats.record_imported(),
+                Err(reason) => combo_stats.record_skipped(reason),
+            }
+        }
+
+        let mut tap_dance_stats = EntLayoutSectionImportStats::default();
+        for (idx, entry) in bundle.data.tap_dance.entries.iter().enumerate() {
+            if idx >= self.keycode_picker.tap_dance_entries.len() {
+                tap_dance_stats.record_skipped(EntLayoutSkipReason::UnsupportedSlot);
+                continue;
+            }
+            match check_enttap_dance_entry(entry, bundle, layout, limits) {
+                Ok(()) => tap_dance_stats.record_imported(),
+                Err(reason) => tap_dance_stats.record_skipped(reason),
+            }
+        }
+
+        let mut key_override_stats = EntLayoutSectionImportStats::default();
+        for (idx, entry) in bundle.data.key_overrides.entries.iter().enumerate() {
+            if idx >= self.key_override_entries.len() {
+                key_override_stats.record_skipped(EntLayoutSkipReason::UnsupportedSlot);
+                continue;
+            }
+            match check_entkey_override_entry(entry, bundle, layout, limits) {
+                Ok(()) => key_override_stats.record_imported(),
+                Err(reason) => key_override_stats.record_skipped(reason),
+            }
+        }
+
+        let mut alt_repeat_stats = EntLayoutSectionImportStats::default();
+        for (idx, entry) in bundle.data.alt_repeat.entries.iter().enumerate() {
+            if idx >= self.alt_repeat_entries.len() {
+                alt_repeat_stats.record_skipped(EntLayoutSkipReason::UnsupportedSlot);
+                continue;
+            }
+            match check_entalt_repeat_entry(entry, bundle, layout, limits) {
+                Ok(()) => alt_repeat_stats.record_imported(),
+                Err(reason) => alt_repeat_stats.record_skipped(reason),
+            }
+        }
+
+        [
+            macro_stats.summary("macros"),
+            combo_stats.summary("combos"),
+            tap_dance_stats.summary("tap dance"),
+            key_override_stats.summary("key overrides"),
+            alt_repeat_stats.summary("alt repeat"),
+        ]
+        .join("; ")
+    }
+
     #[cfg(not(target_arch = "wasm32"))]
     fn entlayout_import_report(
         &self,
@@ -542,13 +691,15 @@ impl EntropyApp {
         } else {
             "universal"
         };
+        let dynamic_report = self.entlayout_dynamic_import_report(bundle);
         format!(
-            "Imported .entlayout ({mode}): {}. Mapped: {}/{} keys, {}/{} encoder slots. Skipped: {}. Firmware failures: {}. Auto-backup: {}",
+            "Imported .entlayout ({mode}): {}. Mapped: {}/{} keys, {}/{} encoder slots. Dynamic: {}. Skipped: {}. Firmware failures: {}. Auto-backup: {}",
             imported.join(", "),
             mapping.mapped_keys(),
             mapping.key_mapping.len(),
             mapping.mapped_encoders(),
             mapping.encoder_mapping.len(),
+            dynamic_report,
             skipped,
             firmware_failures,
             backup_path.display()
@@ -1490,6 +1641,144 @@ fn remap_entalt_repeat_entry(
         allowed_mods: entry.allowed_mods,
         options: entry.options,
     })
+}
+
+fn check_entlayout_keycode(
+    keycode: u16,
+    bundle: &EntLayoutFile,
+    layout: &KeyboardLayout,
+    limits: EntLayoutKeycodeImportLimits,
+) -> std::result::Result<u16, EntLayoutSkipReason> {
+    let keycode = check_custom_keycode_by_name(keycode, bundle, layout)?;
+    check_macro_keycode(keycode, limits.macro_count)?;
+    check_tap_dance_keycode(keycode, limits.tap_dance_count)?;
+    check_layer_keycode(keycode, limits.layer_count)
+}
+
+fn check_custom_keycode_by_name(
+    keycode: u16,
+    bundle: &EntLayoutFile,
+    layout: &KeyboardLayout,
+) -> std::result::Result<u16, EntLayoutSkipReason> {
+    const QK_KB: u16 = 0x7E00;
+    if keycode < QK_KB {
+        return Ok(keycode);
+    }
+    let source_idx = keycode
+        .checked_sub(QK_KB)
+        .map(|idx| idx as usize)
+        .ok_or(EntLayoutSkipReason::UnmappableCustomKeycode)?;
+    let Some(source_layout) = bundle.data.source_layout.as_ref() else {
+        return if source_idx < layout.custom_keycodes.len() {
+            Ok(keycode)
+        } else {
+            Err(EntLayoutSkipReason::UnmappableCustomKeycode)
+        };
+    };
+    let Some(source_custom) = source_layout
+        .custom_keycodes
+        .iter()
+        .find(|custom| custom.index == source_idx)
+    else {
+        return Ok(keycode);
+    };
+    let target_idx = layout
+        .custom_keycodes
+        .iter()
+        .position(|custom| custom.name == source_custom.name)
+        .ok_or(EntLayoutSkipReason::UnmappableCustomKeycode)?;
+    Ok(QK_KB + target_idx as u16)
+}
+
+fn check_macro_keycode(
+    keycode: u16,
+    macro_count: usize,
+) -> std::result::Result<(), EntLayoutSkipReason> {
+    if (0x7700..=0x77FF).contains(&keycode) && (keycode - 0x7700) as usize >= macro_count {
+        Err(EntLayoutSkipReason::MissingMacroSlot)
+    } else {
+        Ok(())
+    }
+}
+
+fn check_tap_dance_keycode(
+    keycode: u16,
+    tap_dance_count: usize,
+) -> std::result::Result<(), EntLayoutSkipReason> {
+    if (0x5700..=0x57FF).contains(&keycode) && (keycode - 0x5700) as usize >= tap_dance_count {
+        Err(EntLayoutSkipReason::MissingTapDanceSlot)
+    } else {
+        Ok(())
+    }
+}
+
+fn check_layer_keycode(
+    keycode: u16,
+    target_layer_count: usize,
+) -> std::result::Result<u16, EntLayoutSkipReason> {
+    if (0x5200..0x5300).contains(&keycode) {
+        let op = (keycode >> 5) & 0x7;
+        if op != 5 {
+            let target = (keycode & 0x1F) as usize;
+            if target >= target_layer_count {
+                return Err(EntLayoutSkipReason::MissingLayer);
+            }
+        }
+    } else if keycode & 0xF000 == 0x4000 {
+        let target = ((keycode >> 8) & 0xF) as usize;
+        if target >= target_layer_count {
+            return Err(EntLayoutSkipReason::MissingLayer);
+        }
+    }
+    Ok(keycode)
+}
+
+fn check_entcombo_entry(
+    entry: &EntComboEntry,
+    bundle: &EntLayoutFile,
+    layout: &KeyboardLayout,
+    limits: EntLayoutKeycodeImportLimits,
+) -> std::result::Result<(), EntLayoutSkipReason> {
+    for keycode in entry.keys {
+        check_entlayout_keycode(keycode, bundle, layout, limits)?;
+    }
+    check_entlayout_keycode(entry.output, bundle, layout, limits)?;
+    Ok(())
+}
+
+fn check_enttap_dance_entry(
+    entry: &EntTapDanceEntry,
+    bundle: &EntLayoutFile,
+    layout: &KeyboardLayout,
+    limits: EntLayoutKeycodeImportLimits,
+) -> std::result::Result<(), EntLayoutSkipReason> {
+    check_entlayout_keycode(entry.on_tap, bundle, layout, limits)?;
+    check_entlayout_keycode(entry.on_hold, bundle, layout, limits)?;
+    check_entlayout_keycode(entry.on_double_tap, bundle, layout, limits)?;
+    check_entlayout_keycode(entry.on_tap_hold, bundle, layout, limits)?;
+    Ok(())
+}
+
+fn check_entkey_override_entry(
+    entry: &EntKeyOverrideEntry,
+    bundle: &EntLayoutFile,
+    layout: &KeyboardLayout,
+    limits: EntLayoutKeycodeImportLimits,
+) -> std::result::Result<(), EntLayoutSkipReason> {
+    check_entlayout_keycode(entry.trigger, bundle, layout, limits)?;
+    check_entlayout_keycode(entry.replacement, bundle, layout, limits)?;
+    Ok(())
+}
+
+fn check_entalt_repeat_entry(
+    entry: &EntAltRepeatEntry,
+    bundle: &EntLayoutFile,
+    layout: &KeyboardLayout,
+    limits: EntLayoutKeycodeImportLimits,
+) -> std::result::Result<(), EntLayoutSkipReason> {
+    check_entlayout_keycode(entry.keycode, bundle, layout, limits)?;
+    check_entlayout_keycode(entry.alt_keycode, bundle, layout, limits)?;
+    Ok(())
 }
 
 fn write_entlayout_file(path: &Path, bundle: &EntLayoutFile) -> Result<()> {
