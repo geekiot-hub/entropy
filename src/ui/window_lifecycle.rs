@@ -117,6 +117,11 @@ impl EntropyApp {
             .fixed_pos(screen_rect.min)
             .show(ctx, |ui| {
                 let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, screen_rect.size());
+                ui.interact(
+                    rect,
+                    egui::Id::new("close_to_tray_prompt_blocker"),
+                    egui::Sense::click_and_drag(),
+                );
                 ui.painter().rect_filled(
                     rect,
                     0.0,

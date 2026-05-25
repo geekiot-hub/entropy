@@ -235,6 +235,7 @@ impl eframe::App for EntropyApp {
         let modal_or_popup_open_at_frame_start = self.keycode_picker.open
             || self.unlock_open
             || self.vial_unlock_polling
+            || self.close_to_tray_prompt_open
             || self.top_dropdown_open(ctx)
             || ctx.memory(|m| m.any_popup_open());
 
