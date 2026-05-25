@@ -178,6 +178,8 @@ pub(crate) struct VialFeatureSupport {
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) struct ConnectResult {
     pub(crate) device_name: String,
+    /// Stable Vial keyboard definition id used for per-keyboard local settings.
+    pub(crate) keyboard_id: u64,
     /// Open HID connection used during loading; kept for live writes just like vial-gui.
     pub(crate) hid_device: Option<crate::hid::HidDevice>,
     pub(crate) layout: KeyboardLayout,
@@ -1244,6 +1246,9 @@ pub struct EntropyApp {
     pub(crate) editing_layer_focus_requested: bool,
     /// Current connected device name (for per-device layer names)
     pub(crate) current_device_name: String,
+    /// Stable local settings key for encoder visibility. Uses Vial keyboard id when available
+    /// so keyboards with the same display name do not share hidden/shown encoder settings.
+    pub(crate) current_encoder_visibility_id: String,
     /// Friendly names learned from firmware/device info, keyed by device path.
     pub(crate) device_display_names: std::collections::HashMap<String, String>,
     pub(crate) tour_state: TourState,

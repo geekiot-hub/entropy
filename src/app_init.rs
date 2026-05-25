@@ -118,6 +118,7 @@ impl EntropyApp {
             editing_layer_text: String::new(),
             editing_layer_focus_requested: false,
             current_device_name: String::new(),
+            current_encoder_visibility_id: String::new(),
             device_display_names: std::collections::HashMap::new(),
             tour_state: TourState::default(),
             tour_target_rects: Vec::new(),

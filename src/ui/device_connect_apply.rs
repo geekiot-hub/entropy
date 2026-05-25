@@ -63,6 +63,8 @@ impl EntropyApp {
                 self.layer_count = r.layer_count;
                 self.firmware = r.layout.firmware;
                 self.current_device_name = r.device_name.clone();
+                self.current_encoder_visibility_id =
+                    encoder_visibility_id(&r.device_name, r.keyboard_id);
                 if let Some(dev) = self
                     .selected_device
                     .and_then(|idx| self.device_manager.devices().get(idx))
@@ -222,7 +224,8 @@ impl EntropyApp {
                 self.layer_names = layer_names;
 
                 let encoder_count = r.layout.encoder_count();
-                self.encoder_visibility = load_encoder_visibility(&device_name, encoder_count);
+                self.encoder_visibility =
+                    load_encoder_visibility(&self.current_encoder_visibility_id, encoder_count);
 
                 // Populate picker
                 self.keycode_picker.supports_rgb =

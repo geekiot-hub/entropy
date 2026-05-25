@@ -768,6 +768,7 @@ impl EntropyApp {
                 progress("Applying keyboard layout…");
                 Ok(ConnectResult {
                     device_name: dev.name.clone(),
+                    keyboard_id,
                     hid_device: Some(dev_conn),
                     macro_texts,
                     tap_dance_entries,

@@ -15,7 +15,7 @@ impl EntropyApp {
         let switch_width = metrics.value(46.0);
         let switch_size = metrics.size(46.0, 24.0);
 
-        let (encoder_indices, device_name) = self
+        let (encoder_indices, device_id) = self
             .layout
             .as_ref()
             .map(|layout| {
@@ -26,12 +26,16 @@ impl EntropyApp {
                     .collect::<std::collections::BTreeSet<_>>()
                     .into_iter()
                     .collect::<Vec<_>>();
-                let device_name = if self.current_device_name.is_empty() {
-                    layout.name.clone()
+                let device_id = if self.current_encoder_visibility_id.is_empty() {
+                    if self.current_device_name.is_empty() {
+                        layout.name.clone()
+                    } else {
+                        self.current_device_name.clone()
+                    }
                 } else {
-                    self.current_device_name.clone()
+                    self.current_encoder_visibility_id.clone()
                 };
-                (indices, device_name)
+                (indices, device_id)
             })
             .unwrap_or((Vec::new(), String::new()));
         let visibility_len = encoder_indices
@@ -101,10 +105,10 @@ impl EntropyApp {
                                     );
                                     if resp.changed() {
                                         self.encoder_visibility[*encoder_idx] = visible;
-                                        if !device_name.is_empty() {
+                                        if !device_id.is_empty() {
                                             save_encoder_visibility(
                                                 &self.encoder_visibility,
-                                                &device_name,
+                                                &device_id,
                                             );
                                         }
                                     }

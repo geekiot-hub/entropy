@@ -16,6 +16,7 @@ impl EntropyApp {
         self.pending_layout_indicator_open_after_unlock = false;
         self.keycode_picker.open = false;
         self.current_device_name.clear();
+        self.current_encoder_visibility_id.clear();
         self.mouse_keys_settings = MouseKeysSettingsState::default();
         self.touchpad_settings = TouchpadSettingsState::default();
         self.module_settings = ModuleSettingsState::default();

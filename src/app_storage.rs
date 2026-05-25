@@ -358,37 +358,39 @@ pub(super) fn load_layer_names(device_name: &str) -> Vec<String> {
     v
 }
 
-pub(super) fn encoder_visibility_path(device_name: &str) -> std::path::PathBuf {
+pub(super) fn encoder_visibility_id(device_name: &str, keyboard_id: u64) -> String {
+    format!("vial_{keyboard_id:016x}_{device_name}")
+}
+
+pub(super) fn encoder_visibility_path(device_id: &str) -> std::path::PathBuf {
     let dir = dirs::config_dir()
         .unwrap_or_else(|| std::path::PathBuf::from("."))
         .join("entropy");
     std::fs::create_dir_all(&dir).ok();
-    let slug = device_name
-        .chars()
-        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
-        .collect::<String>();
+    let slug = device_id_slug(device_id);
     dir.join(format!("encoder_visibility_{}.json", slug))
 }
 
-pub(super) fn load_encoder_visibility(device_name: &str, count: usize) -> Vec<bool> {
+fn load_encoder_visibility_from_id(device_id: &str, count: usize) -> Option<Vec<bool>> {
+    let path = encoder_visibility_path(device_id);
+    let data = std::fs::read_to_string(&path).ok()?;
+    let mut v = serde_json::from_str::<Vec<bool>>(&data).ok()?;
+    v.truncate(count);
+    while v.len() < count {
+        v.push(true);
+    }
+    Some(v)
+}
+
+pub(super) fn load_encoder_visibility(device_id: &str, count: usize) -> Vec<bool> {
     if count == 0 {
         return vec![];
     }
-    let path = encoder_visibility_path(device_name);
-    if let Ok(data) = std::fs::read_to_string(&path) {
-        if let Ok(mut v) = serde_json::from_str::<Vec<bool>>(&data) {
-            v.truncate(count);
-            while v.len() < count {
-                v.push(true);
-            }
-            return v;
-        }
-    }
-    vec![true; count]
+    load_encoder_visibility_from_id(device_id, count).unwrap_or_else(|| vec![true; count])
 }
 
-pub(super) fn save_encoder_visibility(visibility: &[bool], device_name: &str) {
-    let path = encoder_visibility_path(device_name);
+pub(super) fn save_encoder_visibility(visibility: &[bool], device_id: &str) {
+    let path = encoder_visibility_path(device_id);
     match serde_json::to_string_pretty(visibility) {
         Ok(json) => {
             if let Err(e) = std::fs::write(&path, json) {
