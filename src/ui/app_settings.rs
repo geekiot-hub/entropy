@@ -56,6 +56,35 @@ impl EntropyApp {
                         list.track_hovered,
                     );
                 }
+
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    ui.add_space(metrics.value(12.0));
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = metrics.value(10.0);
+                        let button_size = metrics.size(168.0, 32.0);
+                        if crate::ui_style::modern_button(
+                            ui,
+                            crate::i18n::tr_catalog(lang, "ui.import_app_settings"),
+                            button_size,
+                            true,
+                        )
+                        .clicked()
+                        {
+                            self.import_entsettings_dialog(ui.ctx());
+                        }
+                        if crate::ui_style::modern_button(
+                            ui,
+                            crate::i18n::tr_catalog(lang, "ui.export_app_settings"),
+                            button_size,
+                            true,
+                        )
+                        .clicked()
+                        {
+                            self.export_entsettings_dialog();
+                        }
+                    });
+                }
             });
         });
     }
