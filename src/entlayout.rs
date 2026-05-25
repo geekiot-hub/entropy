@@ -36,7 +36,6 @@ struct EntLayoutData {
     encoder_visibility: Vec<bool>,
     layout_options: Option<u32>,
     layer_names: Vec<String>,
-    app_settings: AppSettings,
     text_expander: EntTextExpanderData,
     macros: EntMacroData,
     combos: EntComboData,
@@ -197,7 +196,6 @@ impl EntropyApp {
                 encoder_visibility: self.encoder_visibility.clone(),
                 layout_options: self.layout_options_value,
                 layer_names: self.layer_names.clone(),
-                app_settings: self.app_settings.clone(),
                 text_expander: self.text_expander_entlayout_snapshot(),
                 macros: EntMacroData {
                     texts: self.keycode_picker.macro_texts.clone(),
@@ -382,7 +380,6 @@ impl EntropyApp {
             "encoder keymap",
             "encoder visibility",
             "layer names",
-            "app settings",
             "Text Expander",
         ];
         let mut skipped = Vec::new();
@@ -685,7 +682,6 @@ impl EntropyApp {
             save_layer_names(&self.layer_names, &self.current_device_name);
         }
 
-        self.app_settings = bundle.data.app_settings.clone();
         self.app_settings.text_expander_enabled = bundle.data.text_expander.enabled;
         self.app_settings.text_expander_app_blacklist =
             bundle.data.text_expander.app_blacklist.clone();
