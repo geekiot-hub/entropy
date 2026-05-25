@@ -572,6 +572,8 @@ impl eframe::App for EntropyApp {
             self.import_report_open = open && !close_clicked;
         }
 
+        self.draw_close_to_tray_prompt(ctx);
+
         // Keycode picker modal
         self.draw_vial_unlock_overlay(ctx);
 

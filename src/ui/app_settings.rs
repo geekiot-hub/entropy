@@ -285,7 +285,11 @@ impl EntropyApp {
                     }
                 }
                 2 => {
-                    let mut minimize_to_tray = self.app_settings.minimize_to_tray_on_close;
+                    let mut minimize_to_tray = self.app_settings.minimize_to_tray_on_close
+                        || matches!(
+                            self.app_settings.close_to_tray_behavior,
+                            CloseToTrayBehavior::Tray
+                        );
                     crate::ui_style::settings_list_row_with_tooltip(
                         ui,
                         content_width,
@@ -304,6 +308,11 @@ impl EntropyApp {
                         },
                     );
                     if minimize_to_tray != self.app_settings.minimize_to_tray_on_close {
+                        self.app_settings.close_to_tray_behavior = if minimize_to_tray {
+                            CloseToTrayBehavior::Tray
+                        } else {
+                            CloseToTrayBehavior::Ask
+                        };
                         self.app_settings.minimize_to_tray_on_close = minimize_to_tray;
                         if !minimize_to_tray {
                             #[cfg(target_os = "windows")]

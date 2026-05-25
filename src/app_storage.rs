@@ -288,6 +288,15 @@ pub(super) fn load_app_settings() -> AppSettings {
     settings.text_expander_rule_files =
         normalize_text_expander_rule_files(&settings.text_expander_rule_files);
 
+    let has_close_behavior = settings_data
+        .as_deref()
+        .is_some_and(|data| data.contains("close_to_tray_behavior"));
+    if !has_close_behavior && settings.minimize_to_tray_on_close {
+        settings.close_to_tray_behavior = CloseToTrayBehavior::Tray;
+    }
+    settings.minimize_to_tray_on_close =
+        matches!(settings.close_to_tray_behavior, CloseToTrayBehavior::Tray);
+
     settings
 }
 

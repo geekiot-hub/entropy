@@ -45,14 +45,38 @@ impl EntropyApp {
         }
     }
 
+    fn close_to_tray_prompt_needed(&self) -> bool {
+        self.app_settings.text_expander_enabled
+    }
+
     pub(super) fn handle_close_to_tray(&mut self, ctx: &egui::Context) {
-        if !self.app_settings.minimize_to_tray_on_close {
-            return;
-        }
         if !ctx.input(|i| i.viewport().close_requested()) {
             return;
         }
-        ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+
+        if self.app_settings.minimize_to_tray_on_close
+            || matches!(
+                self.app_settings.close_to_tray_behavior,
+                CloseToTrayBehavior::Tray
+            )
+        {
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            self.minimize_window_to_tray(ctx);
+            return;
+        }
+
+        match self.app_settings.close_to_tray_behavior {
+            CloseToTrayBehavior::Ask if self.close_to_tray_prompt_needed() => {
+                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                self.close_to_tray_prompt_open = true;
+                self.close_to_tray_prompt_remember = false;
+                ctx.request_repaint();
+            }
+            CloseToTrayBehavior::Ask | CloseToTrayBehavior::Close | CloseToTrayBehavior::Tray => {}
+        }
+    }
+
+    pub(super) fn minimize_window_to_tray(&mut self, ctx: &egui::Context) {
         #[cfg(target_os = "windows")]
         {
             self.ensure_tray_icon(ctx);
@@ -67,6 +91,141 @@ impl EntropyApp {
         }
         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
         self.status_msg = "Entropy is running in the tray".into();
+    }
+
+    fn persist_close_to_tray_behavior(&mut self, behavior: CloseToTrayBehavior) {
+        self.app_settings.close_to_tray_behavior = behavior;
+        self.app_settings.minimize_to_tray_on_close = matches!(behavior, CloseToTrayBehavior::Tray);
+        if !self.app_settings.minimize_to_tray_on_close {
+            #[cfg(target_os = "windows")]
+            {
+                self.tray_icon = None;
+            }
+        }
+        save_app_settings(&self.app_settings);
+    }
+
+    pub(super) fn draw_close_to_tray_prompt(&mut self, ctx: &egui::Context) {
+        if !self.close_to_tray_prompt_open {
+            return;
+        }
+
+        let dark = ctx.style().visuals.dark_mode;
+        let screen_rect = ctx.screen_rect();
+        egui::Area::new("close_to_tray_prompt_backdrop".into())
+            .order(egui::Order::Foreground)
+            .fixed_pos(screen_rect.min)
+            .show(ctx, |ui| {
+                let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, screen_rect.size());
+                ui.painter().rect_filled(
+                    rect,
+                    0.0,
+                    Color32::from_black_alpha(crate::ui_style::modal_backdrop_alpha(dark)),
+                );
+            });
+
+        let lang = self.app_settings.language;
+        let (title, body, remember, close_label, tray_label, cancel_label) = match lang {
+            crate::i18n::Language::Russian => (
+                "Закрыть Entropy?",
+                "Text Expander и фоновые функции остановятся, если закрыть приложение.",
+                "Запомнить выбор",
+                "Закрыть",
+                "Свернуть в трей",
+                "Отмена",
+            ),
+            crate::i18n::Language::English => (
+                "Close Entropy?",
+                "Text Expander and background features will stop if Entropy is closed.",
+                "Remember my choice",
+                "Close",
+                "Minimize to tray",
+                "Cancel",
+            ),
+        };
+
+        let mut open = self.close_to_tray_prompt_open;
+        let mut close_app = false;
+        let mut minimize_to_tray = false;
+        let mut cancel = false;
+        crate::ui_style::centered_modal_window(
+            ctx,
+            title,
+            egui::Id::new("close_to_tray_prompt_window"),
+            &mut open,
+            Vec2::new(460.0, 220.0),
+        )
+        .show(ctx, |ui| {
+            crate::ui_style::modal_content(
+                ui,
+                crate::ui_style::ModalLayout::new(390.0).with_top_padding(8.0),
+                |ui| {
+                    ui.add(
+                        egui::Label::new(
+                            RichText::new(body)
+                                .size(12.5)
+                                .color(ui.visuals().text_color()),
+                        )
+                        .wrap(),
+                    );
+                    ui.add_space(14.0);
+                    ui.checkbox(&mut self.close_to_tray_prompt_remember, remember);
+                    ui.add_space(18.0);
+                    ui.horizontal_centered(|ui| {
+                        if crate::ui_style::modern_button(
+                            ui,
+                            close_label,
+                            Vec2::new(104.0, 32.0),
+                            false,
+                        )
+                        .clicked()
+                        {
+                            close_app = true;
+                        }
+                        ui.add_space(8.0);
+                        if crate::ui_style::modern_button(
+                            ui,
+                            tray_label,
+                            Vec2::new(142.0, 32.0),
+                            true,
+                        )
+                        .clicked()
+                        {
+                            minimize_to_tray = true;
+                        }
+                        ui.add_space(8.0);
+                        if crate::ui_style::modern_button(
+                            ui,
+                            cancel_label,
+                            Vec2::new(104.0, 32.0),
+                            false,
+                        )
+                        .clicked()
+                        {
+                            cancel = true;
+                        }
+                    });
+                },
+            );
+        });
+
+        if close_app {
+            if self.close_to_tray_prompt_remember {
+                self.persist_close_to_tray_behavior(CloseToTrayBehavior::Close);
+            }
+            self.close_to_tray_prompt_open = false;
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        } else if minimize_to_tray {
+            if self.close_to_tray_prompt_remember {
+                self.persist_close_to_tray_behavior(CloseToTrayBehavior::Tray);
+            }
+            self.close_to_tray_prompt_open = false;
+            self.minimize_window_to_tray(ctx);
+        } else if cancel {
+            self.close_to_tray_prompt_open = false;
+        } else {
+            self.close_to_tray_prompt_open = open;
+        }
     }
 
     #[cfg(target_os = "windows")]

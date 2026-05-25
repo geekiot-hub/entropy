@@ -17,6 +17,8 @@ use super::*;
 pub(crate) struct AppSettings {
     #[serde(default)]
     pub(crate) minimize_to_tray_on_close: bool,
+    #[serde(default)]
+    pub(crate) close_to_tray_behavior: CloseToTrayBehavior,
     #[serde(default = "default_show_shifted_number_symbols")]
     pub(crate) show_shifted_number_symbols: bool,
     #[serde(default = "default_layer_hover_preview")]
@@ -51,6 +53,20 @@ pub(crate) struct AppSettings {
     pub(crate) text_expander_rule_files: Vec<String>,
     #[serde(default)]
     pub(crate) text_expansion_rules: Vec<crate::text_expander::TextExpansionRule>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum CloseToTrayBehavior {
+    Ask,
+    Close,
+    Tray,
+}
+
+impl Default for CloseToTrayBehavior {
+    fn default() -> Self {
+        Self::Ask
+    }
 }
 
 pub(crate) fn default_show_shifted_number_symbols() -> bool {
@@ -97,6 +113,7 @@ impl Default for AppSettings {
     fn default() -> Self {
         Self {
             minimize_to_tray_on_close: false,
+            close_to_tray_behavior: CloseToTrayBehavior::Ask,
             show_shifted_number_symbols: default_show_shifted_number_symbols(),
             layer_hover_preview: default_layer_hover_preview(),
             sticky_layout_window: false,
@@ -1197,6 +1214,8 @@ pub struct EntropyApp {
     pub(crate) tray_icon: Option<tray_icon::TrayIcon>,
     #[cfg(target_os = "windows")]
     pub(crate) windows_hwnd: Option<isize>,
+    pub(crate) close_to_tray_prompt_open: bool,
+    pub(crate) close_to_tray_prompt_remember: bool,
     pub(crate) main_menu_tab: MainMenuTab,
     pub(crate) combo_entries: Vec<ComboEntry>,
     pub(crate) combo_names: Vec<String>,
