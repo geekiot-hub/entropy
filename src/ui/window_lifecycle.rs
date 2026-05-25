@@ -149,14 +149,13 @@ impl EntropyApp {
         let mut cancel = false;
 
         let panel_size = Vec2::new(460.0, 176.0);
-        let panel_rect = egui::Rect::from_center_size(screen_rect.center(), panel_size);
         egui::Area::new("close_to_tray_prompt_window".into())
             .order(egui::Order::Foreground)
-            .fixed_pos(panel_rect.min)
+            .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
             .show(ctx, |ui| {
                 ui.set_min_size(panel_size);
                 let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, panel_size);
-                let painter = ui.painter();
+                let painter = ui.painter().clone();
                 painter.rect(
                     rect,
                     12.0,
@@ -213,15 +212,68 @@ impl EntropyApp {
                     );
                 });
 
+                let checkbox_size = 13.0;
+                let remember_gap = 7.0;
+                let remember_font = FontId::proportional(12.5);
+                let remember_text_width = ui.fonts(|f| {
+                    f.layout_no_wrap(
+                        remember.to_owned(),
+                        remember_font.clone(),
+                        ui.visuals().text_color(),
+                    )
+                    .size()
+                    .x
+                });
+                let remember_width = checkbox_size + remember_gap + remember_text_width;
                 let remember_rect = egui::Rect::from_center_size(
                     egui::pos2(rect.center().x, rect.top() + 105.0),
-                    Vec2::new(220.0, 24.0),
+                    Vec2::new(remember_width, 24.0),
                 );
-                ui.allocate_ui_at_rect(remember_rect, |ui| {
-                    ui.horizontal_centered(|ui| {
-                        ui.checkbox(&mut self.close_to_tray_prompt_remember, remember);
-                    });
-                });
+                let remember_resp = ui.interact(
+                    remember_rect,
+                    egui::Id::new("close_to_tray_prompt_remember"),
+                    egui::Sense::click(),
+                );
+                if remember_resp.hovered() {
+                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                }
+                if remember_resp.clicked() {
+                    self.close_to_tray_prompt_remember = !self.close_to_tray_prompt_remember;
+                }
+                let check_rect = egui::Rect::from_min_size(
+                    egui::pos2(
+                        remember_rect.left(),
+                        remember_rect.center().y - checkbox_size * 0.5,
+                    ),
+                    Vec2::splat(checkbox_size),
+                );
+                painter.rect(
+                    check_rect,
+                    3.0,
+                    if self.close_to_tray_prompt_remember {
+                        app_accent()
+                    } else {
+                        app_surface_fill(dark)
+                    },
+                    crate::ui_style::modal_outline_stroke(dark),
+                    egui::StrokeKind::Inside,
+                );
+                if self.close_to_tray_prompt_remember {
+                    painter.text(
+                        check_rect.center(),
+                        egui::Align2::CENTER_CENTER,
+                        "✓",
+                        FontId::proportional(10.0),
+                        app_window_fill(dark),
+                    );
+                }
+                painter.text(
+                    egui::pos2(check_rect.right() + remember_gap, remember_rect.center().y),
+                    egui::Align2::LEFT_CENTER,
+                    remember,
+                    remember_font,
+                    ui.visuals().text_color(),
+                );
 
                 let close_size = Vec2::new(104.0, 32.0);
                 let tray_size = Vec2::new(142.0, 32.0);
