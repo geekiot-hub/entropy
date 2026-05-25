@@ -48,6 +48,90 @@ impl EntropyApp {
         self.import_progress_started_at = None;
     }
 
+    fn draw_import_report_text(ui: &mut egui::Ui, body: &str) {
+        let dark = ui.visuals().dark_mode;
+        let text = ui.visuals().text_color();
+        let muted = app_muted_text(dark);
+        let warning = if dark {
+            Color32::from_rgb(214, 160, 112)
+        } else {
+            Color32::from_rgb(154, 93, 48)
+        };
+        let success = if dark {
+            Color32::from_rgb(150, 190, 165)
+        } else {
+            Color32::from_rgb(78, 122, 92)
+        };
+
+        for raw_line in body.lines() {
+            let line = raw_line.trim();
+            if line.is_empty() {
+                ui.add_space(7.0);
+                continue;
+            }
+
+            if line.ends_with(':') {
+                ui.add_space(4.0);
+                ui.label(
+                    RichText::new(line.trim_end_matches(':'))
+                        .size(12.5)
+                        .strong(),
+                );
+                ui.add_space(2.0);
+                continue;
+            }
+
+            if line.ends_with("complete") {
+                ui.label(RichText::new(line).size(16.0).strong().color(success));
+                continue;
+            }
+
+            if let Some(value) = line.strip_prefix("Mode: ") {
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Mode").size(12.0).color(muted));
+                    ui.label(RichText::new(value).size(12.0).strong().color(text));
+                });
+                continue;
+            }
+
+            if let Some(value) = line.strip_prefix("• ") {
+                let is_warning = value.contains("failed")
+                    || value.contains("skipped")
+                    || value.contains("not available")
+                    || value.contains("safety mode")
+                    || value.contains("missing")
+                    || value.contains("unsupported");
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(RichText::new("•").size(12.0).color(if is_warning {
+                        warning
+                    } else {
+                        muted
+                    }));
+                    ui.add(
+                        egui::Label::new(RichText::new(value).size(12.0).color(if is_warning {
+                            warning
+                        } else {
+                            text
+                        }))
+                        .wrap(),
+                    );
+                });
+                continue;
+            }
+
+            let is_path = line.contains('\\') || line.contains('/');
+            ui.add(
+                egui::Label::new(
+                    RichText::new(line)
+                        .size(if is_path { 11.0 } else { 12.0 })
+                        .color(if is_path { muted } else { text })
+                        .monospace(),
+                )
+                .wrap(),
+            );
+        }
+    }
+
     #[cfg(not(target_arch = "wasm32"))]
     fn draw_import_progress_overlay(&mut self, ctx: &egui::Context) {
         if !self.import_pending() {
@@ -425,37 +509,38 @@ impl eframe::App for EntropyApp {
                 &self.import_report_title,
                 egui::Id::new("import_report_window"),
                 &mut open,
-                Vec2::new(640.0, 560.0),
+                Vec2::new(680.0, 620.0),
             )
             .show(ctx, |ui| {
-                crate::ui_style::modal_content(
-                    ui,
-                    crate::ui_style::ModalLayout::new(510.0).with_top_padding(8.0),
-                    |ui| {
-                        egui::ScrollArea::vertical()
-                            .max_height(440.0)
-                            .auto_shrink([false, false])
-                            .show(ui, |ui| {
-                                ui.label(
-                                    RichText::new(&self.import_report_body)
-                                        .size(12.0)
-                                        .color(ui.visuals().text_color()),
-                                );
-                            });
-                        crate::ui_style::modal_action_row(ui, |ui| {
-                            if crate::ui_style::modern_button(
-                                ui,
-                                "OK",
-                                crate::ui_style::modal_action_button_size(),
-                                true,
-                            )
-                            .clicked()
-                            {
-                                close_clicked = true;
-                            }
-                        });
-                    },
-                );
+                ui.vertical_centered(|ui| {
+                    ui.add_space(12.0);
+                    ui.allocate_ui_with_layout(
+                        Vec2::new(600.0, 470.0),
+                        egui::Layout::top_down(egui::Align::Min),
+                        |ui| {
+                            egui::ScrollArea::vertical()
+                                .max_height(470.0)
+                                .auto_shrink([false, false])
+                                .show(ui, |ui| {
+                                    ui.set_width(570.0);
+                                    Self::draw_import_report_text(ui, &self.import_report_body);
+                                });
+                        },
+                    );
+                    ui.add_space(16.0);
+                    ui.horizontal_centered(|ui| {
+                        if crate::ui_style::modern_button(
+                            ui,
+                            "OK",
+                            crate::ui_style::modal_action_button_size(),
+                            true,
+                        )
+                        .clicked()
+                        {
+                            close_clicked = true;
+                        }
+                    });
+                });
             });
             self.import_report_open = open && !close_clicked;
         }
