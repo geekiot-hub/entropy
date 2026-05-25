@@ -63,6 +63,7 @@ impl EntropyApp {
                 self.layer_count = r.layer_count;
                 self.firmware = r.layout.firmware;
                 self.current_device_name = r.device_name.clone();
+                self.current_keyboard_id = Some(r.keyboard_id);
                 self.current_encoder_visibility_id =
                     encoder_visibility_id(&r.device_name, r.keyboard_id);
                 if let Some(dev) = self

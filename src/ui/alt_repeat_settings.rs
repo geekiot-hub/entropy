@@ -63,7 +63,7 @@ impl EntropyApp {
         entry.keycode != 0 || entry.alt_keycode != 0 || entry.allowed_mods != 0
     }
 
-    fn normalize_alt_repeat_entry(entry: &mut AltRepeatKeyEntry) {
+    pub(super) fn normalize_alt_repeat_entry(entry: &mut AltRepeatKeyEntry) {
         entry.options.enabled = Self::alt_repeat_entry_exists(entry);
     }
 

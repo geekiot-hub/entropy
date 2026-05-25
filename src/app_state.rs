@@ -1246,6 +1246,8 @@ pub struct EntropyApp {
     pub(crate) editing_layer_focus_requested: bool,
     /// Current connected device name (for per-device layer names)
     pub(crate) current_device_name: String,
+    /// Stable Vial keyboard id for the current firmware definition, when available.
+    pub(crate) current_keyboard_id: Option<u64>,
     /// Stable local settings key for encoder visibility. Uses Vial keyboard id when available
     /// so keyboards with the same display name do not share hidden/shown encoder settings.
     pub(crate) current_encoder_visibility_id: String,

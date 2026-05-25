@@ -24,6 +24,8 @@ mod app_init;
 #[path = "app_storage.rs"]
 mod app_storage;
 use app_storage::*;
+#[path = "entlayout.rs"]
+mod entlayout;
 
 #[path = "ui/settings_units.rs"]
 mod settings_units;
