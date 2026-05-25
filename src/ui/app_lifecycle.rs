@@ -63,72 +63,105 @@ impl EntropyApp {
             Color32::from_rgb(78, 122, 92)
         };
 
+        let mut intro_lines = Vec::new();
+        let mut sections: Vec<(String, Vec<String>)> = Vec::new();
+        let mut current_section: Option<(String, Vec<String>)> = None;
+
         for raw_line in body.lines() {
             let line = raw_line.trim();
             if line.is_empty() {
-                ui.add_space(7.0);
                 continue;
             }
-
             if line.ends_with(':') {
-                ui.add_space(4.0);
-                ui.label(
-                    RichText::new(line.trim_end_matches(':'))
-                        .size(12.5)
-                        .strong(),
-                );
-                ui.add_space(2.0);
-                continue;
+                if let Some(section) = current_section.take() {
+                    sections.push(section);
+                }
+                current_section = Some((line.trim_end_matches(':').to_owned(), Vec::new()));
+            } else if let Some((_, lines)) = current_section.as_mut() {
+                lines.push(line.to_owned());
+            } else {
+                intro_lines.push(line.to_owned());
             }
+        }
+        if let Some(section) = current_section.take() {
+            sections.push(section);
+        }
 
+        ui.set_width(ui.available_width());
+
+        for line in intro_lines {
             if line.ends_with("complete") {
                 ui.label(RichText::new(line).size(16.0).strong().color(success));
-                continue;
-            }
-
-            if let Some(value) = line.strip_prefix("Mode: ") {
+            } else if let Some(value) = line.strip_prefix("Mode: ") {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("Mode").size(12.0).color(muted));
-                    ui.label(RichText::new(value).size(12.0).strong().color(text));
+                    let pill = RichText::new(value).size(12.0).strong().color(text);
+                    egui::Frame::new()
+                        .fill(crate::ui_style::surface_fill(dark))
+                        .stroke(crate::ui_style::modal_outline_stroke(dark))
+                        .corner_radius(8.0)
+                        .inner_margin(egui::Margin::symmetric(9, 4))
+                        .show(ui, |ui| {
+                            ui.label(pill);
+                        });
                 });
-                continue;
+            } else {
+                ui.label(RichText::new(line).size(12.0).color(text));
             }
+        }
 
-            if let Some(value) = line.strip_prefix("• ") {
-                let is_warning = value.contains("failed")
-                    || value.contains("skipped")
-                    || value.contains("not available")
-                    || value.contains("safety mode")
-                    || value.contains("missing")
-                    || value.contains("unsupported");
-                ui.horizontal_wrapped(|ui| {
-                    ui.label(RichText::new("•").size(12.0).color(if is_warning {
-                        warning
-                    } else {
-                        muted
-                    }));
-                    ui.add(
-                        egui::Label::new(RichText::new(value).size(12.0).color(if is_warning {
+        ui.add_space(10.0);
+
+        for (title, lines) in sections {
+            let card_width = ui.available_width();
+            egui::Frame::new()
+                .fill(app_panel_fill(dark))
+                .stroke(crate::ui_style::modal_outline_stroke(dark))
+                .corner_radius(12.0)
+                .inner_margin(egui::Margin::symmetric(14, 10))
+                .show(ui, |ui| {
+                    ui.set_width(card_width - 28.0);
+                    ui.label(RichText::new(title).size(12.5).strong().color(text));
+                    ui.add_space(6.0);
+
+                    for line in lines {
+                        let line = line.strip_prefix("• ").unwrap_or(&line);
+                        let is_none = line == "none";
+                        let is_path = line.contains('\\') || line.contains('/');
+                        let is_warning = !is_none
+                            && (line.contains("failed")
+                                || line.contains("skipped")
+                                || line.contains("not available")
+                                || line.contains("safety mode")
+                                || line.contains("missing")
+                                || line.contains("unsupported"));
+                        let color = if is_none || is_path {
+                            muted
+                        } else if is_warning {
                             warning
                         } else {
                             text
-                        }))
-                        .wrap(),
-                    );
-                });
-                continue;
-            }
+                        };
 
-            let is_path = line.contains('\\') || line.contains('/');
-            ui.add(
-                egui::Label::new(
-                    RichText::new(line)
-                        .size(if is_path { 11.0 } else { 12.0 })
-                        .color(if is_path { muted } else { text })
-                        .monospace(),
-                )
-                .wrap(),
-            );
+                        ui.horizontal_wrapped(|ui| {
+                            if !is_path && !is_none {
+                                ui.label(RichText::new("•").size(12.0).color(if is_warning {
+                                    warning
+                                } else {
+                                    muted
+                                }));
+                            }
+                            let mut rich = RichText::new(line)
+                                .size(if is_path { 11.0 } else { 12.0 })
+                                .color(color);
+                            if is_path {
+                                rich = rich.monospace();
+                            }
+                            ui.add(egui::Label::new(rich).wrap());
+                        });
+                    }
+                });
+            ui.add_space(8.0);
         }
     }
 
@@ -512,34 +545,32 @@ impl eframe::App for EntropyApp {
                 Vec2::new(680.0, 620.0),
             )
             .show(ctx, |ui| {
-                ui.vertical_centered(|ui| {
-                    ui.add_space(12.0);
-                    ui.allocate_ui_with_layout(
-                        Vec2::new(600.0, 470.0),
-                        egui::Layout::top_down(egui::Align::Min),
-                        |ui| {
-                            egui::ScrollArea::vertical()
-                                .max_height(470.0)
-                                .auto_shrink([false, false])
-                                .show(ui, |ui| {
-                                    ui.set_width(570.0);
-                                    Self::draw_import_report_text(ui, &self.import_report_body);
-                                });
-                        },
-                    );
-                    ui.add_space(16.0);
-                    ui.horizontal_centered(|ui| {
-                        if crate::ui_style::modern_button(
-                            ui,
-                            "OK",
-                            crate::ui_style::modal_action_button_size(),
-                            true,
-                        )
-                        .clicked()
-                        {
-                            close_clicked = true;
-                        }
-                    });
+                ui.set_min_size(Vec2::new(660.0, 560.0));
+                let rect = ui.max_rect();
+                let content_rect = egui::Rect::from_min_max(
+                    egui::pos2(rect.left() + 34.0, rect.top() + 18.0),
+                    egui::pos2(rect.right() - 34.0, rect.bottom() - 74.0),
+                );
+                let button_size = crate::ui_style::modal_action_button_size();
+                let button_rect = egui::Rect::from_center_size(
+                    egui::pos2(rect.center().x, rect.bottom() - 34.0),
+                    button_size,
+                );
+
+                ui.allocate_ui_at_rect(content_rect, |ui| {
+                    egui::ScrollArea::vertical()
+                        .max_height(content_rect.height())
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| {
+                            ui.set_width(content_rect.width() - 18.0);
+                            Self::draw_import_report_text(ui, &self.import_report_body);
+                        });
+                });
+
+                ui.allocate_ui_at_rect(button_rect, |ui| {
+                    if crate::ui_style::modern_button(ui, "OK", button_size, true).clicked() {
+                        close_clicked = true;
+                    }
                 });
             });
             self.import_report_open = open && !close_clicked;
