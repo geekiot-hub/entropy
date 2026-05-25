@@ -546,7 +546,24 @@ impl EntropyApp {
         }
     }
 
+    fn current_device_is_likely_rmk(&self) -> bool {
+        let selected_device = self
+            .selected_device
+            .and_then(|idx| self.device_manager.devices().get(idx));
+        let mut parts = vec![self.current_device_name.as_str()];
+        if let Some(device) = selected_device {
+            parts.push(device.name.as_str());
+            parts.push(device.manufacturer.as_str());
+        }
+        parts
+            .iter()
+            .any(|part| part.to_ascii_lowercase().contains("rmk"))
+    }
+
     fn entlayout_dynamic_import_report(&self, bundle: &EntLayoutFile) -> String {
+        if self.current_device_is_likely_rmk() {
+            return "firmware-backed dynamic sections skipped for RMK safety mode".to_owned();
+        }
         let Some(layout) = self.layout.as_ref() else {
             return "none".to_owned();
         };
@@ -645,36 +662,42 @@ impl EntropyApp {
             skipped.push("layout options (exact layout only)");
         }
 
-        if !bundle.data.macros.texts.is_empty() && self.keycode_picker.macro_count > 0 {
-            imported.push("macros");
+        if self.current_device_is_likely_rmk() {
+            skipped.push("firmware-backed dynamic sections (RMK safety mode)");
         } else {
-            skipped.push("macros (not available)");
-        }
+            if !bundle.data.macros.texts.is_empty() && self.keycode_picker.macro_count > 0 {
+                imported.push("macros");
+            } else {
+                skipped.push("macros (not available)");
+            }
 
-        if !bundle.data.combos.entries.is_empty() && !self.combo_entries.is_empty() {
-            imported.push("combos");
-        } else {
-            skipped.push("combos (not available)");
-        }
+            if !bundle.data.combos.entries.is_empty() && !self.combo_entries.is_empty() {
+                imported.push("combos");
+            } else {
+                skipped.push("combos (not available)");
+            }
 
-        if !bundle.data.tap_dance.entries.is_empty()
-            && !self.keycode_picker.tap_dance_entries.is_empty()
-        {
-            imported.push("tap dance");
-        } else {
-            skipped.push("tap dance (not available)");
-        }
+            if !bundle.data.tap_dance.entries.is_empty()
+                && !self.keycode_picker.tap_dance_entries.is_empty()
+            {
+                imported.push("tap dance");
+            } else {
+                skipped.push("tap dance (not available)");
+            }
 
-        if !bundle.data.key_overrides.entries.is_empty() && !self.key_override_entries.is_empty() {
-            imported.push("key overrides");
-        } else {
-            skipped.push("key overrides (not available)");
-        }
+            if !bundle.data.key_overrides.entries.is_empty()
+                && !self.key_override_entries.is_empty()
+            {
+                imported.push("key overrides");
+            } else {
+                skipped.push("key overrides (not available)");
+            }
 
-        if !bundle.data.alt_repeat.entries.is_empty() && !self.alt_repeat_entries.is_empty() {
-            imported.push("alt repeat");
-        } else {
-            skipped.push("alt repeat (not available)");
+            if !bundle.data.alt_repeat.entries.is_empty() && !self.alt_repeat_entries.is_empty() {
+                imported.push("alt repeat");
+            } else {
+                skipped.push("alt repeat (not available)");
+            }
         }
 
         let skipped = if skipped.is_empty() {
@@ -860,6 +883,10 @@ Auto-backup:
                     }
                 }
             }
+        }
+
+        if self.current_device_is_likely_rmk() {
+            return Ok(failures);
         }
 
         if !bundle.data.macros.texts.is_empty() && self.keycode_picker.macro_count > 0 {
@@ -1140,6 +1167,10 @@ Auto-backup:
         self.text_expander_rules_signature =
             text_expander_rules_signature(&self.app_settings.text_expander_rule_files);
         self.sync_text_expander_runtime();
+
+        if self.current_device_is_likely_rmk() {
+            return Ok(());
+        }
 
         self.keycode_picker.macro_texts = normalized_strings(
             &bundle.data.macros.texts,
