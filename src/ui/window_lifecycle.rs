@@ -149,20 +149,23 @@ impl EntropyApp {
         let mut cancel = false;
 
         let panel_size = Vec2::new(460.0, 176.0);
-        egui::Area::new("close_to_tray_prompt_window".into())
+        egui::Window::new("")
+            .id(egui::Id::new("close_to_tray_prompt_window"))
+            .title_bar(false)
+            .resizable(false)
+            .collapsible(false)
+            .movable(false)
             .order(egui::Order::Foreground)
             .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
+            .fixed_size(panel_size)
+            .frame(crate::ui_style::modal_window_frame(
+                ctx.style().as_ref(),
+                dark,
+            ))
             .show(ctx, |ui| {
                 ui.set_min_size(panel_size);
                 let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, panel_size);
                 let painter = ui.painter().clone();
-                painter.rect(
-                    rect,
-                    12.0,
-                    app_window_fill(dark),
-                    crate::ui_style::modal_outline_stroke(dark),
-                    egui::StrokeKind::Inside,
-                );
 
                 let close_rect = egui::Rect::from_center_size(
                     egui::pos2(rect.right() - 22.0, rect.top() + 22.0),
