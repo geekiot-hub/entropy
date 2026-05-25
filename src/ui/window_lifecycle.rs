@@ -144,79 +144,117 @@ impl EntropyApp {
             ),
         };
 
-        let mut open = self.close_to_tray_prompt_open;
         let mut close_app = false;
         let mut minimize_to_tray = false;
         let mut cancel = false;
-        crate::ui_style::centered_modal_window(
-            ctx,
-            title,
-            egui::Id::new("close_to_tray_prompt_window"),
-            &mut open,
-            Vec2::new(460.0, 176.0),
-        )
-        .show(ctx, |ui| {
-            ui.set_min_size(Vec2::new(440.0, 126.0));
-            let rect = ui.max_rect();
-            let center_x = rect.center().x;
 
-            let body_rect = egui::Rect::from_center_size(
-                egui::pos2(center_x, rect.top() + 20.0),
-                Vec2::new(400.0, 28.0),
-            );
-            ui.allocate_ui_at_rect(body_rect, |ui| {
-                ui.add_sized(
-                    body_rect.size(),
-                    egui::Label::new(
-                        RichText::new(body)
-                            .size(12.5)
-                            .color(ui.visuals().text_color()),
-                    )
-                    .wrap()
-                    .halign(egui::Align::Center),
+        let panel_size = Vec2::new(460.0, 176.0);
+        let panel_rect = egui::Rect::from_center_size(screen_rect.center(), panel_size);
+        egui::Area::new("close_to_tray_prompt_window".into())
+            .order(egui::Order::Foreground)
+            .fixed_pos(panel_rect.min)
+            .show(ctx, |ui| {
+                ui.set_min_size(panel_size);
+                let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, panel_size);
+                let painter = ui.painter();
+                painter.rect(
+                    rect,
+                    12.0,
+                    app_window_fill(dark),
+                    crate::ui_style::modal_outline_stroke(dark),
+                    egui::StrokeKind::Inside,
                 );
-            });
 
-            let remember_rect = egui::Rect::from_center_size(
-                egui::pos2(center_x, rect.top() + 58.0),
-                Vec2::new(220.0, 24.0),
-            );
-            ui.allocate_ui_at_rect(remember_rect, |ui| {
-                ui.horizontal_centered(|ui| {
-                    ui.checkbox(&mut self.close_to_tray_prompt_remember, remember);
-                });
-            });
-
-            let close_size = Vec2::new(104.0, 32.0);
-            let tray_size = Vec2::new(142.0, 32.0);
-            let cancel_size = Vec2::new(104.0, 32.0);
-            let gap = 8.0;
-            let total_width = close_size.x + tray_size.x + cancel_size.x + gap * 2.0;
-            let top = rect.top() + 95.0;
-            let mut left = center_x - total_width * 0.5;
-
-            let close_rect = egui::Rect::from_min_size(egui::pos2(left, top), close_size);
-            left += close_size.x + gap;
-            let tray_rect = egui::Rect::from_min_size(egui::pos2(left, top), tray_size);
-            left += tray_size.x + gap;
-            let cancel_rect = egui::Rect::from_min_size(egui::pos2(left, top), cancel_size);
-
-            ui.allocate_ui_at_rect(close_rect, |ui| {
-                if crate::ui_style::modern_button(ui, close_label, close_size, true).clicked() {
-                    close_app = true;
+                let close_rect = egui::Rect::from_center_size(
+                    egui::pos2(rect.right() - 22.0, rect.top() + 22.0),
+                    Vec2::new(26.0, 26.0),
+                );
+                let close_resp = ui.interact(
+                    close_rect,
+                    egui::Id::new("close_to_tray_prompt_x"),
+                    egui::Sense::click(),
+                );
+                if close_resp.hovered() {
+                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                 }
-            });
-            ui.allocate_ui_at_rect(tray_rect, |ui| {
-                if crate::ui_style::modern_button(ui, tray_label, tray_size, true).clicked() {
-                    minimize_to_tray = true;
-                }
-            });
-            ui.allocate_ui_at_rect(cancel_rect, |ui| {
-                if crate::ui_style::modern_button(ui, cancel_label, cancel_size, true).clicked() {
+                if close_resp.clicked() {
                     cancel = true;
                 }
+                painter.text(
+                    close_rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    "×",
+                    FontId::proportional(24.0),
+                    app_muted_text(dark),
+                );
+
+                painter.text(
+                    egui::pos2(rect.center().x, rect.top() + 25.0),
+                    egui::Align2::CENTER_CENTER,
+                    title,
+                    FontId::proportional(18.0),
+                    ui.visuals().text_color(),
+                );
+
+                let body_rect = egui::Rect::from_center_size(
+                    egui::pos2(rect.center().x, rect.top() + 72.0),
+                    Vec2::new(400.0, 28.0),
+                );
+                ui.allocate_ui_at_rect(body_rect, |ui| {
+                    ui.add_sized(
+                        body_rect.size(),
+                        egui::Label::new(
+                            RichText::new(body)
+                                .size(12.5)
+                                .color(ui.visuals().text_color()),
+                        )
+                        .wrap()
+                        .halign(egui::Align::Center),
+                    );
+                });
+
+                let remember_rect = egui::Rect::from_center_size(
+                    egui::pos2(rect.center().x, rect.top() + 105.0),
+                    Vec2::new(220.0, 24.0),
+                );
+                ui.allocate_ui_at_rect(remember_rect, |ui| {
+                    ui.horizontal_centered(|ui| {
+                        ui.checkbox(&mut self.close_to_tray_prompt_remember, remember);
+                    });
+                });
+
+                let close_size = Vec2::new(104.0, 32.0);
+                let tray_size = Vec2::new(142.0, 32.0);
+                let cancel_size = Vec2::new(104.0, 32.0);
+                let gap = 8.0;
+                let total_width = close_size.x + tray_size.x + cancel_size.x + gap * 2.0;
+                let top = rect.top() + 132.0;
+                let mut left = rect.center().x - total_width * 0.5;
+
+                let close_button_rect =
+                    egui::Rect::from_min_size(egui::pos2(left, top), close_size);
+                left += close_size.x + gap;
+                let tray_rect = egui::Rect::from_min_size(egui::pos2(left, top), tray_size);
+                left += tray_size.x + gap;
+                let cancel_rect = egui::Rect::from_min_size(egui::pos2(left, top), cancel_size);
+
+                ui.allocate_ui_at_rect(close_button_rect, |ui| {
+                    if crate::ui_style::modern_button(ui, close_label, close_size, true).clicked() {
+                        close_app = true;
+                    }
+                });
+                ui.allocate_ui_at_rect(tray_rect, |ui| {
+                    if crate::ui_style::modern_button(ui, tray_label, tray_size, true).clicked() {
+                        minimize_to_tray = true;
+                    }
+                });
+                ui.allocate_ui_at_rect(cancel_rect, |ui| {
+                    if crate::ui_style::modern_button(ui, cancel_label, cancel_size, true).clicked()
+                    {
+                        cancel = true;
+                    }
+                });
             });
-        });
 
         if close_app {
             if self.close_to_tray_prompt_remember {
@@ -233,8 +271,6 @@ impl EntropyApp {
             self.minimize_window_to_tray(ctx);
         } else if cancel {
             self.close_to_tray_prompt_open = false;
-        } else {
-            self.close_to_tray_prompt_open = open;
         }
     }
 
