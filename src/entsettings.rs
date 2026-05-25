@@ -49,7 +49,12 @@ impl EntropyApp {
             return;
         };
         match self.import_entsettings_from_path(ctx, &path) {
-            Ok(report) => self.status_msg = report,
+            Ok(report) => {
+                self.status_msg = "Imported app settings".into();
+                self.import_report_title = "App settings import report".into();
+                self.import_report_body = report;
+                self.import_report_open = true;
+            }
             Err(e) => self.status_msg = format!("Import app settings failed: {e}"),
         }
     }

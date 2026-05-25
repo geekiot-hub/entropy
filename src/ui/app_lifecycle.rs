@@ -305,6 +305,64 @@ impl eframe::App for EntropyApp {
                 );
             });
 
+        if self.import_report_open {
+            let screen_rect = ctx.screen_rect();
+            egui::Area::new("import_report_backdrop".into())
+                .order(egui::Order::Foreground)
+                .fixed_pos(screen_rect.min)
+                .show(ctx, |ui| {
+                    let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, screen_rect.size());
+                    ui.painter().rect_filled(
+                        rect,
+                        0.0,
+                        Color32::from_black_alpha(crate::ui_style::modal_backdrop_alpha(
+                            ctx.style().visuals.dark_mode,
+                        )),
+                    );
+                });
+
+            let mut open = self.import_report_open;
+            let mut close_clicked = false;
+            crate::ui_style::centered_modal_window(
+                ctx,
+                &self.import_report_title,
+                egui::Id::new("import_report_window"),
+                &mut open,
+                Vec2::new(560.0, 420.0),
+            )
+            .show(ctx, |ui| {
+                crate::ui_style::modal_content(
+                    ui,
+                    crate::ui_style::ModalLayout::new(510.0).with_top_padding(8.0),
+                    |ui| {
+                        egui::ScrollArea::vertical()
+                            .max_height(310.0)
+                            .auto_shrink([false, false])
+                            .show(ui, |ui| {
+                                ui.label(
+                                    RichText::new(&self.import_report_body)
+                                        .size(12.0)
+                                        .color(ui.visuals().text_color()),
+                                );
+                            });
+                        crate::ui_style::modal_action_row(ui, |ui| {
+                            if crate::ui_style::modern_button(
+                                ui,
+                                "OK",
+                                crate::ui_style::modal_action_button_size(),
+                                true,
+                            )
+                            .clicked()
+                            {
+                                close_clicked = true;
+                            }
+                        });
+                    },
+                );
+            });
+            self.import_report_open = open && !close_clicked;
+        }
+
         // Keycode picker modal
         self.draw_vial_unlock_overlay(ctx);
 

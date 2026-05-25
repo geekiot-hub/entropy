@@ -1141,6 +1141,9 @@ pub struct EntropyApp {
     pub(crate) layer_count: usize,
     pub(crate) keycode_picker: KeycodePicker,
     pub(crate) status_msg: String,
+    pub(crate) import_report_open: bool,
+    pub(crate) import_report_title: String,
+    pub(crate) import_report_body: String,
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) connect_state: ConnectState,
     #[cfg(not(target_arch = "wasm32"))]

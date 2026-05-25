@@ -304,7 +304,12 @@ impl EntropyApp {
             return;
         };
         match self.import_entlayout_from_path(&path) {
-            Ok(report) => self.status_msg = report,
+            Ok(report) => {
+                self.status_msg = "Imported .entlayout".into();
+                self.import_report_title = "Layout import report".into();
+                self.import_report_body = report;
+                self.import_report_open = true;
+            }
             Err(e) => self.status_msg = format!("Import failed: {e}"),
         }
     }
