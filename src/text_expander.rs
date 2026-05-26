@@ -105,14 +105,19 @@ impl TextExpansionEngine {
         self.rules
             .iter()
             .filter(|rule| rule_usable(rule))
-            .filter(|rule| self.buffer.ends_with(&rule.trigger))
-            .filter(|rule| self.boundary_ok(&rule.trigger))
-            .filter(|rule| !self.has_longer_pending_trigger(&rule.trigger))
-            .max_by_key(|rule| rule.trigger.chars().count())
-            .map(|rule| {
+            .flat_map(|rule| {
+                activation_triggers(&rule.trigger)
+                    .into_iter()
+                    .map(move |trigger| (rule, trigger))
+            })
+            .filter(|(_, trigger)| self.buffer.ends_with(trigger))
+            .filter(|(_, trigger)| self.boundary_ok(trigger))
+            .filter(|(_, trigger)| !self.has_longer_pending_trigger(trigger))
+            .max_by_key(|(_, trigger)| trigger.chars().count())
+            .map(|(rule, trigger)| {
                 let (replacement, cursor_back_chars) = prepare_replacement(&rule.replacement);
                 TextExpansionMatch {
-                    typed_trigger_chars: rule.trigger.chars().count(),
+                    typed_trigger_chars: trigger.chars().count(),
                     replacement,
                     cursor_back_chars,
                 }
@@ -122,8 +127,10 @@ impl TextExpansionEngine {
     fn has_longer_pending_trigger(&self, trigger: &str) -> bool {
         self.rules.iter().any(|rule| {
             rule_usable(rule)
-                && rule.trigger.chars().count() > trigger.chars().count()
-                && rule.trigger.starts_with(trigger)
+                && activation_triggers(&rule.trigger).into_iter().any(|candidate| {
+                    candidate.chars().count() > trigger.chars().count()
+                        && candidate.starts_with(trigger)
+                })
         })
     }
 
@@ -150,7 +157,26 @@ pub fn rule_usable(rule: &TextExpansionRule) -> bool {
 }
 
 fn runtime_trigger_usable(trigger: &str) -> bool {
-    valid_trigger(trigger)
+    valid_trigger(trigger) || valid_legacy_trigger_stem(trigger)
+}
+
+fn valid_legacy_trigger_stem(trigger: &str) -> bool {
+    let trimmed = trigger.trim();
+    trimmed == trigger
+        && trigger.chars().count() >= 1
+        && !matches!(trigger.chars().next(), Some(':') | Some(';'))
+        && !trigger.chars().any(char::is_whitespace)
+        && !trigger.chars().any(char::is_control)
+}
+
+fn activation_triggers(trigger: &str) -> Vec<String> {
+    if valid_trigger(trigger) {
+        vec![trigger.to_owned()]
+    } else if valid_legacy_trigger_stem(trigger) {
+        vec![format!(":{trigger}"), format!(";{trigger}")]
+    } else {
+        Vec::new()
+    }
 }
 
 pub fn valid_trigger(trigger: &str) -> bool {
@@ -249,11 +275,18 @@ mod tests {
     }
 
     #[test]
-    fn ignores_triggers_without_prefix() {
+    fn legacy_trigger_stem_requires_typed_prefix() {
         let mut engine = TextExpansionEngine::new(vec![rule("addr", "Earth")]);
         for ch in " addr".chars() {
             assert!(engine.push_char(ch).is_none());
         }
+
+        engine.reset();
+        let mut matched = None;
+        for ch in ":addr".chars() {
+            matched = engine.push_char(ch);
+        }
+        assert_eq!(matched.unwrap().replacement, "Earth");
     }
 
     #[test]
