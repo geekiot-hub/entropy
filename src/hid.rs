@@ -18,6 +18,8 @@ use hid_protocol::MSG_LEN;
 
 const VIAL_GUI_USB_RETRIES: usize = 20;
 const VIAL_GUI_READ_TIMEOUT_MS: i32 = 500;
+const WINDOWS_BLE_READ_TIMEOUT_MS: i32 = 2_500;
+const WINDOWS_BLE_SETTLE_DELAY: Duration = Duration::from_millis(12);
 const VIAL_GUI_RETRY_DELAY: Duration = Duration::from_millis(500);
 const HID_OPEN_RETRIES: usize = 5;
 const HID_OPEN_RETRY_DELAY: Duration = Duration::from_millis(250);
@@ -47,9 +49,26 @@ pub struct HidDevice {
 
 #[cfg(not(target_arch = "wasm32"))]
 enum HidBackend {
-    Local(hidapi::HidDevice),
+    Local {
+        device: hidapi::HidDevice,
+        transport: HidTransport,
+    },
     #[cfg(target_os = "windows")]
     Proxy(HidProxy),
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum HidTransport {
+    Usb,
+    Bluetooth,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl HidTransport {
+    fn is_bluetooth(self) -> bool {
+        matches!(self, Self::Bluetooth)
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -121,7 +140,10 @@ impl HidDevice {
             .open_path(&std::ffi::CString::new(path)?)
             .context("Failed to open HID device")?;
         Ok(Self {
-            backend: HidBackend::Local(device),
+            backend: HidBackend::Local {
+                device,
+                transport: HidTransport::Usb,
+            },
         })
     }
 
@@ -219,9 +241,12 @@ impl HidDevice {
         if !device.path.is_empty() {
             if let Ok(path) = std::ffi::CString::new(device.path.as_str()) {
                 match api.open_path(&path) {
-                    Ok(device) => {
+                    Ok(hid_device) => {
                         return Ok(Self {
-                            backend: HidBackend::Local(device),
+                            backend: HidBackend::Local {
+                                device: hid_device,
+                                transport: device_transport(device),
+                            },
                         });
                     }
                     Err(e) => {
@@ -237,8 +262,11 @@ impl HidDevice {
             }
             return info
                 .open_device(&api)
-                .map(|device| Self {
-                    backend: HidBackend::Local(device),
+                .map(|hid_device| Self {
+                    backend: HidBackend::Local {
+                        device: hid_device,
+                        transport: device_transport(device),
+                    },
                 })
                 .context("Failed to open HID device");
         }
@@ -249,8 +277,11 @@ impl HidDevice {
             }
             return info
                 .open_device(&api)
-                .map(|device| Self {
-                    backend: HidBackend::Local(device),
+                .map(|hid_device| Self {
+                    backend: HidBackend::Local {
+                        device: hid_device,
+                        transport: device_transport(device),
+                    },
                 })
                 .context("Failed to open HID device");
         }
@@ -261,7 +292,7 @@ impl HidDevice {
     /// Send exactly MSG_LEN bytes (with 0x00 report ID prepended), receive MSG_LEN bytes back.
     fn usb_send(&self, data: &[u8]) -> Result<[u8; MSG_LEN]> {
         match &self.backend {
-            HidBackend::Local(device) => usb_send_local(device, data),
+            HidBackend::Local { device, transport } => usb_send_local(device, *transport, data),
             #[cfg(target_os = "windows")]
             HidBackend::Proxy(proxy) => proxy.usb_send(data),
         }
@@ -269,7 +300,22 @@ impl HidDevice {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn usb_send_local(device: &hidapi::HidDevice, data: &[u8]) -> Result<[u8; MSG_LEN]> {
+fn device_transport(device: &crate::device::Device) -> HidTransport {
+    #[cfg(target_os = "windows")]
+    {
+        if device.is_bluetooth_transport() {
+            return HidTransport::Bluetooth;
+        }
+    }
+    HidTransport::Usb
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn usb_send_local(
+    device: &hidapi::HidDevice,
+    transport: HidTransport,
+    data: &[u8],
+) -> Result<[u8; MSG_LEN]> {
     if data.len() > MSG_LEN {
         bail!(
             "HID command too long — {} bytes, max {} bytes",
@@ -282,10 +328,24 @@ fn usb_send_local(device: &hidapi::HidDevice, data: &[u8]) -> Result<[u8; MSG_LE
     write_buf[0] = 0x00; // hidapi report ID, exactly like vial-gui
     write_buf[1..1 + data.len()].copy_from_slice(data);
 
+    let read_timeout_ms = if transport.is_bluetooth() {
+        WINDOWS_BLE_READ_TIMEOUT_MS
+    } else {
+        VIAL_GUI_READ_TIMEOUT_MS
+    };
+
     let mut last_error: Option<anyhow::Error> = None;
     for attempt in 0..VIAL_GUI_USB_RETRIES {
         if attempt > 0 {
-            std::thread::sleep(VIAL_GUI_RETRY_DELAY);
+            std::thread::sleep(if transport.is_bluetooth() {
+                WINDOWS_BLE_SETTLE_DELAY
+            } else {
+                VIAL_GUI_RETRY_DELAY
+            });
+        }
+
+        if transport.is_bluetooth() {
+            drain_pending_reports(device);
         }
 
         match device.write(&write_buf) {
@@ -308,7 +368,7 @@ fn usb_send_local(device: &hidapi::HidDevice, data: &[u8]) -> Result<[u8; MSG_LE
         // Linux/macOS may include a report ID prefix. vial-gui accepts any non-empty
         // read; Entropy normalizes it into a fixed MSG_LEN packet for parsers.
         let mut read_buf = [0u8; MSG_LEN + 1];
-        let bytes_read = match device.read_timeout(&mut read_buf, VIAL_GUI_READ_TIMEOUT_MS) {
+        let bytes_read = match device.read_timeout(&mut read_buf, read_timeout_ms) {
             Ok(bytes_read) => bytes_read,
             Err(e) => {
                 last_error = Some(anyhow::anyhow!("HID read failed: {e}"));
@@ -340,6 +400,17 @@ fn usb_send_local(device: &hidapi::HidDevice, data: &[u8]) -> Result<[u8; MSG_LE
     }
 
     Err(last_error.unwrap_or_else(|| anyhow::anyhow!("failed to communicate with the device")))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn drain_pending_reports(device: &hidapi::HidDevice) {
+    let mut read_buf = [0u8; MSG_LEN + 1];
+    for _ in 0..16 {
+        match device.read_timeout(&mut read_buf, 0) {
+            Ok(0) | Err(_) => break,
+            Ok(_) => continue,
+        }
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -376,10 +447,6 @@ impl HidProxy {
         let response: ProxyResponse =
             serde_json::from_str(&line).context("HID helper returned malformed response")?;
         if !response.ok {
-            if let Ok(mut child) = self.child.lock() {
-                let _ = child.kill();
-                let _ = child.wait();
-            }
             bail!(response
                 .error
                 .unwrap_or_else(|| "HID helper command failed".to_owned()));

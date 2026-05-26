@@ -1,6 +1,20 @@
 use super::*;
 
 impl EntropyApp {
+    fn matrix_tester_poll_interval(&self) -> std::time::Duration {
+        #[cfg(target_os = "windows")]
+        if self
+            .selected_device
+            .and_then(|idx| self.device_manager.devices().get(idx))
+            .map(|device| device.is_bluetooth_transport())
+            .unwrap_or(false)
+        {
+            return std::time::Duration::from_millis(125);
+        }
+
+        MATRIX_TESTER_POLL_INTERVAL
+    }
+
     pub(super) fn reset_matrix_tester_state(&mut self) {
         self.matrix_tester_pressed.clear();
         self.matrix_tester_ever_pressed.clear();
@@ -67,7 +81,8 @@ impl EntropyApp {
         };
 
         let now = std::time::Instant::now();
-        if now.duration_since(self.matrix_tester_last_poll) >= MATRIX_TESTER_POLL_INTERVAL {
+        let poll_interval = self.matrix_tester_poll_interval();
+        if now.duration_since(self.matrix_tester_last_poll) >= poll_interval {
             self.matrix_tester_last_poll = now;
             match hid.get_switch_matrix(rows, cols) {
                 Ok(pressed) => {
@@ -93,7 +108,7 @@ impl EntropyApp {
                 }
             }
         }
-        ctx.request_repaint_after(MATRIX_TESTER_POLL_INTERVAL);
+        ctx.request_repaint_after(poll_interval);
     }
 
     #[cfg(not(target_arch = "wasm32"))]
