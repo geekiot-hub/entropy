@@ -28,19 +28,19 @@ fn mix(a: [f32; 3], b: [f32; 3], t: f32) -> [f32; 3] {
     ]
 }
 
-fn mark_color(x: f32, y: f32) -> [f32; 3] {
-    let rose = [0.82, 0.46, 0.55];
-    let violet = [0.58, 0.46, 0.78];
-    let blue = [0.42, 0.58, 0.78];
-    let t = ((x + 0.55) * 0.72 + (0.42 - y) * 0.28).clamp(0.0, 1.0);
-    if t < 0.58 {
-        mix(rose, violet, t / 0.58)
+fn keycap_color(x: f32, y: f32) -> [f32; 3] {
+    let rose = [0.93, 0.40, 0.54];
+    let violet = [0.63, 0.42, 0.86];
+    let blue = [0.34, 0.61, 0.92];
+    let t = ((x + 0.55) * 0.70 + (0.55 - y) * 0.30).clamp(0.0, 1.0);
+    if t < 0.55 {
+        mix(rose, violet, t / 0.55)
     } else {
-        mix(violet, blue, (t - 0.58) / 0.42)
+        mix(violet, blue, (t - 0.55) / 0.45)
     }
 }
 
-fn draw_gradient_box(
+fn draw_flat_box(
     pixel: &mut [f32; 4],
     x: f32,
     y: f32,
@@ -49,12 +49,59 @@ fn draw_gradient_box(
     hx: f32,
     hy: f32,
     radius: f32,
+    color: [f32; 4],
 ) {
     let distance = sd_round_box(x - cx, y - cy, hx, hy, radius);
-    let alpha = smooth_alpha(distance, 0.020);
+    let alpha = smooth_alpha(distance, 0.020) * color[3];
     if alpha > 0.0 {
-        let c = mark_color(x, y);
-        blend(pixel, [c[0], c[1], c[2], alpha]);
+        blend(pixel, [color[0], color[1], color[2], alpha]);
+    }
+}
+
+fn draw_keycap(pixel: &mut [f32; 4], x: f32, y: f32) {
+    let shadow = sd_round_box(x - 0.035, y - 0.050, 0.52, 0.52, 0.145);
+    blend(pixel, [0.0, 0.0, 0.0, smooth_alpha(shadow, 0.030) * 0.30]);
+
+    let rim = sd_round_box(x, y, 0.55, 0.55, 0.155);
+    let rim_alpha = smooth_alpha(rim, 0.026);
+    if rim_alpha > 0.0 {
+        blend(pixel, [0.91, 0.86, 0.80, rim_alpha]);
+    }
+
+    let face = sd_round_box(x, y, 0.47, 0.47, 0.125);
+    let face_alpha = smooth_alpha(face, 0.022);
+    if face_alpha > 0.0 {
+        let c = keycap_color(x, y);
+        blend(pixel, [c[0], c[1], c[2], face_alpha]);
+    }
+
+    let highlight = sd_round_box(x + 0.020, y + 0.045, 0.39, 0.35, 0.100);
+    let highlight_alpha = smooth_alpha(highlight, 0.020) * face_alpha * 0.14;
+    if highlight_alpha > 0.0 {
+        blend(pixel, [1.0, 1.0, 1.0, highlight_alpha]);
+    }
+}
+
+fn draw_letter_e(pixel: &mut [f32; 4], x: f32, y: f32) {
+    let shadow = [0.0, 0.0, 0.0, 0.20];
+    let cream = [0.98, 0.95, 0.90, 1.0];
+
+    for (cx, cy, hx, hy, radius) in [
+        (-0.175, 0.010, 0.050, 0.295, 0.020),
+        (0.020, -0.225, 0.240, 0.048, 0.022),
+        (0.000, 0.010, 0.215, 0.044, 0.021),
+        (0.020, 0.245, 0.240, 0.048, 0.022),
+    ] {
+        draw_flat_box(pixel, x, y, cx + 0.025, cy + 0.025, hx, hy, radius, shadow);
+    }
+
+    for (cx, cy, hx, hy, radius) in [
+        (-0.175, 0.010, 0.050, 0.295, 0.020),
+        (0.020, -0.225, 0.240, 0.048, 0.022),
+        (0.000, 0.010, 0.215, 0.044, 0.021),
+        (0.020, 0.245, 0.240, 0.048, 0.022),
+    ] {
+        draw_flat_box(pixel, x, y, cx, cy, hx, hy, radius, cream);
     }
 }
 
@@ -69,67 +116,16 @@ pub(crate) fn rgba_icon(size: u32) -> Vec<u8> {
             let ny = ((y as f32 + 0.5) / size as f32) * 2.0 - 1.0;
             let mut pixel = [0.0, 0.0, 0.0, 0.0];
 
-            let shadow = sd_round_box(nx - 0.035, ny - 0.045, 0.80, 0.80, 0.24);
-            blend(
-                &mut pixel,
-                [0.0, 0.0, 0.0, smooth_alpha(shadow, softness * 2.0) * 0.22],
-            );
-
-            let bg = sd_round_box(nx, ny, 0.80, 0.80, 0.24);
+            let bg = sd_round_box(nx, ny, 0.82, 0.82, 0.25);
             let bg_alpha = smooth_alpha(bg, softness * 1.6);
             if bg_alpha > 0.0 {
-                blend(&mut pixel, [0.135, 0.135, 0.155, bg_alpha]);
+                blend(&mut pixel, [0.115, 0.115, 0.135, bg_alpha]);
                 let border_alpha = smooth_alpha(bg.abs() - 0.018, softness * 1.8) * bg_alpha;
-                blend(&mut pixel, [0.37, 0.33, 0.39, border_alpha * 0.68]);
+                blend(&mut pixel, [0.42, 0.37, 0.44, border_alpha * 0.62]);
             }
 
-            let mark_shadow = [0.0, 0.0, 0.0, 0.17];
-            let shadow_shift_x = -0.035;
-            let shadow_shift_y = 0.020;
-            for (cx, cy, hx, hy, radius) in [
-                (
-                    -0.310 + shadow_shift_x,
-                    -0.020 + shadow_shift_y,
-                    0.075,
-                    0.455,
-                    0.026,
-                ),
-                (
-                    -0.040 + shadow_shift_x,
-                    -0.380 + shadow_shift_y,
-                    0.340,
-                    0.072,
-                    0.032,
-                ),
-                (
-                    -0.075 + shadow_shift_x,
-                    -0.020 + shadow_shift_y,
-                    0.300,
-                    0.068,
-                    0.030,
-                ),
-                (
-                    -0.040 + shadow_shift_x,
-                    0.340 + shadow_shift_y,
-                    0.340,
-                    0.072,
-                    0.032,
-                ),
-            ] {
-                let d = sd_round_box(nx - cx, ny - cy, hx, hy, radius);
-                let a = smooth_alpha(d, 0.020) * mark_shadow[3];
-                if a > 0.0 {
-                    blend(
-                        &mut pixel,
-                        [mark_shadow[0], mark_shadow[1], mark_shadow[2], a],
-                    );
-                }
-            }
-
-            draw_gradient_box(&mut pixel, nx, ny, -0.310, -0.020, 0.075, 0.455, 0.026);
-            draw_gradient_box(&mut pixel, nx, ny, -0.040, -0.380, 0.340, 0.072, 0.032);
-            draw_gradient_box(&mut pixel, nx, ny, -0.075, -0.020, 0.300, 0.068, 0.030);
-            draw_gradient_box(&mut pixel, nx, ny, -0.040, 0.340, 0.340, 0.072, 0.032);
+            draw_keycap(&mut pixel, nx, ny);
+            draw_letter_e(&mut pixel, nx, ny);
 
             rgba.push((pixel[0].clamp(0.0, 1.0) * 255.0).round() as u8);
             rgba.push((pixel[1].clamp(0.0, 1.0) * 255.0).round() as u8);
