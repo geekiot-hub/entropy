@@ -76,6 +76,17 @@ impl EntropyApp {
         if self.unlock_open || self.vial_unlock_polling {
             return;
         }
+        #[cfg(target_os = "windows")]
+        if self
+            .selected_device
+            .and_then(|idx| self.device_manager.devices().get(idx))
+            .map(|device| device.is_bluetooth_transport())
+            .unwrap_or(false)
+        {
+            self.matrix_tester_pressed.clear();
+            return;
+        }
+
         let Some(hid) = &self.hid_device else {
             return;
         };

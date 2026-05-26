@@ -336,7 +336,7 @@ fn usb_send_local(
     };
 
     let max_retries = if transport.is_bluetooth() {
-        3
+        1
     } else {
         VIAL_GUI_USB_RETRIES
     };
