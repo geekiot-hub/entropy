@@ -150,8 +150,7 @@ pub fn rule_usable(rule: &TextExpansionRule) -> bool {
 }
 
 fn runtime_trigger_usable(trigger: &str) -> bool {
-    let trimmed = trigger.trim();
-    trimmed == trigger && !trigger.is_empty() && !trigger.chars().any(char::is_control)
+    valid_trigger(trigger)
 }
 
 pub fn valid_trigger(trigger: &str) -> bool {
@@ -250,14 +249,18 @@ mod tests {
     }
 
     #[test]
-    fn still_expands_legacy_word_triggers_with_boundary() {
+    fn ignores_triggers_without_prefix() {
         let mut engine = TextExpansionEngine::new(vec![rule("addr", "Earth")]);
-        for ch in "xaddr".chars() {
+        for ch in " addr".chars() {
             assert!(engine.push_char(ch).is_none());
         }
-        engine.reset();
+    }
+
+    #[test]
+    fn accepts_semicolon_prefix_trigger() {
+        let mut engine = TextExpansionEngine::new(vec![rule(";addr", "Earth")]);
         let mut matched = None;
-        for ch in " addr".chars() {
+        for ch in ";addr".chars() {
             matched = engine.push_char(ch);
         }
         assert_eq!(matched.unwrap().replacement, "Earth");
