@@ -17,6 +17,7 @@ impl EntropyApp {
             },
             parse_text_expander_blacklist(&app_settings.text_expander_app_blacklist),
         );
+        crate::smart_input::start();
 
         let text_expander_rules_signature =
             text_expander_rules_signature(&app_settings.text_expander_rule_files);

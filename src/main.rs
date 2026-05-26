@@ -104,8 +104,6 @@ fn main() -> eframe::Result<()> {
     // the global mutex and make a fixed build look like it "does not start".
     let _single_instance_available = try_acquire_single_instance();
 
-    smart_input::start();
-
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("Entropy — Keyboard Configurator")
