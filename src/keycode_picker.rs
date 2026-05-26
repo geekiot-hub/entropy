@@ -742,6 +742,42 @@ impl KeycodePicker {
                     tr_picker(self.language, "key_picker.press_key_or_click_cancel"),
                 );
                 ui.add_space(crate::ui_style::modal_space_sm());
+
+                ui.label(
+                    RichText::new(tr_picker(
+                        self.language,
+                        "key_picker.section_plain_modifiers",
+                    ))
+                    .size(11.0)
+                    .color(Color32::from_gray(150)),
+                );
+                ui.add_space(4.0);
+                ui.horizontal_wrapped(|ui| {
+                    let plain_modifiers = [
+                        ("Ctrl".to_owned(), 0x00E0u16, "Ctrl".to_owned()),
+                        ("Alt".to_owned(), 0x00E2u16, "Alt".to_owned()),
+                        ("Shift".to_owned(), 0x00E1u16, "Shift".to_owned()),
+                        (gui_label(false).to_owned(), 0x00E3u16, gui_mod_name().to_owned()),
+                    ];
+                    for (label, value, mod_name) in plain_modifiers {
+                        let resp = picker_button(
+                            ui,
+                            &label,
+                            crate::ui_style::modal_small_button_size(72.0),
+                            true,
+                            false,
+                        )
+                        .on_hover_text(crate::i18n::tr_text(
+                            self.language,
+                            &format!("Use {mod_name} as the selected key"),
+                        ));
+                        if resp.clicked() {
+                            self.finish_quantum_pending_key(base, value, is_mt);
+                        }
+                    }
+                });
+                ui.add_space(crate::ui_style::modal_space_sm());
+
                 let key_choices: Vec<&'static crate::keycode::Keycode> = KEYCODES
                     .iter()
                     .filter(|kc| {
