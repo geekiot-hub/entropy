@@ -112,7 +112,7 @@ impl EntropyApp {
                             self.save_text_expander_settings();
                         }
 
-                        let restore_enabled = self.text_expander_deleted_rule.is_some();
+                        let restore_enabled = !self.text_expander_deleted_rules.is_empty();
                         if crate::ui_style::modern_button(
                             ui,
                             crate::i18n::tr_catalog(lang, "text_expander.restore_deleted_rule"),
@@ -126,7 +126,7 @@ impl EntropyApp {
                         .clicked()
                             && restore_enabled
                         {
-                            if let Some((rule_idx, rule)) = self.text_expander_deleted_rule.take() {
+                            if let Some((rule_idx, rule)) = self.text_expander_deleted_rules.pop() {
                                 let insert_idx =
                                     rule_idx.min(self.app_settings.text_expansion_rules.len());
                                 self.app_settings

@@ -1258,7 +1258,7 @@ pub struct EntropyApp {
     pub(crate) key_override_names: Vec<String>,
     pub(crate) key_override_visible_count: usize,
     pub(crate) key_override_undo_stack: Vec<(Vec<KeyOverrideEntry>, Vec<String>, usize, usize)>,
-    pub(crate) text_expander_deleted_rule: Option<(usize, crate::text_expander::TextExpansionRule)>,
+    pub(crate) text_expander_deleted_rules: Vec<(usize, crate::text_expander::TextExpansionRule)>,
     pub(crate) selected_key_override: usize,
     pub(crate) key_override_pick_target: Option<KeyOverridePickField>,
     pub(crate) matrix_tester_pressed: Vec<bool>,

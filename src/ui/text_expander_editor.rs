@@ -1102,7 +1102,7 @@ impl EntropyApp {
 
             if delete_rule {
                 let removed_rule = self.app_settings.text_expansion_rules.remove(idx);
-                self.text_expander_deleted_rule = Some((idx, removed_rule));
+                self.text_expander_deleted_rules.push((idx, removed_rule));
                 self.save_text_expander_settings();
             } else if changed && rule != original_rule {
                 if let Some(stored_rule) = self.app_settings.text_expansion_rules.get_mut(idx) {
