@@ -19,28 +19,19 @@ fn sd_round_box(px: f32, py: f32, hx: f32, hy: f32, radius: f32) -> f32 {
     (ox * ox + oy * oy).sqrt() + qx.max(qy).min(0.0) - radius
 }
 
-fn sd_capsule(px: f32, py: f32, ax: f32, ay: f32, bx: f32, by: f32, radius: f32) -> f32 {
-    let pax = px - ax;
-    let pay = py - ay;
-    let bax = bx - ax;
-    let bay = by - ay;
-    let h = ((pax * bax + pay * bay) / (bax * bax + bay * bay)).clamp(0.0, 1.0);
-    let dx = pax - bax * h;
-    let dy = pay - bay * h;
-    (dx * dx + dy * dy).sqrt() - radius
-}
-
-fn draw_capsule(
+fn draw_round_box(
     pixel: &mut [f32; 4],
     x: f32,
     y: f32,
-    a: (f32, f32),
-    b: (f32, f32),
+    cx: f32,
+    cy: f32,
+    hx: f32,
+    hy: f32,
     radius: f32,
-    color: [f32; 3],
+    color: [f32; 4],
 ) {
-    let distance = sd_capsule(x, y, a.0, a.1, b.0, b.1, radius);
-    let alpha = smooth_alpha(distance, 0.020);
+    let distance = sd_round_box(x - cx, y - cy, hx, hy, radius);
+    let alpha = smooth_alpha(distance, 0.020) * color[3];
     if alpha > 0.0 {
         blend(pixel, [color[0], color[1], color[2], alpha]);
     }
@@ -71,39 +62,66 @@ pub(crate) fn rgba_icon(size: u32) -> Vec<u8> {
                 blend(&mut pixel, [0.36, 0.33, 0.38, border_alpha * 0.70]);
             }
 
-            draw_capsule(
+            let rose = [0.77, 0.52, 0.57, 1.0];
+            let rose_shadow = [0.0, 0.0, 0.0, 0.16];
+            let x_shift = -0.035;
+            let y_shift = 0.015;
+
+            draw_round_box(
                 &mut pixel,
                 nx,
                 ny,
-                (-0.45, -0.22),
-                (0.42, -0.46),
-                0.085,
-                [0.77, 0.52, 0.57],
+                -0.285 + x_shift,
+                0.000 + y_shift,
+                0.080,
+                0.465,
+                0.028,
+                rose_shadow,
             );
-            draw_capsule(
+            draw_round_box(
                 &mut pixel,
                 nx,
                 ny,
-                (-0.48, 0.05),
-                (0.47, -0.08),
-                0.085,
-                [0.57, 0.50, 0.72],
+                -0.015 + x_shift,
+                -0.365 + y_shift,
+                0.350,
+                0.075,
+                0.032,
+                rose_shadow,
             );
-            draw_capsule(
+            draw_round_box(
                 &mut pixel,
                 nx,
                 ny,
-                (-0.42, 0.33),
-                (0.38, 0.34),
-                0.085,
-                [0.45, 0.60, 0.78],
+                -0.045 + x_shift,
+                0.000 + y_shift,
+                0.315,
+                0.070,
+                0.030,
+                rose_shadow,
+            );
+            draw_round_box(
+                &mut pixel,
+                nx,
+                ny,
+                -0.015 + x_shift,
+                0.365 + y_shift,
+                0.350,
+                0.075,
+                0.032,
+                rose_shadow,
             );
 
-            let dot = (nx * nx + ny * ny).sqrt() - 0.105;
-            let dot_alpha = smooth_alpha(dot, softness * 1.5);
-            if dot_alpha > 0.0 {
-                blend(&mut pixel, [0.92, 0.90, 0.86, dot_alpha]);
-            }
+            draw_round_box(
+                &mut pixel, nx, ny, -0.315, -0.030, 0.080, 0.465, 0.028, rose,
+            );
+            draw_round_box(
+                &mut pixel, nx, ny, -0.045, -0.395, 0.350, 0.075, 0.032, rose,
+            );
+            draw_round_box(
+                &mut pixel, nx, ny, -0.075, -0.030, 0.315, 0.070, 0.030, rose,
+            );
+            draw_round_box(&mut pixel, nx, ny, -0.045, 0.335, 0.350, 0.075, 0.032, rose);
 
             rgba.push((pixel[0].clamp(0.0, 1.0) * 255.0).round() as u8);
             rgba.push((pixel[1].clamp(0.0, 1.0) * 255.0).round() as u8);
