@@ -275,7 +275,18 @@ impl eframe::App for EntropyApp {
         self.handle_pending_imports(ctx, now);
         self.auto_reload_text_expander_rules_file(now);
         let is_connecting = matches!(self.connect_state, ConnectState::Loading { .. });
-        if (self.last_device_scan_at == 0.0 || now - self.last_device_scan_at >= 1.0)
+        let selected_device_is_bluetooth = self
+            .selected_device
+            .and_then(|idx| self.device_manager.devices().get(idx))
+            .map(|device| device.is_bluetooth_transport())
+            .unwrap_or(false);
+        let device_scan_interval = if selected_device_is_bluetooth {
+            10.0
+        } else {
+            1.0
+        };
+        if (self.last_device_scan_at == 0.0
+            || now - self.last_device_scan_at >= device_scan_interval)
             && !self.vial_unlock_polling
             && !is_connecting
         {
@@ -651,7 +662,13 @@ impl eframe::App for EntropyApp {
         self.maybe_start_onboarding_tour(ctx);
         self.draw_onboarding_tour(ctx);
 
-        if self.keycode_picker.macros_dirty {
+        let active_hid_is_bluetooth = self
+            .hid_device
+            .as_ref()
+            .map(|hid| hid.is_bluetooth_transport())
+            .unwrap_or(false);
+
+        if self.keycode_picker.macros_dirty && !active_hid_is_bluetooth {
             if self.unlock_open || self.vial_unlock_polling {
                 // Defer macro write until unlock flow fully finishes.
             } else if self.is_vial_locked() {
@@ -685,7 +702,7 @@ impl eframe::App for EntropyApp {
         }
 
         // Write combos to device if changed
-        if self.combo_dirty && !self.keycode_picker.open {
+        if self.combo_dirty && !self.keycode_picker.open && !active_hid_is_bluetooth {
             let mut combo_save_ok = true;
             if let Some(hid) = &self.hid_device {
                 for (i, combo) in self.combo_entries.iter().enumerate() {
@@ -709,7 +726,7 @@ impl eframe::App for EntropyApp {
             }
         }
 
-        if self.combo_term_dirty && !self.keycode_picker.open {
+        if self.combo_term_dirty && !self.keycode_picker.open && !active_hid_is_bluetooth {
             let mut term_save_ok = true;
             if let (Some(hid), Some(value)) = (&self.hid_device, self.combo_term) {
                 if let Err(e) = hid.set_qmk_setting_u16(2, value) {
@@ -733,7 +750,10 @@ impl eframe::App for EntropyApp {
         }
 
         // Write tap dance to device if changed
-        if self.keycode_picker.tap_dance_dirty && !self.keycode_picker.open {
+        if self.keycode_picker.tap_dance_dirty
+            && !self.keycode_picker.open
+            && !active_hid_is_bluetooth
+        {
             let mut td_save_ok = true;
             if let Some(hid) = &self.hid_device {
                 for (i, td) in self.keycode_picker.tap_dance_entries.iter().enumerate() {

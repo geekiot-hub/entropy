@@ -16,7 +16,6 @@ pub struct Device {
 }
 
 impl Device {
-    #[cfg(target_os = "windows")]
     pub fn is_bluetooth_transport(&self) -> bool {
         self.bus_type.eq_ignore_ascii_case("bluetooth") || {
             let path = self.path.to_ascii_lowercase();

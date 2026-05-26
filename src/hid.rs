@@ -72,11 +72,23 @@ impl HidTransport {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+impl HidDevice {
+    pub fn is_bluetooth_transport(&self) -> bool {
+        match &self.backend {
+            HidBackend::Local { transport, .. } => transport.is_bluetooth(),
+            #[cfg(target_os = "windows")]
+            HidBackend::Proxy(proxy) => proxy.is_bluetooth_transport(),
+        }
+    }
+}
+
 #[cfg(target_os = "windows")]
 struct HidProxy {
     child: Mutex<Child>,
     stdin: Mutex<ChildStdin>,
     rx: Mutex<mpsc::Receiver<String>>,
+    transport: HidTransport,
 }
 
 #[cfg(target_os = "windows")]
@@ -232,6 +244,7 @@ impl HidDevice {
                 child: Mutex::new(child),
                 stdin: Mutex::new(stdin),
                 rx: Mutex::new(rx),
+                transport: device_transport(device),
             }),
         })
     }
@@ -535,6 +548,30 @@ fn drain_pending_reports(device: &hidapi::HidDevice) {
 
 #[cfg(target_os = "windows")]
 impl HidProxy {
+    fn is_bluetooth_transport(&self) -> bool {
+        self.transport.is_bluetooth()
+    }
+
+    fn request(&self, request: &str) -> Result<String> {
+        {
+            let mut stdin = self
+                .stdin
+                .lock()
+                .map_err(|_| anyhow::anyhow!("HID helper stdin lock poisoned"))?;
+            writeln!(stdin, "{request}").context("Failed to write HID helper request")?;
+            stdin
+                .flush()
+                .context("Failed to flush HID helper request")?;
+        }
+
+        let rx = self
+            .rx
+            .lock()
+            .map_err(|_| anyhow::anyhow!("HID helper receiver lock poisoned"))?;
+        rx.recv_timeout(Duration::from_secs(25))
+            .context("HID helper timed out during command")
+    }
+
     fn usb_send(&self, data: &[u8]) -> Result<[u8; MSG_LEN]> {
         if data.len() > MSG_LEN {
             bail!(
@@ -544,26 +581,7 @@ impl HidProxy {
             );
         }
 
-        {
-            let mut stdin = self
-                .stdin
-                .lock()
-                .map_err(|_| anyhow::anyhow!("HID helper stdin lock poisoned"))?;
-            writeln!(stdin, "{}", bytes_to_hex(data))
-                .context("Failed to write HID helper request")?;
-            stdin
-                .flush()
-                .context("Failed to flush HID helper request")?;
-        }
-
-        let line = {
-            let rx = self
-                .rx
-                .lock()
-                .map_err(|_| anyhow::anyhow!("HID helper receiver lock poisoned"))?;
-            rx.recv_timeout(Duration::from_secs(25))
-                .context("HID helper timed out during command")?
-        };
+        let line = self.request(&bytes_to_hex(data))?;
         let response: ProxyResponse =
             serde_json::from_str(&line).context("HID helper returned malformed response")?;
         if !response.ok {
@@ -639,7 +657,8 @@ fn run_hid_proxy(device: crate::device::Device) -> Result<()> {
 
     for line in BufReader::new(std::io::stdin()).lines() {
         let line = line?;
-        let response = match hex_to_bytes(line.trim()).and_then(|data| hid.usb_send(&data)) {
+        let line = line.trim();
+        let response = match hex_to_bytes(line).and_then(|data| hid.usb_send(&data)) {
             Ok(data) => ProxyResponse {
                 ok: true,
                 data: Some(bytes_to_hex(&data)),

@@ -163,6 +163,15 @@ impl EntropyApp {
 
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn is_vial_locked(&self) -> bool {
+        if self
+            .hid_device
+            .as_ref()
+            .map(|hid| hid.is_bluetooth_transport())
+            .unwrap_or(false)
+        {
+            return false;
+        }
+
         self.firmware == FirmwareProtocol::Vial
             && self.layout.is_some()
             && !self.vial_unlock_polling
