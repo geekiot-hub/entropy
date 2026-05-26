@@ -19,6 +19,17 @@ fn sd_round_box(px: f32, py: f32, hx: f32, hy: f32, radius: f32) -> f32 {
     (ox * ox + oy * oy).sqrt() + qx.max(qy).min(0.0) - radius
 }
 
+fn sd_capsule(px: f32, py: f32, ax: f32, ay: f32, bx: f32, by: f32, radius: f32) -> f32 {
+    let pax = px - ax;
+    let pay = py - ay;
+    let bax = bx - ax;
+    let bay = by - ay;
+    let h = ((pax * bax + pay * bay) / (bax * bax + bay * bay)).clamp(0.0, 1.0);
+    let dx = pax - bax * h;
+    let dy = pay - bay * h;
+    (dx * dx + dy * dy).sqrt() - radius
+}
+
 fn mix(a: [f32; 3], b: [f32; 3], t: f32) -> [f32; 3] {
     let t = t.clamp(0.0, 1.0);
     [
@@ -40,18 +51,18 @@ fn keycap_color(x: f32, y: f32) -> [f32; 3] {
     }
 }
 
-fn draw_flat_box(
+fn draw_capsule(
     pixel: &mut [f32; 4],
     x: f32,
     y: f32,
-    cx: f32,
-    cy: f32,
-    hx: f32,
-    hy: f32,
+    ax: f32,
+    ay: f32,
+    bx: f32,
+    by: f32,
     radius: f32,
     color: [f32; 4],
 ) {
-    let distance = sd_round_box(x - cx, y - cy, hx, hy, radius);
+    let distance = sd_capsule(x, y, ax, ay, bx, by, radius);
     let alpha = smooth_alpha(distance, 0.020) * color[3];
     if alpha > 0.0 {
         blend(pixel, [color[0], color[1], color[2], alpha]);
@@ -83,21 +94,31 @@ fn draw_keycap(pixel: &mut [f32; 4], x: f32, y: f32) {
 }
 
 fn draw_letter_e(pixel: &mut [f32; 4], x: f32, y: f32) {
-    let shadow = [0.0, 0.0, 0.0, 0.20];
+    let shadow = [0.0, 0.0, 0.0, 0.18];
     let cream = [0.99, 0.96, 0.90, 1.0];
-    let parts = [
-        (-0.220, 0.005, 0.064, 0.380, 0.024),
-        (0.035, -0.300, 0.318, 0.062, 0.028),
-        (0.000, 0.005, 0.282, 0.056, 0.026),
-        (0.035, 0.310, 0.318, 0.062, 0.028),
+    let strokes = [
+        (-0.245, -0.340, -0.245, 0.340, 0.060),
+        (-0.225, -0.330, 0.285, -0.330, 0.060),
+        (-0.225, 0.000, 0.230, 0.000, 0.054),
+        (-0.225, 0.330, 0.285, 0.330, 0.060),
     ];
 
-    for (cx, cy, hx, hy, radius) in parts {
-        draw_flat_box(pixel, x, y, cx + 0.030, cy + 0.030, hx, hy, radius, shadow);
+    for (ax, ay, bx, by, radius) in strokes {
+        draw_capsule(
+            pixel,
+            x,
+            y,
+            ax + 0.030,
+            ay + 0.030,
+            bx + 0.030,
+            by + 0.030,
+            radius,
+            shadow,
+        );
     }
 
-    for (cx, cy, hx, hy, radius) in parts {
-        draw_flat_box(pixel, x, y, cx, cy, hx, hy, radius, cream);
+    for (ax, ay, bx, by, radius) in strokes {
+        draw_capsule(pixel, x, y, ax, ay, bx, by, radius, cream);
     }
 }
 
