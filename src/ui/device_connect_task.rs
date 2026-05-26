@@ -64,6 +64,14 @@ impl EntropyApp {
             }
         };
 
+        #[cfg(target_os = "windows")]
+        if dev.is_bluetooth_transport() {
+            self.status_msg =
+                "Bluetooth Vial/RMK transport is not supported reliably on Windows yet — connect the keyboard over USB to edit it"
+                    .into();
+            return;
+        }
+
         self.status_msg = format!("Connecting to {}…", dev.name);
         self.layout = None;
         self.selected_key = None;

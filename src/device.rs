@@ -8,9 +8,21 @@ pub struct Device {
     pub product_id: u16,
     pub manufacturer: String,
     pub serial_number: String,
+    #[serde(default)]
+    pub bus_type: String,
     /// HID path used by Vial.
     pub path: String,
     pub firmware: FirmwareProtocol,
+}
+
+impl Device {
+    #[cfg(target_os = "windows")]
+    pub fn is_bluetooth_transport(&self) -> bool {
+        self.bus_type.eq_ignore_ascii_case("bluetooth") || {
+            let path = self.path.to_ascii_lowercase();
+            path.contains("bth") || path.contains("bluetooth")
+        }
+    }
 }
 
 /// Scans for connected Vial HID keyboard devices.
@@ -42,6 +54,7 @@ impl DeviceManager {
                         product_id: info.product_id(),
                         manufacturer: info.manufacturer_string().unwrap_or("").to_string(),
                         serial_number: info.serial_number().unwrap_or("").to_string(),
+                        bus_type: format!("{:?}", info.bus_type()),
                         path: info.path().to_string_lossy().to_string(),
                         firmware: FirmwareProtocol::Vial,
                     });
