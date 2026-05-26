@@ -19,7 +19,28 @@ fn sd_round_box(px: f32, py: f32, hx: f32, hy: f32, radius: f32) -> f32 {
     (ox * ox + oy * oy).sqrt() + qx.max(qy).min(0.0) - radius
 }
 
-fn draw_round_box(
+fn mix(a: [f32; 3], b: [f32; 3], t: f32) -> [f32; 3] {
+    let t = t.clamp(0.0, 1.0);
+    [
+        a[0] + (b[0] - a[0]) * t,
+        a[1] + (b[1] - a[1]) * t,
+        a[2] + (b[2] - a[2]) * t,
+    ]
+}
+
+fn mark_color(x: f32, y: f32) -> [f32; 3] {
+    let rose = [0.82, 0.46, 0.55];
+    let violet = [0.58, 0.46, 0.78];
+    let blue = [0.42, 0.58, 0.78];
+    let t = ((x + 0.55) * 0.72 + (0.42 - y) * 0.28).clamp(0.0, 1.0);
+    if t < 0.58 {
+        mix(rose, violet, t / 0.58)
+    } else {
+        mix(violet, blue, (t - 0.58) / 0.42)
+    }
+}
+
+fn draw_gradient_box(
     pixel: &mut [f32; 4],
     x: f32,
     y: f32,
@@ -28,12 +49,12 @@ fn draw_round_box(
     hx: f32,
     hy: f32,
     radius: f32,
-    color: [f32; 4],
 ) {
     let distance = sd_round_box(x - cx, y - cy, hx, hy, radius);
-    let alpha = smooth_alpha(distance, 0.020) * color[3];
+    let alpha = smooth_alpha(distance, 0.020);
     if alpha > 0.0 {
-        blend(pixel, [color[0], color[1], color[2], alpha]);
+        let c = mark_color(x, y);
+        blend(pixel, [c[0], c[1], c[2], alpha]);
     }
 }
 
@@ -59,69 +80,56 @@ pub(crate) fn rgba_icon(size: u32) -> Vec<u8> {
             if bg_alpha > 0.0 {
                 blend(&mut pixel, [0.135, 0.135, 0.155, bg_alpha]);
                 let border_alpha = smooth_alpha(bg.abs() - 0.018, softness * 1.8) * bg_alpha;
-                blend(&mut pixel, [0.36, 0.33, 0.38, border_alpha * 0.70]);
+                blend(&mut pixel, [0.37, 0.33, 0.39, border_alpha * 0.68]);
             }
 
-            let rose = [0.77, 0.52, 0.57, 1.0];
-            let rose_shadow = [0.0, 0.0, 0.0, 0.16];
-            let x_shift = -0.035;
-            let y_shift = 0.015;
+            let mark_shadow = [0.0, 0.0, 0.0, 0.17];
+            let shadow_shift_x = -0.035;
+            let shadow_shift_y = 0.020;
+            for (cx, cy, hx, hy, radius) in [
+                (
+                    -0.310 + shadow_shift_x,
+                    -0.020 + shadow_shift_y,
+                    0.075,
+                    0.455,
+                    0.026,
+                ),
+                (
+                    -0.040 + shadow_shift_x,
+                    -0.380 + shadow_shift_y,
+                    0.340,
+                    0.072,
+                    0.032,
+                ),
+                (
+                    -0.075 + shadow_shift_x,
+                    -0.020 + shadow_shift_y,
+                    0.300,
+                    0.068,
+                    0.030,
+                ),
+                (
+                    -0.040 + shadow_shift_x,
+                    0.340 + shadow_shift_y,
+                    0.340,
+                    0.072,
+                    0.032,
+                ),
+            ] {
+                let d = sd_round_box(nx - cx, ny - cy, hx, hy, radius);
+                let a = smooth_alpha(d, 0.020) * mark_shadow[3];
+                if a > 0.0 {
+                    blend(
+                        &mut pixel,
+                        [mark_shadow[0], mark_shadow[1], mark_shadow[2], a],
+                    );
+                }
+            }
 
-            draw_round_box(
-                &mut pixel,
-                nx,
-                ny,
-                -0.285 + x_shift,
-                0.000 + y_shift,
-                0.080,
-                0.465,
-                0.028,
-                rose_shadow,
-            );
-            draw_round_box(
-                &mut pixel,
-                nx,
-                ny,
-                -0.015 + x_shift,
-                -0.365 + y_shift,
-                0.350,
-                0.075,
-                0.032,
-                rose_shadow,
-            );
-            draw_round_box(
-                &mut pixel,
-                nx,
-                ny,
-                -0.045 + x_shift,
-                0.000 + y_shift,
-                0.315,
-                0.070,
-                0.030,
-                rose_shadow,
-            );
-            draw_round_box(
-                &mut pixel,
-                nx,
-                ny,
-                -0.015 + x_shift,
-                0.365 + y_shift,
-                0.350,
-                0.075,
-                0.032,
-                rose_shadow,
-            );
-
-            draw_round_box(
-                &mut pixel, nx, ny, -0.315, -0.030, 0.080, 0.465, 0.028, rose,
-            );
-            draw_round_box(
-                &mut pixel, nx, ny, -0.045, -0.395, 0.350, 0.075, 0.032, rose,
-            );
-            draw_round_box(
-                &mut pixel, nx, ny, -0.075, -0.030, 0.315, 0.070, 0.030, rose,
-            );
-            draw_round_box(&mut pixel, nx, ny, -0.045, 0.335, 0.350, 0.075, 0.032, rose);
+            draw_gradient_box(&mut pixel, nx, ny, -0.310, -0.020, 0.075, 0.455, 0.026);
+            draw_gradient_box(&mut pixel, nx, ny, -0.040, -0.380, 0.340, 0.072, 0.032);
+            draw_gradient_box(&mut pixel, nx, ny, -0.075, -0.020, 0.300, 0.068, 0.030);
+            draw_gradient_box(&mut pixel, nx, ny, -0.040, 0.340, 0.340, 0.072, 0.032);
 
             rgba.push((pixel[0].clamp(0.0, 1.0) * 255.0).round() as u8);
             rgba.push((pixel[1].clamp(0.0, 1.0) * 255.0).round() as u8);
