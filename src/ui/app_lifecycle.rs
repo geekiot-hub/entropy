@@ -250,9 +250,23 @@ impl eframe::App for EntropyApp {
             || self.top_dropdown_open(ctx)
             || ctx.memory(|m| m.any_popup_open());
 
-        // Keep lightweight device detection alive even when the UI is otherwise idle.
         #[cfg(not(target_arch = "wasm32"))]
-        ctx.request_repaint_after(std::time::Duration::from_millis(250));
+        let selected_device_is_bluetooth = self
+            .selected_device
+            .and_then(|idx| self.device_manager.devices().get(idx))
+            .map(|device| device.is_bluetooth_transport())
+            .unwrap_or(false);
+
+        // Keep lightweight device detection alive when idle. On Windows BLE, keep
+        // UI repaint smooth but avoid frequent HID enumeration against the BLE stack.
+        #[cfg(not(target_arch = "wasm32"))]
+        ctx.request_repaint_after(std::time::Duration::from_millis(
+            if selected_device_is_bluetooth {
+                16
+            } else {
+                250
+            },
+        ));
 
         #[cfg(not(target_arch = "wasm32"))]
         self.poll_device_scan(ctx);
@@ -275,18 +289,8 @@ impl eframe::App for EntropyApp {
         self.handle_pending_imports(ctx, now);
         self.auto_reload_text_expander_rules_file(now);
         let is_connecting = matches!(self.connect_state, ConnectState::Loading { .. });
-        let selected_device_is_bluetooth = self
-            .selected_device
-            .and_then(|idx| self.device_manager.devices().get(idx))
-            .map(|device| device.is_bluetooth_transport())
-            .unwrap_or(false);
-        let device_scan_interval = if selected_device_is_bluetooth {
-            10.0
-        } else {
-            1.0
-        };
-        if (self.last_device_scan_at == 0.0
-            || now - self.last_device_scan_at >= device_scan_interval)
+        if !selected_device_is_bluetooth
+            && (self.last_device_scan_at == 0.0 || now - self.last_device_scan_at >= 1.0)
             && !self.vial_unlock_polling
             && !is_connecting
         {
