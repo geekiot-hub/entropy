@@ -763,7 +763,7 @@ impl KeycodePicker {
                         let resp = picker_button(
                             ui,
                             &label,
-                            crate::ui_style::modal_small_button_size(72.0),
+                            Self::picker_key_size(ui.ctx()),
                             true,
                             false,
                         )
