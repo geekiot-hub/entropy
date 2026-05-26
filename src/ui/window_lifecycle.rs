@@ -334,6 +334,47 @@ impl EntropyApp {
         }
     }
 
+    pub(super) fn set_launch_at_startup(&mut self, enabled: bool) -> bool {
+        #[cfg(target_os = "windows")]
+        {
+            let Ok(exe) = std::env::current_exe() else {
+                return false;
+            };
+            let exe_arg = format!("\"{}\"", exe.display());
+            let status = if enabled {
+                std::process::Command::new("reg")
+                    .args([
+                        "add",
+                        r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run",
+                        "/v",
+                        "Entropy",
+                        "/t",
+                        "REG_SZ",
+                        "/d",
+                        &exe_arg,
+                        "/f",
+                    ])
+                    .status()
+            } else {
+                std::process::Command::new("reg")
+                    .args([
+                        "delete",
+                        r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run",
+                        "/v",
+                        "Entropy",
+                        "/f",
+                    ])
+                    .status()
+            };
+            return status.map(|status| status.success()).unwrap_or(false);
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            let _ = enabled;
+            false
+        }
+    }
+
     #[cfg(target_os = "windows")]
     pub(super) fn ensure_tray_icon(&mut self, ctx: &egui::Context) {
         if self.tray_icon.is_some() {

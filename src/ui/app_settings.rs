@@ -23,7 +23,7 @@ impl EntropyApp {
                 );
                 ui.add_space(metrics.value(24.0));
 
-                const TOTAL_APP_SETTINGS_ROWS: usize = 8;
+                const TOTAL_APP_SETTINGS_ROWS: usize = 9;
                 let list = allocate_adaptive_settings_list_viewport(
                     ui,
                     "app_settings",
@@ -324,6 +324,34 @@ impl EntropyApp {
                     }
                 }
                 3 => {
+                    let mut launch_at_startup = self.app_settings.launch_at_startup;
+                    crate::ui_style::settings_list_row_with_tooltip(
+                        ui,
+                        content_width,
+                        row_height,
+                        crate::i18n::tr(lang, TrKey::LaunchAtStartupLabel),
+                        true,
+                        tooltip(crate::i18n::tr(lang, TrKey::LaunchAtStartupTooltip)),
+                        switch_width,
+                        |ui| {
+                            let _ = crate::ui_style::settings_switch_sized_stable(
+                                ui,
+                                "app_settings_launch_at_startup",
+                                &mut launch_at_startup,
+                                switch_size,
+                            );
+                        },
+                    );
+                    if launch_at_startup != self.app_settings.launch_at_startup {
+                        if self.set_launch_at_startup(launch_at_startup) {
+                            self.app_settings.launch_at_startup = launch_at_startup;
+                            save_app_settings(&self.app_settings);
+                        } else {
+                            self.status_msg = "Failed to update startup setting".into();
+                        }
+                    }
+                }
+                4 => {
                     let mut show_shifted_symbols = self.app_settings.show_shifted_number_symbols;
                     crate::ui_style::settings_list_row_with_tooltip(
                         ui,
@@ -347,7 +375,7 @@ impl EntropyApp {
                         save_app_settings(&self.app_settings);
                     }
                 }
-                4 => {
+                5 => {
                     let mut layer_hover_preview = self.app_settings.layer_hover_preview;
                     crate::ui_style::settings_list_row_with_tooltip(
                         ui,
@@ -374,7 +402,7 @@ impl EntropyApp {
                         save_app_settings(&self.app_settings);
                     }
                 }
-                5 => {
+                6 => {
                     let mut encoder_hover_enlarge = self.app_settings.encoder_hover_enlarge;
                     crate::ui_style::settings_list_row_with_tooltip(
                         ui,
@@ -398,7 +426,7 @@ impl EntropyApp {
                         save_app_settings(&self.app_settings);
                     }
                 }
-                6 => {
+                7 => {
                     let mut selected_accent = self.app_settings.accent_color;
                     crate::ui_style::settings_list_row_with_tooltip(
                         ui,
@@ -451,7 +479,7 @@ impl EntropyApp {
                         save_app_settings(&self.app_settings);
                     }
                 }
-                7 => {
+                8 => {
                     crate::ui_style::settings_list_row_with_tooltip(
                         ui,
                         content_width,

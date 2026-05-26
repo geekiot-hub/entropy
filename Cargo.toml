@@ -6,10 +6,14 @@ description = "Ergohaven keyboard configurator"
 authors = ["Ergohaven"]
 license = "GPL-3.0-or-later"
 repository = "https://github.com/ergohaven/entropy"
+build = "build.rs"
 
 [[bin]]
 name = "entropy"
 path = "src/main.rs"
+
+[build-dependencies]
+winresource = "0.1"
 
 [dependencies]
 eframe = "0.31"

@@ -19,6 +19,8 @@ pub(crate) struct AppSettings {
     pub(crate) minimize_to_tray_on_close: bool,
     #[serde(default)]
     pub(crate) close_to_tray_behavior: CloseToTrayBehavior,
+    #[serde(default)]
+    pub(crate) launch_at_startup: bool,
     #[serde(default = "default_show_shifted_number_symbols")]
     pub(crate) show_shifted_number_symbols: bool,
     #[serde(default = "default_layer_hover_preview")]
@@ -114,6 +116,7 @@ impl Default for AppSettings {
         Self {
             minimize_to_tray_on_close: false,
             close_to_tray_behavior: CloseToTrayBehavior::Ask,
+            launch_at_startup: false,
             show_shifted_number_symbols: default_show_shifted_number_symbols(),
             layer_hover_preview: default_layer_hover_preview(),
             sticky_layout_window: false,
