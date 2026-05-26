@@ -111,9 +111,11 @@ impl EntropyApp {
         self.reset_matrix_tester_state();
 
         let (tx, rx) = mpsc::channel();
+        let now = std::time::Instant::now();
         self.connect_state = ConnectState::Loading {
             rx,
-            started_at: std::time::Instant::now(),
+            started_at: now,
+            last_progress_at: now,
         };
 
         std::thread::spawn(move || {

@@ -19,19 +19,27 @@ impl EntropyApp {
     /// Poll background thread for connect result.
     #[cfg(not(target_arch = "wasm32"))]
     pub(super) fn poll_connect(&mut self, ctx: &egui::Context) {
-        const CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(25);
+        const CONNECT_IDLE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(45);
+        const CONNECT_TOTAL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(240);
 
-        let result = match &self.connect_state {
-            ConnectState::Loading { rx, started_at } => loop {
+        let result = match &mut self.connect_state {
+            ConnectState::Loading {
+                rx,
+                started_at,
+                last_progress_at,
+            } => loop {
                 match rx.try_recv() {
                     Ok(ConnectTaskMessage::Progress(message)) => {
                         self.status_msg = message;
+                        *last_progress_at = std::time::Instant::now();
                         ctx.request_repaint();
                         return;
                     }
                     Ok(ConnectTaskMessage::Done(result)) => break result,
                     Err(mpsc::TryRecvError::Empty) => {
-                        if started_at.elapsed() > CONNECT_TIMEOUT {
+                        let idle_timeout = last_progress_at.elapsed() > CONNECT_IDLE_TIMEOUT;
+                        let total_timeout = started_at.elapsed() > CONNECT_TOTAL_TIMEOUT;
+                        if idle_timeout || total_timeout {
                             let stage = if self.status_msg.is_empty() {
                                 "unknown stage"
                             } else {

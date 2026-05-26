@@ -335,8 +335,14 @@ fn usb_send_local(
         VIAL_GUI_READ_TIMEOUT_MS
     };
 
+    let max_retries = if transport.is_bluetooth() {
+        3
+    } else {
+        VIAL_GUI_USB_RETRIES
+    };
+
     let mut last_error: Option<anyhow::Error> = None;
-    for attempt in 0..VIAL_GUI_USB_RETRIES {
+    for attempt in 0..max_retries {
         if attempt > 0 {
             std::thread::sleep(if transport.is_bluetooth() {
                 WINDOWS_BLE_SETTLE_DELAY

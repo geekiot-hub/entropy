@@ -256,6 +256,7 @@ pub(crate) enum ConnectState {
     Loading {
         rx: mpsc::Receiver<ConnectTaskMessage>,
         started_at: std::time::Instant,
+        last_progress_at: std::time::Instant,
     },
 }
 
