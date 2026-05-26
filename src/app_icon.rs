@@ -29,10 +29,10 @@ fn mix(a: [f32; 3], b: [f32; 3], t: f32) -> [f32; 3] {
 }
 
 fn keycap_color(x: f32, y: f32) -> [f32; 3] {
-    let rose = [0.93, 0.40, 0.54];
-    let violet = [0.63, 0.42, 0.86];
-    let blue = [0.34, 0.61, 0.92];
-    let t = ((x + 0.55) * 0.70 + (0.55 - y) * 0.30).clamp(0.0, 1.0);
+    let rose = [0.95, 0.39, 0.53];
+    let violet = [0.66, 0.42, 0.88];
+    let blue = [0.34, 0.63, 0.95];
+    let t = ((x + 0.68) * 0.68 + (0.66 - y) * 0.32).clamp(0.0, 1.0);
     if t < 0.55 {
         mix(rose, violet, t / 0.55)
     } else {
@@ -59,48 +59,44 @@ fn draw_flat_box(
 }
 
 fn draw_keycap(pixel: &mut [f32; 4], x: f32, y: f32) {
-    let shadow = sd_round_box(x - 0.035, y - 0.050, 0.52, 0.52, 0.145);
-    blend(pixel, [0.0, 0.0, 0.0, smooth_alpha(shadow, 0.030) * 0.30]);
+    let shadow = sd_round_box(x - 0.045, y - 0.060, 0.68, 0.68, 0.185);
+    blend(pixel, [0.0, 0.0, 0.0, smooth_alpha(shadow, 0.034) * 0.26]);
 
-    let rim = sd_round_box(x, y, 0.55, 0.55, 0.155);
+    let rim = sd_round_box(x, y, 0.70, 0.70, 0.195);
     let rim_alpha = smooth_alpha(rim, 0.026);
     if rim_alpha > 0.0 {
-        blend(pixel, [0.91, 0.86, 0.80, rim_alpha]);
+        blend(pixel, [0.93, 0.88, 0.81, rim_alpha]);
     }
 
-    let face = sd_round_box(x, y, 0.47, 0.47, 0.125);
+    let face = sd_round_box(x, y, 0.595, 0.595, 0.155);
     let face_alpha = smooth_alpha(face, 0.022);
     if face_alpha > 0.0 {
         let c = keycap_color(x, y);
         blend(pixel, [c[0], c[1], c[2], face_alpha]);
     }
 
-    let highlight = sd_round_box(x + 0.020, y + 0.045, 0.39, 0.35, 0.100);
-    let highlight_alpha = smooth_alpha(highlight, 0.020) * face_alpha * 0.14;
-    if highlight_alpha > 0.0 {
-        blend(pixel, [1.0, 1.0, 1.0, highlight_alpha]);
+    let top_highlight = sd_round_box(x + 0.030, y + 0.070, 0.505, 0.430, 0.125);
+    let top_highlight_alpha = smooth_alpha(top_highlight, 0.020) * face_alpha * 0.14;
+    if top_highlight_alpha > 0.0 {
+        blend(pixel, [1.0, 1.0, 1.0, top_highlight_alpha]);
     }
 }
 
 fn draw_letter_e(pixel: &mut [f32; 4], x: f32, y: f32) {
     let shadow = [0.0, 0.0, 0.0, 0.20];
-    let cream = [0.98, 0.95, 0.90, 1.0];
+    let cream = [0.99, 0.96, 0.90, 1.0];
+    let parts = [
+        (-0.220, 0.005, 0.064, 0.380, 0.024),
+        (0.035, -0.300, 0.318, 0.062, 0.028),
+        (0.000, 0.005, 0.282, 0.056, 0.026),
+        (0.035, 0.310, 0.318, 0.062, 0.028),
+    ];
 
-    for (cx, cy, hx, hy, radius) in [
-        (-0.175, 0.010, 0.050, 0.295, 0.020),
-        (0.020, -0.225, 0.240, 0.048, 0.022),
-        (0.000, 0.010, 0.215, 0.044, 0.021),
-        (0.020, 0.245, 0.240, 0.048, 0.022),
-    ] {
-        draw_flat_box(pixel, x, y, cx + 0.025, cy + 0.025, hx, hy, radius, shadow);
+    for (cx, cy, hx, hy, radius) in parts {
+        draw_flat_box(pixel, x, y, cx + 0.030, cy + 0.030, hx, hy, radius, shadow);
     }
 
-    for (cx, cy, hx, hy, radius) in [
-        (-0.175, 0.010, 0.050, 0.295, 0.020),
-        (0.020, -0.225, 0.240, 0.048, 0.022),
-        (0.000, 0.010, 0.215, 0.044, 0.021),
-        (0.020, 0.245, 0.240, 0.048, 0.022),
-    ] {
+    for (cx, cy, hx, hy, radius) in parts {
         draw_flat_box(pixel, x, y, cx, cy, hx, hy, radius, cream);
     }
 }
@@ -108,21 +104,12 @@ fn draw_letter_e(pixel: &mut [f32; 4], x: f32, y: f32) {
 pub(crate) fn rgba_icon(size: u32) -> Vec<u8> {
     let size = size.max(1);
     let mut rgba = Vec::with_capacity((size * size * 4) as usize);
-    let softness = 2.0 / size as f32;
 
     for y in 0..size {
         for x in 0..size {
             let nx = ((x as f32 + 0.5) / size as f32) * 2.0 - 1.0;
             let ny = ((y as f32 + 0.5) / size as f32) * 2.0 - 1.0;
             let mut pixel = [0.0, 0.0, 0.0, 0.0];
-
-            let bg = sd_round_box(nx, ny, 0.82, 0.82, 0.25);
-            let bg_alpha = smooth_alpha(bg, softness * 1.6);
-            if bg_alpha > 0.0 {
-                blend(&mut pixel, [0.115, 0.115, 0.135, bg_alpha]);
-                let border_alpha = smooth_alpha(bg.abs() - 0.018, softness * 1.8) * bg_alpha;
-                blend(&mut pixel, [0.42, 0.37, 0.44, border_alpha * 0.62]);
-            }
 
             draw_keycap(&mut pixel, nx, ny);
             draw_letter_e(&mut pixel, nx, ny);
