@@ -14,11 +14,12 @@ use std::sync::{mpsc, Mutex};
 
 #[path = "hid_protocol.rs"]
 mod hid_protocol;
-use hid_protocol::MSG_LEN;
+use hid_protocol::*;
 
 const VIAL_GUI_USB_RETRIES: usize = 20;
 const VIAL_GUI_READ_TIMEOUT_MS: i32 = 500;
 const WINDOWS_BLE_READ_TIMEOUT_MS: i32 = 2_500;
+const WINDOWS_BLE_READ_SLICE_MS: i32 = 250;
 const WINDOWS_BLE_SETTLE_DELAY: Duration = Duration::from_millis(12);
 const VIAL_GUI_RETRY_DELAY: Duration = Duration::from_millis(500);
 const HID_OPEN_RETRIES: usize = 5;
@@ -364,15 +365,46 @@ fn usb_send_local(
             }
         }
 
-        // Read response — hidapi on Windows returns MSG_LEN bytes (no report ID);
-        // Linux/macOS may include a report ID prefix. vial-gui accepts any non-empty
-        // read; Entropy normalizes it into a fixed MSG_LEN packet for parsers.
+        match read_response(device, transport, data, read_timeout_ms) {
+            Ok(resp) => return Ok(resp),
+            Err(e) => {
+                last_error = Some(e);
+                continue;
+            }
+        }
+    }
+
+    Err(last_error.unwrap_or_else(|| anyhow::anyhow!("failed to communicate with the device")))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn read_response(
+    device: &hidapi::HidDevice,
+    transport: HidTransport,
+    command: &[u8],
+    timeout_ms: i32,
+) -> Result<[u8; MSG_LEN]> {
+    let deadline = std::time::Instant::now() + Duration::from_millis(timeout_ms.max(1) as u64);
+    let mut last_error: Option<anyhow::Error> = None;
+
+    loop {
+        let now = std::time::Instant::now();
+        if now >= deadline {
+            break;
+        }
+
+        let remaining_ms = deadline.saturating_duration_since(now).as_millis().max(1) as i32;
+        let read_timeout = if transport.is_bluetooth() {
+            remaining_ms.min(WINDOWS_BLE_READ_SLICE_MS)
+        } else {
+            remaining_ms
+        };
+
         let mut read_buf = [0u8; MSG_LEN + 1];
-        let bytes_read = match device.read_timeout(&mut read_buf, read_timeout_ms) {
+        let bytes_read = match device.read_timeout(&mut read_buf, read_timeout) {
             Ok(bytes_read) => bytes_read,
             Err(e) => {
-                last_error = Some(anyhow::anyhow!("HID read failed: {e}"));
-                continue;
+                return Err(anyhow::anyhow!("HID read failed: {e}"));
             }
         };
 
@@ -387,7 +419,10 @@ fn usb_send_local(
                 MSG_LEN,
                 MSG_LEN + 1
             ));
-            continue;
+            if transport.is_bluetooth() {
+                continue;
+            }
+            break;
         }
 
         let mut resp = [0u8; MSG_LEN];
@@ -396,10 +431,89 @@ fn usb_send_local(
         } else {
             resp.copy_from_slice(&read_buf[..MSG_LEN]);
         }
-        return Ok(resp);
+
+        if !transport.is_bluetooth() || response_matches_command(command, &resp) {
+            return Ok(resp);
+        }
+
+        last_error = Some(anyhow::anyhow!(
+            "HID stale or unrelated BLE report for command {:02X}: {:02X?}",
+            command.first().copied().unwrap_or(0),
+            &resp[..command.len().min(8).max(3)]
+        ));
     }
 
-    Err(last_error.unwrap_or_else(|| anyhow::anyhow!("failed to communicate with the device")))
+    Err(last_error.unwrap_or_else(|| anyhow::anyhow!("HID timeout — device did not respond")))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn response_matches_command(command: &[u8], resp: &[u8; MSG_LEN]) -> bool {
+    let Some(&cmd) = command.first() else {
+        return false;
+    };
+
+    match cmd {
+        CMD_VIA_GET_PROTOCOL_VERSION => {
+            resp[0] == CMD_VIA_GET_PROTOCOL_VERSION
+                && matches!(u16::from_be_bytes([resp[1], resp[2]]), 9 | 0xFFFF)
+        }
+        CMD_VIA_GET_LAYER_COUNT => {
+            resp[0] == CMD_VIA_GET_LAYER_COUNT && (1..=32).contains(&resp[1])
+        }
+        CMD_VIA_KEYMAP_GET_BUFFER | CMD_VIA_MACRO_GET_BUFFER => {
+            command.len() >= 4 && resp[..4] == command[..4]
+        }
+        CMD_VIA_MACRO_GET_COUNT | CMD_VIA_MACRO_GET_BUFFER_SIZE => resp[0] == cmd,
+        CMD_VIA_GET_KEYBOARD_VALUE | CMD_VIA_LIGHTING_GET_VALUE => {
+            command.len() >= 2 && resp[0] == cmd && resp[1] == command[1]
+        }
+        CMD_VIA_SET_KEYBOARD_VALUE
+        | CMD_VIA_SET_KEYCODE
+        | CMD_VIA_LIGHTING_SET_VALUE
+        | CMD_VIA_LIGHTING_SAVE
+        | CMD_VIA_MACRO_SET_BUFFER => resp[0] == cmd,
+        CMD_VIA_VIAL_PREFIX => response_matches_vial_command(command, resp),
+        _ => true,
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn response_matches_vial_command(command: &[u8], resp: &[u8; MSG_LEN]) -> bool {
+    let Some(&subcommand) = command.get(1) else {
+        return false;
+    };
+
+    match subcommand {
+        CMD_VIAL_GET_KEYBOARD_ID => {
+            let vial_protocol = u32::from_le_bytes([resp[0], resp[1], resp[2], resp[3]]);
+            let keyboard_id = u64::from_le_bytes([
+                resp[4], resp[5], resp[6], resp[7], resp[8], resp[9], resp[10], resp[11],
+            ]);
+            vial_protocol <= 6 && keyboard_id != 0 && keyboard_id != u64::MAX
+        }
+        CMD_VIAL_GET_SIZE => {
+            let size = u32::from_le_bytes([resp[0], resp[1], resp[2], resp[3]]);
+            (1..=2_000_000).contains(&size)
+        }
+        CMD_VIAL_GET_DEFINITION => {
+            let block = command
+                .get(2..6)
+                .map(|bytes| u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]))
+                .unwrap_or(0);
+            block != 0 || resp.starts_with(&[0xFD, b'7', b'z', b'X', b'Z']) || resp[0] == 0x5D
+        }
+        CMD_VIAL_GET_UNLOCK_STATUS => matches!(resp[0], 0 | 1) && matches!(resp[1], 0 | 1),
+        CMD_VIAL_UNLOCK_POLL => matches!(resp[0], 0 | 1) && matches!(resp[1], 0 | 1),
+        CMD_VIAL_QMK_SETTINGS_GET
+        | CMD_VIAL_QMK_SETTINGS_SET
+        | CMD_VIAL_DYNAMIC_ENTRY_OP
+        | CMD_VIAL_GET_ENCODER
+        | CMD_VIAL_SET_ENCODER
+        | CMD_VIAL_QMK_SETTINGS_QUERY
+        | CMD_VIAL_UNLOCK_START
+        | CMD_VIAL_LOCK => true,
+        _ => true,
+    }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
