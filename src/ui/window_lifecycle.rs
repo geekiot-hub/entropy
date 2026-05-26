@@ -380,16 +380,7 @@ impl EntropyApp {
         if self.tray_icon.is_some() {
             return;
         }
-        let mut rgba = Vec::with_capacity(16 * 16 * 4);
-        let accent = app_accent();
-        for y in 0..16 {
-            for x in 0..16 {
-                let inside = (3..=12).contains(&x) && (3..=12).contains(&y);
-                let alpha = if inside { 255 } else { 0 };
-                rgba.extend_from_slice(&[accent.r(), accent.g(), accent.b(), alpha]);
-            }
-        }
-        let Ok(icon) = tray_icon::Icon::from_rgba(rgba, 16, 16) else {
+        let Some(icon) = crate::app_icon::tray_icon(32) else {
             return;
         };
         let ctx_for_handler = ctx.clone();

@@ -1,6 +1,7 @@
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 
 mod app;
+pub(crate) mod app_icon;
 mod device;
 mod firmware;
 #[cfg(not(target_arch = "wasm32"))]
@@ -108,6 +109,7 @@ fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("Entropy — Keyboard Configurator")
+            .with_icon(app_icon::egui_icon(64))
             .with_inner_size([1200.0, 700.0])
             .with_min_inner_size([800.0, 500.0]),
         centered: true,
