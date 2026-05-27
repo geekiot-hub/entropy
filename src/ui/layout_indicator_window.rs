@@ -99,7 +99,7 @@ fn draw_sticky_layout_transparency_dropdown(
         (OPACITY_VALUES[selected_idx] * 100.0).round() as i32
     );
     let dropdown_id = ui.id().with("sticky_layout_transparency_dropdown");
-    let width = 104.0;
+    let width = 128.0;
     let dropdown_resp = crate::ui_style::modern_dropdown_button_sized(
         ui,
         dropdown_id,
@@ -558,7 +558,7 @@ impl EntropyApp {
 
                     let transparency_rect = egui::Rect::from_min_size(
                         egui::pos2(footer_rect.left() + 8.0, footer_rect.center().y - 12.0),
-                        egui::vec2(108.0, 24.0),
+                        egui::vec2(132.0, 24.0),
                     );
                     ui.allocate_ui_at_rect(transparency_rect, |ui| {
                         if draw_sticky_layout_transparency_dropdown(
