@@ -506,10 +506,52 @@ impl EntropyApp {
         }
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(all(not(target_arch = "wasm32"), target_os = "linux"))]
     pub(super) fn sync_qmk_hid_host_bridges(&mut self) {
-        // Match vial-gui's single-owner HID model: avoid background raw-HID bridges
-        // that can open the same interface while the active Vial connection is in use.
+        let selected_path = self
+            .selected_device
+            .and_then(|idx| self.device_manager.devices().get(idx))
+            .map(|device| device.path.as_str());
+
+        let mut desired =
+            std::collections::HashMap::<String, crate::qmk_hid_host::HostDataMode>::new();
+
+        for device in self.device_manager.devices() {
+            if device.firmware != FirmwareProtocol::Vial {
+                continue;
+            }
+
+            let mut mode = crate::qmk_hid_host::HostDataMode::default();
+            if Some(device.path.as_str()) == selected_path {
+                if let Some(layout) = self.layout.as_ref() {
+                    mode = Self::qmk_hid_host_mode_for(layout, self.layout_options_value);
+                }
+            }
+
+            if Self::device_uses_automatic_display_host_data(device) {
+                mode.clock_volume = true;
+                mode.media = true;
+            }
+
+            if !mode.is_empty() {
+                desired.insert(device.path.clone(), mode);
+            }
+        }
+
+        self.qmk_hid_hosts
+            .retain(|path, bridge| desired.get(path).copied() == Some(bridge.mode()));
+
+        for (path, mode) in desired {
+            self.qmk_hid_hosts
+                .entry(path.clone())
+                .or_insert_with(|| crate::qmk_hid_host::QmkHidHostBridge::start(path, mode));
+        }
+    }
+
+    #[cfg(all(not(target_arch = "wasm32"), not(target_os = "linux")))]
+    pub(super) fn sync_qmk_hid_host_bridges(&mut self) {
+        // Keep the single-owner HID path on platforms where a second Raw HID open
+        // can collide with the active Vial connection.
         self.qmk_hid_hosts.clear();
     }
 
