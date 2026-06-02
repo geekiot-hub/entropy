@@ -77,6 +77,11 @@ impl EntropyApp {
     }
 
     pub(super) fn minimize_window_to_tray(&mut self, ctx: &egui::Context) {
+        #[cfg(target_os = "linux")]
+        let background_status = "Entropy is running in background";
+        #[cfg(not(target_os = "linux"))]
+        let background_status = "Entropy is running in the tray";
+
         #[cfg(target_os = "windows")]
         {
             self.ensure_tray_icon(ctx);
@@ -85,12 +90,12 @@ impl EntropyApp {
                     use windows_sys::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_HIDE};
                     ShowWindow(hwnd as windows_sys::Win32::Foundation::HWND, SW_HIDE);
                 }
-                self.status_msg = "Entropy is running in the tray".into();
+                self.status_msg = background_status.into();
                 return;
             }
         }
         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
-        self.status_msg = "Entropy is running in the tray".into();
+        self.status_msg = background_status.into();
     }
 
     fn persist_close_to_tray_behavior(&mut self, behavior: CloseToTrayBehavior) {
@@ -130,6 +135,26 @@ impl EntropyApp {
             });
 
         let lang = self.app_settings.language;
+        #[cfg(target_os = "linux")]
+        let (title, body, remember, close_label, tray_label, cancel_label) = match lang {
+            crate::i18n::Language::Russian => (
+                "Закрыть Entropy?",
+                "Text Expander и фоновые функции остановятся, если закрыть приложение",
+                "Запомнить выбор",
+                "Закрыть",
+                "В фон",
+                "Отмена",
+            ),
+            crate::i18n::Language::English => (
+                "Close Entropy?",
+                "Text Expander and background features will stop if Entropy is closed",
+                "Remember my choice",
+                "Close",
+                "Keep running",
+                "Cancel",
+            ),
+        };
+        #[cfg(not(target_os = "linux"))]
         let (title, body, remember, close_label, tray_label, cancel_label) = match lang {
             crate::i18n::Language::Russian => (
                 "Закрыть Entropy?",

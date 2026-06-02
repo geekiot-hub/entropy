@@ -20,10 +20,13 @@ mod ui_style;
 
 use app::EntropyApp;
 
-const APP_TITLE: &str = "Entropy (v1.13.20)";
+const APP_TITLE: &str = "Entropy (v1.13.21)";
 
 #[cfg(target_os = "windows")]
 struct SingleInstanceGuard(*mut core::ffi::c_void);
+
+#[cfg(target_os = "linux")]
+struct SingleInstanceGuard(i32);
 
 #[cfg(target_os = "windows")]
 impl Drop for SingleInstanceGuard {
@@ -32,6 +35,16 @@ impl Drop for SingleInstanceGuard {
             if !self.0.is_null() {
                 CloseHandle(self.0);
             }
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl Drop for SingleInstanceGuard {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = flock(self.0, LOCK_UN);
+            let _ = <std::fs::File as std::os::fd::FromRawFd>::from_raw_fd(self.0);
         }
     }
 }
@@ -77,6 +90,39 @@ fn notify_existing_instance() {
     let _ = std::fs::write(signal_path, now_ms);
 }
 
+#[cfg(target_os = "linux")]
+fn try_acquire_single_instance() -> bool {
+    use std::fs::OpenOptions;
+    use std::os::fd::IntoRawFd;
+
+    let dir = dirs::config_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join("entropy");
+    if std::fs::create_dir_all(&dir).is_err() {
+        return true;
+    }
+
+    let Ok(file) = OpenOptions::new()
+        .create(true)
+        .read(true)
+        .write(true)
+        .open(dir.join("single_instance.lock"))
+    else {
+        return true;
+    };
+    let fd = file.into_raw_fd();
+    let locked = unsafe { flock(fd, LOCK_EX | LOCK_NB) == 0 };
+    if locked {
+        let _guard = Box::leak(Box::new(SingleInstanceGuard(fd)));
+        true
+    } else {
+        unsafe {
+            let _ = <std::fs::File as std::os::fd::FromRawFd>::from_raw_fd(fd);
+        }
+        false
+    }
+}
+
 #[cfg(target_os = "windows")]
 #[link(name = "kernel32")]
 extern "system" {
@@ -89,7 +135,19 @@ extern "system" {
     fn CloseHandle(hObject: *mut core::ffi::c_void) -> i32;
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(target_os = "linux")]
+const LOCK_EX: i32 = 2;
+#[cfg(target_os = "linux")]
+const LOCK_NB: i32 = 4;
+#[cfg(target_os = "linux")]
+const LOCK_UN: i32 = 8;
+
+#[cfg(target_os = "linux")]
+extern "C" {
+    fn flock(fd: i32, operation: i32) -> i32;
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "linux")))]
 fn try_acquire_single_instance() -> bool {
     true
 }
@@ -102,8 +160,15 @@ fn main() -> eframe::Result<()> {
 
     env_logger::init();
 
-    // Temporarily allow multiple instances: a frozen HID session can otherwise keep
+    #[cfg(target_os = "linux")]
+    if !try_acquire_single_instance() {
+        notify_existing_instance();
+        return Ok(());
+    }
+
+    // Temporarily allow multiple Windows instances: a frozen HID session can otherwise keep
     // the global mutex and make a fixed build look like it "does not start".
+    #[cfg(not(target_os = "linux"))]
     let _single_instance_available = try_acquire_single_instance();
 
     let options = eframe::NativeOptions {

@@ -290,13 +290,23 @@ impl EntropyApp {
                             self.app_settings.close_to_tray_behavior,
                             CloseToTrayBehavior::Tray
                         );
+                    #[cfg(target_os = "linux")]
+                    let (close_behavior_label, close_behavior_tooltip) = (
+                        crate::i18n::tr(lang, TrKey::RunInBackgroundLabel),
+                        crate::i18n::tr(lang, TrKey::RunInBackgroundTooltip),
+                    );
+                    #[cfg(not(target_os = "linux"))]
+                    let (close_behavior_label, close_behavior_tooltip) = (
+                        crate::i18n::tr(lang, TrKey::CloseToTrayLabel),
+                        crate::i18n::tr(lang, TrKey::CloseToTrayTooltip),
+                    );
                     crate::ui_style::settings_list_row_with_tooltip(
                         ui,
                         content_width,
                         row_height,
-                        crate::i18n::tr(lang, TrKey::CloseToTrayLabel),
+                        close_behavior_label,
                         true,
-                        tooltip(crate::i18n::tr(lang, TrKey::CloseToTrayTooltip)),
+                        tooltip(close_behavior_tooltip),
                         switch_width,
                         |ui| {
                             let _ = crate::ui_style::settings_switch_sized_stable(
