@@ -109,11 +109,17 @@ fn platform_media_check() -> FeatureCheck {
             label: "playerctl",
             hint: "Uses MPRIS metadata from the active player",
         }
+    } else if command_exists("gdbus") {
+        FeatureCheck {
+            ok: true,
+            label: "MPRIS via gdbus",
+            hint: "Uses GNOME/GIO D-Bus access to read active media metadata",
+        }
     } else {
         FeatureCheck {
             ok: false,
-            label: "missing playerctl",
-            hint: "Install playerctl and use an MPRIS-compatible player for media info",
+            label: "missing playerctl/gdbus",
+            hint: "Install playerctl or glib2/gdbus and use an MPRIS-compatible player",
         }
     }
 }
@@ -359,6 +365,7 @@ fn current_media_info() -> Option<(String, String)> {
         )
         .and_then(|out| split_playerctl_all_metadata(&out))
     })
+    .or_else(mpris_media_info_via_gdbus)
 }
 
 #[cfg(target_os = "macos")]
@@ -431,6 +438,109 @@ fn split_playerctl_all_metadata(output: &str) -> Option<(String, String)> {
         fallback.get_or_insert((artist, title));
     }
     fallback
+}
+
+#[cfg(target_os = "linux")]
+fn mpris_media_info_via_gdbus() -> Option<(String, String)> {
+    let names = command_stdout(
+        "gdbus",
+        &[
+            "call",
+            "--session",
+            "--dest",
+            "org.freedesktop.DBus",
+            "--object-path",
+            "/org/freedesktop/DBus",
+            "--method",
+            "org.freedesktop.DBus.ListNames",
+        ],
+    )?;
+
+    let mut fallback = None;
+    for name in gvariant_quoted_strings(&names)
+        .into_iter()
+        .filter(|name| name.starts_with("org.mpris.MediaPlayer2."))
+    {
+        let Some(metadata) = gdbus_get_mpris_property(&name, "Metadata") else {
+            continue;
+        };
+        let Some(media) = split_gdbus_mpris_metadata(&metadata) else {
+            continue;
+        };
+        let is_playing = gdbus_get_mpris_property(&name, "PlaybackStatus")
+            .map(|status| status.contains("'Playing'") || status.contains("\"Playing\""))
+            .unwrap_or(false);
+        if is_playing {
+            return Some(media);
+        }
+        fallback.get_or_insert(media);
+    }
+    fallback
+}
+
+#[cfg(target_os = "linux")]
+fn gdbus_get_mpris_property(name: &str, property: &str) -> Option<String> {
+    command_stdout(
+        "gdbus",
+        &[
+            "call",
+            "--session",
+            "--dest",
+            name,
+            "--object-path",
+            "/org/mpris/MediaPlayer2",
+            "--method",
+            "org.freedesktop.DBus.Properties.Get",
+            "org.mpris.MediaPlayer2.Player",
+            property,
+        ],
+    )
+}
+
+#[cfg(target_os = "linux")]
+fn split_gdbus_mpris_metadata(metadata: &str) -> Option<(String, String)> {
+    let artist = gvariant_metadata_string(metadata, "xesam:artist").unwrap_or_default();
+    let title = gvariant_metadata_string(metadata, "xesam:title").unwrap_or_default();
+    (!artist.is_empty() || !title.is_empty()).then_some((artist, title))
+}
+
+#[cfg(target_os = "linux")]
+fn gvariant_metadata_string(metadata: &str, key: &str) -> Option<String> {
+    let key_idx = metadata.find(key)?;
+    let tail = &metadata[key_idx + key.len()..];
+    let value_idx = tail.find('<').map(|idx| idx + 1).unwrap_or(0);
+    gvariant_quoted_strings(&tail[value_idx..])
+        .into_iter()
+        .find(|value| !value.trim().is_empty())
+}
+
+#[cfg(target_os = "linux")]
+fn gvariant_quoted_strings(text: &str) -> Vec<String> {
+    let mut values = Vec::new();
+    let mut in_string = false;
+    let mut escaped = false;
+    let mut current = String::new();
+
+    for ch in text.chars() {
+        if in_string {
+            if escaped {
+                current.push(ch);
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == '\'' {
+                values.push(current.clone());
+                current.clear();
+                in_string = false;
+            } else {
+                current.push(ch);
+            }
+        } else if ch == '\'' {
+            in_string = true;
+        }
+    }
+
+    values
 }
 
 #[cfg(target_os = "windows")]

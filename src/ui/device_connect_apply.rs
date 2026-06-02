@@ -283,6 +283,12 @@ impl EntropyApp {
                 // between qmk-vial and RMK devices.
                 self.hid_device = r.hid_device;
 
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    self.restore_entropy_display_preset_after_connect();
+                    self.sync_qmk_hid_host_bridges();
+                }
+
                 log::info!(
                     "Connected: {} ({} layers, {:?})",
                     r.device_name,
