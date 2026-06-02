@@ -162,11 +162,20 @@ fn picker_tab_label(language: crate::i18n::Language, tab: KeycodeTab) -> &'stati
 }
 
 fn picker_mod_key_label(base: u16) -> String {
-    format!("{}/key", modifier_label_from_bits(base >> 8))
+    format!("{}/key", picker_modifier_label_from_bits(base >> 8))
 }
 
 fn picker_mod_tap_label(base: u16) -> String {
-    format!("Hold {}/key", modifier_label_from_bits((base >> 8) & 0x1F))
+    format!(
+        "Hold {}/key",
+        picker_modifier_label_from_bits((base >> 8) & 0x1F)
+    )
+}
+
+fn picker_modifier_label_from_bits(mods: u16) -> String {
+    modifier_label_from_bits(mods)
+        .replace("Ctl", "Ctrl")
+        .replace("Sft", "Shift")
 }
 
 fn picker_action_label(label: &str) -> String {
