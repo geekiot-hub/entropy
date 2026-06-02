@@ -20,6 +20,8 @@ mod ui_style;
 
 use app::EntropyApp;
 
+const APP_TITLE: &str = "Entropy (v1.13.16)";
+
 #[cfg(target_os = "windows")]
 struct SingleInstanceGuard(*mut core::ffi::c_void);
 
@@ -106,7 +108,7 @@ fn main() -> eframe::Result<()> {
 
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_title("Entropy — Keyboard Configurator")
+            .with_title(APP_TITLE)
             .with_icon(app_icon::egui_icon(64))
             .with_inner_size([1200.0, 700.0])
             .with_min_inner_size([800.0, 500.0]),
@@ -115,7 +117,7 @@ fn main() -> eframe::Result<()> {
     };
 
     eframe::run_native(
-        "Entropy",
+        APP_TITLE,
         options,
         Box::new(|cc| {
             // Roboto as primary UI font, with Unicode/symbol fallbacks.

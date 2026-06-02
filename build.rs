@@ -6,7 +6,7 @@ fn main() {
     let mut res = winresource::WindowsResource::new();
     res.set_icon("assets/entropy.ico");
     res.set("ProductName", "Entropy");
-    res.set("FileDescription", "Ergohaven keyboard configurator");
+    res.set("FileDescription", "Entropy");
     res.set("CompanyName", "Ergohaven");
     res.set("LegalCopyright", "© Ergohaven");
     if let Err(err) = res.compile() {
