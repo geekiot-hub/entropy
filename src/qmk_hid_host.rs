@@ -27,7 +27,6 @@ impl HostDataMode {
     }
 }
 
-
 #[derive(Clone, Debug)]
 pub struct FeatureCheck {
     pub ok: bool,
@@ -124,7 +123,8 @@ fn platform_media_check() -> FeatureCheck {
     FeatureCheck {
         ok: command_exists("osascript"),
         label: "Spotify / Music via AppleScript",
-        hint: "macOS may ask for Automation permission for Entropy, System Events, Spotify or Music",
+        hint:
+            "macOS may ask for Automation permission for Entropy, System Events, Spotify or Music",
     }
 }
 
@@ -347,6 +347,18 @@ fn current_media_info() -> Option<(String, String)> {
         &["metadata", "--format", "{{artist}}\t{{title}}"],
     )
     .and_then(|out| split_media_line(&out))
+    .or_else(|| {
+        command_stdout(
+            "playerctl",
+            &[
+                "-a",
+                "metadata",
+                "--format",
+                "{{status}}\t{{artist}}\t{{title}}",
+            ],
+        )
+        .and_then(|out| split_playerctl_all_metadata(&out))
+    })
 }
 
 #[cfg(target_os = "macos")]
@@ -383,7 +395,10 @@ fn current_media_info() -> Option<(String, String)> {
 
 #[cfg(not(target_os = "windows"))]
 fn command_stdout(program: &str, args: &[&str]) -> Option<String> {
-    let output = std::process::Command::new(program).args(args).output().ok()?;
+    let output = std::process::Command::new(program)
+        .args(args)
+        .output()
+        .ok()?;
     if !output.status.success() {
         return None;
     }
@@ -392,10 +407,30 @@ fn command_stdout(program: &str, args: &[&str]) -> Option<String> {
 
 #[cfg(not(target_os = "windows"))]
 fn split_media_line(line: &str) -> Option<(String, String)> {
-    let mut parts = line.trim().splitn(2, '\t');
+    let line = line.trim_end_matches(['\r', '\n']);
+    let mut parts = line.splitn(2, '\t');
     let artist = parts.next().unwrap_or_default().trim().to_string();
     let title = parts.next().unwrap_or_default().trim().to_string();
     (!artist.is_empty() || !title.is_empty()).then_some((artist, title))
+}
+
+#[cfg(target_os = "linux")]
+fn split_playerctl_all_metadata(output: &str) -> Option<(String, String)> {
+    let mut fallback = None;
+    for line in output.lines() {
+        let mut parts = line.splitn(3, '\t');
+        let status = parts.next().unwrap_or_default().trim();
+        let artist = parts.next().unwrap_or_default().trim().to_string();
+        let title = parts.next().unwrap_or_default().trim().to_string();
+        if artist.is_empty() && title.is_empty() {
+            continue;
+        }
+        if status.eq_ignore_ascii_case("playing") {
+            return Some((artist, title));
+        }
+        fallback.get_or_insert((artist, title));
+    }
+    fallback
 }
 
 #[cfg(target_os = "windows")]
