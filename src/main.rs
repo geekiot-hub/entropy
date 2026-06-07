@@ -20,7 +20,8 @@ mod ui_style;
 
 use app::EntropyApp;
 
-const APP_TITLE: &str = "Entropy (v1.13.26)";
+const APP_TITLE: &str = "Entropy (v1.13.27)";
+const APP_ID: &str = "entropy";
 
 #[cfg(target_os = "windows")]
 struct SingleInstanceGuard(*mut core::ffi::c_void);
@@ -147,19 +148,17 @@ extern "C" {
     fn flock(fd: i32, operation: i32) -> i32;
 }
 
-#[cfg(target_os = "linux")]
-fn prefer_x11_backend_for_restore() {
-    if std::env::var_os("WINIT_UNIX_BACKEND").is_some() {
-        return;
-    }
-    if std::env::var_os("WAYLAND_DISPLAY").is_some() && std::env::var_os("DISPLAY").is_some() {
-        std::env::set_var("WINIT_UNIX_BACKEND", "x11");
-    }
-}
-
 #[cfg(not(any(target_os = "windows", target_os = "linux")))]
 fn try_acquire_single_instance() -> bool {
     true
+}
+
+fn eframe_persistence_path() -> std::path::PathBuf {
+    let dir = dirs::config_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join(APP_ID);
+    let _ = std::fs::create_dir_all(&dir);
+    dir.join("eframe_state.ron")
 }
 
 fn main() -> eframe::Result<()> {
@@ -169,9 +168,6 @@ fn main() -> eframe::Result<()> {
     }
 
     env_logger::init();
-
-    #[cfg(target_os = "linux")]
-    prefer_x11_backend_for_restore();
 
     #[cfg(target_os = "linux")]
     if !try_acquire_single_instance() {
@@ -187,9 +183,11 @@ fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title(APP_TITLE)
+            .with_app_id(APP_ID)
             .with_icon(app_icon::egui_icon(64))
             .with_inner_size([1200.0, 700.0])
             .with_min_inner_size([800.0, 500.0]),
+        persistence_path: Some(eframe_persistence_path()),
         centered: true,
         ..Default::default()
     };
