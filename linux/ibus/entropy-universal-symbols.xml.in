@@ -30,6 +30,76 @@
       <description>Universal Unicode symbols and text expansion for Ergohaven keyboards</description>
     </engine>
     <engine>
+      <name>entropy-universal-symbols-gb</name>
+      <language>en</language>
+      <license>GPL-3.0-or-later</license>
+      <author>Ergohaven</author>
+      <icon>input-keyboard</icon>
+      <layout>gb</layout>
+      <longname>Entropy Universal Symbols EN UK</longname>
+      <description>Universal Unicode symbols and text expansion for Ergohaven keyboards</description>
+    </engine>
+    <engine>
+      <name>entropy-universal-symbols-de</name>
+      <language>de</language>
+      <license>GPL-3.0-or-later</license>
+      <author>Ergohaven</author>
+      <icon>input-keyboard</icon>
+      <layout>de</layout>
+      <longname>Entropy Universal Symbols DE</longname>
+      <description>Universal Unicode symbols and text expansion for Ergohaven keyboards</description>
+    </engine>
+    <engine>
+      <name>entropy-universal-symbols-fr</name>
+      <language>fr</language>
+      <license>GPL-3.0-or-later</license>
+      <author>Ergohaven</author>
+      <icon>input-keyboard</icon>
+      <layout>fr</layout>
+      <longname>Entropy Universal Symbols FR</longname>
+      <description>Universal Unicode symbols and text expansion for Ergohaven keyboards</description>
+    </engine>
+    <engine>
+      <name>entropy-universal-symbols-es</name>
+      <language>es</language>
+      <license>GPL-3.0-or-later</license>
+      <author>Ergohaven</author>
+      <icon>input-keyboard</icon>
+      <layout>es</layout>
+      <longname>Entropy Universal Symbols ES</longname>
+      <description>Universal Unicode symbols and text expansion for Ergohaven keyboards</description>
+    </engine>
+    <engine>
+      <name>entropy-universal-symbols-it</name>
+      <language>it</language>
+      <license>GPL-3.0-or-later</license>
+      <author>Ergohaven</author>
+      <icon>input-keyboard</icon>
+      <layout>it</layout>
+      <longname>Entropy Universal Symbols IT</longname>
+      <description>Universal Unicode symbols and text expansion for Ergohaven keyboards</description>
+    </engine>
+    <engine>
+      <name>entropy-universal-symbols-pt</name>
+      <language>pt</language>
+      <license>GPL-3.0-or-later</license>
+      <author>Ergohaven</author>
+      <icon>input-keyboard</icon>
+      <layout>pt</layout>
+      <longname>Entropy Universal Symbols PT</longname>
+      <description>Universal Unicode symbols and text expansion for Ergohaven keyboards</description>
+    </engine>
+    <engine>
+      <name>entropy-universal-symbols-br</name>
+      <language>pt</language>
+      <license>GPL-3.0-or-later</license>
+      <author>Ergohaven</author>
+      <icon>input-keyboard</icon>
+      <layout>br</layout>
+      <longname>Entropy Universal Symbols BR</longname>
+      <description>Universal Unicode symbols and text expansion for Ergohaven keyboards</description>
+    </engine>
+    <engine>
       <name>entropy-universal-symbols-ru</name>
       <language>ru</language>
       <license>GPL-3.0-or-later</license>
