@@ -25,9 +25,28 @@ except Exception as exc:  # pragma: no cover - depends on distro packages
     )
     sys.exit(1)
 
-ENGINE_NAME = "entropy-universal-symbols"
-ENGINE_LONG_NAME = "Entropy Universal Symbols"
 ENGINE_DESCRIPTION = "Universal Unicode symbols and text expansion for Ergohaven keyboards"
+ENGINE_DESCRIPTORS = (
+    {
+        "name": "entropy-universal-symbols",
+        "longname": "Entropy Universal Symbols",
+        "language": "x-other",
+        "layout": "default",
+    },
+    {
+        "name": "entropy-universal-symbols-us",
+        "longname": "Entropy Universal Symbols EN",
+        "language": "en",
+        "layout": "us",
+    },
+    {
+        "name": "entropy-universal-symbols-ru",
+        "longname": "Entropy Universal Symbols RU",
+        "language": "ru",
+        "layout": "ru",
+    },
+)
+ENGINE_NAMES = {descriptor["name"] for descriptor in ENGINE_DESCRIPTORS}
 TEXT_EXPANDER_MAIN_RULES_FILE = "text_expansion_rules.json"
 
 XK_F13 = 0xFFCA
@@ -477,7 +496,7 @@ class EntropyEngineFactory(IBus.Factory):
         self._engines = []
 
     def do_create_engine(self, engine_name):
-        if engine_name != ENGINE_NAME:
+        if engine_name not in ENGINE_NAMES:
             return None
         self._next_engine_id += 1
         path = f"/org/freedesktop/IBus/Entropy/Engine/{self._next_engine_id}"
@@ -506,18 +525,19 @@ def main():
         homepage="https://eh.industries",
         textdomain="entropy",
     )
-    component.add_engine(
-        IBus.EngineDesc(
-            name=ENGINE_NAME,
-            longname=ENGINE_LONG_NAME,
-            description=ENGINE_DESCRIPTION,
-            language="x-other",
-            license="GPL-3.0-or-later",
-            author="Ergohaven",
-            icon="input-keyboard",
-            layout="default",
+    for engine_descriptor in ENGINE_DESCRIPTORS:
+        component.add_engine(
+            IBus.EngineDesc(
+                name=engine_descriptor["name"],
+                longname=engine_descriptor["longname"],
+                description=ENGINE_DESCRIPTION,
+                language=engine_descriptor["language"],
+                license="GPL-3.0-or-later",
+                author="Ergohaven",
+                icon="input-keyboard",
+                layout=engine_descriptor["layout"],
+            )
         )
-    )
     bus.register_component(component)
     bus.request_name("org.freedesktop.IBus.Entropy", 0)
 

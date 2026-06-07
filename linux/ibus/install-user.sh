@@ -33,4 +33,4 @@ if command -v ibus >/dev/null 2>&1; then
 else
     printf '%s\n' "Installed, but ibus command was not found."
 fi
-printf '%s\n' "Select 'Entropy Universal Symbols' as an input source."
+printf '%s\n' "Select 'Entropy Universal Symbols EN' and/or 'Entropy Universal Symbols RU' as input sources."

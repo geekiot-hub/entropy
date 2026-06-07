@@ -9,7 +9,12 @@ Wayland does not allow a normal application to globally intercept keys and injec
 ibus restart
 ```
 
-Then add/select **Entropy Universal Symbols** in the system input-source/input-method settings.
+Then add/select Entropy input sources in the system input-source/input-method settings:
+
+- **Entropy Universal Symbols EN** for the `us` layout
+- **Entropy Universal Symbols RU** for the `ru` layout
+
+Switch between those system input sources to change language while keeping Entropy Text Expander active.
 
 Required distro packages are usually:
 

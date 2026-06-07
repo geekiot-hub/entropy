@@ -19,5 +19,25 @@
       <longname>Entropy Universal Symbols</longname>
       <description>Universal Unicode symbols and text expansion for Ergohaven keyboards</description>
     </engine>
+    <engine>
+      <name>entropy-universal-symbols-us</name>
+      <language>en</language>
+      <license>GPL-3.0-or-later</license>
+      <author>Ergohaven</author>
+      <icon>input-keyboard</icon>
+      <layout>us</layout>
+      <longname>Entropy Universal Symbols EN</longname>
+      <description>Universal Unicode symbols and text expansion for Ergohaven keyboards</description>
+    </engine>
+    <engine>
+      <name>entropy-universal-symbols-ru</name>
+      <language>ru</language>
+      <license>GPL-3.0-or-later</license>
+      <author>Ergohaven</author>
+      <icon>input-keyboard</icon>
+      <layout>ru</layout>
+      <longname>Entropy Universal Symbols RU</longname>
+      <description>Universal Unicode symbols and text expansion for Ergohaven keyboards</description>
+    </engine>
   </engines>
 </component>
