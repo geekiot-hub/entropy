@@ -92,6 +92,7 @@ impl EntropyApp {
                 draw_universal_symbols_value(
                     ui,
                     metrics,
+                    168.0,
                     crate::i18n::tr_catalog(lang, universal_symbols_backend_value_key()),
                     ui.visuals().text_color(),
                 );
@@ -116,11 +117,12 @@ impl EntropyApp {
             crate::i18n::tr_catalog(lang, "universal_symbols_setup.next_step"),
             true,
             tooltip("universal_symbols_setup.next_step_tooltip"),
-            metrics.settings_control_width(),
+            metrics.value(220.0),
             |ui| {
                 draw_universal_symbols_value(
                     ui,
                     metrics,
+                    220.0,
                     crate::i18n::tr_catalog(lang, universal_symbols_next_step_key()),
                     app_muted_text(dark),
                 );
@@ -134,11 +136,12 @@ impl EntropyApp {
             crate::i18n::tr_catalog(lang, "universal_symbols_setup.text_expander"),
             true,
             tooltip("universal_symbols_setup.text_expander_tooltip"),
-            metrics.settings_control_width(),
+            metrics.value(220.0),
             |ui| {
                 draw_universal_symbols_value(
                     ui,
                     metrics,
+                    220.0,
                     crate::i18n::tr_catalog(lang, universal_symbols_text_expander_key()),
                     app_muted_text(dark),
                 );
@@ -159,6 +162,7 @@ impl EntropyApp {
                     draw_universal_symbols_value(
                         ui,
                         metrics,
+                        168.0,
                         crate::i18n::tr_catalog(lang, "universal_symbols_setup.no_install_needed"),
                         ui.visuals().text_color(),
                     );
@@ -221,6 +225,7 @@ impl EntropyApp {
             draw_universal_symbols_value(
                 ui,
                 metrics,
+                168.0,
                 crate::i18n::tr_catalog(lang, "universal_symbols_setup.no_install_needed"),
                 ui.visuals().text_color(),
             );
@@ -231,6 +236,7 @@ impl EntropyApp {
             draw_universal_symbols_value(
                 ui,
                 metrics,
+                168.0,
                 crate::i18n::tr_catalog(lang, "universal_symbols_setup.unsupported"),
                 app_muted_text(ui.visuals().dark_mode),
             );
@@ -380,16 +386,21 @@ impl EntropyApp {
 fn draw_universal_symbols_value(
     ui: &mut egui::Ui,
     metrics: crate::ui_style::ResponsiveMetrics,
+    width: f32,
     text: &str,
     color: Color32,
 ) {
-    let (rect, _) = ui.allocate_exact_size(metrics.size(168.0, 34.0), egui::Sense::hover());
-    ui.painter().text(
-        rect.right_center(),
-        egui::Align2::RIGHT_CENTER,
-        text,
-        FontId::proportional(metrics.value(12.0)),
-        color,
+    ui.allocate_ui_with_layout(
+        metrics.size(width, 44.0),
+        egui::Layout::right_to_left(egui::Align::Center),
+        |ui| {
+            ui.add_sized(
+                metrics.size(width, 44.0),
+                egui::Label::new(RichText::new(text).size(metrics.value(12.0)).color(color))
+                    .wrap()
+                    .halign(egui::Align::RIGHT),
+            );
+        },
     );
 }
 
