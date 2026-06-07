@@ -130,6 +130,19 @@ impl EntropyApp {
 
                         ui.add_space(metrics.value(16.0));
                         self.draw_universal_symbols_setup_actions(ui, metrics);
+                        if !self.status_msg.is_empty() {
+                            ui.add_space(metrics.value(10.0));
+                            ui.add_sized(
+                                Vec2::new(content_width, metrics.value(36.0)),
+                                egui::Label::new(
+                                    RichText::new(&self.status_msg)
+                                        .size(metrics.value(11.5))
+                                        .color(app_muted_text(dark)),
+                                )
+                                .wrap()
+                                .halign(egui::Align::Center),
+                            );
+                        }
                     },
                 );
             });
@@ -197,15 +210,43 @@ impl EntropyApp {
             self.status_msg = format!("Could not find {script}; run it from the Entropy folder");
             return;
         };
-        let result = std::process::Command::new("sh")
-            .arg(&script_path)
-            .status();
-        self.status_msg = if matches!(result, Ok(status) if status.success()) {
-            format!("{backend} backend installed; restart/select it in your input method")
-        } else {
-            format!("Could not run {}", script_path.display())
+        let output = std::process::Command::new("sh").arg(&script_path).output();
+        self.status_msg = match output {
+            Ok(output) if output.status.success() => {
+                let details = command_output_summary(&output.stdout, &output.stderr);
+                if details.is_empty() {
+                    format!("{backend} backend installed")
+                } else {
+                    details
+                }
+            }
+            Ok(output) => {
+                let details = command_output_summary(&output.stderr, &output.stdout);
+                if details.is_empty() {
+                    format!("{backend} install failed: {}", output.status)
+                } else {
+                    format!("{backend} install failed: {details}")
+                }
+            }
+            Err(err) => format!("Could not run {}: {err}", script_path.display()),
         };
     }
+}
+
+#[cfg(target_os = "linux")]
+fn command_output_summary(primary: &[u8], fallback: &[u8]) -> String {
+    let text = if primary.is_empty() { fallback } else { primary };
+    String::from_utf8_lossy(text)
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .rev()
+        .take(2)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 #[cfg(target_os = "linux")]

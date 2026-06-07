@@ -12,5 +12,13 @@ install -m 0755 "$script_dir/entropy-ibus-engine" "$engine_path"
 sed "s|@ENGINE_PATH@|$engine_path|g" "$script_dir/entropy-universal-symbols.xml.in" > "$component_path"
 
 printf '%s\n' "Installed Entropy IBus engine: $component_path"
-printf '%s\n' "Restart IBus, then select 'Entropy Universal Symbols' as an input source."
-printf '%s\n' "Typical restart command: ibus restart"
+if command -v ibus >/dev/null 2>&1; then
+    if ibus restart >/dev/null 2>&1; then
+        printf '%s\n' "Restarted IBus."
+    else
+        printf '%s\n' "Installed, but IBus restart failed. Run: ibus restart"
+    fi
+else
+    printf '%s\n' "Installed, but ibus command was not found."
+fi
+printf '%s\n' "Select 'Entropy Universal Symbols' as an input source."
