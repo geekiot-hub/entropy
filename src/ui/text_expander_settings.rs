@@ -38,6 +38,7 @@ impl EntropyApp {
                     .wrap()
                     .halign(egui::Align::Center),
                 );
+                self.draw_text_expander_backend_hint(ui, metrics, lang, dark);
                 ui.add_space(metrics.value(10.0));
 
                 let rule_row_count = self.app_settings.text_expansion_rules.len().max(1);
@@ -139,5 +140,75 @@ impl EntropyApp {
                 });
             });
         });
+    }
+
+    fn draw_text_expander_backend_hint(
+        &mut self,
+        ui: &mut egui::Ui,
+        metrics: crate::ui_style::ResponsiveMetrics,
+        lang: crate::i18n::Language,
+        dark: bool,
+    ) {
+        let content_width = metrics.settings_content_width();
+        let button_size = metrics.size(148.0, 30.0);
+        let button_gap = metrics.value(8.0);
+        ui.add_space(metrics.value(4.0));
+        ui.horizontal_centered(|ui| {
+            ui.add_sized(
+                Vec2::new(
+                    content_width - button_size.x - button_gap,
+                    metrics.value(40.0),
+                ),
+                egui::Label::new(
+                    RichText::new(crate::i18n::tr_catalog(
+                        lang,
+                        text_expander_backend_hint_key(),
+                    ))
+                    .size(metrics.value(11.0))
+                    .color(app_muted_text(dark)),
+                )
+                .wrap(),
+            );
+            ui.add_space(button_gap);
+            if crate::ui_style::modern_button(
+                ui,
+                crate::i18n::tr_catalog(lang, "text_expander.open_universal_symbols_setup"),
+                button_size,
+                true,
+            )
+            .clicked()
+            {
+                self.open_universal_symbols_setup_page();
+            }
+        });
+    }
+}
+
+fn text_expander_backend_hint_key() -> &'static str {
+    #[cfg(target_os = "linux")]
+    {
+        match crate::smart_input::linux_recommended_input_backend() {
+            crate::smart_input::LinuxRecommendedInputBackend::X11Native => {
+                "text_expander.backend_hint_linux_x11"
+            }
+            crate::smart_input::LinuxRecommendedInputBackend::IBus => {
+                "text_expander.backend_hint_linux_ibus"
+            }
+            crate::smart_input::LinuxRecommendedInputBackend::Fcitx5 => {
+                "text_expander.backend_hint_linux_fcitx5"
+            }
+        }
+    }
+    #[cfg(target_os = "windows")]
+    {
+        "text_expander.backend_hint_windows"
+    }
+    #[cfg(target_os = "macos")]
+    {
+        "text_expander.backend_hint_macos"
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    {
+        "text_expander.backend_hint_unsupported"
     }
 }

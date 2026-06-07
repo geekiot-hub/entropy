@@ -179,6 +179,33 @@ fn linux_session_kind() -> LinuxSessionKind {
 }
 
 #[cfg(target_os = "linux")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LinuxRecommendedInputBackend {
+    X11Native,
+    IBus,
+    Fcitx5,
+}
+
+#[cfg(target_os = "linux")]
+pub fn linux_recommended_input_backend() -> LinuxRecommendedInputBackend {
+    match linux_session_kind() {
+        LinuxSessionKind::X11 => LinuxRecommendedInputBackend::X11Native,
+        LinuxSessionKind::Wayland | LinuxSessionKind::Unknown => {
+            let input_method = linux_input_method_env();
+            if input_method.contains("fcitx") {
+                LinuxRecommendedInputBackend::Fcitx5
+            } else if input_method.contains("ibus") {
+                LinuxRecommendedInputBackend::IBus
+            } else if linux_command_available("fcitx5") && !linux_command_available("ibus") {
+                LinuxRecommendedInputBackend::Fcitx5
+            } else {
+                LinuxRecommendedInputBackend::IBus
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
 pub fn text_expander_runs_outside_entropy_process() -> bool {
     matches!(linux_session_kind(), LinuxSessionKind::Wayland)
 }
@@ -190,13 +217,7 @@ pub fn text_expander_runs_outside_entropy_process() -> bool {
 
 #[cfg(target_os = "linux")]
 fn linux_input_method_hint() -> &'static str {
-    let im_vars = ["GTK_IM_MODULE", "QT_IM_MODULE", "XMODIFIERS"];
-    let combined = im_vars
-        .iter()
-        .filter_map(|name| std::env::var(name).ok())
-        .collect::<Vec<_>>()
-        .join(" ")
-        .to_ascii_lowercase();
+    let combined = linux_input_method_env();
     if combined.contains("fcitx") {
         " — Fcitx detected"
     } else if combined.contains("ibus") {
@@ -204,6 +225,27 @@ fn linux_input_method_hint() -> &'static str {
     } else {
         ""
     }
+}
+
+#[cfg(target_os = "linux")]
+fn linux_input_method_env() -> String {
+    let im_vars = ["GTK_IM_MODULE", "QT_IM_MODULE", "XMODIFIERS"];
+    im_vars
+        .iter()
+        .filter_map(|name| std::env::var(name).ok())
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_ascii_lowercase()
+}
+
+#[cfg(target_os = "linux")]
+fn linux_command_available(command: &str) -> bool {
+    std::process::Command::new(command)
+        .arg("--version")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok()
 }
 
 #[cfg(target_os = "macos")]
