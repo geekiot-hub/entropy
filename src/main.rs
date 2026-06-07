@@ -20,7 +20,7 @@ mod ui_style;
 
 use app::EntropyApp;
 
-const APP_TITLE: &str = "Entropy (v1.13.21)";
+const APP_TITLE: &str = "Entropy (v1.13.22)";
 
 #[cfg(target_os = "windows")]
 struct SingleInstanceGuard(*mut core::ffi::c_void);
@@ -147,6 +147,16 @@ extern "C" {
     fn flock(fd: i32, operation: i32) -> i32;
 }
 
+#[cfg(target_os = "linux")]
+fn prefer_x11_backend_for_restore() {
+    if std::env::var_os("WINIT_UNIX_BACKEND").is_some() {
+        return;
+    }
+    if std::env::var_os("WAYLAND_DISPLAY").is_some() && std::env::var_os("DISPLAY").is_some() {
+        std::env::set_var("WINIT_UNIX_BACKEND", "x11");
+    }
+}
+
 #[cfg(not(any(target_os = "windows", target_os = "linux")))]
 fn try_acquire_single_instance() -> bool {
     true
@@ -159,6 +169,9 @@ fn main() -> eframe::Result<()> {
     }
 
     env_logger::init();
+
+    #[cfg(target_os = "linux")]
+    prefer_x11_backend_for_restore();
 
     #[cfg(target_os = "linux")]
     if !try_acquire_single_instance() {

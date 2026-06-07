@@ -285,11 +285,12 @@ impl EntropyApp {
                     }
                 }
                 2 => {
-                    let mut minimize_to_tray = self.app_settings.minimize_to_tray_on_close
+                    let close_in_background_before = self.app_settings.minimize_to_tray_on_close
                         || matches!(
                             self.app_settings.close_to_tray_behavior,
                             CloseToTrayBehavior::Tray
                         );
+                    let mut minimize_to_tray = close_in_background_before;
                     #[cfg(target_os = "linux")]
                     let (close_behavior_label, close_behavior_tooltip) = (
                         crate::i18n::tr(lang, TrKey::RunInBackgroundLabel),
@@ -317,7 +318,7 @@ impl EntropyApp {
                             );
                         },
                     );
-                    if minimize_to_tray != self.app_settings.minimize_to_tray_on_close {
+                    if minimize_to_tray != close_in_background_before {
                         self.app_settings.close_to_tray_behavior = if minimize_to_tray {
                             CloseToTrayBehavior::Tray
                         } else {

@@ -94,8 +94,23 @@ impl EntropyApp {
                 return;
             }
         }
-        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
-        self.status_msg = background_status.into();
+        #[cfg(target_os = "linux")]
+        {
+            if std::env::var("WINIT_UNIX_BACKEND").as_deref() == Ok("wayland")
+                || std::env::var_os("DISPLAY").is_none()
+            {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+            } else {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+            }
+            self.status_msg = background_status.into();
+            return;
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+            self.status_msg = background_status.into();
+        }
     }
 
     fn persist_close_to_tray_behavior(&mut self, behavior: CloseToTrayBehavior) {
