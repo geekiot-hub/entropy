@@ -1,6 +1,6 @@
 # Entropy IBus backend
 
-Wayland does not allow a normal application to globally intercept keys and inject text. This IBus backend is the safe Wayland-native path for Entropy Universal Symbols: it consumes only the reserved `F13..F24` transport chords and commits the matching Unicode text through IBus.
+Wayland does not allow a normal application to globally intercept keys and inject text. This IBus backend is the safe Wayland-native path for Entropy Universal Symbols and Text Expander: it consumes the reserved `F13..F24` transport chords, watches ordinary typing while selected as an input method, and commits matching text through IBus.
 
 ## Install for current user
 
@@ -21,9 +21,12 @@ Required distro packages are usually:
 
 - Handles only Entropy transport keys: `F13..F24` with `Shift`, `Ctrl`, `Alt`, and `Ctrl+Alt`
 - Commits the same Unicode symbols as Entropy Smart Input
-- Returns `False` for every non-transport key, so normal typing is passed through
-- Does not read or log ordinary text input
+- Loads Text Expander settings from `~/.config/entropy/app_settings.json`
+- Loads primary and selected extra rules from `~/.config/entropy/text_expander_rules/`
+- Passes normal typing through unless a trigger matches
+- On match, swallows the last trigger key, removes the already typed trigger text through IBus surrounding-text APIs, and commits the replacement
+- Does not log ordinary text input
 
 ## Scope
 
-This is the first IBus backend. Fcitx5 can be added later for users who prefer that input method stack.
+This is the IBus backend. Fcitx5 currently handles Universal Symbols only.

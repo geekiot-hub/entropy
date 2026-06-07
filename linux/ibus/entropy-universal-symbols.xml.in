@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <component>
   <name>org.freedesktop.IBus.Entropy</name>
-  <description>Entropy Universal Symbols</description>
+  <description>Entropy Universal Symbols and Text Expander</description>
   <exec>@ENGINE_PATH@</exec>
   <version>1.0.0</version>
   <author>Ergohaven</author>
@@ -17,7 +17,7 @@
       <icon>input-keyboard</icon>
       <layout>default</layout>
       <longname>Entropy Universal Symbols</longname>
-      <description>Universal Unicode symbols for Ergohaven keyboards</description>
+      <description>Universal Unicode symbols and text expansion for Ergohaven keyboards</description>
     </engine>
   </engines>
 </component>

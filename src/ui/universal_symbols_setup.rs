@@ -193,11 +193,43 @@ impl EntropyApp {
 
     #[cfg(target_os = "linux")]
     fn run_linux_universal_symbols_setup(&mut self, script: &str, backend: &str) {
-        let result = std::process::Command::new("sh").arg(script).status();
+        let Some(script_path) = linux_universal_symbols_setup_script(script) else {
+            self.status_msg = format!("Could not find {script}; run it from the Entropy folder");
+            return;
+        };
+        let result = std::process::Command::new("sh")
+            .arg(&script_path)
+            .status();
         self.status_msg = if matches!(result, Ok(status) if status.success()) {
             format!("{backend} backend installed; restart/select it in your input method")
         } else {
-            format!("Could not run {script}; run it from the Entropy folder")
+            format!("Could not run {}", script_path.display())
         };
     }
+}
+
+#[cfg(target_os = "linux")]
+fn linux_universal_symbols_setup_script(script: &str) -> Option<std::path::PathBuf> {
+    let relative = std::path::Path::new(script);
+    if relative.exists() {
+        return Some(relative.to_path_buf());
+    }
+    if let Some(appdir) = std::env::var_os("APPDIR") {
+        let path = std::path::PathBuf::from(appdir).join(script);
+        if path.exists() {
+            return Some(path);
+        }
+    }
+    std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|dir| dir.to_path_buf()))
+        .and_then(|dir| {
+            for ancestor in dir.ancestors() {
+                let path = ancestor.join(script);
+                if path.exists() {
+                    return Some(path);
+                }
+            }
+            None
+        })
 }

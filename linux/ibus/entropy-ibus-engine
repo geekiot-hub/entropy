@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""IBus engine for Entropy Universal Symbols.
+"""IBus engine for Entropy Universal Symbols and Text Expander.
 
-This backend is intentionally small: it only consumes the reserved transport
-keys used by Entropy (F13..F24 plus Ctrl/Shift/Alt banks) and commits the
-matching Unicode text through IBus. Other keys are ignored and continue through
-the normal input stack.
+The backend consumes Entropy transport keys (F13..F24 plus Ctrl/Shift/Alt
+banks) and can also expand configured Text Expander triggers through IBus.
+Other keys continue through the normal input stack.
 """
 
+import json
+import os
 import signal
 import sys
 
@@ -26,7 +27,8 @@ except Exception as exc:  # pragma: no cover - depends on distro packages
 
 ENGINE_NAME = "entropy-universal-symbols"
 ENGINE_LONG_NAME = "Entropy Universal Symbols"
-ENGINE_DESCRIPTION = "Universal Unicode symbols for Ergohaven keyboards"
+ENGINE_DESCRIPTION = "Universal Unicode symbols and text expansion for Ergohaven keyboards"
+TEXT_EXPANDER_MAIN_RULES_FILE = "text_expansion_rules.json"
 
 XK_F13 = 0xFFCA
 KC_F13 = 0x0068
@@ -75,6 +77,257 @@ def _symbol_entries():
 SMART_SYMBOLS = {(keycode, modifiers): symbol for keycode, modifiers, symbol in _symbol_entries()}
 
 
+def _config_home():
+    return os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
+
+
+def _entropy_config_dir():
+    return os.path.join(_config_home(), "entropy")
+
+
+def _app_settings_path():
+    return os.path.join(_entropy_config_dir(), "app_settings.json")
+
+
+def _rules_dir():
+    return os.path.join(_entropy_config_dir(), "text_expander_rules")
+
+
+def _rules_path(file_name=TEXT_EXPANDER_MAIN_RULES_FILE):
+    return os.path.join(_rules_dir(), file_name)
+
+
+def _normalize_extra_rule_file(raw):
+    name = os.path.basename(str(raw).strip())
+    if not name:
+        return None
+    if name.lower() == TEXT_EXPANDER_MAIN_RULES_FILE.lower():
+        return None
+    if not name.lower().endswith(".json"):
+        return None
+    return name
+
+
+def _read_json_file(path):
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            return json.load(handle)
+    except Exception:
+        return None
+
+
+def _parse_rules_json(data):
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict):
+        for key in ("rules", "text_expansion_rules"):
+            value = data.get(key)
+            if isinstance(value, list):
+                return value
+    return []
+
+
+def _rule_usable(rule):
+    return (
+        bool(rule.get("enabled", True))
+        and bool(_activation_triggers(str(rule.get("trigger", ""))))
+        and bool(_prepare_replacement(str(rule.get("replacement", "")))[0])
+    )
+
+
+def _valid_trigger(trigger):
+    return (
+        trigger.strip() == trigger
+        and len(trigger) >= 2
+        and trigger[0] in (":", ";")
+        and not any(ch.isspace() for ch in trigger)
+        and not any(ord(ch) < 32 for ch in trigger)
+    )
+
+
+def _valid_legacy_trigger_stem(trigger):
+    return (
+        trigger.strip() == trigger
+        and len(trigger) >= 1
+        and trigger[0] not in (":", ";")
+        and not any(ch.isspace() for ch in trigger)
+        and not any(ord(ch) < 32 for ch in trigger)
+    )
+
+
+def _activation_triggers(trigger):
+    if _valid_trigger(trigger):
+        return [trigger]
+    if _valid_legacy_trigger_stem(trigger):
+        return [f":{trigger}", f";{trigger}"]
+    return []
+
+
+def _decode_text_escapes(raw):
+    output = []
+    idx = 0
+    while idx < len(raw):
+        ch = raw[idx]
+        if ch == "\\" and idx + 1 < len(raw):
+            nxt = raw[idx + 1]
+            if nxt == "n":
+                output.append("\n")
+                idx += 2
+                continue
+            if nxt == "t":
+                output.append("\t")
+                idx += 2
+                continue
+            if nxt == "r":
+                output.append("\r")
+                idx += 2
+                continue
+            if nxt == "\\":
+                output.append("\\")
+                idx += 2
+                continue
+        output.append(ch)
+        idx += 1
+    return "".join(output)
+
+
+def _prepare_replacement(raw):
+    expanded = _decode_text_escapes(raw)
+    marker = "$|$"
+    marker_idx = expanded.find(marker)
+    if marker_idx < 0:
+        return expanded, 0
+    before = expanded[:marker_idx]
+    after = expanded[marker_idx + len(marker):]
+    return before + after, len(after)
+
+
+def _is_word_char(ch):
+    return ch.isalnum() or ch == "_"
+
+
+class TextExpansionEngine:
+    def __init__(self):
+        self.rules = []
+        self.buffer = ""
+        self.max_buffer_chars = 64
+
+    def set_rules(self, rules):
+        self.rules = [rule for rule in rules if isinstance(rule, dict)]
+        max_trigger_chars = 0
+        for rule in self.rules:
+            if not _rule_usable(rule):
+                continue
+            for trigger in _activation_triggers(str(rule.get("trigger", ""))):
+                max_trigger_chars = max(max_trigger_chars, len(trigger))
+        self.max_buffer_chars = min(max(max_trigger_chars, 64), 128)
+        self.reset()
+
+    def reset(self):
+        self.buffer = ""
+
+    def backspace(self):
+        self.buffer = self.buffer[:-1]
+
+    def push_char(self, ch):
+        if ord(ch) < 32:
+            self.reset()
+            return None
+        self.buffer += ch
+        if len(self.buffer) > self.max_buffer_chars:
+            self.buffer = self.buffer[-self.max_buffer_chars:]
+        match = self._find_match()
+        if match is not None:
+            self.reset()
+        return match
+
+    def _find_match(self):
+        matches = []
+        for rule in self.rules:
+            if not _rule_usable(rule):
+                continue
+            for trigger in _activation_triggers(str(rule.get("trigger", ""))):
+                if not self.buffer.endswith(trigger):
+                    continue
+                if not self._boundary_ok(trigger):
+                    continue
+                if self._has_longer_pending_trigger(trigger):
+                    continue
+                replacement, cursor_back_chars = _prepare_replacement(str(rule.get("replacement", "")))
+                matches.append((len(trigger), replacement, cursor_back_chars))
+        if not matches:
+            return None
+        typed_trigger_chars, replacement, cursor_back_chars = max(matches, key=lambda item: item[0])
+        return typed_trigger_chars, replacement, cursor_back_chars
+
+    def _has_longer_pending_trigger(self, trigger):
+        for rule in self.rules:
+            if not _rule_usable(rule):
+                continue
+            for candidate in _activation_triggers(str(rule.get("trigger", ""))):
+                if len(candidate) > len(trigger) and candidate.startswith(trigger):
+                    return True
+        return False
+
+    def _boundary_ok(self, trigger):
+        if not trigger:
+            return False
+        if not _is_word_char(trigger[0]):
+            return True
+        if len(self.buffer) <= len(trigger):
+            return True
+        return not _is_word_char(self.buffer[-len(trigger) - 1])
+
+
+class TextExpanderRuntime:
+    def __init__(self):
+        self.enabled = False
+        self.engine = TextExpansionEngine()
+        self._signature = None
+
+    def reload_if_needed(self):
+        paths = [_app_settings_path(), _rules_path()]
+        settings = _read_json_file(_app_settings_path())
+        if isinstance(settings, dict):
+            for raw in settings.get("text_expander_rule_files", []):
+                name = _normalize_extra_rule_file(raw)
+                if name:
+                    paths.append(_rules_path(name))
+        signature = tuple((path, self._mtime(path)) for path in paths)
+        if signature == self._signature:
+            return
+        self._signature = signature
+        self._load(settings)
+
+    def _load(self, settings):
+        if not isinstance(settings, dict):
+            self.enabled = False
+            self.engine.set_rules([])
+            return
+        self.enabled = bool(settings.get("text_expander_enabled", False))
+        rules = []
+        primary = _parse_rules_json(_read_json_file(_rules_path()))
+        if primary:
+            rules.extend(primary)
+        else:
+            rules.extend(settings.get("text_expansion_rules", []))
+        for raw in settings.get("text_expander_rule_files", []):
+            name = _normalize_extra_rule_file(raw)
+            if name:
+                rules.extend(_parse_rules_json(_read_json_file(_rules_path(name))))
+        self.engine.set_rules(rules)
+
+    @staticmethod
+    def _mtime(path):
+        try:
+            return os.path.getmtime(path)
+        except OSError:
+            return None
+
+    def active(self):
+        return self.enabled and bool(self.engine.rules)
+
+
 def _transport_keycode_from_keyval(keyval):
     if XK_F13 <= keyval <= XK_F13 + 11:
         return KC_F13 + (keyval - XK_F13)
@@ -93,22 +346,83 @@ def _transport_modifiers(state):
 
 
 class EntropyEngine(IBus.Engine):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._text_expander = TextExpanderRuntime()
+
     def do_process_key_event(self, keyval, keycode, state):
-        del keycode
         base_keycode = _transport_keycode_from_keyval(keyval)
-        if base_keycode is None:
+        if base_keycode is not None:
+            modifiers = _transport_modifiers(state)
+            symbol = SMART_SYMBOLS.get((base_keycode, modifiers))
+            if symbol is not None:
+                # Swallow both key-down and key-up for handled transport keys.
+                # Commit text on key-down only.
+                if not (state & IBus.ModifierType.RELEASE_MASK):
+                    self.commit_text(IBus.Text.new_from_string(symbol))
+                return True
+
+        return self._process_text_expander_key(keyval, keycode, state)
+
+    def _process_text_expander_key(self, keyval, keycode, state):
+        del keycode
+        if state & IBus.ModifierType.RELEASE_MASK:
             return False
 
-        modifiers = _transport_modifiers(state)
-        symbol = SMART_SYMBOLS.get((base_keycode, modifiers))
-        if symbol is None:
+        self._text_expander.reload_if_needed()
+        if not self._text_expander.active():
             return False
 
-        # Swallow both key-down and key-up for handled transport keys. Commit
-        # text on key-down only.
-        if not (state & IBus.ModifierType.RELEASE_MASK):
-            self.commit_text(IBus.Text.new_from_string(symbol))
+        engine = self._text_expander.engine
+        if keyval == IBus.KEY_BackSpace:
+            engine.backspace()
+            return False
+        if _text_expander_reset_key(keyval):
+            engine.reset()
+            return False
+        if _text_expander_modifier_active(state):
+            return False
+
+        codepoint = IBus.keyval_to_unicode(keyval)
+        if codepoint <= 0:
+            return False
+        ch = chr(codepoint)
+        expansion = engine.push_char(ch)
+        if expansion is None:
+            return False
+
+        typed_trigger_chars, replacement, cursor_back_chars = expansion
+        previous_chars = max(typed_trigger_chars - 1, 0)
+        if previous_chars:
+            self.delete_surrounding_text(-previous_chars, previous_chars)
+        self.commit_text(IBus.Text.new_from_string(replacement))
+        for _ in range(cursor_back_chars):
+            self.forward_key_event(IBus.KEY_Left, 0, 0)
         return True
+
+
+def _text_expander_reset_key(keyval):
+    return keyval in {
+        IBus.KEY_Return,
+        IBus.KEY_KP_Enter,
+        IBus.KEY_Tab,
+        IBus.KEY_Escape,
+        IBus.KEY_Left,
+        IBus.KEY_Up,
+        IBus.KEY_Right,
+        IBus.KEY_Down,
+    }
+
+
+def _text_expander_modifier_active(state):
+    masks = [
+        IBus.ModifierType.CONTROL_MASK,
+        IBus.ModifierType.MOD1_MASK,
+        getattr(IBus.ModifierType, "SUPER_MASK", 0),
+        getattr(IBus.ModifierType, "HYPER_MASK", 0),
+        getattr(IBus.ModifierType, "META_MASK", 0),
+    ]
+    return any(mask and (state & mask) for mask in masks)
 
 
 class EntropyEngineFactory(IBus.Factory):
