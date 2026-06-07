@@ -383,10 +383,9 @@ class EntropyEngine(IBus.Engine):
         if _text_expander_modifier_active(state):
             return False
 
-        codepoint = IBus.keyval_to_unicode(keyval)
-        if codepoint <= 0:
+        ch = _text_expander_key_char(keyval, state)
+        if ch is None:
             return False
-        ch = chr(codepoint)
         expansion = engine.push_char(ch)
         if expansion is None:
             return False
@@ -423,6 +422,51 @@ def _text_expander_modifier_active(state):
         getattr(IBus.ModifierType, "META_MASK", 0),
     ]
     return any(mask and (state & mask) for mask in masks)
+
+
+SHIFT_ASCII_CHARS = {
+    "`": "~",
+    "1": "!",
+    "2": "@",
+    "3": "#",
+    "4": "$",
+    "5": "%",
+    "6": "^",
+    "7": "&",
+    "8": "*",
+    "9": "(",
+    "0": ")",
+    "-": "_",
+    "=": "+",
+    "[": "{",
+    "]": "}",
+    "\\": "|",
+    ";": ":",
+    "'": '"',
+    ",": "<",
+    ".": ">",
+    "/": "?",
+}
+
+
+def _text_expander_key_char(keyval, state):
+    value = IBus.keyval_to_unicode(keyval)
+    if isinstance(value, str):
+        if not value:
+            return None
+        ch = value[0]
+    elif isinstance(value, int):
+        if value <= 0:
+            return None
+        ch = chr(value)
+    else:
+        return None
+    if state & IBus.ModifierType.SHIFT_MASK:
+        if ch in SHIFT_ASCII_CHARS:
+            return SHIFT_ASCII_CHARS[ch]
+        if "a" <= ch <= "z":
+            return ch.upper()
+    return ch
 
 
 class EntropyEngineFactory(IBus.Factory):
