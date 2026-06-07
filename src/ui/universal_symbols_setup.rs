@@ -1,39 +1,5 @@
 use super::*;
 
-fn universal_symbols_setup_steps() -> &'static [&'static str] {
-    #[cfg(target_os = "windows")]
-    {
-        &[
-            "No extra setup is required on Windows",
-            "Keep Entropy running while using Universal Symbols",
-            "Assign keys from Symbols → Universal symbols in the key picker",
-        ]
-    }
-    #[cfg(target_os = "macos")]
-    {
-        &[
-            "Open Privacy & Security",
-            "Allow Entropy in Accessibility",
-            "If prompted, allow Entropy in Input Monitoring too",
-            "Restart Entropy after changing permissions",
-            "Keep Entropy running while using Universal Symbols",
-        ]
-    }
-    #[cfg(target_os = "linux")]
-    {
-        &[
-            "X11: install xdotool and keep Entropy running",
-            "Wayland + IBus: install Entropy Universal Symbols and select it as an input source",
-            "Wayland + Fcitx5: install the addon, restart Fcitx5, and enable Entropy Universal Symbols",
-            "Assign keys from Symbols → Universal symbols in the key picker",
-        ]
-    }
-    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
-    {
-        &["Universal Symbols are not supported on this OS yet"]
-    }
-}
-
 impl EntropyApp {
     pub(super) fn draw_universal_symbols_setup_page(
         &mut self,
@@ -44,6 +10,7 @@ impl EntropyApp {
         let dark = ui.visuals().dark_mode;
         let metrics = crate::ui_style::ResponsiveMetrics::from_ctx(ui.ctx());
         let content_width = metrics.settings_content_width();
+
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(metrics.value(18.0));
@@ -65,90 +32,26 @@ impl EntropyApp {
                         );
                         ui.add_space(metrics.value(6.0));
                         ui.add_sized(
-                            Vec2::new(content_width, metrics.value(18.0)),
+                            Vec2::new(content_width, metrics.value(34.0)),
                             egui::Label::new(
-                                RichText::new(crate::i18n::tr_text(
+                                RichText::new(crate::i18n::tr_catalog(
                                     lang,
-                                    &crate::smart_input::universal_output_status(),
+                                    universal_symbols_intro_key(),
                                 ))
-                                .size(metrics.value(12.5))
+                                .size(metrics.value(13.0))
                                 .color(app_muted_text(dark)),
                             )
                             .wrap()
                             .halign(egui::Align::Center),
                         );
-                        if let Some(hint) = crate::smart_input::universal_output_setup_hint() {
-                            ui.add_space(metrics.value(4.0));
-                            ui.add_sized(
-                                Vec2::new(content_width, metrics.value(18.0)),
-                                egui::Label::new(
-                                    RichText::new(crate::i18n::tr_text(lang, hint))
-                                        .size(metrics.value(11.0))
-                                        .color(app_muted_text(dark)),
-                                )
-                                .wrap()
-                                .halign(egui::Align::Center),
-                            );
-                        }
-                        #[cfg(target_os = "linux")]
-                        {
-                            ui.add_space(metrics.value(4.0));
-                            ui.add_sized(
-                                Vec2::new(content_width, metrics.value(32.0)),
-                                egui::Label::new(
-                                    RichText::new(crate::i18n::tr_catalog(
-                                        lang,
-                                        linux_universal_backend_info_key(),
-                                    ))
-                                    .size(metrics.value(11.0))
-                                    .color(app_muted_text(dark)),
-                                )
-                                .wrap()
-                                .halign(egui::Align::Center),
-                            );
-                        }
-                        ui.add_space(metrics.value(16.0));
+                        ui.add_space(metrics.value(18.0));
 
-                        let steps = universal_symbols_setup_steps();
-                        let step_height = metrics.value(24.0);
-                        let block_height = steps.len() as f32 * step_height;
-                        let block_rect = ui
-                            .allocate_exact_size(
-                                Vec2::new(content_width, block_height),
-                                egui::Sense::hover(),
-                            )
-                            .0;
-                        let fill = if dark {
-                            Color32::from_rgb(38, 38, 41)
-                        } else {
-                            Color32::from_rgb(252, 252, 254)
-                        };
-                        ui.painter().rect(
-                            block_rect,
-                            metrics.value(14.0),
-                            fill,
-                            crate::ui_style::modal_outline_stroke(dark),
-                            egui::StrokeKind::Inside,
-                        );
-                        for (idx, step) in steps.iter().enumerate() {
-                            let y = block_rect.top() + step_height * idx as f32 + step_height / 2.0;
-                            ui.painter().text(
-                                egui::pos2(block_rect.center().x, y),
-                                egui::Align2::CENTER_CENTER,
-                                crate::i18n::tr_text(lang, step),
-                                FontId::proportional(metrics.value(12.0)),
-                                if idx == 0 {
-                                    app_accent()
-                                } else {
-                                    ui.visuals().text_color()
-                                },
-                            );
-                        }
+                        self.draw_universal_symbols_setup_rows(ui, metrics, lang, dark);
 
-                        ui.add_space(metrics.value(16.0));
+                        ui.add_space(metrics.value(18.0));
                         self.draw_universal_symbols_setup_actions(ui, metrics);
                         if !self.status_msg.is_empty() {
-                            ui.add_space(metrics.value(10.0));
+                            ui.add_space(metrics.value(12.0));
                             ui.add_sized(
                                 Vec2::new(content_width, metrics.value(36.0)),
                                 egui::Label::new(
@@ -166,69 +69,201 @@ impl EntropyApp {
         });
     }
 
+    fn draw_universal_symbols_setup_rows(
+        &mut self,
+        ui: &mut egui::Ui,
+        metrics: crate::ui_style::ResponsiveMetrics,
+        lang: crate::i18n::Language,
+        dark: bool,
+    ) {
+        let row_height = metrics.settings_row_height();
+        let row_content_width = metrics.settings_row_content_width();
+        let tooltip = |key: &'static str| Some(crate::i18n::tr_catalog(lang, key));
+
+        crate::ui_style::settings_list_row_with_tooltip(
+            ui,
+            row_content_width,
+            row_height,
+            crate::i18n::tr_catalog(lang, "universal_symbols_setup.current_backend"),
+            true,
+            tooltip("universal_symbols_setup.current_backend_tooltip"),
+            metrics.settings_control_width(),
+            |ui| {
+                draw_universal_symbols_value(
+                    ui,
+                    metrics,
+                    crate::i18n::tr_catalog(lang, universal_symbols_backend_value_key()),
+                    ui.visuals().text_color(),
+                );
+            },
+        );
+
+        crate::ui_style::settings_list_row_with_tooltip(
+            ui,
+            row_content_width,
+            row_height,
+            crate::i18n::tr_catalog(lang, "universal_symbols_setup.recommended_setup"),
+            true,
+            tooltip("universal_symbols_setup.recommended_setup_tooltip"),
+            metrics.settings_control_width(),
+            |ui| self.draw_universal_symbols_recommended_control(ui, metrics, lang),
+        );
+
+        crate::ui_style::settings_list_row_with_tooltip(
+            ui,
+            row_content_width,
+            row_height,
+            crate::i18n::tr_catalog(lang, "universal_symbols_setup.next_step"),
+            true,
+            tooltip("universal_symbols_setup.next_step_tooltip"),
+            metrics.settings_control_width(),
+            |ui| {
+                draw_universal_symbols_value(
+                    ui,
+                    metrics,
+                    crate::i18n::tr_catalog(lang, universal_symbols_next_step_key()),
+                    app_muted_text(dark),
+                );
+            },
+        );
+
+        crate::ui_style::settings_list_row_with_tooltip(
+            ui,
+            row_content_width,
+            row_height,
+            crate::i18n::tr_catalog(lang, "universal_symbols_setup.text_expander"),
+            true,
+            tooltip("universal_symbols_setup.text_expander_tooltip"),
+            metrics.settings_control_width(),
+            |ui| {
+                draw_universal_symbols_value(
+                    ui,
+                    metrics,
+                    crate::i18n::tr_catalog(lang, universal_symbols_text_expander_key()),
+                    app_muted_text(dark),
+                );
+            },
+        );
+    }
+
+    fn draw_universal_symbols_recommended_control(
+        &mut self,
+        ui: &mut egui::Ui,
+        metrics: crate::ui_style::ResponsiveMetrics,
+        lang: crate::i18n::Language,
+    ) {
+        #[cfg(target_os = "linux")]
+        {
+            match crate::smart_input::linux_recommended_input_backend() {
+                crate::smart_input::LinuxRecommendedInputBackend::X11Native => {
+                    draw_universal_symbols_value(
+                        ui,
+                        metrics,
+                        crate::i18n::tr_catalog(lang, "universal_symbols_setup.no_install_needed"),
+                        ui.visuals().text_color(),
+                    );
+                }
+                crate::smart_input::LinuxRecommendedInputBackend::IBus => {
+                    if crate::ui_style::modern_button(
+                        ui,
+                        crate::i18n::tr_catalog(
+                            lang,
+                            "universal_symbols_setup.install_recommended",
+                        ),
+                        metrics.size(168.0, 34.0),
+                        true,
+                    )
+                    .clicked()
+                    {
+                        self.run_linux_universal_symbols_setup(
+                            "linux/ibus/install-user.sh",
+                            "IBus",
+                        );
+                    }
+                }
+                crate::smart_input::LinuxRecommendedInputBackend::Fcitx5 => {
+                    if crate::ui_style::modern_button(
+                        ui,
+                        crate::i18n::tr_catalog(
+                            lang,
+                            "universal_symbols_setup.install_recommended",
+                        ),
+                        metrics.size(168.0, 34.0),
+                        true,
+                    )
+                    .clicked()
+                    {
+                        self.run_linux_universal_symbols_setup(
+                            "linux/fcitx5/install-user.sh",
+                            "Fcitx5",
+                        );
+                    }
+                }
+            }
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            if crate::ui_style::modern_button(
+                ui,
+                crate::i18n::tr_catalog(lang, "universal_symbols_setup.open_privacy_settings"),
+                metrics.size(168.0, 34.0),
+                true,
+            )
+            .clicked()
+            {
+                self.open_macos_universal_symbols_privacy_settings(lang);
+            }
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            draw_universal_symbols_value(
+                ui,
+                metrics,
+                crate::i18n::tr_catalog(lang, "universal_symbols_setup.no_install_needed"),
+                ui.visuals().text_color(),
+            );
+        }
+
+        #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+        {
+            draw_universal_symbols_value(
+                ui,
+                metrics,
+                crate::i18n::tr_catalog(lang, "universal_symbols_setup.unsupported"),
+                app_muted_text(ui.visuals().dark_mode),
+            );
+        }
+    }
+
     fn draw_universal_symbols_setup_actions(
         &mut self,
         ui: &mut egui::Ui,
         metrics: crate::ui_style::ResponsiveMetrics,
     ) {
+        #[cfg(target_os = "windows")]
+        {
+            let _ = (ui, metrics);
+        }
+
         #[cfg(target_os = "macos")]
         {
-            ui.horizontal_centered(|ui| {
-                if crate::ui_style::modern_button(
-                    ui,
-                    crate::i18n::tr_catalog(self.app_settings.language, "universal_symbols_setup.open_privacy_settings"),
-                    metrics.size(184.0, 34.0),
-                    true,
-                )
-                .clicked()
-                {
-                    let result = std::process::Command::new("open")
-                        .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
-                        .status();
-                    self.status_msg = if matches!(result, Ok(status) if status.success()) {
-                        "Opened macOS Privacy settings".to_string()
-                    } else {
-                        "Could not open macOS Privacy settings".to_string()
-                    };
-                }
-            });
+            let _ = (ui, metrics);
         }
 
         #[cfg(target_os = "linux")]
         {
             ui.vertical_centered(|ui| {
-                if crate::ui_style::modern_button(
-                    ui,
-                    crate::i18n::tr_catalog(
+                ui.label(
+                    RichText::new(crate::i18n::tr_catalog(
                         self.app_settings.language,
-                        "universal_symbols_setup.install_recommended",
-                    ),
-                    metrics.size(184.0, 34.0),
-                    true,
-                )
-                .clicked()
-                {
-                    match crate::smart_input::linux_recommended_input_backend() {
-                        crate::smart_input::LinuxRecommendedInputBackend::IBus => self
-                            .run_linux_universal_symbols_setup(
-                                "linux/ibus/install-user.sh",
-                                "IBus",
-                            ),
-                        crate::smart_input::LinuxRecommendedInputBackend::Fcitx5 => self
-                            .run_linux_universal_symbols_setup(
-                                "linux/fcitx5/install-user.sh",
-                                "Fcitx5",
-                            ),
-                        crate::smart_input::LinuxRecommendedInputBackend::X11Native => {
-                            self.status_msg = crate::i18n::tr_catalog(
-                                self.app_settings.language,
-                                "universal_symbols_setup.x11_native_ready_status",
-                            )
-                            .to_owned();
-                        }
-                    }
-                }
-                ui.add_space(metrics.value(8.0));
+                        "universal_symbols_setup.advanced",
+                    ))
+                    .size(metrics.value(11.0))
+                    .color(app_muted_text(ui.visuals().dark_mode)),
+                );
+                ui.add_space(metrics.value(6.0));
                 ui.horizontal_centered(|ui| {
                     if crate::ui_style::modern_button(
                         ui,
@@ -307,14 +342,11 @@ impl EntropyApp {
         };
         let output = std::process::Command::new("sh").arg(&script_path).output();
         self.status_msg = match output {
-            Ok(output) if output.status.success() => {
-                let details = command_output_summary(&output.stdout, &output.stderr);
-                if details.is_empty() {
-                    format!("{backend} setup completed")
-                } else {
-                    details
-                }
-            }
+            Ok(output) if output.status.success() => crate::i18n::tr_catalog(
+                self.app_settings.language,
+                linux_setup_success_status_key(script, backend),
+            )
+            .to_owned(),
             Ok(output) => {
                 let details = command_output_summary(&output.stderr, &output.stdout);
                 if details.is_empty() {
@@ -326,20 +358,165 @@ impl EntropyApp {
             Err(err) => format!("Could not run {}: {err}", script_path.display()),
         };
     }
+
+    #[cfg(target_os = "macos")]
+    fn open_macos_universal_symbols_privacy_settings(&mut self, lang: crate::i18n::Language) {
+        let result = std::process::Command::new("open")
+            .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+            .status();
+        self.status_msg = if matches!(result, Ok(status) if status.success()) {
+            crate::i18n::tr_catalog(lang, "universal_symbols_setup.macos_privacy_opened_status")
+                .to_string()
+        } else {
+            crate::i18n::tr_catalog(
+                lang,
+                "universal_symbols_setup.macos_privacy_open_failed_status",
+            )
+            .to_string()
+        };
+    }
+}
+
+fn draw_universal_symbols_value(
+    ui: &mut egui::Ui,
+    metrics: crate::ui_style::ResponsiveMetrics,
+    text: &str,
+    color: Color32,
+) {
+    let (rect, _) = ui.allocate_exact_size(metrics.size(168.0, 34.0), egui::Sense::hover());
+    ui.painter().text(
+        rect.right_center(),
+        egui::Align2::RIGHT_CENTER,
+        text,
+        FontId::proportional(metrics.value(12.0)),
+        color,
+    );
+}
+
+fn universal_symbols_intro_key() -> &'static str {
+    #[cfg(target_os = "linux")]
+    {
+        match crate::smart_input::linux_recommended_input_backend() {
+            crate::smart_input::LinuxRecommendedInputBackend::X11Native => {
+                "universal_symbols_setup.intro_linux_x11"
+            }
+            crate::smart_input::LinuxRecommendedInputBackend::IBus => {
+                "universal_symbols_setup.intro_linux_ibus"
+            }
+            crate::smart_input::LinuxRecommendedInputBackend::Fcitx5 => {
+                "universal_symbols_setup.intro_linux_fcitx5"
+            }
+        }
+    }
+    #[cfg(target_os = "windows")]
+    {
+        "universal_symbols_setup.intro_windows"
+    }
+    #[cfg(target_os = "macos")]
+    {
+        "universal_symbols_setup.intro_macos"
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    {
+        "universal_symbols_setup.intro_unsupported"
+    }
+}
+
+fn universal_symbols_backend_value_key() -> &'static str {
+    #[cfg(target_os = "linux")]
+    {
+        match crate::smart_input::linux_recommended_input_backend() {
+            crate::smart_input::LinuxRecommendedInputBackend::X11Native => {
+                "universal_symbols_setup.backend_linux_x11"
+            }
+            crate::smart_input::LinuxRecommendedInputBackend::IBus => {
+                "universal_symbols_setup.backend_linux_ibus"
+            }
+            crate::smart_input::LinuxRecommendedInputBackend::Fcitx5 => {
+                "universal_symbols_setup.backend_linux_fcitx5"
+            }
+        }
+    }
+    #[cfg(target_os = "windows")]
+    {
+        "universal_symbols_setup.backend_windows"
+    }
+    #[cfg(target_os = "macos")]
+    {
+        "universal_symbols_setup.backend_macos"
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    {
+        "universal_symbols_setup.unsupported"
+    }
+}
+
+fn universal_symbols_next_step_key() -> &'static str {
+    #[cfg(target_os = "linux")]
+    {
+        match crate::smart_input::linux_recommended_input_backend() {
+            crate::smart_input::LinuxRecommendedInputBackend::X11Native => {
+                "universal_symbols_setup.next_step_x11"
+            }
+            crate::smart_input::LinuxRecommendedInputBackend::IBus => {
+                "universal_symbols_setup.next_step_ibus"
+            }
+            crate::smart_input::LinuxRecommendedInputBackend::Fcitx5 => {
+                "universal_symbols_setup.next_step_fcitx5"
+            }
+        }
+    }
+    #[cfg(target_os = "windows")]
+    {
+        "universal_symbols_setup.next_step_windows"
+    }
+    #[cfg(target_os = "macos")]
+    {
+        "universal_symbols_setup.next_step_macos"
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    {
+        "universal_symbols_setup.unsupported"
+    }
+}
+
+fn universal_symbols_text_expander_key() -> &'static str {
+    #[cfg(target_os = "linux")]
+    {
+        match crate::smart_input::linux_recommended_input_backend() {
+            crate::smart_input::LinuxRecommendedInputBackend::X11Native => {
+                "universal_symbols_setup.text_expander_x11"
+            }
+            crate::smart_input::LinuxRecommendedInputBackend::IBus => {
+                "universal_symbols_setup.text_expander_ibus"
+            }
+            crate::smart_input::LinuxRecommendedInputBackend::Fcitx5 => {
+                "universal_symbols_setup.text_expander_fcitx5"
+            }
+        }
+    }
+    #[cfg(target_os = "windows")]
+    {
+        "universal_symbols_setup.text_expander_native"
+    }
+    #[cfg(target_os = "macos")]
+    {
+        "universal_symbols_setup.text_expander_native"
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    {
+        "universal_symbols_setup.unsupported"
+    }
 }
 
 #[cfg(target_os = "linux")]
-fn linux_universal_backend_info_key() -> &'static str {
-    match crate::smart_input::linux_recommended_input_backend() {
-        crate::smart_input::LinuxRecommendedInputBackend::X11Native => {
-            "universal_symbols_setup.backend_info_x11_native"
-        }
-        crate::smart_input::LinuxRecommendedInputBackend::IBus => {
-            "universal_symbols_setup.backend_info_ibus"
-        }
-        crate::smart_input::LinuxRecommendedInputBackend::Fcitx5 => {
-            "universal_symbols_setup.backend_info_fcitx5"
-        }
+fn linux_setup_success_status_key(script: &str, backend: &str) -> &'static str {
+    if script.contains("uninstall") {
+        "universal_symbols_setup.ibus_uninstalled_status"
+    } else if backend == "Fcitx5" {
+        "universal_symbols_setup.fcitx5_installed_status"
+    } else {
+        "universal_symbols_setup.ibus_installed_status"
     }
 }
 
