@@ -177,7 +177,7 @@ impl EntropyApp {
         let (title, body, remember, close_label, tray_label, cancel_label) = match lang {
             crate::i18n::Language::Russian => (
                 "Закрыть Entropy?",
-                "Text Expander и фоновые функции остановятся, если закрыть приложение",
+                "IBus Text Expander продолжит работать после закрытия Entropy",
                 "Запомнить выбор",
                 "Закрыть",
                 "В фон",
@@ -185,7 +185,7 @@ impl EntropyApp {
             ),
             crate::i18n::Language::English => (
                 "Close Entropy?",
-                "Text Expander and background features will stop if Entropy is closed",
+                "IBus Text Expander will keep working after Entropy is closed",
                 "Remember my choice",
                 "Close",
                 "Keep running",
