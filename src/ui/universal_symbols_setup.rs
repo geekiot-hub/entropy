@@ -93,7 +93,7 @@ impl EntropyApp {
                     ui,
                     metrics,
                     168.0,
-                    crate::i18n::tr_catalog(lang, universal_symbols_backend_value_key()),
+                    crate::i18n::tr_catalog(lang, universal_symbols_typing_path_key()),
                     ui.visuals().text_color(),
                 );
             },
@@ -520,7 +520,7 @@ fn universal_symbols_intro_key() -> &'static str {
     }
 }
 
-fn universal_symbols_backend_value_key() -> &'static str {
+fn universal_symbols_typing_path_key() -> &'static str {
     #[cfg(target_os = "linux")]
     {
         match crate::smart_input::linux_recommended_input_backend() {
