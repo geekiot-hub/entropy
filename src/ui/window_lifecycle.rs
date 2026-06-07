@@ -96,13 +96,7 @@ impl EntropyApp {
         }
         #[cfg(target_os = "linux")]
         {
-            if std::env::var("WINIT_UNIX_BACKEND").as_deref() == Ok("wayland")
-                || std::env::var_os("DISPLAY").is_none()
-            {
-                ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
-            } else {
-                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
-            }
+            ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
             self.status_msg = background_status.into();
             return;
         }
