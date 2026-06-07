@@ -119,13 +119,24 @@ impl EntropyApp {
             tooltip("universal_symbols_setup.next_step_tooltip"),
             metrics.value(250.0),
             |ui| {
-                draw_universal_symbols_value(
-                    ui,
-                    metrics,
-                    250.0,
-                    crate::i18n::tr_catalog(lang, universal_symbols_next_step_key()),
-                    app_muted_text(dark),
-                );
+                if let Some(detail_key) = universal_symbols_next_step_detail_key() {
+                    draw_universal_symbols_two_line_value(
+                        ui,
+                        metrics,
+                        250.0,
+                        crate::i18n::tr_catalog(lang, universal_symbols_next_step_key()),
+                        crate::i18n::tr_catalog(lang, detail_key),
+                        dark,
+                    );
+                } else {
+                    draw_universal_symbols_value(
+                        ui,
+                        metrics,
+                        250.0,
+                        crate::i18n::tr_catalog(lang, universal_symbols_next_step_key()),
+                        app_muted_text(dark),
+                    );
+                }
             },
         );
 
@@ -458,6 +469,32 @@ fn draw_universal_symbols_value(
     );
 }
 
+fn draw_universal_symbols_two_line_value(
+    ui: &mut egui::Ui,
+    metrics: crate::ui_style::ResponsiveMetrics,
+    width: f32,
+    primary: &str,
+    detail: &str,
+    dark: bool,
+) {
+    let (rect, _) = ui.allocate_exact_size(metrics.size(width, 44.0), egui::Sense::hover());
+    let x = rect.right();
+    ui.painter().text(
+        egui::pos2(x, rect.center().y - metrics.value(7.0)),
+        egui::Align2::RIGHT_CENTER,
+        primary,
+        egui::FontId::proportional(metrics.value(12.0)),
+        ui.visuals().text_color(),
+    );
+    ui.painter().text(
+        egui::pos2(x, rect.center().y + metrics.value(8.5)),
+        egui::Align2::RIGHT_CENTER,
+        detail,
+        egui::FontId::proportional(metrics.value(10.5)),
+        app_muted_text(dark),
+    );
+}
+
 #[cfg(target_os = "linux")]
 fn draw_universal_symbols_action_row(
     ui: &mut egui::Ui,
@@ -575,6 +612,22 @@ fn universal_symbols_next_step_key() -> &'static str {
     #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
     {
         "universal_symbols_setup.unsupported"
+    }
+}
+
+fn universal_symbols_next_step_detail_key() -> Option<&'static str> {
+    #[cfg(target_os = "linux")]
+    {
+        match crate::smart_input::linux_recommended_input_backend() {
+            crate::smart_input::LinuxRecommendedInputBackend::IBus => {
+                Some("universal_symbols_setup.next_step_ibus_detail")
+            }
+            _ => None,
+        }
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        None
     }
 }
 
