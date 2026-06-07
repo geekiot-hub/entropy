@@ -152,24 +152,41 @@ impl EntropyApp {
         let content_width = metrics.settings_content_width();
         let button_size = metrics.size(148.0, 30.0);
         let button_gap = metrics.value(8.0);
+        let hint_height = metrics.value(42.0);
         ui.add_space(metrics.value(4.0));
-        ui.horizontal_centered(|ui| {
-            ui.add_sized(
-                Vec2::new(
-                    content_width - button_size.x - button_gap,
-                    metrics.value(40.0),
-                ),
-                egui::Label::new(
-                    RichText::new(crate::i18n::tr_catalog(
-                        lang,
-                        text_expander_backend_hint_key(),
-                    ))
-                    .size(metrics.value(11.0))
-                    .color(app_muted_text(dark)),
-                )
-                .wrap(),
-            );
-            ui.add_space(button_gap);
+        let (hint_rect, _) =
+            ui.allocate_exact_size(Vec2::new(content_width, hint_height), egui::Sense::hover());
+        let label_rect = egui::Rect::from_min_max(
+            hint_rect.left_top(),
+            egui::pos2(
+                hint_rect.right() - button_size.x - button_gap,
+                hint_rect.bottom(),
+            ),
+        );
+        let button_rect = egui::Rect::from_center_size(
+            egui::pos2(
+                hint_rect.right() - button_size.x / 2.0,
+                hint_rect.center().y,
+            ),
+            button_size,
+        );
+        ui.allocate_ui_at_rect(label_rect, |ui| {
+            ui.centered_and_justified(|ui| {
+                ui.add_sized(
+                    label_rect.size(),
+                    egui::Label::new(
+                        RichText::new(crate::i18n::tr_catalog(
+                            lang,
+                            text_expander_backend_hint_key(),
+                        ))
+                        .size(metrics.value(11.0))
+                        .color(app_muted_text(dark)),
+                    )
+                    .wrap(),
+                );
+            });
+        });
+        ui.allocate_ui_at_rect(button_rect, |ui| {
             if crate::ui_style::modern_button(
                 ui,
                 crate::i18n::tr_catalog(lang, "text_expander.open_universal_symbols_setup"),

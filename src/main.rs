@@ -20,7 +20,7 @@ mod ui_style;
 
 use app::EntropyApp;
 
-const APP_TITLE: &str = "Entropy (v1.13.30)";
+const APP_TITLE: &str = concat!("Entropy (v", env!("CARGO_PKG_VERSION"), ")");
 const APP_ID: &str = "entropy";
 
 #[cfg(target_os = "windows")]
