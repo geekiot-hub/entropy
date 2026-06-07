@@ -11,15 +11,15 @@ ibus restart
 
 Then add/select Entropy input sources in the system input-source/input-method settings:
 
-- **Entropy Universal Symbols EN** for the `us` layout
-- **Entropy Universal Symbols EN UK** for the `gb` layout
-- **Entropy Universal Symbols DE** for the `de` layout
-- **Entropy Universal Symbols FR** for the `fr` layout
-- **Entropy Universal Symbols ES** for the `es` layout
-- **Entropy Universal Symbols IT** for the `it` layout
-- **Entropy Universal Symbols PT** for the `pt` layout
-- **Entropy Universal Symbols BR** for the `br` layout
-- **Entropy Universal Symbols RU** for the `ru` layout
+- **Entropy EN** for the `us` layout
+- **Entropy EN UK** for the `gb` layout
+- **Entropy DE** for the `de` layout
+- **Entropy FR** for the `fr` layout
+- **Entropy ES** for the `es` layout
+- **Entropy IT** for the `it` layout
+- **Entropy PT** for the `pt` layout
+- **Entropy BR** for the `br` layout
+- **Entropy RU** for the `ru` layout
 
 Switch between those system input sources to change language while keeping Entropy Text Expander active.
 

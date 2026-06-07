@@ -16,7 +16,7 @@
       <author>Ergohaven</author>
       <icon>input-keyboard</icon>
       <layout>default</layout>
-      <longname>Entropy Universal Symbols</longname>
+      <longname>Entropy Symbols</longname>
       <description>Universal Unicode symbols and text expansion for Ergohaven keyboards</description>
     </engine>
     <engine>
@@ -26,7 +26,7 @@
       <author>Ergohaven</author>
       <icon>input-keyboard</icon>
       <layout>us</layout>
-      <longname>Entropy Universal Symbols EN</longname>
+      <longname>Entropy EN</longname>
       <description>Universal Unicode symbols and text expansion for Ergohaven keyboards</description>
     </engine>
     <engine>
@@ -36,7 +36,7 @@
       <author>Ergohaven</author>
       <icon>input-keyboard</icon>
       <layout>gb</layout>
-      <longname>Entropy Universal Symbols EN UK</longname>
+      <longname>Entropy EN UK</longname>
       <description>Universal Unicode symbols and text expansion for Ergohaven keyboards</description>
     </engine>
     <engine>
@@ -46,7 +46,7 @@
       <author>Ergohaven</author>
       <icon>input-keyboard</icon>
       <layout>de</layout>
-      <longname>Entropy Universal Symbols DE</longname>
+      <longname>Entropy DE</longname>
       <description>Universal Unicode symbols and text expansion for Ergohaven keyboards</description>
     </engine>
     <engine>
@@ -56,7 +56,7 @@
       <author>Ergohaven</author>
       <icon>input-keyboard</icon>
       <layout>fr</layout>
-      <longname>Entropy Universal Symbols FR</longname>
+      <longname>Entropy FR</longname>
       <description>Universal Unicode symbols and text expansion for Ergohaven keyboards</description>
     </engine>
     <engine>
@@ -66,7 +66,7 @@
       <author>Ergohaven</author>
       <icon>input-keyboard</icon>
       <layout>es</layout>
-      <longname>Entropy Universal Symbols ES</longname>
+      <longname>Entropy ES</longname>
       <description>Universal Unicode symbols and text expansion for Ergohaven keyboards</description>
     </engine>
     <engine>
@@ -76,7 +76,7 @@
       <author>Ergohaven</author>
       <icon>input-keyboard</icon>
       <layout>it</layout>
-      <longname>Entropy Universal Symbols IT</longname>
+      <longname>Entropy IT</longname>
       <description>Universal Unicode symbols and text expansion for Ergohaven keyboards</description>
     </engine>
     <engine>
@@ -86,7 +86,7 @@
       <author>Ergohaven</author>
       <icon>input-keyboard</icon>
       <layout>pt</layout>
-      <longname>Entropy Universal Symbols PT</longname>
+      <longname>Entropy PT</longname>
       <description>Universal Unicode symbols and text expansion for Ergohaven keyboards</description>
     </engine>
     <engine>
@@ -96,7 +96,7 @@
       <author>Ergohaven</author>
       <icon>input-keyboard</icon>
       <layout>br</layout>
-      <longname>Entropy Universal Symbols BR</longname>
+      <longname>Entropy BR</longname>
       <description>Universal Unicode symbols and text expansion for Ergohaven keyboards</description>
     </engine>
     <engine>
@@ -106,7 +106,7 @@
       <author>Ergohaven</author>
       <icon>input-keyboard</icon>
       <layout>ru</layout>
-      <longname>Entropy Universal Symbols RU</longname>
+      <longname>Entropy RU</longname>
       <description>Universal Unicode symbols and text expansion for Ergohaven keyboards</description>
     </engine>
   </engines>
