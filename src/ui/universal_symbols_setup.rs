@@ -170,10 +170,7 @@ impl EntropyApp {
                 crate::smart_input::LinuxRecommendedInputBackend::IBus => {
                     if crate::ui_style::modern_button(
                         ui,
-                        crate::i18n::tr_catalog(
-                            lang,
-                            "universal_symbols_setup.install_recommended",
-                        ),
+                        crate::i18n::tr_catalog(lang, "universal_symbols_setup.setup_ibus"),
                         metrics.size(168.0, 34.0),
                         true,
                     )
@@ -188,10 +185,7 @@ impl EntropyApp {
                 crate::smart_input::LinuxRecommendedInputBackend::Fcitx5 => {
                     if crate::ui_style::modern_button(
                         ui,
-                        crate::i18n::tr_catalog(
-                            lang,
-                            "universal_symbols_setup.install_recommended",
-                        ),
+                        crate::i18n::tr_catalog(lang, "universal_symbols_setup.setup_fcitx5"),
                         metrics.size(168.0, 34.0),
                         true,
                     )
@@ -260,69 +254,129 @@ impl EntropyApp {
 
         #[cfg(target_os = "linux")]
         {
+            let lang = self.app_settings.language;
+            let row_height = metrics.settings_row_height();
+            let row_content_width = metrics.settings_row_content_width();
+
             ui.vertical_centered(|ui| {
                 ui.label(
                     RichText::new(crate::i18n::tr_catalog(
-                        self.app_settings.language,
+                        lang,
                         "universal_symbols_setup.advanced",
                     ))
                     .size(metrics.value(11.0))
                     .color(app_muted_text(ui.visuals().dark_mode)),
                 );
-                ui.add_space(metrics.value(6.0));
-                ui.horizontal_centered(|ui| {
-                    if crate::ui_style::modern_button(
+            });
+            ui.add_space(metrics.value(2.0));
+
+            match crate::smart_input::linux_recommended_input_backend() {
+                crate::smart_input::LinuxRecommendedInputBackend::X11Native => {
+                    let ibus_clicked = draw_universal_symbols_action_row(
                         ui,
-                        crate::i18n::tr_catalog(
-                            self.app_settings.language,
-                            "universal_symbols_setup.install_ibus",
-                        ),
-                        metrics.size(132.0, 34.0),
-                        true,
-                    )
-                    .clicked()
-                    {
+                        metrics,
+                        row_content_width,
+                        row_height,
+                        lang,
+                        "universal_symbols_setup.wayland_ibus",
+                        "universal_symbols_setup.wayland_ibus_tooltip",
+                        "universal_symbols_setup.setup_ibus",
+                    );
+                    if ibus_clicked {
                         self.run_linux_universal_symbols_setup(
                             "linux/ibus/install-user.sh",
                             "IBus",
                         );
                     }
-                    ui.add_space(metrics.value(8.0));
-                    if crate::ui_style::modern_button(
+
+                    let fcitx5_clicked = draw_universal_symbols_action_row(
                         ui,
-                        crate::i18n::tr_catalog(
-                            self.app_settings.language,
-                            "universal_symbols_setup.uninstall_ibus",
-                        ),
-                        metrics.size(144.0, 34.0),
-                        true,
-                    )
-                    .clicked()
-                    {
-                        self.run_linux_universal_symbols_setup(
-                            "linux/ibus/uninstall-user.sh",
-                            "IBus",
-                        );
-                    }
-                    ui.add_space(metrics.value(8.0));
-                    if crate::ui_style::modern_button(
-                        ui,
-                        crate::i18n::tr_catalog(
-                            self.app_settings.language,
-                            "universal_symbols_setup.install_fcitx5",
-                        ),
-                        metrics.size(142.0, 34.0),
-                        true,
-                    )
-                    .clicked()
-                    {
+                        metrics,
+                        row_content_width,
+                        row_height,
+                        lang,
+                        "universal_symbols_setup.wayland_fcitx5",
+                        "universal_symbols_setup.wayland_fcitx5_tooltip",
+                        "universal_symbols_setup.setup_fcitx5",
+                    );
+                    if fcitx5_clicked {
                         self.run_linux_universal_symbols_setup(
                             "linux/fcitx5/install-user.sh",
                             "Fcitx5",
                         );
                     }
-                });
-            });
+                }
+                crate::smart_input::LinuxRecommendedInputBackend::IBus => {
+                    let alternative_clicked = draw_universal_symbols_action_row(
+                        ui,
+                        metrics,
+                        row_content_width,
+                        row_height,
+                        lang,
+                        "universal_symbols_setup.alternative_backend",
+                        "universal_symbols_setup.alternative_backend_tooltip",
+                        "universal_symbols_setup.setup_fcitx5",
+                    );
+                    if alternative_clicked {
+                        self.run_linux_universal_symbols_setup(
+                            "linux/fcitx5/install-user.sh",
+                            "Fcitx5",
+                        );
+                    }
+
+                    let remove_clicked = draw_universal_symbols_action_row(
+                        ui,
+                        metrics,
+                        row_content_width,
+                        row_height,
+                        lang,
+                        "universal_symbols_setup.remove_ibus_source",
+                        "universal_symbols_setup.remove_ibus_source_tooltip",
+                        "universal_symbols_setup.remove_ibus",
+                    );
+                    if remove_clicked {
+                        self.run_linux_universal_symbols_setup(
+                            "linux/ibus/uninstall-user.sh",
+                            "IBus",
+                        );
+                    }
+                }
+                crate::smart_input::LinuxRecommendedInputBackend::Fcitx5 => {
+                    let text_expansion_clicked = draw_universal_symbols_action_row(
+                        ui,
+                        metrics,
+                        row_content_width,
+                        row_height,
+                        lang,
+                        "universal_symbols_setup.text_expansion_backend",
+                        "universal_symbols_setup.text_expansion_backend_tooltip",
+                        "universal_symbols_setup.setup_ibus",
+                    );
+                    if text_expansion_clicked {
+                        self.run_linux_universal_symbols_setup(
+                            "linux/ibus/install-user.sh",
+                            "IBus",
+                        );
+                    }
+
+                    let remove_clicked = draw_universal_symbols_action_row(
+                        ui,
+                        metrics,
+                        row_content_width,
+                        row_height,
+                        lang,
+                        "universal_symbols_setup.remove_ibus_source",
+                        "universal_symbols_setup.remove_ibus_source_tooltip",
+                        "universal_symbols_setup.remove_ibus",
+                    );
+                    if remove_clicked {
+                        self.run_linux_universal_symbols_setup(
+                            "linux/ibus/uninstall-user.sh",
+                            "IBus",
+                        );
+                    }
+                }
+            }
         }
 
         #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
@@ -402,6 +456,39 @@ fn draw_universal_symbols_value(
             );
         },
     );
+}
+
+#[cfg(target_os = "linux")]
+fn draw_universal_symbols_action_row(
+    ui: &mut egui::Ui,
+    metrics: crate::ui_style::ResponsiveMetrics,
+    row_content_width: f32,
+    row_height: f32,
+    lang: crate::i18n::Language,
+    label_key: &'static str,
+    tooltip_key: &'static str,
+    button_key: &'static str,
+) -> bool {
+    let mut clicked = false;
+    crate::ui_style::settings_list_row_with_tooltip(
+        ui,
+        row_content_width,
+        row_height,
+        crate::i18n::tr_catalog(lang, label_key),
+        true,
+        Some(crate::i18n::tr_catalog(lang, tooltip_key)),
+        metrics.settings_control_width(),
+        |ui| {
+            clicked = crate::ui_style::modern_button(
+                ui,
+                crate::i18n::tr_catalog(lang, button_key),
+                metrics.size(168.0, 34.0),
+                true,
+            )
+            .clicked();
+        },
+    );
+    clicked
 }
 
 fn universal_symbols_intro_key() -> &'static str {
