@@ -20,7 +20,7 @@ mod ui_style;
 
 use app::EntropyApp;
 
-const APP_TITLE: &str = "Entropy (v1.13.25)";
+const APP_TITLE: &str = "Entropy (v1.13.26)";
 
 #[cfg(target_os = "windows")]
 struct SingleInstanceGuard(*mut core::ffi::c_void);
