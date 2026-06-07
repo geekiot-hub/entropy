@@ -20,7 +20,7 @@ mod ui_style;
 
 use app::EntropyApp;
 
-const APP_TITLE: &str = "Entropy (v1.13.27)";
+const APP_TITLE: &str = "Entropy (v1.13.28)";
 const APP_ID: &str = "entropy";
 
 #[cfg(target_os = "windows")]
@@ -161,6 +161,32 @@ fn eframe_persistence_path() -> std::path::PathBuf {
     dir.join("eframe_state.ron")
 }
 
+fn initial_window_size() -> [f32; 2] {
+    #[derive(serde::Deserialize)]
+    struct StartupSettings {
+        #[serde(default)]
+        window_size: Option<[f32; 2]>,
+    }
+
+    let path = dirs::config_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join(APP_ID)
+        .join("app_settings.json");
+    let Some(size) = std::fs::read_to_string(path)
+        .ok()
+        .and_then(|data| serde_json::from_str::<StartupSettings>(&data).ok())
+        .and_then(|settings| settings.window_size)
+    else {
+        return [1200.0, 700.0];
+    };
+
+    if size[0].is_finite() && size[1].is_finite() {
+        [size[0].clamp(800.0, 10000.0), size[1].clamp(500.0, 10000.0)]
+    } else {
+        [1200.0, 700.0]
+    }
+}
+
 fn main() -> eframe::Result<()> {
     #[cfg(all(not(target_arch = "wasm32"), target_os = "windows"))]
     if hid::run_hid_proxy_if_requested() {
@@ -185,7 +211,7 @@ fn main() -> eframe::Result<()> {
             .with_title(APP_TITLE)
             .with_app_id(APP_ID)
             .with_icon(app_icon::egui_icon(64))
-            .with_inner_size([1200.0, 700.0])
+            .with_inner_size(initial_window_size())
             .with_min_inner_size([800.0, 500.0]),
         persistence_path: Some(eframe_persistence_path()),
         centered: true,

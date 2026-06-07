@@ -67,6 +67,7 @@ impl EntropyApp {
             windows_hwnd: None,
             close_to_tray_prompt_open: false,
             close_to_tray_prompt_remember: false,
+            force_close_requested: false,
             main_menu_tab: MainMenuTab::Keyboard,
             combo_entries: vec![],
             combo_names: vec![],

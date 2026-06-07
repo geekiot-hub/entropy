@@ -218,12 +218,13 @@ impl eframe::App for EntropyApp {
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
         #[cfg(not(target_arch = "wasm32"))]
         self.fallback_entropy_display_presets_before_exit();
-        std::process::exit(0);
+        save_app_settings(&self.app_settings);
     }
 
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         self.apply_ui_scale(ctx);
         self.handle_ui_scale_shortcuts(ctx);
+        self.remember_main_window_size(ctx);
 
         #[cfg(target_os = "windows")]
         self.cache_windows_hwnd(frame);
@@ -231,7 +232,7 @@ impl eframe::App for EntropyApp {
         #[cfg(target_os = "windows")]
         self.poll_tray_events(ctx);
         #[cfg(target_os = "windows")]
-        self.handle_tray_quit_request();
+        self.handle_tray_quit_request(ctx);
 
         self.tour_target_rects.clear();
 

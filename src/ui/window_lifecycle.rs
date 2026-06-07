@@ -1,6 +1,31 @@
 use super::*;
 
 impl EntropyApp {
+    pub(super) fn remember_main_window_size(&mut self, ctx: &egui::Context) {
+        let viewport = ctx.input(|i| i.viewport().clone());
+        if viewport.minimized == Some(true)
+            || viewport.maximized == Some(true)
+            || viewport.fullscreen == Some(true)
+        {
+            return;
+        }
+
+        let Some(size) = viewport.inner_rect.map(|rect| rect.size()) else {
+            return;
+        };
+        if size.x < 800.0 || size.y < 500.0 || !size.x.is_finite() || !size.y.is_finite() {
+            return;
+        }
+
+        let next = [size.x.round(), size.y.round()];
+        let changed = self.app_settings.window_size.is_none_or(|current| {
+            (current[0] - next[0]).abs() > 0.5 || (current[1] - next[1]).abs() > 0.5
+        });
+        if changed {
+            self.app_settings.window_size = Some(next);
+        }
+    }
+
     #[cfg(not(target_arch = "wasm32"))]
     pub(super) fn poll_single_instance_signal(&mut self, ctx: &egui::Context) {
         let signal = read_single_instance_signal();
@@ -51,6 +76,10 @@ impl EntropyApp {
 
     pub(super) fn handle_close_to_tray(&mut self, ctx: &egui::Context) {
         if !ctx.input(|i| i.viewport().close_requested()) {
+            return;
+        }
+
+        if self.force_close_requested {
             return;
         }
 
@@ -355,8 +384,9 @@ impl EntropyApp {
                 self.persist_close_to_tray_behavior(CloseToTrayBehavior::Close);
             }
             self.close_to_tray_prompt_open = false;
-            self.fallback_entropy_display_presets_before_exit();
-            std::process::exit(0);
+            self.force_close_requested = true;
+            save_app_settings(&self.app_settings);
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         } else if minimize_to_tray {
             if self.close_to_tray_prompt_remember {
                 self.persist_close_to_tray_behavior(CloseToTrayBehavior::Tray);
@@ -479,10 +509,11 @@ impl EntropyApp {
     }
 
     #[cfg(target_os = "windows")]
-    pub(super) fn handle_tray_quit_request(&mut self) {
+    pub(super) fn handle_tray_quit_request(&mut self, ctx: &egui::Context) {
         if TRAY_QUIT_REQUESTED.swap(false, std::sync::atomic::Ordering::Relaxed) {
-            self.fallback_entropy_display_presets_before_exit();
-            std::process::exit(0);
+            self.force_close_requested = true;
+            save_app_settings(&self.app_settings);
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
     }
 

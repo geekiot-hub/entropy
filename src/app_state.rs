@@ -35,6 +35,8 @@ pub(crate) struct AppSettings {
     pub(crate) sticky_layout_dark_mode: bool,
     #[serde(default)]
     pub(crate) sticky_layout_window_size: Option<[f32; 2]>,
+    #[serde(default)]
+    pub(crate) window_size: Option<[f32; 2]>,
     #[serde(default = "crate::i18n::default_language")]
     pub(crate) language: crate::i18n::Language,
     #[serde(default = "default_encoder_hover_enlarge")]
@@ -124,6 +126,7 @@ impl Default for AppSettings {
             sticky_layout_opacity: default_sticky_layout_opacity(),
             sticky_layout_dark_mode: false,
             sticky_layout_window_size: None,
+            window_size: None,
             language: crate::i18n::default_language(),
             encoder_hover_enlarge: default_encoder_hover_enlarge(),
             key_legend_layout: KeyLegendLayout::default(),
@@ -1220,6 +1223,7 @@ pub struct EntropyApp {
     pub(crate) windows_hwnd: Option<isize>,
     pub(crate) close_to_tray_prompt_open: bool,
     pub(crate) close_to_tray_prompt_remember: bool,
+    pub(crate) force_close_requested: bool,
     pub(crate) main_menu_tab: MainMenuTab,
     pub(crate) combo_entries: Vec<ComboEntry>,
     pub(crate) combo_names: Vec<String>,
