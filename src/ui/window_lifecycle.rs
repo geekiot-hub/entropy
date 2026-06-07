@@ -174,24 +174,11 @@ impl EntropyApp {
 
         let lang = self.app_settings.language;
         #[cfg(target_os = "linux")]
-        let (title, body, remember, close_label, tray_label, cancel_label) = match lang {
-            crate::i18n::Language::Russian => (
-                "Закрыть Entropy?",
-                "IBus Text Expander продолжит работать после закрытия Entropy",
-                "Запомнить выбор",
-                "Закрыть",
-                "В фон",
-                "Отмена",
-            ),
-            crate::i18n::Language::English => (
-                "Close Entropy?",
-                "IBus Text Expander will keep working after Entropy is closed",
-                "Remember my choice",
-                "Close",
-                "Keep running",
-                "Cancel",
-            ),
-        };
+        let (title, body, remember, close_label, tray_label, cancel_label) =
+            linux_close_to_tray_prompt_copy(
+                lang,
+                crate::smart_input::text_expander_runs_outside_entropy_process(),
+            );
         #[cfg(not(target_os = "linux"))]
         let (title, body, remember, close_label, tray_label, cancel_label) = match lang {
             crate::i18n::Language::Russian => (
@@ -534,5 +521,53 @@ impl EntropyApp {
                 _ => {}
             }
         }
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn linux_close_to_tray_prompt_copy(
+    lang: crate::i18n::Language,
+    input_method_backend: bool,
+) -> (
+    &'static str,
+    &'static str,
+    &'static str,
+    &'static str,
+    &'static str,
+    &'static str,
+) {
+    match (lang, input_method_backend) {
+        (crate::i18n::Language::Russian, true) => (
+            "Закрыть Entropy?",
+            "IBus/Fcitx Text Expander продолжит работать после закрытия Entropy",
+            "Запомнить выбор",
+            "Закрыть",
+            "В фон",
+            "Отмена",
+        ),
+        (crate::i18n::Language::English, true) => (
+            "Close Entropy?",
+            "IBus/Fcitx Text Expander will keep working after Entropy is closed",
+            "Remember my choice",
+            "Close",
+            "Keep running",
+            "Cancel",
+        ),
+        (crate::i18n::Language::Russian, false) => (
+            "Закрыть Entropy?",
+            "X11 Text Expander остановится; оставьте Entropy работать в фоне",
+            "Запомнить выбор",
+            "Закрыть",
+            "В фон",
+            "Отмена",
+        ),
+        (crate::i18n::Language::English, false) => (
+            "Close Entropy?",
+            "X11 Text Expander will stop; keep Entropy running in background",
+            "Remember my choice",
+            "Close",
+            "Keep running",
+            "Cancel",
+        ),
     }
 }

@@ -137,21 +137,17 @@ pub fn universal_output_status() -> String {
 
 #[cfg(target_os = "linux")]
 pub fn universal_output_status() -> String {
-    let session = if std::env::var_os("WAYLAND_DISPLAY").is_some() {
-        "Wayland"
-    } else if std::env::var_os("DISPLAY").is_some() {
-        "X11"
-    } else {
-        "Linux"
-    };
+    let session = linux_session_kind();
     let input_method = linux_input_method_hint();
     match session {
-        "Wayland" => format!(
+        LinuxSessionKind::Wayland => format!(
             "Universal output backend: Wayland via IBus/Fcitx5 input method{}",
             input_method
         ),
-        "X11" => "Universal output backend: Linux X11 native; Wayland uses IBus/Fcitx5".to_owned(),
-        _ => format!(
+        LinuxSessionKind::X11 => {
+            "Universal output backend: Linux X11 native; Wayland uses IBus/Fcitx5".to_owned()
+        }
+        LinuxSessionKind::Unknown => format!(
             "Universal output backend: Linux; use IBus/Fcitx5 for Wayland{}",
             input_method
         ),
@@ -161,6 +157,35 @@ pub fn universal_output_status() -> String {
 #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
 pub fn universal_output_status() -> String {
     "Universal output backend: unsupported on this OS".to_owned()
+}
+
+#[cfg(target_os = "linux")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum LinuxSessionKind {
+    Wayland,
+    X11,
+    Unknown,
+}
+
+#[cfg(target_os = "linux")]
+fn linux_session_kind() -> LinuxSessionKind {
+    if std::env::var_os("WAYLAND_DISPLAY").is_some() {
+        LinuxSessionKind::Wayland
+    } else if std::env::var_os("DISPLAY").is_some() {
+        LinuxSessionKind::X11
+    } else {
+        LinuxSessionKind::Unknown
+    }
+}
+
+#[cfg(target_os = "linux")]
+pub fn text_expander_runs_outside_entropy_process() -> bool {
+    matches!(linux_session_kind(), LinuxSessionKind::Wayland)
+}
+
+#[cfg(not(target_os = "linux"))]
+pub fn text_expander_runs_outside_entropy_process() -> bool {
+    false
 }
 
 #[cfg(target_os = "linux")]
