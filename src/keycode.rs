@@ -420,14 +420,14 @@ pub const KEYCODES: &[Keycode] = &[
     Keycode { value: 0x0085, name: "KC_KP_COMMA", label: "Num,",  category: KeycodeCategory::Numpad },
 
     // ── Modifiers ─────────────────────────────────────────────────────────────
-    Keycode { value: 0x00E0, name: "KC_LCTRL",  label: "⌃L",   category: KeycodeCategory::Modifier },
-    Keycode { value: 0x00E1, name: "KC_LSHIFT", label: "⇧L",   category: KeycodeCategory::Modifier },
-    Keycode { value: 0x00E2, name: "KC_LALT",   label: "⌥L",   category: KeycodeCategory::Modifier },
-    Keycode { value: 0x00E3, name: "KC_LGUI",   label: "LGUI", category: KeycodeCategory::Modifier },
-    Keycode { value: 0x00E4, name: "KC_RCTRL",  label: "⌃R",   category: KeycodeCategory::Modifier },
-    Keycode { value: 0x00E5, name: "KC_RSHIFT", label: "⇧R",   category: KeycodeCategory::Modifier },
-    Keycode { value: 0x00E6, name: "KC_RALT",   label: "⌥R",   category: KeycodeCategory::Modifier },
-    Keycode { value: 0x00E7, name: "KC_RGUI",   label: "RGUI", category: KeycodeCategory::Modifier },
+    Keycode { value: 0x00E0, name: "KC_LCTRL",  label: "Hold\nCtrl",  category: KeycodeCategory::Modifier },
+    Keycode { value: 0x00E1, name: "KC_LSHIFT", label: "Hold\nShift", category: KeycodeCategory::Modifier },
+    Keycode { value: 0x00E2, name: "KC_LALT",   label: "Hold\nAlt",   category: KeycodeCategory::Modifier },
+    Keycode { value: 0x00E3, name: "KC_LGUI",   label: "Hold\nGUI",   category: KeycodeCategory::Modifier },
+    Keycode { value: 0x00E4, name: "KC_RCTRL",  label: "Hold\nCtrl",  category: KeycodeCategory::Modifier },
+    Keycode { value: 0x00E5, name: "KC_RSHIFT", label: "Hold\nShift", category: KeycodeCategory::Modifier },
+    Keycode { value: 0x00E6, name: "KC_RALT",   label: "Hold\nAlt",   category: KeycodeCategory::Modifier },
+    Keycode { value: 0x00E7, name: "KC_RGUI",   label: "Hold\nGUI",   category: KeycodeCategory::Modifier },
 
     // ── Media / App / System ──────────────────────────────────────────────────
     Keycode { value: 0x00A5, name: "KC_PWR",   label: "⏻\nPower",   category: KeycodeCategory::Media },
@@ -642,13 +642,13 @@ pub fn keycode_label_with_names(value: u16, custom: &[CustomKeycode], layer_name
             _ => n.to_string(),
         }
     };
-    // Plain modifiers in the main layout should use readable text, not glyph icons
+    // Plain modifiers use the same "hold action over primary legend" grammar as MT/LT keys.
     match value {
-        0x00E0 | 0x00E4 => return "Ctrl".to_string(),
-        0x00E1 | 0x00E5 => return "Shift".to_string(),
-        0x00E2 | 0x00E6 => return "Alt".to_string(),
-        0x00E3 => return gui_label(false).to_string(),
-        0x00E7 => return gui_label(true).to_string(),
+        0x00E0 | 0x00E4 => return "Hold\nCtrl".to_string(),
+        0x00E1 | 0x00E5 => return "Hold\nShift".to_string(),
+        0x00E2 | 0x00E6 => return "Hold\nAlt".to_string(),
+        0x00E3 => return format!("Hold\n{}", gui_label(false)),
+        0x00E7 => return format!("Hold\n{}", gui_label(true)),
         _ => {}
     }
 
