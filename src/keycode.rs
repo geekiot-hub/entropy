@@ -715,7 +715,9 @@ pub fn keycode_label_with_names(value: u16, custom: &[CustomKeycode], layer_name
     if value & 0xF000 == 0x4000 {
         let layer = (value >> 8) & 0xF;
         let kc = value & 0xFF;
-        let kc_str = find_keycode(kc as u16).map(|k| k.label).unwrap_or("?");
+        let kc_str = find_keycode(kc as u16)
+            .map(|k| simple_key_name(k))
+            .unwrap_or_else(|| "?".to_string());
         return format!("LT {}/{}", layer_name(layer as u16), kc_str);
     }
 
@@ -724,7 +726,9 @@ pub fn keycode_label_with_names(value: u16, custom: &[CustomKeycode], layer_name
         let kc = value & 0xFF;
         let mods = (value >> 8) & 0x1F;
         let right = (value >> 12) & 0x1 != 0;
-        let kc_str = find_keycode(kc as u16).map(|k| k.label).unwrap_or("?");
+        let kc_str = find_keycode(kc as u16)
+            .map(|k| simple_key_name(k))
+            .unwrap_or_else(|| "?".to_string());
         let mod_str = decode_mods(mods as u16, right);
         return format!("Hold {}/{}", mod_str, kc_str);
     }
@@ -736,7 +740,9 @@ pub fn keycode_label_with_names(value: u16, custom: &[CustomKeycode], layer_name
     if value >= 0x0100 && value < 0x2000 && (value & 0xFF) != 0 {
         let mods = value >> 8;
         let kc = value & 0xFF;
-        let kc_str = find_keycode(kc as u16).map(|k| k.label).unwrap_or("?");
+        let kc_str = find_keycode(kc as u16)
+            .map(|k| simple_key_name(k))
+            .unwrap_or_else(|| "?".to_string());
         let gui = gui_sym();
         let mod_str: String = match mods {
             0x01 => "Ctl".into(),
@@ -1076,6 +1082,10 @@ pub fn keycode_tooltip(value: u16, custom: &[CustomKeycode], layer_names: &[Stri
 
 /// Human-readable short name for a simple keycode (used inside compound descriptions).
 fn simple_key_name(kc: &Keycode) -> String {
+    if let Some(modifier) = kc.label.strip_prefix("Hold\n") {
+        return modifier.to_string();
+    }
+
     match kc.name {
         "KC_SPACE"  => "Space".to_string(),
         "KC_ENTER"  => "Enter".to_string(),
