@@ -23,6 +23,12 @@ Then add/select Entropy input sources in the system input-source/input-method se
 
 Switch between those system input sources to change language while keeping Entropy Text Expander active.
 
+To remove the Entropy IBus sources:
+
+```sh
+./linux/ibus/uninstall-user.sh
+```
+
 Required distro packages are usually:
 
 - `ibus`

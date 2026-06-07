@@ -222,6 +222,7 @@ highlighted_keys_hint = "Нажмите и удерживайте подсвеч
 [universal_symbols_setup]
 open_privacy_settings = "Открыть настройки приватности"
 install_ibus = "Установить IBus"
+uninstall_ibus = "Удалить IBus"
 install_fcitx5 = "Установить Fcitx5"
 no_setup_action = "Для этой ОС нет действия настройки"
 

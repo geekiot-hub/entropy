@@ -186,6 +186,12 @@ impl EntropyApp {
                     self.run_linux_universal_symbols_setup("linux/ibus/install-user.sh", "IBus");
                 }
                 ui.add_space(metrics.value(8.0));
+                if crate::ui_style::modern_button(ui, crate::i18n::tr_catalog(self.app_settings.language, "universal_symbols_setup.uninstall_ibus"), metrics.size(144.0, 34.0), true)
+                    .clicked()
+                {
+                    self.run_linux_universal_symbols_setup("linux/ibus/uninstall-user.sh", "IBus");
+                }
+                ui.add_space(metrics.value(8.0));
                 if crate::ui_style::modern_button(ui, crate::i18n::tr_catalog(self.app_settings.language, "universal_symbols_setup.install_fcitx5"), metrics.size(142.0, 34.0), true)
                     .clicked()
                 {
@@ -215,7 +221,7 @@ impl EntropyApp {
             Ok(output) if output.status.success() => {
                 let details = command_output_summary(&output.stdout, &output.stderr);
                 if details.is_empty() {
-                    format!("{backend} backend installed")
+                    format!("{backend} setup completed")
                 } else {
                     details
                 }
@@ -223,9 +229,9 @@ impl EntropyApp {
             Ok(output) => {
                 let details = command_output_summary(&output.stderr, &output.stdout);
                 if details.is_empty() {
-                    format!("{backend} install failed: {}", output.status)
+                    format!("{backend} setup failed: {}", output.status)
                 } else {
-                    format!("{backend} install failed: {details}")
+                    format!("{backend} setup failed: {details}")
                 }
             }
             Err(err) => format!("Could not run {}: {err}", script_path.display()),
@@ -235,7 +241,11 @@ impl EntropyApp {
 
 #[cfg(target_os = "linux")]
 fn command_output_summary(primary: &[u8], fallback: &[u8]) -> String {
-    let text = if primary.is_empty() { fallback } else { primary };
+    let text = if primary.is_empty() {
+        fallback
+    } else {
+        primary
+    };
     String::from_utf8_lossy(text)
         .lines()
         .map(str::trim)
