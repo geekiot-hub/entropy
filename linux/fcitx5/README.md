@@ -16,7 +16,6 @@ Then:
 
 ```sh
 ./linux/fcitx5/install-user.sh
-fcitx5 -r
 ```
 
 Or manually:
@@ -28,7 +27,7 @@ cmake --install build/fcitx5
 fcitx5 -r
 ```
 
-After restart, enable the **Entropy Universal Symbols** addon/module in Fcitx5 configuration if it is not enabled automatically.
+The install script restarts Fcitx5 automatically when the `fcitx5` command is available.
 
 ## Behavior
 

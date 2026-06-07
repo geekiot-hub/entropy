@@ -10,5 +10,7 @@ cmake --build "$build_dir"
 cmake --install "$build_dir"
 
 printf '%s\n' "Installed Entropy Fcitx5 backend under $prefix"
-printf '%s\n' "Restart Fcitx5 and enable the 'Entropy Universal Symbols' addon if needed."
-printf '%s\n' "Typical restart command: fcitx5 -r"
+if command -v fcitx5 >/dev/null 2>&1; then
+    fcitx5 -r >/dev/null 2>&1 || true
+    printf '%s\n' "Restarted Fcitx5 if it was running."
+fi
