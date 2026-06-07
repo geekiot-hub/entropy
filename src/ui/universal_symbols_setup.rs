@@ -117,12 +117,12 @@ impl EntropyApp {
             crate::i18n::tr_catalog(lang, "universal_symbols_setup.next_step"),
             true,
             tooltip("universal_symbols_setup.next_step_tooltip"),
-            metrics.value(220.0),
+            metrics.value(250.0),
             |ui| {
                 draw_universal_symbols_value(
                     ui,
                     metrics,
-                    220.0,
+                    250.0,
                     crate::i18n::tr_catalog(lang, universal_symbols_next_step_key()),
                     app_muted_text(dark),
                 );
