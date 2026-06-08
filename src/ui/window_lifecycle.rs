@@ -419,7 +419,47 @@ impl EntropyApp {
             };
             return status.map(|status| status.success()).unwrap_or(false);
         }
-        #[cfg(not(target_os = "windows"))]
+        #[cfg(target_os = "linux")]
+        {
+            let Some(autostart_dir) = dirs::config_dir().map(|dir| dir.join("autostart")) else {
+                return false;
+            };
+            let desktop_path = autostart_dir.join("entropy.desktop");
+            if !enabled {
+                return match std::fs::remove_file(&desktop_path) {
+                    Ok(()) => true,
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => true,
+                    Err(e) => {
+                        log::warn!("failed to remove autostart entry: {e}");
+                        false
+                    }
+                };
+            }
+
+            let exe = std::env::var_os("APPIMAGE")
+                .filter(|path| !path.is_empty())
+                .map(std::path::PathBuf::from)
+                .or_else(|| std::env::current_exe().ok());
+            let Some(exe) = exe else {
+                return false;
+            };
+
+            if let Err(e) = std::fs::create_dir_all(&autostart_dir) {
+                log::warn!("failed to create autostart directory: {e}");
+                return false;
+            }
+
+            let exec = desktop_exec_arg(&exe.to_string_lossy());
+            let desktop_entry = format!(
+                "[Desktop Entry]\nType=Application\nName=Entropy\nComment=Entropy keyboard configurator\nExec={exec}\nTerminal=false\nStartupNotify=false\nX-GNOME-Autostart-enabled=true\n"
+            );
+            if let Err(e) = std::fs::write(&desktop_path, desktop_entry) {
+                log::warn!("failed to write autostart entry: {e}");
+                return false;
+            }
+            true
+        }
+        #[cfg(not(any(target_os = "windows", target_os = "linux")))]
         {
             let _ = enabled;
             false
@@ -522,6 +562,17 @@ impl EntropyApp {
             }
         }
     }
+}
+
+#[cfg(target_os = "linux")]
+fn desktop_exec_arg(value: &str) -> String {
+    let escaped = value
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('`', "\\`")
+        .replace('$', "\\$")
+        .replace('%', "%%");
+    format!("\"{escaped}\"")
 }
 
 #[cfg(target_os = "linux")]
