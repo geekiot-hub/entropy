@@ -579,7 +579,7 @@ impl EntropyApp {
     }
 
     #[cfg(target_os = "linux")]
-    fn run_linux_vial_udev_rules_install(&mut self) {
+    pub(super) fn run_linux_vial_udev_rules_install(&mut self) {
         let script = "linux/udev/install-vial-rules.sh";
         let Some(script_path) = linux_setup_script(script) else {
             self.status_msg = format!("Could not find {script}; run it from the Entropy folder");
@@ -651,7 +651,7 @@ fn draw_app_settings_value(
 }
 
 #[cfg(target_os = "linux")]
-fn linux_vial_udev_rules_installed() -> bool {
+pub(super) fn linux_vial_udev_rules_installed() -> bool {
     const RULE_MARKER: &str = r#"ATTRS{serial}=="*vial:f64c2b3c*""#;
     const RULE_PATHS: [&str; 4] = [
         "/etc/udev/rules.d/59-vial.rules",

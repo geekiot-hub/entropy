@@ -216,6 +216,8 @@ timeout_field_tooltip = "Timeout is in milliseconds"
 keyboard_locked_edit_macros = "Device is locked, unlock it to edit macros"
 waiting_for_keyboard = "Waiting for a device"
 connect_vial_device = "Connect a Vial device"
+linux_vial_udev_required_title = "Vial device access is not configured"
+linux_vial_udev_required_body = "Install Linux udev rules so Entropy can detect Vial keyboards without root"
 loading_keyboard = "Loading device…"
 
 [navigation]

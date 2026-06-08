@@ -411,6 +411,64 @@ impl eframe::App for EntropyApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             if self.selected_device.is_none() {
                 let rect = ui.max_rect();
+                #[cfg(target_os = "linux")]
+                if !super::app_settings_ui::linux_vial_udev_rules_installed() {
+                    let empty_rect = egui::Rect::from_center_size(
+                        rect.center(),
+                        egui::vec2(rect.width().min(520.0), 210.0),
+                    );
+                    ui.allocate_ui_at_rect(empty_rect, |ui| {
+                        ui.vertical_centered(|ui| {
+                            ui.add_space(4.0);
+                            ui.label(RichText::new("✦").size(28.0).color(app_accent()));
+                            ui.add_space(10.0);
+                            ui.label(
+                                RichText::new(crate::i18n::tr_catalog(
+                                    self.app_settings.language,
+                                    "connection.linux_vial_udev_required_title",
+                                ))
+                                .size(20.0)
+                                .strong()
+                                .color(if self.dark_mode {
+                                    Color32::from_rgb(235, 235, 235)
+                                } else {
+                                    Color32::from_rgb(42, 42, 44)
+                                }),
+                            );
+                            ui.add_space(7.0);
+                            ui.add_sized(
+                                egui::vec2(empty_rect.width().min(440.0), 42.0),
+                                egui::Label::new(
+                                    RichText::new(crate::i18n::tr_catalog(
+                                        self.app_settings.language,
+                                        "connection.linux_vial_udev_required_body",
+                                    ))
+                                    .size(13.0)
+                                    .color(app_muted_text(self.dark_mode)),
+                                )
+                                .wrap()
+                                .halign(egui::Align::Center),
+                            );
+                            ui.add_space(14.0);
+                            if crate::ui_style::modern_button(
+                                ui,
+                                crate::i18n::tr_catalog(
+                                    self.app_settings.language,
+                                    "ui.install_vial_udev_rules",
+                                ),
+                                egui::vec2(168.0, 34.0),
+                                true,
+                            )
+                            .clicked()
+                            {
+                                self.run_linux_vial_udev_rules_install();
+                                self.start_device_scan();
+                            }
+                        });
+                    });
+                    return;
+                }
+
                 let empty_rect = egui::Rect::from_center_size(
                     rect.center(),
                     egui::vec2(rect.width().min(520.0), 150.0),

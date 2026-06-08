@@ -216,6 +216,8 @@ timeout_field_tooltip = "Таймаут в миллисекундах"
 keyboard_locked_edit_macros = "Устройство заблокировано, разблокируйте его для редактирования макросов"
 waiting_for_keyboard = "Ожидание устройства"
 connect_vial_device = "Подключите Vial-устройство"
+linux_vial_udev_required_title = "Доступ к Vial не настроен"
+linux_vial_udev_required_body = "Установите Linux udev rules, чтобы Entropy могла находить Vial-клавиатуры без root"
 loading_keyboard = "Загрузка устройства…"
 
 [navigation]
