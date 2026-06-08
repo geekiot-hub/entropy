@@ -1240,6 +1240,96 @@ pub fn tr_text(language: Language, text: &str) -> String {
     }
 
     match text {
+        "Device not found" => tr_catalog_string(language, "dynamic_status.device_not_found"),
+        "Connect thread died" => tr_catalog_string(language, "dynamic_status.connect_thread_died"),
+        "✓ Saved" => tr_catalog_string(language, "dynamic_status.saved_check"),
+        "Device locked" => tr_catalog_string(language, "dynamic_status.device_locked"),
+        "Entropy refreshed from a repeated launch" => {
+            tr_catalog_string(language, "dynamic_status.entropy_refreshed")
+        }
+        other if other.starts_with("Connecting to ") => {
+            let device = other
+                .strip_prefix("Connecting to ")
+                .unwrap_or(other)
+                .trim_end_matches('…');
+            tr_catalog_string_format(
+                language,
+                "dynamic_status.connecting_to",
+                &[("device", device)],
+            )
+        }
+        other if other.starts_with("Connected: ") => tr_catalog_string_format(
+            language,
+            "dynamic_status.connected",
+            &[("device", other.strip_prefix("Connected: ").unwrap_or(other))],
+        ),
+        other if other.starts_with("Failed to save ") && other.contains(": ") => {
+            let rest = other.strip_prefix("Failed to save ").unwrap_or(other);
+            let (item, error) = rest.split_once(": ").unwrap_or((rest, ""));
+            tr_catalog_string_format(
+                language,
+                "dynamic_status.failed_to_save",
+                &[("item", item), ("error", error)],
+            )
+        }
+        other if other.starts_with("Failed to update ") && other.contains(": ") => {
+            let rest = other.strip_prefix("Failed to update ").unwrap_or(other);
+            let (item, error) = rest.split_once(": ").unwrap_or((rest, ""));
+            tr_catalog_string_format(
+                language,
+                "dynamic_status.failed_to_update",
+                &[("item", item), ("error", error)],
+            )
+        }
+        other if other.starts_with("Set encoder failed: ") => tr_catalog_string_format(
+            language,
+            "dynamic_status.set_encoder_failed",
+            &[(
+                "error",
+                other.strip_prefix("Set encoder failed: ").unwrap_or(other),
+            )],
+        ),
+        other if other.starts_with("Write error: ") => tr_catalog_string_format(
+            language,
+            "dynamic_status.write_error",
+            &[("error", other.strip_prefix("Write error: ").unwrap_or(other))],
+        ),
+        other if other.starts_with("Lock failed: ") => tr_catalog_string_format(
+            language,
+            "dynamic_status.lock_failed",
+            &[("error", other.strip_prefix("Lock failed: ").unwrap_or(other))],
+        ),
+        other
+            if other.starts_with("Could not find ")
+                && other.ends_with("; run it from the Entropy folder") =>
+        {
+            let script = other
+                .strip_prefix("Could not find ")
+                .and_then(|s| s.strip_suffix("; run it from the Entropy folder"))
+                .unwrap_or(other);
+            tr_catalog_string_format(
+                language,
+                "dynamic_status.could_not_find_script",
+                &[("script", script)],
+            )
+        }
+        other if other.contains(" install failed: ") => {
+            let (name, error) = other.split_once(" install failed: ").unwrap_or((other, ""));
+            tr_catalog_string_format(
+                language,
+                "dynamic_status.install_failed",
+                &[("name", name), ("error", error)],
+            )
+        }
+        other if other.starts_with("Could not run ") && other.contains(": ") => {
+            let rest = other.strip_prefix("Could not run ").unwrap_or(other);
+            let (command, error) = rest.split_once(": ").unwrap_or((rest, ""));
+            tr_catalog_string_format(
+                language,
+                "dynamic_status.could_not_run",
+                &[("command", command), ("error", error)],
+            )
+        }
         other if other.starts_with("Grave/Escape — sends Esc normally") => other
             .replace(
                 "Grave/Escape — sends Esc normally, ` when Shift or",

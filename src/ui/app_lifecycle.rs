@@ -26,23 +26,51 @@ impl EntropyApp {
         if let Some(path) = self.pending_entlayout_import_path.take() {
             match self.import_entlayout_from_path(&path) {
                 Ok(report) => {
-                    self.status_msg = "Imported .entlayout".into();
-                    self.import_report_title = "Layout import report".into();
+                    self.status_msg = crate::i18n::tr_catalog(
+                        self.app_settings.language,
+                        "status_messages.imported_entlayout",
+                    )
+                    .into();
+                    self.import_report_title = crate::i18n::tr_catalog(
+                        self.app_settings.language,
+                        "status_messages.layout_import_report_title",
+                    )
+                    .into();
                     self.import_report_body = report;
                     self.import_report_open = true;
                 }
-                Err(e) => self.status_msg = format!("Import failed: {e}"),
+                Err(e) => {
+                    self.status_msg = crate::i18n::tr_catalog_format(
+                        self.app_settings.language,
+                        "status_messages.import_failed",
+                        &[("error", &e.to_string())],
+                    )
+                }
             }
         }
         if let Some(path) = self.pending_entsettings_import_path.take() {
             match self.import_entsettings_from_path(ctx, &path) {
                 Ok(report) => {
-                    self.status_msg = "Imported app settings".into();
-                    self.import_report_title = "App settings import report".into();
+                    self.status_msg = crate::i18n::tr_catalog(
+                        self.app_settings.language,
+                        "status_messages.imported_app_settings",
+                    )
+                    .into();
+                    self.import_report_title = crate::i18n::tr_catalog(
+                        self.app_settings.language,
+                        "status_messages.app_settings_import_report_title",
+                    )
+                    .into();
                     self.import_report_body = report;
                     self.import_report_open = true;
                 }
-                Err(e) => self.status_msg = format!("Import app settings failed: {e}"),
+                Err(e) => {
+                    self.status_msg = crate::i18n::tr_catalog_format(
+                        self.app_settings.language,
+                        "status_messages.import_app_settings_failed",
+                        &[("error", &e.to_string())],
+                    )
+                }
             }
         }
         self.import_progress_started_at = None;
@@ -512,8 +540,9 @@ impl eframe::App for EntropyApp {
                         self.app_settings.language,
                         "connection.loading_keyboard",
                     )
+                    .to_owned()
                 } else {
-                    self.status_msg.as_str()
+                    crate::i18n::tr_text(self.app_settings.language, &self.status_msg)
                 };
                 let font_id = FontId::proportional(16.0);
                 let text_width = ui.fonts(|f| {
@@ -536,7 +565,7 @@ impl eframe::App for EntropyApp {
                 ui.painter().text(
                     egui::pos2(row_left + spinner_size + gap, rect.center().y),
                     egui::Align2::LEFT_CENTER,
-                    text,
+                    &text,
                     font_id,
                     Color32::GRAY,
                 );
@@ -547,10 +576,12 @@ impl eframe::App for EntropyApp {
                 self.draw_layout(ui, &layout, ctx);
             } else if !self.status_msg.is_empty() {
                 let rect = ui.max_rect();
+                let status_text =
+                    crate::i18n::tr_text(self.app_settings.language, &self.status_msg);
                 ui.painter().text(
                     rect.center(),
                     egui::Align2::CENTER_CENTER,
-                    &self.status_msg,
+                    status_text,
                     FontId::proportional(16.0),
                     Color32::GRAY,
                 );
@@ -757,7 +788,13 @@ impl eframe::App for EntropyApp {
                                 )
                                 .into()
                             }
-                            Err(e) => self.status_msg = format!("Macro write error: {e}"),
+                            Err(e) => {
+                                self.status_msg = crate::i18n::tr_catalog_format(
+                                    self.app_settings.language,
+                                    "status_messages.macro_write_error",
+                                    &[("error", &e.to_string())],
+                                )
+                            }
                         }
                     }
                 }
@@ -772,7 +809,11 @@ impl eframe::App for EntropyApp {
                     match hid.set_combo(i as u8, combo.keys, combo.output) {
                         Ok(()) => {}
                         Err(e) => {
-                            self.status_msg = format!("Combo write error: {e}");
+                            self.status_msg = crate::i18n::tr_catalog_format(
+                                self.app_settings.language,
+                                "status_messages.combo_write_error",
+                                &[("error", &e.to_string())],
+                            );
                             combo_save_ok = false;
                             break;
                         }
@@ -793,7 +834,11 @@ impl eframe::App for EntropyApp {
             let mut term_save_ok = true;
             if let (Some(hid), Some(value)) = (&self.hid_device, self.combo_term) {
                 if let Err(e) = hid.set_qmk_setting_u16(2, value) {
-                    self.status_msg = format!("Combo timeout write error: {e}");
+                    self.status_msg = crate::i18n::tr_catalog_format(
+                        self.app_settings.language,
+                        "status_messages.combo_timeout_write_error",
+                        &[("error", &e.to_string())],
+                    );
                     term_save_ok = false;
                 }
             }
@@ -830,7 +875,11 @@ impl eframe::App for EntropyApp {
                     ) {
                         Ok(()) => {}
                         Err(e) => {
-                            self.status_msg = format!("Tap dance write error: {e}");
+                            self.status_msg = crate::i18n::tr_catalog_format(
+                                self.app_settings.language,
+                                "status_messages.tap_dance_write_error",
+                                &[("error", &e.to_string())],
+                            );
                             td_save_ok = false;
                             break;
                         }
@@ -844,7 +893,11 @@ impl eframe::App for EntropyApp {
                 );
                 self.keycode_picker.tap_dance_dirty = false;
                 if self.status_msg.is_empty() || self.status_msg.starts_with("✓") {
-                    self.status_msg = "✓ Tap dance saved".into();
+                    self.status_msg = crate::i18n::tr_catalog(
+                        self.app_settings.language,
+                        "status_messages.tap_dance_saved",
+                    )
+                    .into();
                 }
             }
         }

@@ -159,37 +159,62 @@ impl EntLayoutSectionImportStats {
         }
     }
 
-    fn summary(&self, label: &str) -> String {
+    fn summary(&self, language: crate::i18n::Language, label_key: &'static str) -> String {
+        let label = crate::i18n::tr_catalog(language, label_key);
+        let imported = self.imported.to_string();
+        let total = (self.imported + self.skipped()).to_string();
         if self.skipped() == 0 {
-            return format!("{label} {}/{}", self.imported, self.imported);
+            return crate::i18n::tr_catalog_format(
+                language,
+                "entlayout.summary_full",
+                &[("section", label), ("imported", &imported), ("total", &total)],
+            );
         }
         let mut reasons = Vec::new();
         if self.unsupported_slot > 0 {
-            reasons.push(format!("{} unsupported slot", self.unsupported_slot));
+            reasons.push(crate::i18n::tr_catalog_format(
+                language,
+                "entlayout.unsupported_slot",
+                &[("count", &self.unsupported_slot.to_string())],
+            ));
         }
         if self.unmappable_custom_keycode > 0 {
-            reasons.push(format!(
-                "{} unmappable custom keycode",
-                self.unmappable_custom_keycode
+            reasons.push(crate::i18n::tr_catalog_format(
+                language,
+                "entlayout.unmappable_custom_keycode",
+                &[("count", &self.unmappable_custom_keycode.to_string())],
             ));
         }
         if self.missing_layer > 0 {
-            reasons.push(format!("{} missing layer", self.missing_layer));
-        }
-        if self.missing_macro_slot > 0 {
-            reasons.push(format!("{} missing macro slot", self.missing_macro_slot));
-        }
-        if self.missing_tap_dance_slot > 0 {
-            reasons.push(format!(
-                "{} missing tap dance slot",
-                self.missing_tap_dance_slot
+            reasons.push(crate::i18n::tr_catalog_format(
+                language,
+                "entlayout.missing_layer",
+                &[("count", &self.missing_layer.to_string())],
             ));
         }
-        format!(
-            "{label} {}/{} (skipped: {})",
-            self.imported,
-            self.imported + self.skipped(),
-            reasons.join(", ")
+        if self.missing_macro_slot > 0 {
+            reasons.push(crate::i18n::tr_catalog_format(
+                language,
+                "entlayout.missing_macro_slot",
+                &[("count", &self.missing_macro_slot.to_string())],
+            ));
+        }
+        if self.missing_tap_dance_slot > 0 {
+            reasons.push(crate::i18n::tr_catalog_format(
+                language,
+                "entlayout.missing_tap_dance_slot",
+                &[("count", &self.missing_tap_dance_slot.to_string())],
+            ));
+        }
+        crate::i18n::tr_catalog_format(
+            language,
+            "entlayout.summary_skipped",
+            &[
+                ("section", label),
+                ("imported", &imported),
+                ("total", &total),
+                ("reasons", &reasons.join(", ")),
+            ],
         )
     }
 }
@@ -278,7 +303,11 @@ impl EntropyApp {
     #[cfg(not(target_arch = "wasm32"))]
     pub(super) fn export_entlayout_dialog(&mut self) {
         let Some(bundle) = self.entlayout_snapshot() else {
-            self.status_msg = "Connect a keyboard before exporting layout".into();
+            self.status_msg = crate::i18n::tr_catalog(
+                self.app_settings.language,
+                "entlayout.connect_keyboard_before_exporting_layout",
+            )
+            .into();
             return;
         };
         let file_name = format!("{}.entlayout", device_id_slug(&bundle.keyboard.name));
@@ -289,9 +318,21 @@ impl EntropyApp {
         else {
             return;
         };
-        match write_entlayout_file(&path, &bundle) {
-            Ok(()) => self.status_msg = format!("Exported layout: {}", path.display()),
-            Err(e) => self.status_msg = format!("Export failed: {e}"),
+        match write_entlayout_file(&path, &bundle, self.app_settings.language) {
+            Ok(()) => {
+                self.status_msg = crate::i18n::tr_catalog_format(
+                    self.app_settings.language,
+                    "entlayout.exported_layout",
+                    &[("path", &path.display().to_string())],
+                )
+            }
+            Err(e) => {
+                self.status_msg = crate::i18n::tr_catalog_format(
+                    self.app_settings.language,
+                    "entlayout.export_failed",
+                    &[("error", &e.to_string())],
+                )
+            }
         }
     }
 
@@ -305,17 +346,33 @@ impl EntropyApp {
         };
         self.pending_entlayout_import_path = Some(path);
         self.import_progress_started_at = None;
-        self.import_progress_title = "Importing layout".into();
-        self.import_progress_body =
-            "Applying layout to the connected keyboard. This can take a moment.".into();
+        self.import_progress_title = crate::i18n::tr_catalog(
+            self.app_settings.language,
+            "entlayout.importing_layout",
+        )
+        .into();
+        self.import_progress_body = crate::i18n::tr_catalog(
+            self.app_settings.language,
+            "entlayout.applying_layout_import",
+        )
+        .into();
     }
 
     #[cfg(not(target_arch = "wasm32"))]
     pub(super) fn import_entlayout_from_path(&mut self, path: &Path) -> Result<String> {
-        let data = std::fs::read_to_string(path)
-            .with_context(|| format!("failed to read {}", path.display()))?;
+        let lang = self.app_settings.language;
+        let data = std::fs::read_to_string(path).with_context(|| {
+            crate::i18n::tr_catalog_format(
+                lang,
+                "entlayout.failed_to_read",
+                &[("path", &path.display().to_string())],
+            )
+        })?;
         let bundle: EntLayoutFile =
-            serde_json::from_str(&data).context("invalid .entlayout JSON")?;
+            serde_json::from_str(&data).context(crate::i18n::tr_catalog(
+                lang,
+                "entlayout.invalid_entlayout_json",
+            ))?;
         self.validate_entlayout_file(&bundle)?;
         let backup_path = self.write_entlayout_auto_backup()?;
         let (firmware_failures, mapping) = self.apply_entlayout(&bundle)?;
@@ -448,38 +505,73 @@ impl EntropyApp {
     fn write_entlayout_auto_backup(&self) -> Result<PathBuf> {
         let bundle = self
             .entlayout_snapshot()
-            .context("cannot create auto-backup without a connected keyboard")?;
+            .context(crate::i18n::tr_catalog(
+                self.app_settings.language,
+                "entlayout.cannot_create_backup_without_keyboard",
+            ))?;
         let dir = dirs::config_dir()
             .unwrap_or_else(|| PathBuf::from("."))
             .join("entropy")
             .join("backups");
-        std::fs::create_dir_all(&dir).context("failed to create backup directory")?;
+        std::fs::create_dir_all(&dir).context(crate::i18n::tr_catalog(
+            self.app_settings.language,
+            "entlayout.failed_to_create_backup_directory",
+        ))?;
         let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
         let path = dir.join(format!(
             "auto-backup-{}-{stamp}.entlayout",
             device_id_slug(&bundle.keyboard.name)
         ));
-        write_entlayout_file(&path, &bundle)?;
+        write_entlayout_file(&path, &bundle, self.app_settings.language)?;
         Ok(path)
     }
 
     fn validate_entlayout_file(&self, bundle: &EntLayoutFile) -> Result<()> {
         if bundle.format != ENTLAYOUT_FORMAT {
-            bail!("unsupported format: {}", bundle.format);
+            bail!(
+                "{}",
+                crate::i18n::tr_catalog_format(
+                    self.app_settings.language,
+                    "entlayout.unsupported_format",
+                    &[("format", &bundle.format)]
+                )
+            );
         }
         if bundle.version == 0 || bundle.version > ENTLAYOUT_VERSION {
-            bail!("unsupported .entlayout version: {}", bundle.version);
+            bail!(
+                "{}",
+                crate::i18n::tr_catalog_format(
+                    self.app_settings.language,
+                    "entlayout.unsupported_version",
+                    &[("version", &bundle.version.to_string())]
+                )
+            );
         }
         let _layout = self
             .layout
             .as_ref()
-            .context("connect the target keyboard before importing")?;
+            .context(crate::i18n::tr_catalog(
+                self.app_settings.language,
+                "entlayout.connect_target_keyboard",
+            ))?;
         if bundle.data.keymap.is_empty() {
-            bail!(".entlayout keymap is empty");
+            bail!(
+                "{}",
+                crate::i18n::tr_catalog(
+                    self.app_settings.language,
+                    "entlayout.keymap_empty",
+                )
+            );
         }
         let source_key_count = bundle_source_key_count(bundle);
         if source_key_count == 0 {
-            bail!(".entlayout has no source keys");
+            bail!(
+                "{}",
+                crate::i18n::tr_catalog(
+                    self.app_settings.language,
+                    "entlayout.no_source_keys",
+                )
+            );
         }
         if bundle
             .data
@@ -487,7 +579,13 @@ impl EntropyApp {
             .iter()
             .any(|layer| layer.len() != source_key_count)
         {
-            bail!(".entlayout keymap layers have inconsistent key counts");
+            bail!(
+                "{}",
+                crate::i18n::tr_catalog(
+                    self.app_settings.language,
+                    "entlayout.inconsistent_key_counts",
+                )
+            );
         }
         let source_encoder_count = bundle_source_encoder_count(bundle);
         if bundle
@@ -496,7 +594,13 @@ impl EntropyApp {
             .iter()
             .any(|layer| layer.len() != source_encoder_count)
         {
-            bail!(".entlayout encoder layers have inconsistent encoder counts");
+            bail!(
+                "{}",
+                crate::i18n::tr_catalog(
+                    self.app_settings.language,
+                    "entlayout.inconsistent_encoder_counts",
+                )
+            );
         }
         Ok(())
     }
@@ -505,7 +609,10 @@ impl EntropyApp {
         let layout = self
             .layout
             .as_ref()
-            .context("connect the target keyboard before importing")?;
+            .context(crate::i18n::tr_catalog(
+                self.app_settings.language,
+                "entlayout.connect_target_keyboard",
+            ))?;
         let exact_layout = bundle.keyboard.layout_hash == entlayout_hash(layout)
             && bundle.keyboard.layers == layout.layers.len()
             && bundle_source_key_count(bundle) == layout.keys.len()
@@ -625,12 +732,13 @@ impl EntropyApp {
             }
         }
 
+        let lang = self.app_settings.language;
         [
-            macro_stats.summary("macros"),
-            combo_stats.summary("combos"),
-            tap_dance_stats.summary("tap dance"),
-            key_override_stats.summary("key overrides"),
-            alt_repeat_stats.summary("alt repeat"),
+            macro_stats.summary(lang, "entlayout.macros"),
+            combo_stats.summary(lang, "entlayout.combos"),
+            tap_dance_stats.summary(lang, "entlayout.tap_dance"),
+            key_override_stats.summary(lang, "entlayout.key_overrides"),
+            alt_repeat_stats.summary(lang, "entlayout.alt_repeat"),
         ]
         .join("; ")
     }
@@ -643,81 +751,104 @@ impl EntropyApp {
         firmware_failures: &[String],
         mapping: &EntLayoutImportMapping,
     ) -> String {
+        let lang = self.app_settings.language;
+        let tr = |key| crate::i18n::tr_catalog(lang, key).to_owned();
         let mut imported = vec![
-            "keymap",
-            "encoder keymap",
-            "encoder visibility",
-            "layer names",
-            "Text Expander",
+            tr("entlayout.keymap"),
+            tr("entlayout.encoder_keymap"),
+            tr("entlayout.encoder_visibility"),
+            tr("entlayout.layer_names"),
+            tr("entlayout.text_expander"),
         ];
         let mut skipped = Vec::new();
 
         if mapping.exact_layout {
             if bundle.data.layout_options.is_some() && self.layout_options_value.is_some() {
-                imported.push("layout options");
+                imported.push(tr("entlayout.layout_options"));
             } else if bundle.data.layout_options.is_some() {
-                skipped.push("layout options (unsupported by connected keyboard)");
+                skipped.push(tr("entlayout.layout_options_unsupported"));
             }
         } else if bundle.data.layout_options.is_some() {
-            skipped.push("layout options (exact layout only)");
+            skipped.push(tr("entlayout.layout_options_exact_only"));
         }
 
         if self.current_device_is_likely_rmk() {
-            skipped.push("firmware-backed dynamic sections (RMK safety mode)");
+            skipped.push(tr("entlayout.firmware_dynamic_sections_rmk"));
         } else {
             if !bundle.data.macros.texts.is_empty() && self.keycode_picker.macro_count > 0 {
-                imported.push("macros");
+                imported.push(tr("entlayout.macros"));
             } else {
-                skipped.push("macros (not available)");
+                skipped.push(crate::i18n::tr_catalog_format(
+                    lang,
+                    "entlayout.not_available",
+                    &[("section", crate::i18n::tr_catalog(lang, "entlayout.macros"))],
+                ));
             }
 
             if !bundle.data.combos.entries.is_empty() && !self.combo_entries.is_empty() {
-                imported.push("combos");
+                imported.push(tr("entlayout.combos"));
             } else {
-                skipped.push("combos (not available)");
+                skipped.push(crate::i18n::tr_catalog_format(
+                    lang,
+                    "entlayout.not_available",
+                    &[("section", crate::i18n::tr_catalog(lang, "entlayout.combos"))],
+                ));
             }
 
             if !bundle.data.tap_dance.entries.is_empty()
                 && !self.keycode_picker.tap_dance_entries.is_empty()
             {
-                imported.push("tap dance");
+                imported.push(tr("entlayout.tap_dance"));
             } else {
-                skipped.push("tap dance (not available)");
+                skipped.push(crate::i18n::tr_catalog_format(
+                    lang,
+                    "entlayout.not_available",
+                    &[("section", crate::i18n::tr_catalog(lang, "entlayout.tap_dance"))],
+                ));
             }
 
             if !bundle.data.key_overrides.entries.is_empty()
                 && !self.key_override_entries.is_empty()
             {
-                imported.push("key overrides");
+                imported.push(tr("entlayout.key_overrides"));
             } else {
-                skipped.push("key overrides (not available)");
+                skipped.push(crate::i18n::tr_catalog_format(
+                    lang,
+                    "entlayout.not_available",
+                    &[("section", crate::i18n::tr_catalog(lang, "entlayout.key_overrides"))],
+                ));
             }
 
             if !bundle.data.alt_repeat.entries.is_empty() && !self.alt_repeat_entries.is_empty() {
-                imported.push("alt repeat");
+                imported.push(tr("entlayout.alt_repeat"));
             } else {
-                skipped.push("alt repeat (not available)");
+                skipped.push(crate::i18n::tr_catalog_format(
+                    lang,
+                    "entlayout.not_available",
+                    &[("section", crate::i18n::tr_catalog(lang, "entlayout.alt_repeat"))],
+                ));
             }
         }
 
+        let none = crate::i18n::tr_catalog(lang, "entlayout.none");
         let skipped = if skipped.is_empty() {
-            "none".to_owned()
+            none.to_owned()
         } else {
             skipped.join(", ")
         };
         let firmware_failures = if firmware_failures.is_empty() {
-            "none".to_owned()
+            none.to_owned()
         } else {
             firmware_failures.join(", ")
         };
         let mode = if mapping.exact_layout {
-            "exact"
+            crate::i18n::tr_catalog(lang, "entlayout.exact")
         } else {
-            "universal"
+            crate::i18n::tr_catalog(lang, "entlayout.universal")
         };
         let dynamic_report = self.entlayout_dynamic_import_report(bundle);
-        let firmware_failures = if firmware_failures == "none" {
-            "none".to_owned()
+        let firmware_failures = if firmware_failures == none {
+            none.to_owned()
         } else {
             firmware_failures
                 .split(", ")
@@ -728,8 +859,8 @@ impl EntropyApp {
 ",
                 )
         };
-        let skipped = if skipped == "none" {
-            "none".to_owned()
+        let skipped = if skipped == none {
+            none.to_owned()
         } else {
             skipped
                 .split(", ")
@@ -757,37 +888,47 @@ impl EntropyApp {
 ",
             );
         format!(
-            "Layout import complete
+            "{complete}
 
-Mode: {mode}
+{mode_label}: {mode}
 
-Mapped layout:
-• Keys: {}/{}
-• Encoder slots: {}/{}
+{mapped_layout}:
+• {keys}: {mapped_keys}/{total_keys}
+• {encoder_slots}: {mapped_encoders}/{total_encoders}
 
-Imported sections:
-{}
+{imported_sections}:
+{imported}
 
-Dynamic sections:
-{}
+{dynamic_sections}:
+{dynamic_report}
 
-Skipped:
-{}
+{skipped_label}:
+{skipped}
 
-Firmware issues:
-{}
+{firmware_issues}:
+{firmware_failures}
 
-Auto-backup:
-{}",
-            mapping.mapped_keys(),
-            mapping.key_mapping.len(),
-            mapping.mapped_encoders(),
-            mapping.encoder_mapping.len(),
-            imported,
-            dynamic_report,
-            skipped,
-            firmware_failures,
-            backup_path.display()
+{auto_backup}:
+{backup_path}",
+            complete = crate::i18n::tr_catalog(lang, "entlayout.import_complete"),
+            mode_label = crate::i18n::tr_catalog(lang, "entlayout.mode"),
+            mapped_layout = crate::i18n::tr_catalog(lang, "entlayout.mapped_layout"),
+            keys = crate::i18n::tr_catalog(lang, "entlayout.keys"),
+            encoder_slots = crate::i18n::tr_catalog(lang, "entlayout.encoder_slots"),
+            imported_sections = crate::i18n::tr_catalog(lang, "entlayout.imported_sections"),
+            dynamic_sections = crate::i18n::tr_catalog(lang, "entlayout.dynamic_sections"),
+            skipped_label = crate::i18n::tr_catalog(lang, "entlayout.skipped"),
+            firmware_issues = crate::i18n::tr_catalog(lang, "entlayout.firmware_issues"),
+            auto_backup = crate::i18n::tr_catalog(lang, "entlayout.auto_backup"),
+            mapped_keys = mapping.mapped_keys(),
+            total_keys = mapping.key_mapping.len(),
+            mapped_encoders = mapping.mapped_encoders(),
+            total_encoders = mapping.encoder_mapping.len(),
+            imported = imported,
+            dynamic_report = dynamic_report,
+            skipped = skipped,
+            firmware_failures = firmware_failures,
+            backup_path = backup_path.display()
         )
     }
 
@@ -797,10 +938,18 @@ Auto-backup:
         bundle: &EntLayoutFile,
         mapping: &EntLayoutImportMapping,
     ) -> Result<Vec<String>> {
+        let lang = self.app_settings.language;
         let Some(hid) = &self.hid_device else {
-            bail!("no active keyboard connection for firmware import");
+            bail!(
+                "{}",
+                crate::i18n::tr_catalog(lang, "entlayout.no_active_keyboard_connection")
+            );
         };
-        let layout = self.layout.as_ref().context("no connected layout")?.clone();
+        let layout = self
+            .layout
+            .as_ref()
+            .context(crate::i18n::tr_catalog(lang, "entlayout.no_connected_layout"))?
+            .clone();
         let limits = self.entlayout_keycode_import_limits();
         let mut failures = Vec::new();
 
@@ -832,7 +981,14 @@ Auto-backup:
             }
             Ok(())
         })() {
-            failures.push(format!("keymap ({err})"));
+            failures.push(crate::i18n::tr_catalog_format(
+                lang,
+                "entlayout.firmware_failure",
+                &[
+                    ("section", crate::i18n::tr_catalog(lang, "entlayout.keymap")),
+                    ("error", &err.to_string()),
+                ],
+            ));
         }
 
         if let Err(err) = (|| -> Result<()> {
@@ -871,7 +1027,17 @@ Auto-backup:
             }
             Ok(())
         })() {
-            failures.push(format!("encoder keymap ({err})"));
+            failures.push(crate::i18n::tr_catalog_format(
+                lang,
+                "entlayout.firmware_failure",
+                &[
+                    (
+                        "section",
+                        crate::i18n::tr_catalog(lang, "entlayout.encoder_keymap"),
+                    ),
+                    ("error", &err.to_string()),
+                ],
+            ));
         }
 
         if mapping.exact_layout {
@@ -879,7 +1045,17 @@ Auto-backup:
                 if self.layout_options_value.is_some() && self.layout_options_value != Some(options)
                 {
                     if let Err(err) = hid.set_layout_options(options) {
-                        failures.push(format!("layout options ({err})"));
+                        failures.push(crate::i18n::tr_catalog_format(
+                            lang,
+                            "entlayout.firmware_failure",
+                            &[
+                                (
+                                    "section",
+                                    crate::i18n::tr_catalog(lang, "entlayout.layout_options"),
+                                ),
+                                ("error", &err.to_string()),
+                            ],
+                        ));
                     }
                 }
             }
@@ -1874,9 +2050,20 @@ fn check_entalt_repeat_entry(
     Ok(())
 }
 
-fn write_entlayout_file(path: &Path, bundle: &EntLayoutFile) -> Result<()> {
-    let json = serde_json::to_string_pretty(bundle).context("failed to serialize .entlayout")?;
-    std::fs::write(path, json).with_context(|| format!("failed to write {}", path.display()))
+fn write_entlayout_file(
+    path: &Path,
+    bundle: &EntLayoutFile,
+    language: crate::i18n::Language,
+) -> Result<()> {
+    let json = serde_json::to_string_pretty(bundle)
+        .context(crate::i18n::tr_catalog(language, "entlayout.failed_to_serialize"))?;
+    std::fs::write(path, json).with_context(|| {
+        crate::i18n::tr_catalog_format(
+            language,
+            "entlayout.failed_to_write",
+            &[("path", &path.display().to_string())],
+        )
+    })
 }
 
 fn normalized_strings(values: &[String], len: usize) -> Vec<String> {

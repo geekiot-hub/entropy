@@ -34,9 +34,21 @@ impl EntropyApp {
         else {
             return;
         };
-        match write_entsettings_file(&path, &bundle) {
-            Ok(()) => self.status_msg = format!("Exported app settings: {}", path.display()),
-            Err(e) => self.status_msg = format!("Export app settings failed: {e}"),
+        match write_entsettings_file(&path, &bundle, self.app_settings.language) {
+            Ok(()) => {
+                self.status_msg = crate::i18n::tr_catalog_format(
+                    self.app_settings.language,
+                    "entsettings.exported_app_settings",
+                    &[("path", &path.display().to_string())],
+                )
+            }
+            Err(e) => {
+                self.status_msg = crate::i18n::tr_catalog_format(
+                    self.app_settings.language,
+                    "entsettings.export_app_settings_failed",
+                    &[("error", &e.to_string())],
+                )
+            }
         }
     }
 
@@ -50,8 +62,16 @@ impl EntropyApp {
         };
         self.pending_entsettings_import_path = Some(path);
         self.import_progress_started_at = None;
-        self.import_progress_title = "Importing app settings".into();
-        self.import_progress_body = "Applying Entropy app settings.".into();
+        self.import_progress_title = crate::i18n::tr_catalog(
+            self.app_settings.language,
+            "entsettings.importing_app_settings",
+        )
+        .into();
+        self.import_progress_body = crate::i18n::tr_catalog(
+            self.app_settings.language,
+            "entsettings.applying_app_settings",
+        )
+        .into();
         ctx.request_repaint();
     }
 
@@ -61,17 +81,32 @@ impl EntropyApp {
         ctx: &egui::Context,
         path: &Path,
     ) -> Result<String> {
-        let data = std::fs::read_to_string(path)
-            .with_context(|| format!("failed to read {}", path.display()))?;
+        let lang = self.app_settings.language;
+        let data = std::fs::read_to_string(path).with_context(|| {
+            crate::i18n::tr_catalog_format(
+                lang,
+                "entsettings.failed_to_read",
+                &[("path", &path.display().to_string())],
+            )
+        })?;
         let bundle: EntSettingsFile = serde_json::from_str(&data)
-            .with_context(|| format!("failed to parse {}", path.display()))?;
-        validate_entsettings_file(&bundle)?;
-        let backup_path = write_entsettings_auto_backup(&self.entsettings_snapshot())?;
+            .with_context(|| {
+                crate::i18n::tr_catalog_format(
+                    lang,
+                    "entsettings.failed_to_parse",
+                    &[("path", &path.display().to_string())],
+                )
+            })?;
+        validate_entsettings_file(&bundle, lang)?;
+        let backup_path = write_entsettings_auto_backup(&self.entsettings_snapshot(), lang)?;
         self.apply_entsettings(ctx, bundle)?;
-        Ok(format!(
-            "App settings import complete\n\nFile:\n{}\n\nAuto-backup:\n{}",
-            path.display(),
-            backup_path.display()
+        Ok(crate::i18n::tr_catalog_format(
+            lang,
+            "entsettings.import_complete_report",
+            &[
+                ("path", &path.display().to_string()),
+                ("backup", &backup_path.display().to_string()),
+            ],
         ))
     }
 
@@ -118,9 +153,17 @@ impl EntropyApp {
             if let Some(file_name) = normalize_text_expander_rules_file_name(&file.file_name) {
                 let path = text_expander_extra_rules_path(&file_name);
                 let json = serde_json::to_string_pretty(&file.rules)
-                    .context("failed to serialize text expander rules")?;
-                std::fs::write(&path, json)
-                    .with_context(|| format!("failed to write {}", path.display()))?;
+                    .context(crate::i18n::tr_catalog(
+                        self.app_settings.language,
+                        "entsettings.failed_to_serialize_rules",
+                    ))?;
+                std::fs::write(&path, json).with_context(|| {
+                    crate::i18n::tr_catalog_format(
+                        self.app_settings.language,
+                        "entsettings.failed_to_write",
+                        &[("path", &path.display().to_string())],
+                    )
+                })?;
             }
         }
 
@@ -142,31 +185,69 @@ impl EntropyApp {
     }
 }
 
-fn validate_entsettings_file(bundle: &EntSettingsFile) -> Result<()> {
+fn validate_entsettings_file(
+    bundle: &EntSettingsFile,
+    language: crate::i18n::Language,
+) -> Result<()> {
     if bundle.format != ENTSETTINGS_FORMAT {
-        bail!("unsupported format: {}", bundle.format);
+        bail!(
+            "{}",
+            crate::i18n::tr_catalog_format(
+                language,
+                "entsettings.unsupported_format",
+                &[("format", &bundle.format)]
+            )
+        );
     }
     if bundle.version == 0 || bundle.version > ENTSETTINGS_VERSION {
-        bail!("unsupported .entsettings version: {}", bundle.version);
+        bail!(
+            "{}",
+            crate::i18n::tr_catalog_format(
+                language,
+                "entsettings.unsupported_version",
+                &[("version", &bundle.version.to_string())]
+            )
+        );
     }
     Ok(())
 }
 
-fn write_entsettings_auto_backup(bundle: &EntSettingsFile) -> Result<PathBuf> {
+fn write_entsettings_auto_backup(
+    bundle: &EntSettingsFile,
+    language: crate::i18n::Language,
+) -> Result<PathBuf> {
     let base_dir = app_settings_path()
         .parent()
         .map(Path::to_path_buf)
         .unwrap_or_else(|| PathBuf::from("."));
     let dir = base_dir.join("backups");
-    std::fs::create_dir_all(&dir)
-        .with_context(|| format!("failed to create backup dir {}", dir.display()))?;
+    std::fs::create_dir_all(&dir).with_context(|| {
+        crate::i18n::tr_catalog_format(
+            language,
+            "entsettings.failed_to_create_backup_dir",
+            &[("path", &dir.display().to_string())],
+        )
+    })?;
     let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
     let path = dir.join(format!("auto-backup-app-settings-{stamp}.entsettings"));
-    write_entsettings_file(&path, bundle)?;
+    write_entsettings_file(&path, bundle, language)?;
     Ok(path)
 }
 
-fn write_entsettings_file(path: &Path, bundle: &EntSettingsFile) -> Result<()> {
-    let json = serde_json::to_string_pretty(bundle).context("failed to serialize .entsettings")?;
-    std::fs::write(path, json).with_context(|| format!("failed to write {}", path.display()))
+fn write_entsettings_file(
+    path: &Path,
+    bundle: &EntSettingsFile,
+    language: crate::i18n::Language,
+) -> Result<()> {
+    let json = serde_json::to_string_pretty(bundle).context(crate::i18n::tr_catalog(
+        language,
+        "entsettings.failed_to_serialize",
+    ))?;
+    std::fs::write(path, json).with_context(|| {
+        crate::i18n::tr_catalog_format(
+            language,
+            "entsettings.failed_to_write",
+            &[("path", &path.display().to_string())],
+        )
+    })
 }

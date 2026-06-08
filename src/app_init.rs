@@ -204,7 +204,11 @@ impl EntropyApp {
             Ok(hid) => self.hid_device = Some(hid),
             Err(e) => {
                 self.hid_device = None;
-                self.status_msg = format!("HID reopen failed: {e}");
+                self.status_msg = crate::i18n::tr_catalog_format(
+                    self.app_settings.language,
+                    "status_messages.hid_reopen_failed",
+                    &[("error", &e.to_string())],
+                );
             }
         }
     }
@@ -214,10 +218,18 @@ impl EntropyApp {
         if let Some(hid) = &self.hid_device {
             match hid.lock() {
                 Ok(()) => {
-                    self.status_msg = "Device unlock cancelled".into();
+                    self.status_msg = crate::i18n::tr_catalog(
+                        self.app_settings.language,
+                        "status_messages.device_unlock_cancelled",
+                    )
+                    .into();
                 }
                 Err(e) => {
-                    self.status_msg = format!("Cancel unlock failed: {e}");
+                    self.status_msg = crate::i18n::tr_catalog_format(
+                        self.app_settings.language,
+                        "status_messages.cancel_unlock_failed",
+                        &[("error", &e.to_string())],
+                    );
                 }
             }
         }

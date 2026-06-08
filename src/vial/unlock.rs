@@ -41,12 +41,19 @@ impl EntropyApp {
                                 self.vial_unlock_animation_nonce.wrapping_add(1);
                         }
                         Err(e) => {
-                            self.stop_vial_unlock_with_status(format!("Unlock start failed: {e}"));
+                            self.stop_vial_unlock_with_status(crate::i18n::tr_catalog_format(
+                                self.app_settings.language,
+                                "status_messages.unlock_start_failed",
+                                &[("error", &e.to_string())],
+                            ));
                             return;
                         }
                     }
                 } else {
-                    self.stop_vial_unlock_with_status("Unlock cancelled — device disconnected");
+                    self.stop_vial_unlock_with_status(crate::i18n::tr_catalog(
+                        self.app_settings.language,
+                        "status_messages.unlock_cancelled_disconnected",
+                    ));
                     return;
                 }
             }
@@ -70,7 +77,11 @@ impl EntropyApp {
                                     self.vial_unlock_total = counter;
                                 }
                                 if unlocked {
-                                    self.status_msg = "Device unlocked!".into();
+                                    self.status_msg = crate::i18n::tr_catalog(
+                                        self.app_settings.language,
+                                        "status_messages.device_unlocked",
+                                    )
+                                    .into();
                                     self.unlock_open = false;
                                     self.vial_unlock_polling = false;
                                     self.vial_unlock_last_poll = None;
@@ -84,14 +95,21 @@ impl EntropyApp {
                                 }
                             }
                             Err(e) => {
-                                self.stop_vial_unlock_with_status(format!(
-                                    "Unlock interrupted — device disconnected or unavailable: {e}"
-                                ));
+                                self.stop_vial_unlock_with_status(
+                                    crate::i18n::tr_catalog_format(
+                                        self.app_settings.language,
+                                        "status_messages.unlock_interrupted_disconnected",
+                                        &[("error", &e.to_string())],
+                                    ),
+                                );
                                 return;
                             }
                         }
                     } else {
-                        self.stop_vial_unlock_with_status("Unlock cancelled — device disconnected");
+                        self.stop_vial_unlock_with_status(crate::i18n::tr_catalog(
+                            self.app_settings.language,
+                            "status_messages.unlock_cancelled_disconnected",
+                        ));
                         return;
                     }
                 }
