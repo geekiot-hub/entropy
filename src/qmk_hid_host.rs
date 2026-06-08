@@ -176,7 +176,11 @@ impl QmkHidHostBridge {
     pub fn stop(&mut self) {
         self.stop.store(true, Ordering::Relaxed);
         if let Some(thread) = self.thread.take() {
-            let _ = thread.join();
+            let _ = thread::Builder::new()
+                .name("qmk-hid-host-join".to_owned())
+                .spawn(move || {
+                    let _ = thread.join();
+                });
         }
     }
 }
@@ -214,6 +218,14 @@ fn run_bridge(path: String, mode: HostDataMode, stop: Arc<AtomicBool>) {
             thread::sleep(Duration::from_millis(250));
             continue;
         };
+
+        #[cfg(target_os = "linux")]
+        if !std::path::Path::new(&path).exists() {
+            log::warn!("qmk-hid-host device path disappeared; reconnecting");
+            device = None;
+            thread::sleep(Duration::from_millis(250));
+            continue;
+        }
 
         let mut write_failed = false;
 

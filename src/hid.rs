@@ -1,6 +1,7 @@
 /// Vial protocol implementation over HID.
 /// Based on vial-gui Python source: protocol/keyboard_comm.py
 use anyhow::{bail, Context, Result};
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 #[cfg(target_os = "windows")]
@@ -53,6 +54,7 @@ enum HidBackend {
     Local {
         device: hidapi::HidDevice,
         transport: HidTransport,
+        path: Option<PathBuf>,
     },
     #[cfg(target_os = "windows")]
     Proxy(HidProxy),
@@ -156,6 +158,7 @@ impl HidDevice {
             backend: HidBackend::Local {
                 device,
                 transport: HidTransport::Usb,
+                path: Some(PathBuf::from(path)),
             },
         })
     }
@@ -260,6 +263,7 @@ impl HidDevice {
                             backend: HidBackend::Local {
                                 device: hid_device,
                                 transport: device_transport(device),
+                                path: local_hid_path(device),
                             },
                         });
                     }
@@ -280,6 +284,7 @@ impl HidDevice {
                     backend: HidBackend::Local {
                         device: hid_device,
                         transport: device_transport(device),
+                        path: local_hid_path(device),
                     },
                 })
                 .context("Failed to open HID device");
@@ -295,6 +300,7 @@ impl HidDevice {
                     backend: HidBackend::Local {
                         device: hid_device,
                         transport: device_transport(device),
+                        path: local_hid_path(device),
                     },
                 })
                 .context("Failed to open HID device");
@@ -306,7 +312,11 @@ impl HidDevice {
     /// Send exactly MSG_LEN bytes (with 0x00 report ID prepended), receive MSG_LEN bytes back.
     fn usb_send(&self, data: &[u8]) -> Result<[u8; MSG_LEN]> {
         match &self.backend {
-            HidBackend::Local { device, transport } => usb_send_local(device, *transport, data),
+            HidBackend::Local {
+                device,
+                transport,
+                path,
+            } => usb_send_local(device, *transport, path.as_deref(), data),
             #[cfg(target_os = "windows")]
             HidBackend::Proxy(proxy) => proxy.usb_send(data),
         }
@@ -325,11 +335,32 @@ fn device_transport(device: &crate::device::Device) -> HidTransport {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
+fn local_hid_path(device: &crate::device::Device) -> Option<PathBuf> {
+    (!device.path.is_empty()).then(|| PathBuf::from(&device.path))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn ensure_hid_path_present(path: Option<&Path>) -> Result<()> {
+    #[cfg(target_os = "linux")]
+    if let Some(path) = path {
+        if !path.exists() {
+            bail!("HID device disconnected");
+        }
+    }
+    #[cfg(not(target_os = "linux"))]
+    let _ = path;
+    Ok(())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 fn usb_send_local(
     device: &hidapi::HidDevice,
     transport: HidTransport,
+    path: Option<&Path>,
     data: &[u8],
 ) -> Result<[u8; MSG_LEN]> {
+    ensure_hid_path_present(path)?;
+
     if data.len() > MSG_LEN {
         bail!(
             "HID command too long — {} bytes, max {} bytes",
@@ -356,12 +387,15 @@ fn usb_send_local(
 
     let mut last_error: Option<anyhow::Error> = None;
     for attempt in 0..max_retries {
+        ensure_hid_path_present(path)?;
+
         if attempt > 0 {
             std::thread::sleep(if transport.is_bluetooth() {
                 WINDOWS_BLE_SETTLE_DELAY
             } else {
                 VIAL_GUI_RETRY_DELAY
             });
+            ensure_hid_path_present(path)?;
         }
 
         if transport.is_bluetooth() {
