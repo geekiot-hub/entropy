@@ -6,10 +6,13 @@ Wayland does not allow a normal application to globally intercept keys and injec
 
 ```sh
 ./linux/ibus/install-user.sh
-ibus restart
 ```
 
-Then add/select Entropy input sources in the system input-source/input-method settings:
+The install script updates the IBus registry, restarts IBus, and tries to
+activate the matching Entropy input source for the current session. On GNOME it
+also appends the matching Entropy source to Input Sources when possible.
+
+Add/select more Entropy input sources only if you need additional layouts:
 
 - **Entropy EN** for the `us` layout
 - **Entropy EN UK** for the `gb` layout
