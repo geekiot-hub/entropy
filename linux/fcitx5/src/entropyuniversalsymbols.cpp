@@ -2,16 +2,10 @@
 // Entropy Universal Symbols backend for Fcitx5.
 
 #include <array>
-#include <chrono>
-#include <cstdlib>
 #include <cstdint>
-#include <fstream>
 #include <memory>
 #include <optional>
-#include <sstream>
 #include <string>
-#include <sys/stat.h>
-#include <ctime>
 #include "fcitx-utils/handlertable.h"
 #include "fcitx-utils/key.h"
 #include "fcitx-utils/keysym.h"
@@ -35,54 +29,6 @@ struct SmartSymbol {
     uint16_t trigger;
     const char *symbol;
 };
-
-std::string entropyCacheDir() {
-    if (const char *xdgCacheHome = std::getenv("XDG_CACHE_HOME")) {
-        return std::string(xdgCacheHome) + "/entropy";
-    }
-    if (const char *home = std::getenv("HOME")) {
-        return std::string(home) + "/.cache/entropy";
-    }
-    return "/tmp/entropy";
-}
-
-void ensureDirectory(const std::string &dir) {
-    if (dir.empty()) {
-        return;
-    }
-    std::string current;
-    for (char ch : dir) {
-        current.push_back(ch);
-        if (ch == '/' && current.size() > 1) {
-            mkdir(current.c_str(), 0755);
-        }
-    }
-    mkdir(current.c_str(), 0755);
-}
-
-void diagnosticLog(const std::string &message) {
-    const auto dir = entropyCacheDir();
-    ensureDirectory(dir);
-    std::ofstream out(dir + "/fcitx5.log", std::ios::app);
-    if (!out) {
-        return;
-    }
-
-    const auto now = std::chrono::system_clock::now();
-    const auto time = std::chrono::system_clock::to_time_t(now);
-    char stamp[32] = {};
-    if (std::strftime(stamp, sizeof(stamp), "%Y-%m-%dT%H:%M:%S",
-                      std::localtime(&time))) {
-        out << stamp << ' ';
-    }
-    out << message << '\n';
-}
-
-template <typename T> std::string hexValue(T value) {
-    std::ostringstream out;
-    out << "0x" << std::hex << static_cast<unsigned long long>(value);
-    return out.str();
-}
 
 const std::array<SmartSymbol, 69> SMART_SYMBOLS{{
     // F13..F24
@@ -212,21 +158,12 @@ public:
         eventHandler_ = instance_->watchEvent(
             EventType::InputContextKeyEvent, EventWatcherPhase::Default,
             [this](Event &event) { handleKeyEvent(event); });
-        diagnosticLog("Fcitx5 addon loaded");
     }
 
 private:
     void handleKeyEvent(Event &event) {
         auto &keyEvent = static_cast<KeyEvent &>(event);
         const auto symbol = symbolForKey(keyEvent.key());
-        const auto base = baseKeycodeForSym(keyEvent.key().sym());
-        if (base) {
-            diagnosticLog(std::string("transport key sym=") +
-                          hexValue(keyEvent.key().sym()) + " base=" +
-                          hexValue(*base) + " release=" +
-                          (keyEvent.isRelease() ? "true" : "false") +
-                          " matched=" + (symbol ? "true" : "false"));
-        }
         if (!symbol) {
             return;
         }
@@ -235,7 +172,6 @@ private:
         // commit text only on press.
         if (!keyEvent.isRelease()) {
             keyEvent.inputContext()->commitString(*symbol);
-            diagnosticLog(std::string("committed symbol ") + *symbol);
         }
         keyEvent.filterAndAccept();
     }

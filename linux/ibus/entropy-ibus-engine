@@ -11,26 +11,6 @@ import json
 import os
 import signal
 import sys
-from datetime import datetime
-
-
-def _cache_home():
-    return os.environ.get("XDG_CACHE_HOME") or os.path.join(os.path.expanduser("~"), ".cache")
-
-
-def _diagnostic_log_path():
-    return os.path.join(_cache_home(), "entropy", "ibus.log")
-
-
-def _diagnostic_log(message):
-    try:
-        path = _diagnostic_log_path()
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        stamp = datetime.now().isoformat(timespec="seconds")
-        with open(path, "a", encoding="utf-8") as handle:
-            handle.write(f"{stamp} {message}\n")
-    except Exception:
-        pass
 
 
 try:
@@ -39,7 +19,6 @@ try:
     gi.require_version("IBus", "1.0")
     from gi.repository import GLib, IBus
 except Exception as exc:  # pragma: no cover - depends on distro packages
-    _diagnostic_log(f"IBus backend dependency import failed: {exc!r}")
     print(
         "Entropy IBus backend requires python3-gi and gir1.2-ibus-1.0: "
         f"{exc}",
@@ -445,25 +424,17 @@ class EntropyEngine(IBus.Engine):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._text_expander = TextExpanderRuntime()
-        _diagnostic_log("IBus engine instance created")
 
     def do_process_key_event(self, keyval, keycode, state):
         base_keycode, source = _transport_keycode_from_event(keyval, keycode)
         if base_keycode is not None:
             modifiers = _transport_modifiers(state)
             symbol = SMART_SYMBOLS.get((base_keycode, modifiers))
-            release = bool(state & IBus.ModifierType.RELEASE_MASK)
-            _diagnostic_log(
-                "transport key "
-                f"keyval=0x{int(keyval):x} keycode={keycode} state=0x{int(state):x} "
-                f"source={source} base=0x{base_keycode:x} modifiers=0x{modifiers:x} "
-                f"release={release} matched={symbol is not None}"
-            )
+            del source
             if symbol is not None:
                 # Commit text on key-down only.
                 if not (state & IBus.ModifierType.RELEASE_MASK):
                     self.commit_text(IBus.Text.new_from_string(symbol))
-                    _diagnostic_log(f"committed symbol {symbol!r}")
             return True
 
         return self._process_text_expander_key(keyval, keycode, state)
@@ -582,34 +553,29 @@ class EntropyEngineFactory(IBus.Factory):
 
     def do_create_engine(self, engine_name):
         if engine_name not in ENGINE_NAMES:
-            _diagnostic_log(f"ignored unknown engine request {engine_name!r}")
             return None
         self._next_engine_id += 1
         path = f"/org/freedesktop/IBus/Entropy/Engine/{self._next_engine_id}"
         engine = EntropyEngine(connection=self._bus.get_connection(), object_path=path)
         self._engines.append(engine)
-        _diagnostic_log(f"created engine {engine_name!r} at {path}")
         return engine
 
 
 def main():
     if len(sys.argv) > 1 and sys.argv[1] == "--entropy-check":
-        _diagnostic_log("IBus backend dependency check ok")
-        print(f"Entropy IBus backend dependencies ok; log={_diagnostic_log_path()}")
+        print("Entropy IBus backend dependencies ok")
         return 0
 
-    _diagnostic_log("IBus backend starting")
     IBus.init()
     bus = IBus.Bus()
     if not bus.is_connected():
-        _diagnostic_log("IBus backend could not connect to ibus-daemon")
         print("Entropy IBus backend could not connect to ibus-daemon", file=sys.stderr)
         return 1
 
     loop = GLib.MainLoop()
     bus.connect(
         "disconnected",
-        lambda *_args: (_diagnostic_log("IBus backend disconnected"), loop.quit()),
+        lambda *_args: loop.quit(),
     )
     EntropyEngineFactory(bus)
 
@@ -637,18 +603,16 @@ def main():
         )
     bus.register_component(component)
     bus.request_name("org.freedesktop.IBus.Entropy", 0)
-    _diagnostic_log("IBus backend registered component and requested bus name")
 
     signal.signal(
         signal.SIGINT,
-        lambda *_args: (_diagnostic_log("IBus backend got SIGINT"), loop.quit()),
+        lambda *_args: loop.quit(),
     )
     signal.signal(
         signal.SIGTERM,
-        lambda *_args: (_diagnostic_log("IBus backend got SIGTERM"), loop.quit()),
+        lambda *_args: loop.quit(),
     )
     loop.run()
-    _diagnostic_log("IBus backend stopped")
     return 0
 
 

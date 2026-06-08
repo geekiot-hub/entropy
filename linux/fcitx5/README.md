@@ -35,4 +35,4 @@ The install script restarts Fcitx5 automatically when the `fcitx5` command is av
 - Commits the same Unicode symbols/Cyrillic letters as Smart Input
 - Ignores all ordinary typing
 - Works through the Fcitx5 input-method stack, including Wayland sessions supported by Fcitx5
-- Writes addon lifecycle and `F13..F24` transport diagnostics to `~/.cache/entropy/fcitx5.log`
+- Does not log keyboard input
