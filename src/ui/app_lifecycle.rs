@@ -613,7 +613,7 @@ impl eframe::App for EntropyApp {
         if self.keycode_picker.open {
             let screen_rect = ctx.screen_rect();
             egui::Area::new("window_backdrop".into())
-                .order(egui::Order::Foreground)
+                .order(egui::Order::Middle)
                 .fixed_pos(screen_rect.min)
                 .show(ctx, |ui| {
                     let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, screen_rect.size());
