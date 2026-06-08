@@ -6,22 +6,63 @@ fn vial_cache_dir() -> Option<std::path::PathBuf> {
     Some(dir)
 }
 
-fn cached_vial_definition_path(keyboard_id: u64) -> Option<std::path::PathBuf> {
-    Some(vial_cache_dir()?.join(format!("definition_{keyboard_id:016x}.json")))
+fn cache_component(value: &str) -> String {
+    let mut component = String::with_capacity(value.len());
+    let mut previous_was_sep = false;
+    for ch in value.chars().flat_map(char::to_lowercase) {
+        if ch.is_ascii_alphanumeric() {
+            component.push(ch);
+            previous_was_sep = false;
+        } else if !previous_was_sep && !component.is_empty() {
+            component.push('-');
+            previous_was_sep = true;
+        }
+    }
+    while component.ends_with('-') {
+        component.pop();
+    }
+    if component.is_empty() {
+        "unknown".to_owned()
+    } else {
+        component
+    }
 }
 
-fn cached_qmk_settings_path(keyboard_id: u64) -> Option<std::path::PathBuf> {
-    Some(vial_cache_dir()?.join(format!("qmk_settings_{keyboard_id:016x}.json")))
+fn device_cache_key(device: &crate::device::Device, keyboard_id: u64) -> String {
+    // RMK boards can report the same Vial keyboard id across different layouts.
+    // Keep the cache tied to the concrete HID identity so one board's layout
+    // definition cannot be reused for another board.
+    let mut parts = vec![
+        format!("{keyboard_id:016x}"),
+        format!("{:04x}", device.vendor_id),
+        format!("{:04x}", device.product_id),
+        cache_component(&device.name),
+    ];
+    if !device.manufacturer.trim().is_empty() {
+        parts.push(cache_component(&device.manufacturer));
+    }
+    if !device.serial_number.trim().is_empty() {
+        parts.push(cache_component(&device.serial_number));
+    }
+    parts.join("_")
 }
 
-fn load_cached_vial_definition(keyboard_id: u64) -> Option<serde_json::Value> {
-    let path = cached_vial_definition_path(keyboard_id)?;
+fn cached_vial_definition_path(cache_key: &str) -> Option<std::path::PathBuf> {
+    Some(vial_cache_dir()?.join(format!("definition_{cache_key}.json")))
+}
+
+fn cached_qmk_settings_path(cache_key: &str) -> Option<std::path::PathBuf> {
+    Some(vial_cache_dir()?.join(format!("qmk_settings_{cache_key}.json")))
+}
+
+fn load_cached_vial_definition(cache_key: &str) -> Option<serde_json::Value> {
+    let path = cached_vial_definition_path(cache_key)?;
     let text = std::fs::read_to_string(path).ok()?;
     serde_json::from_str(&text).ok()
 }
 
-fn save_cached_vial_definition(keyboard_id: u64, json: &serde_json::Value) {
-    let Some(path) = cached_vial_definition_path(keyboard_id) else {
+fn save_cached_vial_definition(cache_key: &str, json: &serde_json::Value) {
+    let Some(path) = cached_vial_definition_path(cache_key) else {
         return;
     };
     match serde_json::to_vec(json) {
@@ -34,14 +75,14 @@ fn save_cached_vial_definition(keyboard_id: u64, json: &serde_json::Value) {
     }
 }
 
-fn load_cached_qmk_settings(keyboard_id: u64) -> Option<Vec<u16>> {
-    let path = cached_qmk_settings_path(keyboard_id)?;
+fn load_cached_qmk_settings(cache_key: &str) -> Option<Vec<u16>> {
+    let path = cached_qmk_settings_path(cache_key)?;
     let text = std::fs::read_to_string(path).ok()?;
     serde_json::from_str(&text).ok()
 }
 
-fn save_cached_qmk_settings(keyboard_id: u64, settings: &[u16]) {
-    let Some(path) = cached_qmk_settings_path(keyboard_id) else {
+fn save_cached_qmk_settings(cache_key: &str, settings: &[u16]) {
+    let Some(path) = cached_qmk_settings_path(cache_key) else {
         return;
     };
     match serde_json::to_vec(settings) {
@@ -147,6 +188,7 @@ impl EntropyApp {
                     .get_keyboard_id()
                     .map_err(|e| format!("Vial keyboard id read failed: {e}"))?;
                 log::info!("Vial protocol: {vial_protocol}, keyboard id: {keyboard_id:016X}");
+                let cache_key = device_cache_key(&dev, keyboard_id);
                 if ![-1i32, 9].contains(&(via_protocol as i32)) {
                     return Err(format!("Unsupported VIA protocol version: {via_protocol}"));
                 }
@@ -158,33 +200,33 @@ impl EntropyApp {
 
                 progress("Reading Vial layout definition…");
                 log::info!("Getting layout JSON…");
-                let json = if let Some(cached) = load_cached_vial_definition(keyboard_id) {
+                let json = if let Some(cached) = load_cached_vial_definition(&cache_key) {
                     log::info!(
-                        "Loaded Vial definition from cache for keyboard id {keyboard_id:016X}"
+                        "Loaded Vial definition from cache for keyboard id {keyboard_id:016X}, key {cache_key}"
                     );
                     cached
                 } else {
                     let json = dev_conn
                         .get_layout_json()
                         .map_err(|e| format!("Layout read failed: {e}"))?;
-                    save_cached_vial_definition(keyboard_id, &json);
+                    save_cached_vial_definition(&cache_key, &json);
                     json
                 };
 
                 let touchpad_settings_in_definition =
                     Self::layout_json_has_touchpad_settings(&json);
                 let supported_qmk_settings = if vial_protocol >= 4 {
-                    if let Some(cached) = load_cached_qmk_settings(keyboard_id) {
+                    if let Some(cached) = load_cached_qmk_settings(&cache_key) {
                         log::info!(
-                            "Loaded {} QMK settings from cache for keyboard id {keyboard_id:016X}",
-                            cached.len()
+                            "Loaded {} QMK settings from cache for keyboard id {keyboard_id:016X}, key {cache_key}",
+                            cached.len(),
                         );
                         cached
                     } else {
                         progress("Querying QMK settings…");
                         match dev_conn.query_qmk_settings() {
                             Ok(settings) => {
-                                save_cached_qmk_settings(keyboard_id, &settings);
+                                save_cached_qmk_settings(&cache_key, &settings);
                                 settings
                             }
                             Err(e) => {
