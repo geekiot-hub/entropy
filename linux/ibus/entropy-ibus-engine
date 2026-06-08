@@ -118,6 +118,8 @@ KC_F13 = 0x0068
 MOD_CTRL = 0x0100
 MOD_SHIFT = 0x0200
 MOD_ALT = 0x0400
+EVDEV_F13_KEYCODE = 183
+XKB_F13_KEYCODE = EVDEV_F13_KEYCODE + 8
 
 
 def _symbol_entries():
@@ -417,6 +419,17 @@ def _transport_keycode_from_keyval(keyval):
     return None
 
 
+def _transport_keycode_from_event(keyval, keycode):
+    by_keyval = _transport_keycode_from_keyval(keyval)
+    if by_keyval is not None:
+        return by_keyval, "keyval"
+    if EVDEV_F13_KEYCODE <= keycode <= EVDEV_F13_KEYCODE + 11:
+        return KC_F13 + (keycode - EVDEV_F13_KEYCODE), "evdev-keycode"
+    if XKB_F13_KEYCODE <= keycode <= XKB_F13_KEYCODE + 11:
+        return KC_F13 + (keycode - XKB_F13_KEYCODE), "xkb-keycode"
+    return None, None
+
+
 def _transport_modifiers(state):
     modifiers = 0
     if state & IBus.ModifierType.CONTROL_MASK:
@@ -435,7 +448,7 @@ class EntropyEngine(IBus.Engine):
         _diagnostic_log("IBus engine instance created")
 
     def do_process_key_event(self, keyval, keycode, state):
-        base_keycode = _transport_keycode_from_keyval(keyval)
+        base_keycode, source = _transport_keycode_from_event(keyval, keycode)
         if base_keycode is not None:
             modifiers = _transport_modifiers(state)
             symbol = SMART_SYMBOLS.get((base_keycode, modifiers))
@@ -443,7 +456,7 @@ class EntropyEngine(IBus.Engine):
             _diagnostic_log(
                 "transport key "
                 f"keyval=0x{int(keyval):x} keycode={keycode} state=0x{int(state):x} "
-                f"base=0x{base_keycode:x} modifiers=0x{modifiers:x} "
+                f"source={source} base=0x{base_keycode:x} modifiers=0x{modifiers:x} "
                 f"release={release} matched={symbol is not None}"
             )
             if symbol is not None:
@@ -453,6 +466,13 @@ class EntropyEngine(IBus.Engine):
                     self.commit_text(IBus.Text.new_from_string(symbol))
                     _diagnostic_log(f"committed symbol {symbol!r}")
                 return True
+
+        if _should_log_unhandled_key(keyval, state):
+            _diagnostic_log(
+                "unhandled non-text key "
+                f"keyval=0x{int(keyval):x} keycode={keycode} state=0x{int(state):x} "
+                f"name={_keyval_name(keyval)!r}"
+            )
 
         return self._process_text_expander_key(keyval, keycode, state)
 
@@ -503,6 +523,22 @@ def _text_expander_reset_key(keyval):
         IBus.KEY_Right,
         IBus.KEY_Down,
     }
+
+
+def _keyval_name(keyval):
+    try:
+        name = IBus.keyval_name(keyval)
+        return name or ""
+    except Exception:
+        return ""
+
+
+def _should_log_unhandled_key(keyval, state):
+    if state & IBus.ModifierType.RELEASE_MASK:
+        return False
+    if keyval == 0 or keyval >= 0xFF00:
+        return True
+    return bool(_transport_modifiers(state))
 
 
 def _text_expander_modifier_active(state):
