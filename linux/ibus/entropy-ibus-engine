@@ -99,7 +99,18 @@ MOD_SHIFT = 0x0200
 MOD_ALT = 0x0400
 EVDEV_F13_KEYCODE = 183
 XKB_F13_KEYCODE = EVDEV_F13_KEYCODE + 8
-EVDEV_BACKSPACE_KEYCODE = 14
+TERMINAL_CLIENT_MARKERS = (
+    "blackbox",
+    "console",
+    "ghostty",
+    "kgx",
+    "kitty",
+    "ptyxis",
+    "terminal",
+    "tilix",
+    "vte",
+    "wezterm",
+)
 
 
 def _symbol_entries():
@@ -425,6 +436,24 @@ class EntropyEngine(IBus.Engine):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._text_expander = TextExpanderRuntime()
+        self._client = ""
+        self._client_capabilities = 0
+        self._input_purpose = IBus.InputPurpose.FREE_FORM
+
+    def do_focus_in_id(self, object_path, client):
+        del object_path
+        self._client = str(client or "").lower()
+
+    def do_focus_out_id(self, object_path):
+        del object_path
+        self._client = ""
+
+    def do_set_capabilities(self, caps):
+        self._client_capabilities = int(caps)
+
+    def do_set_content_type(self, purpose, hints):
+        del hints
+        self._input_purpose = purpose
 
     def do_process_key_event(self, keyval, keycode, state):
         base_keycode, source = _transport_keycode_from_event(keyval, keycode)
@@ -468,12 +497,20 @@ class EntropyEngine(IBus.Engine):
 
         typed_trigger_chars, replacement, cursor_back_chars = expansion
         previous_chars = max(typed_trigger_chars - 1, 0)
-        for _ in range(previous_chars):
-            self.forward_key_event(IBus.KEY_BackSpace, EVDEV_BACKSPACE_KEYCODE, 0)
-        self.commit_text(IBus.Text.new_from_string(replacement))
+        if self._is_terminal_context() and previous_chars:
+            self.commit_text(IBus.Text.new_from_string("\x7f" * previous_chars + replacement))
+        else:
+            if previous_chars:
+                self.delete_surrounding_text(-previous_chars, previous_chars)
+            self.commit_text(IBus.Text.new_from_string(replacement))
         for _ in range(cursor_back_chars):
             self.forward_key_event(IBus.KEY_Left, 0, 0)
         return True
+
+    def _is_terminal_context(self):
+        if self._input_purpose == IBus.InputPurpose.TERMINAL:
+            return True
+        return any(marker in self._client for marker in TERMINAL_CLIENT_MARKERS)
 
 
 def _text_expander_reset_key(keyval):

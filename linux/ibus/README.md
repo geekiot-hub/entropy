@@ -42,7 +42,7 @@ Required distro packages are usually:
 - Loads Text Expander settings from `~/.config/entropy/app_settings.json`
 - Loads primary and selected extra rules from `~/.config/entropy/text_expander_rules/`
 - Passes normal typing through unless a trigger matches
-- On match, swallows the last trigger key, removes the already typed trigger text with Backspace key events, and commits the replacement
+- On match, swallows the last trigger key, removes the already typed trigger text through surrounding-text APIs in GUI clients, uses terminal erase bytes in terminal clients, and commits the replacement
 - Does not log keyboard input
 
 ## Scope
