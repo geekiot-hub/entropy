@@ -460,19 +460,11 @@ class EntropyEngine(IBus.Engine):
                 f"release={release} matched={symbol is not None}"
             )
             if symbol is not None:
-                # Swallow both key-down and key-up for handled transport keys.
                 # Commit text on key-down only.
                 if not (state & IBus.ModifierType.RELEASE_MASK):
                     self.commit_text(IBus.Text.new_from_string(symbol))
                     _diagnostic_log(f"committed symbol {symbol!r}")
-                return True
-
-        if _should_log_unhandled_key(keyval, state):
-            _diagnostic_log(
-                "unhandled non-text key "
-                f"keyval=0x{int(keyval):x} keycode={keycode} state=0x{int(state):x} "
-                f"name={_keyval_name(keyval)!r}"
-            )
+            return True
 
         return self._process_text_expander_key(keyval, keycode, state)
 
@@ -523,22 +515,6 @@ def _text_expander_reset_key(keyval):
         IBus.KEY_Right,
         IBus.KEY_Down,
     }
-
-
-def _keyval_name(keyval):
-    try:
-        name = IBus.keyval_name(keyval)
-        return name or ""
-    except Exception:
-        return ""
-
-
-def _should_log_unhandled_key(keyval, state):
-    if state & IBus.ModifierType.RELEASE_MASK:
-        return False
-    if keyval == 0 or keyval >= 0xFF00:
-        return True
-    return bool(_transport_modifiers(state))
 
 
 def _text_expander_modifier_active(state):
