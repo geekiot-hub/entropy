@@ -590,7 +590,7 @@ fn linux_close_to_tray_prompt_copy(
     match (lang, input_method_backend) {
         (crate::i18n::Language::Russian, true) => (
             "Закрыть Entropy?",
-            "IBus/Fcitx Text Expander продолжит работать после закрытия Entropy",
+            "Text Expander продолжит работать через IBus/Fcitx после закрытия Entropy",
             "Запомнить выбор",
             "Закрыть",
             "В фон",
@@ -598,7 +598,7 @@ fn linux_close_to_tray_prompt_copy(
         ),
         (crate::i18n::Language::English, true) => (
             "Close Entropy?",
-            "IBus/Fcitx Text Expander will keep working after Entropy is closed",
+            "Text Expander keeps running through IBus/Fcitx after Entropy closes",
             "Remember my choice",
             "Close",
             "Keep running",
