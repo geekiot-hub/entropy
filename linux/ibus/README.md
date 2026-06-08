@@ -44,6 +44,7 @@ Required distro packages are usually:
 - Passes normal typing through unless a trigger matches
 - On match, swallows the last trigger key, removes the already typed trigger text through IBus surrounding-text APIs, and commits the replacement
 - Does not log ordinary text input
+- Writes lifecycle and `F13..F24` transport diagnostics to `~/.cache/entropy/ibus.log`
 
 ## Scope
 

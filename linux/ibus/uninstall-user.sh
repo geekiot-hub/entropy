@@ -19,44 +19,6 @@ else
     printf '%s\n' "Entropy IBus engine files were not installed: $lib_dir"
 fi
 
-if command -v gsettings >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1; then
-    current_sources=$(gsettings get org.gnome.desktop.input-sources sources 2>/dev/null || true)
-    if [ -n "$current_sources" ]; then
-        new_sources=$(CURRENT_SOURCES="$current_sources" python3 - <<'PY'
-import ast
-import os
-
-raw_sources = os.environ.get("CURRENT_SOURCES", "")
-try:
-    sources = ast.literal_eval(raw_sources)
-except Exception:
-    print(raw_sources)
-    raise SystemExit(0)
-
-filtered = [
-    source
-    for source in sources
-    if not (
-        isinstance(source, tuple)
-        and len(source) == 2
-        and source[0] == "ibus"
-        and isinstance(source[1], str)
-        and source[1].startswith("entropy-universal-symbols")
-    )
-]
-print(repr(filtered))
-PY
-)
-        if [ "$new_sources" != "$current_sources" ]; then
-            if gsettings set org.gnome.desktop.input-sources sources "$new_sources" >/dev/null 2>&1; then
-                printf '%s\n' "Removed Entropy input sources from GNOME settings."
-            else
-                printf '%s\n' "Could not update GNOME input sources. Remove Entropy sources in Settings manually."
-            fi
-        fi
-    fi
-fi
-
 if command -v ibus >/dev/null 2>&1; then
     ibus_component_path="$component_dir"
     if [ -n "${IBUS_COMPONENT_PATH:-}" ]; then
