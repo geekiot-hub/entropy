@@ -13,12 +13,33 @@ import signal
 import sys
 from datetime import datetime
 
+
+def _cache_home():
+    return os.environ.get("XDG_CACHE_HOME") or os.path.join(os.path.expanduser("~"), ".cache")
+
+
+def _diagnostic_log_path():
+    return os.path.join(_cache_home(), "entropy", "ibus.log")
+
+
+def _diagnostic_log(message):
+    try:
+        path = _diagnostic_log_path()
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        stamp = datetime.now().isoformat(timespec="seconds")
+        with open(path, "a", encoding="utf-8") as handle:
+            handle.write(f"{stamp} {message}\n")
+    except Exception:
+        pass
+
+
 try:
     import gi
 
     gi.require_version("IBus", "1.0")
     from gi.repository import GLib, IBus
 except Exception as exc:  # pragma: no cover - depends on distro packages
+    _diagnostic_log(f"IBus backend dependency import failed: {exc!r}")
     print(
         "Entropy IBus backend requires python3-gi and gir1.2-ibus-1.0: "
         f"{exc}",
@@ -137,25 +158,6 @@ def _symbol_entries():
 
 
 SMART_SYMBOLS = {(keycode, modifiers): symbol for keycode, modifiers, symbol in _symbol_entries()}
-
-
-def _cache_home():
-    return os.environ.get("XDG_CACHE_HOME") or os.path.join(os.path.expanduser("~"), ".cache")
-
-
-def _diagnostic_log_path():
-    return os.path.join(_cache_home(), "entropy", "ibus.log")
-
-
-def _diagnostic_log(message):
-    try:
-        path = _diagnostic_log_path()
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        stamp = datetime.now().isoformat(timespec="seconds")
-        with open(path, "a", encoding="utf-8") as handle:
-            handle.write(f"{stamp} {message}\n")
-    except Exception:
-        pass
 
 
 def _config_home():
@@ -579,6 +581,11 @@ class EntropyEngineFactory(IBus.Factory):
 
 
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] == "--entropy-check":
+        _diagnostic_log("IBus backend dependency check ok")
+        print(f"Entropy IBus backend dependencies ok; log={_diagnostic_log_path()}")
+        return 0
+
     _diagnostic_log("IBus backend starting")
     IBus.init()
     bus = IBus.Bus()

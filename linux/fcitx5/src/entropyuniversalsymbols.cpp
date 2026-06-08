@@ -46,9 +46,23 @@ std::string entropyCacheDir() {
     return "/tmp/entropy";
 }
 
+void ensureDirectory(const std::string &dir) {
+    if (dir.empty()) {
+        return;
+    }
+    std::string current;
+    for (char ch : dir) {
+        current.push_back(ch);
+        if (ch == '/' && current.size() > 1) {
+            mkdir(current.c_str(), 0755);
+        }
+    }
+    mkdir(current.c_str(), 0755);
+}
+
 void diagnosticLog(const std::string &message) {
     const auto dir = entropyCacheDir();
-    mkdir(dir.c_str(), 0755);
+    ensureDirectory(dir);
     std::ofstream out(dir + "/fcitx5.log", std::ios::app);
     if (!out) {
         return;
