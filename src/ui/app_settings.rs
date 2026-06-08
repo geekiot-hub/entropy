@@ -23,12 +23,11 @@ impl EntropyApp {
                 );
                 ui.add_space(metrics.value(24.0));
 
-                const TOTAL_APP_SETTINGS_ROWS: usize = 9;
                 let list = allocate_adaptive_settings_list_viewport(
                     ui,
                     "app_settings",
                     metrics,
-                    TOTAL_APP_SETTINGS_ROWS,
+                    total_app_settings_rows(),
                     metrics.value(44.0),
                 );
 
@@ -118,6 +117,20 @@ impl EntropyApp {
         let tooltip = |text: &'static str| (!suppress_tooltips).then_some(text);
 
         for row_idx in row_range {
+            #[cfg(target_os = "linux")]
+            if row_idx == 4 {
+                self.draw_linux_vial_udev_rules_row(
+                    ui,
+                    content_width,
+                    row_height,
+                    metrics,
+                    dark,
+                    suppress_tooltips,
+                );
+                continue;
+            }
+
+            let row_idx = app_settings_base_row_index(row_idx);
             match row_idx {
                 0 => {
                     let mut selected_language = self.app_settings.language;
@@ -520,4 +533,184 @@ impl EntropyApp {
             }
         }
     }
+
+    #[cfg(target_os = "linux")]
+    fn draw_linux_vial_udev_rules_row(
+        &mut self,
+        ui: &mut egui::Ui,
+        content_width: f32,
+        row_height: f32,
+        metrics: crate::ui_style::ResponsiveMetrics,
+        dark: bool,
+        suppress_tooltips: bool,
+    ) {
+        let lang = self.app_settings.language;
+        let tooltip = (!suppress_tooltips)
+            .then_some(crate::i18n::tr_catalog(lang, "ui.vial_udev_rules_tooltip"));
+
+        crate::ui_style::settings_list_row_with_tooltip(
+            ui,
+            content_width,
+            row_height,
+            crate::i18n::tr_catalog(lang, "ui.vial_udev_rules_label"),
+            true,
+            tooltip,
+            metrics.settings_control_width(),
+            |ui| {
+                if linux_vial_udev_rules_installed() {
+                    draw_app_settings_value(
+                        ui,
+                        metrics,
+                        crate::i18n::tr_catalog(lang, "ui.vial_udev_rules_installed"),
+                        app_muted_text(dark),
+                    );
+                } else if crate::ui_style::modern_button(
+                    ui,
+                    crate::i18n::tr_catalog(lang, "ui.install_vial_udev_rules"),
+                    metrics.size(168.0, 34.0),
+                    true,
+                )
+                .clicked()
+                {
+                    self.run_linux_vial_udev_rules_install();
+                }
+            },
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    fn run_linux_vial_udev_rules_install(&mut self) {
+        let script = "linux/udev/install-vial-rules.sh";
+        let Some(script_path) = linux_setup_script(script) else {
+            self.status_msg = format!("Could not find {script}; run it from the Entropy folder");
+            return;
+        };
+
+        let output = std::process::Command::new("sh").arg(&script_path).output();
+        self.status_msg = match output {
+            Ok(output) if output.status.success() => crate::i18n::tr_catalog(
+                self.app_settings.language,
+                "ui.vial_udev_rules_installed_status",
+            )
+            .to_owned(),
+            Ok(output) => {
+                let details = command_output_summary(&output.stderr, &output.stdout);
+                if details.is_empty() {
+                    format!("Vial udev rules install failed: {}", output.status)
+                } else {
+                    format!("Vial udev rules install failed: {details}")
+                }
+            }
+            Err(err) => format!("Could not run {}: {err}", script_path.display()),
+        };
+    }
+}
+
+fn total_app_settings_rows() -> usize {
+    let rows = 9;
+    #[cfg(target_os = "linux")]
+    {
+        rows + 1
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        rows
+    }
+}
+
+fn app_settings_base_row_index(row_idx: usize) -> usize {
+    #[cfg(target_os = "linux")]
+    {
+        if row_idx > 4 {
+            return row_idx - 1;
+        }
+    }
+    row_idx
+}
+
+#[cfg(target_os = "linux")]
+fn draw_app_settings_value(
+    ui: &mut egui::Ui,
+    metrics: crate::ui_style::ResponsiveMetrics,
+    text: &str,
+    color: Color32,
+) {
+    let width = metrics.settings_control_width();
+    ui.allocate_ui_with_layout(
+        metrics.size(width, 34.0),
+        egui::Layout::right_to_left(egui::Align::Center),
+        |ui| {
+            ui.add_sized(
+                metrics.size(width, 34.0),
+                egui::Label::new(RichText::new(text).size(metrics.value(12.0)).color(color))
+                    .wrap()
+                    .halign(egui::Align::RIGHT),
+            );
+        },
+    );
+}
+
+#[cfg(target_os = "linux")]
+fn linux_vial_udev_rules_installed() -> bool {
+    const RULE_MARKER: &str = r#"ATTRS{serial}=="*vial:f64c2b3c*""#;
+    const RULE_PATHS: [&str; 4] = [
+        "/etc/udev/rules.d/59-vial.rules",
+        "/run/udev/rules.d/59-vial.rules",
+        "/usr/lib/udev/rules.d/59-vial.rules",
+        "/lib/udev/rules.d/59-vial.rules",
+    ];
+
+    RULE_PATHS.iter().any(|path| {
+        std::fs::read_to_string(path)
+            .map(|contents| {
+                contents.contains(RULE_MARKER) && contents.contains("SUBSYSTEM==\"hidraw\"")
+            })
+            .unwrap_or(false)
+    })
+}
+
+#[cfg(target_os = "linux")]
+fn command_output_summary(primary: &[u8], fallback: &[u8]) -> String {
+    let text = if primary.is_empty() {
+        fallback
+    } else {
+        primary
+    };
+    String::from_utf8_lossy(text)
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .rev()
+        .take(2)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+#[cfg(target_os = "linux")]
+fn linux_setup_script(script: &str) -> Option<std::path::PathBuf> {
+    let relative = std::path::Path::new(script);
+    if relative.exists() {
+        return Some(relative.to_path_buf());
+    }
+    if let Some(appdir) = std::env::var_os("APPDIR") {
+        let path = std::path::PathBuf::from(appdir).join(script);
+        if path.exists() {
+            return Some(path);
+        }
+    }
+    std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|dir| dir.to_path_buf()))
+        .and_then(|dir| {
+            for ancestor in dir.ancestors() {
+                let path = ancestor.join(script);
+                if path.exists() {
+                    return Some(path);
+                }
+            }
+            None
+        })
 }
