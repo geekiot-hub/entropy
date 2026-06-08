@@ -99,6 +99,7 @@ MOD_SHIFT = 0x0200
 MOD_ALT = 0x0400
 EVDEV_F13_KEYCODE = 183
 XKB_F13_KEYCODE = EVDEV_F13_KEYCODE + 8
+EVDEV_BACKSPACE_KEYCODE = 14
 
 
 def _symbol_entries():
@@ -468,7 +469,7 @@ class EntropyEngine(IBus.Engine):
         typed_trigger_chars, replacement, cursor_back_chars = expansion
         previous_chars = max(typed_trigger_chars - 1, 0)
         for _ in range(previous_chars):
-            self.forward_key_event(IBus.KEY_BackSpace, 0, 0)
+            self.forward_key_event(IBus.KEY_BackSpace, EVDEV_BACKSPACE_KEYCODE, 0)
         self.commit_text(IBus.Text.new_from_string(replacement))
         for _ in range(cursor_back_chars):
             self.forward_key_event(IBus.KEY_Left, 0, 0)
