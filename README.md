@@ -32,6 +32,19 @@ cargo run                    # desktop
 cargo build --release        # release binary
 ```
 
+### macOS app bundle
+
+Build an app bundle and DMG on macOS:
+
+```bash
+scripts/build_macos_app.sh
+open dist/macos/Entropy.app
+```
+
+The script creates `dist/macos/Entropy.app`, a zipped app bundle, and a DMG
+when `hdiutil` is available. For Vial/HID access on macOS, Linux udev rules are
+not needed.
+
 WASM build coming soon.
 
 ## License

@@ -23,8 +23,8 @@ jobs:
             artifact_name: entropy.exe
             asset_name: entropy-windows-x86_64.exe
           - os: macos-latest
-            artifact_name: entropy
-            asset_name: entropy-macos-aarch64
+            artifact_name: dist/macos/*.dmg
+            asset_name: entropy-macos
 
     steps:
       - uses: actions/checkout@v4
@@ -50,18 +50,24 @@ jobs:
             libgtk-3-dev
 
       - name: Build
+        if: matrix.os != 'macos-latest'
         run: cargo build --release
 
       - name: Rename binary
+        if: matrix.os != 'macos-latest'
         shell: bash
         run: |
           cp target/release/${{ matrix.artifact_name }} ${{ matrix.asset_name }}
+
+      - name: Build macOS app bundle and DMG
+        if: matrix.os == 'macos-latest'
+        run: scripts/build_macos_app.sh
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset_name }}
-          path: ${{ matrix.asset_name }}
+          path: ${{ matrix.artifact_name }}
 
   release:
     name: Create Release
