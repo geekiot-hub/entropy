@@ -459,7 +459,43 @@ impl EntropyApp {
             }
             true
         }
-        #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+        #[cfg(target_os = "macos")]
+        {
+            let Some(launch_agents_dir) =
+                dirs::home_dir().map(|dir| dir.join("Library").join("LaunchAgents"))
+            else {
+                return false;
+            };
+            let plist_path = launch_agents_dir.join("com.ergohaven.entropy.plist");
+            if !enabled {
+                return match std::fs::remove_file(&plist_path) {
+                    Ok(()) => true,
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => true,
+                    Err(e) => {
+                        log::warn!("failed to remove macOS launch agent: {e}");
+                        false
+                    }
+                };
+            }
+
+            let Ok(exe) = std::env::current_exe() else {
+                return false;
+            };
+            let program_arguments = macos_launch_agent_program_arguments(&exe);
+
+            if let Err(e) = std::fs::create_dir_all(&launch_agents_dir) {
+                log::warn!("failed to create macOS LaunchAgents directory: {e}");
+                return false;
+            }
+
+            let plist = macos_launch_agent_plist(&program_arguments);
+            if let Err(e) = std::fs::write(&plist_path, plist) {
+                log::warn!("failed to write macOS launch agent: {e}");
+                return false;
+            }
+            true
+        }
+        #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
         {
             let _ = enabled;
             false
@@ -573,6 +609,63 @@ fn desktop_exec_arg(value: &str) -> String {
         .replace('$', "\\$")
         .replace('%', "%%");
     format!("\"{escaped}\"")
+}
+
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn macos_launch_agent_program_arguments(exe: &std::path::Path) -> Vec<String> {
+    if let Some(app_bundle) = exe.ancestors().find(|path| {
+        path.extension()
+            .is_some_and(|ext| ext == std::ffi::OsStr::new("app"))
+    }) {
+        return vec![
+            "/usr/bin/open".to_string(),
+            "-n".to_string(),
+            app_bundle.to_string_lossy().into_owned(),
+        ];
+    }
+
+    vec![exe.to_string_lossy().into_owned()]
+}
+
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn macos_launch_agent_plist(program_arguments: &[String]) -> String {
+    let mut arguments_xml = String::new();
+    for argument in program_arguments {
+        arguments_xml.push_str("        <string>");
+        arguments_xml.push_str(&plist_xml_escape(argument));
+        arguments_xml.push_str("</string>\n");
+    }
+
+    format!(
+        concat!(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n",
+            "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" ",
+            "\"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n",
+            "<plist version=\"1.0\">\n",
+            "<dict>\n",
+            "    <key>Label</key>\n",
+            "    <string>com.ergohaven.entropy</string>\n",
+            "    <key>ProgramArguments</key>\n",
+            "    <array>\n",
+            "{arguments_xml}",
+            "    </array>\n",
+            "    <key>RunAtLoad</key>\n",
+            "    <true/>\n",
+            "</dict>\n",
+            "</plist>\n"
+        ),
+        arguments_xml = arguments_xml
+    )
+}
+
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn plist_xml_escape(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&apos;")
 }
 
 #[cfg(target_os = "linux")]
