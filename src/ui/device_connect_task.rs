@@ -115,6 +115,7 @@ impl EntropyApp {
         self.combo_visible_count = 1;
         self.combo_capture_open = false;
         self.combo_capture_keys.clear();
+        self.combo_capture_last_input_at = 0.0;
         self.combo_undo_stack.clear();
         self.combo_pick_target = None;
         self.combo_dirty = false;

@@ -1,6 +1,8 @@
 use super::*;
 
 impl EntropyApp {
+    const COMBO_CAPTURE_AUTO_COMMIT_DELAY: f64 = 0.35;
+
     pub(super) fn draw_combo_settings_page(
         &mut self,
         ui: &mut egui::Ui,
@@ -59,11 +61,13 @@ impl EntropyApp {
         }
         self.combo_capture_open = false;
         self.combo_capture_keys.clear();
+        self.combo_capture_last_input_at = 0.0;
     }
 
     fn cancel_combo_capture(&mut self) {
         self.combo_capture_open = false;
         self.combo_capture_keys.clear();
+        self.combo_capture_last_input_at = 0.0;
     }
 
     fn handle_combo_editor_input(&mut self, ctx: &egui::Context, allow_close: bool) -> bool {
@@ -78,9 +82,11 @@ impl EntropyApp {
         }
 
         if self.combo_capture_open {
+            let now = ctx.input(|i| i.time);
             if ctx.input(|i| i.key_pressed(egui::Key::Enter)) {
                 self.apply_combo_capture();
             } else {
+                let mut captured_key = false;
                 for event in ctx.input(|i| i.events.clone()) {
                     if let egui::Event::Key {
                         key,
@@ -97,8 +103,23 @@ impl EntropyApp {
                                 && self.combo_capture_keys.len() < 4
                             {
                                 self.combo_capture_keys.push(kc);
+                                captured_key = true;
                             }
                         }
+                    }
+                }
+                if captured_key {
+                    self.combo_capture_last_input_at = now;
+                }
+
+                if (2..=4).contains(&self.combo_capture_keys.len()) {
+                    ctx.request_repaint_after(std::time::Duration::from_millis(50));
+                    let keys_released = ctx.input(|i| i.keys_down.is_empty());
+                    if keys_released
+                        && now - self.combo_capture_last_input_at
+                            >= Self::COMBO_CAPTURE_AUTO_COMMIT_DELAY
+                    {
+                        self.apply_combo_capture();
                     }
                 }
             }
@@ -431,6 +452,7 @@ impl EntropyApp {
                         if field_resp.clicked() {
                             self.combo_capture_keys.clear();
                             self.combo_capture_open = true;
+                            self.combo_capture_last_input_at = ui.ctx().input(|i| i.time);
                         }
                         if self.combo_capture_open {
                             let clicked_outside_input = ui.ctx().input(|i| {
@@ -468,9 +490,8 @@ impl EntropyApp {
                         );
                         if resp.clicked() {
                             self.combo_pick_target = Some((combo_idx, ComboPickField::Output));
-                            self.keycode_picker.result = None;
-                            self.keycode_picker.selected_tab = KeycodeTab::Basic;
-                            self.keycode_picker.open = true;
+                            self.keycode_picker
+                                .open_regular_key_picker_with_mod_key(true);
                         }
                     },
                 );

@@ -125,6 +125,9 @@ pub struct KeycodePicker {
     pub vial_quantum_pending_mod: Option<u16>,
     pub vial_quantum_pending_mt: Option<u16>,
     pub vial_layer_pending: Option<u16>,
+    pub regular_key_pick: bool,
+    pub regular_key_pick_allow_mod_key: bool,
+    pub regular_mod_key_pick: Option<u16>,
     /// Open macro editor for this macro number (0..15), None = closed
     pub macro_count: usize,
     pub tap_dance_entries: Vec<TapDanceEntry>,
@@ -134,6 +137,8 @@ pub struct KeycodePicker {
     pub tap_dance_dirty: bool,
     /// Which field is being edited: (td_idx, field: 0=tap,1=hold,2=dtap,3=taphold)
     pub td_key_pick: Option<(usize, u8)>,
+    /// Pending tap dance Mod+Key selection: (td_idx, field, modifier base)
+    pub td_mod_key_pick: Option<(usize, u8, u16)>,
     pub macro_inline_selected: Option<u8>,
     /// Macro editor text buffers (one per macro)
     pub macro_texts: Vec<String>,
@@ -222,6 +227,9 @@ impl Default for KeycodePicker {
             vial_quantum_pending_mod: None,
             vial_quantum_pending_mt: None,
             vial_layer_pending: None,
+            regular_key_pick: false,
+            regular_key_pick_allow_mod_key: false,
+            regular_mod_key_pick: None,
             macro_inline_selected: None,
             macro_count: 16,
             tap_dance_entries: vec![],
@@ -230,6 +238,7 @@ impl Default for KeycodePicker {
             tap_dance_editor_open: None,
             tap_dance_dirty: false,
             td_key_pick: None,
+            td_mod_key_pick: None,
             macro_texts: vec![String::new(); 16],
             macro_names: vec![String::new(); 16],
             macro_actions: vec![vec![]; 16],
@@ -285,18 +294,37 @@ impl KeycodePicker {
         }
     }
 
+    pub(crate) fn open_regular_key_picker(&mut self) {
+        self.open_regular_key_picker_with_mod_key(false);
+    }
+
+    pub(crate) fn open_regular_key_picker_with_mod_key(&mut self, allow_mod_key: bool) {
+        self.result = None;
+        self.open = true;
+        self.regular_key_pick = true;
+        self.regular_key_pick_allow_mod_key = allow_mod_key;
+        self.regular_mod_key_pick = None;
+        self.search_query.clear();
+        self.vial_quantum_pending_mod = None;
+        self.vial_quantum_pending_mt = None;
+        self.vial_layer_pending = None;
+    }
+
     pub fn show(&mut self, ctx: &egui::Context) {
         let macro_key_pick_open = self.macro_key_pick.is_some();
+        let regular_key_pick_open = self.regular_key_pick || self.regular_mod_key_pick.is_some();
         let layer_pick_open = self.vial_layer_pending.is_some();
         let pending_key_pick_open =
             self.vial_quantum_pending_mod.is_some() || self.vial_quantum_pending_mt.is_some();
         let tap_dance_editor_open = self.tap_dance_editor_open.is_some();
-        let td_key_pick_open = self.td_key_pick.is_some();
+        let td_key_pick_open = self.td_key_pick.is_some() || self.td_mod_key_pick.is_some();
 
         self.popup_state
             .begin_frame(PopupKey::PickerWindow, self.open);
         self.popup_state
             .begin_frame(PopupKey::MacroKeyPickWindow, macro_key_pick_open);
+        self.popup_state
+            .begin_frame(PopupKey::RegularKeyPickWindow, regular_key_pick_open);
         self.popup_state
             .begin_frame(PopupKey::PickLayerWindow, layer_pick_open);
         self.popup_state
@@ -316,6 +344,11 @@ impl KeycodePicker {
             || self.vial_layer_pending.is_some();
         if has_pending {
             self.show_pending_picker(ctx);
+            return;
+        }
+
+        if self.regular_key_pick {
+            self.show_regular_key_picker(ctx);
             return;
         }
 
@@ -402,19 +435,7 @@ impl KeycodePicker {
                 let key_choices: Vec<&'static crate::keycode::Keycode> = KEYCODES
                     .iter()
                     .filter(|kc| {
-                        kc.value != 0
-                            && kc.value != 0x0001
-                            && !kc.name.starts_with("RGB_")
-                            && matches!(
-                                kc.category,
-                                KeycodeCategory::Basic
-                                    | KeycodeCategory::Function
-                                    | KeycodeCategory::Navigation
-                                    | KeycodeCategory::Media
-                                    | KeycodeCategory::Special
-                            )
-                            && kc.value < 0x0100
-                            && !is_f13_to_f24(kc.value)
+                        is_8bit_tap_key_choice(kc) && !kc.name.starts_with("RGB_")
                     })
                     .collect();
                 egui::ScrollArea::vertical()
@@ -425,7 +446,7 @@ impl KeycodePicker {
                             ui,
                             key_choices,
                             &self.layer_names,
-                            false,
+                            true,
                             self.language,
                             self.key_legend_layout,
                         ) {
@@ -454,6 +475,10 @@ impl KeycodePicker {
 
         // Tap dance key picker
         if let Some((td_idx, field)) = self.td_key_pick {
+            self.show_td_key_picker(ctx, td_idx, field);
+            return;
+        }
+        if let Some((td_idx, field, _base)) = self.td_mod_key_pick {
             self.show_td_key_picker(ctx, td_idx, field);
             return;
         }
@@ -622,6 +647,242 @@ impl KeycodePicker {
         }
     }
 
+    fn show_regular_key_picker(&mut self, ctx: &egui::Context) {
+        let pending_mod_key = self.regular_mod_key_pick;
+        ctx.input(|i| {
+            for event in &i.events {
+                if let egui::Event::Key {
+                    key,
+                    pressed: true,
+                    modifiers,
+                    ..
+                } = event
+                {
+                    if *key == egui::Key::Escape {
+                        if self.regular_mod_key_pick.is_some() {
+                            self.regular_mod_key_pick = None;
+                        } else {
+                            self.regular_key_pick = false;
+                            self.regular_key_pick_allow_mod_key = false;
+                            self.open = false;
+                        }
+                        return;
+                    }
+                    if let Some(qmk) = egui_key_to_qmk(*key, *modifiers) {
+                        if let Some(base) = self.regular_mod_key_pick {
+                            if !modifiers.any() && self.is_regular_key_pick_value(qmk) {
+                                self.finish_regular_key_pick(base | qmk);
+                            }
+                        } else if qmk > 0 && qmk < 0x0100 {
+                            if self.regular_key_pick_allow_mod_key || !modifiers.any() {
+                                if self.is_regular_key_pick_value(qmk) {
+                                    self.finish_regular_key_pick(qmk);
+                                }
+                            }
+                        } else if self.regular_key_pick_allow_mod_key
+                            && qmk >= 0x0100
+                            && qmk < 0x2000
+                            && self.is_regular_key_pick_value(qmk & 0x00FF)
+                        {
+                            self.finish_regular_key_pick(qmk);
+                        }
+                    }
+                }
+            }
+        });
+
+        let mut still_open = true;
+        let popup_size = key_picker_popup_size(ctx);
+        let window_title = if let Some(base) = pending_mod_key {
+            format!(
+                "{}: {}",
+                tr_picker(self.language, "key_picker.pick_modifier_combo_title"),
+                picker_mod_key_label(base)
+            )
+        } else {
+            tr_picker(self.language, "key_picker.pick_key_title").to_string()
+        };
+        crate::ui_style::centered_modal_window(
+            ctx,
+            window_title.as_str(),
+            self.popup_state.id(PopupKey::RegularKeyPickWindow),
+            &mut still_open,
+            popup_size,
+        )
+        .show(ctx, |ui| {
+            apply_picker_button_visuals(ui);
+            crate::ui_style::modal_intro(
+                ui,
+                tr_picker(self.language, "key_picker.press_key_or_click_cancel"),
+            );
+            if pending_mod_key.is_some() {
+                crate::ui_style::modal_hint(ui, tr_picker(self.language, "key_picker.pending_mod_hint"));
+            }
+            ui.add_space(crate::ui_style::modal_space_sm());
+
+            let key_choices = self.regular_key_pick_choices();
+            egui::ScrollArea::vertical()
+                .max_height(key_picker_popup_scroll_height(popup_size))
+                .auto_shrink([false, false])
+                .show(ui, |ui| {
+                    if let Some(base) = pending_mod_key {
+                        if let Some(value) = show_grouped_popup_key_buttons(
+                            ui,
+                            key_choices,
+                            &self.layer_names,
+                            false,
+                            self.language,
+                            self.key_legend_layout,
+                        ) {
+                            self.finish_regular_key_pick(base | value);
+                        }
+                    } else {
+                        self.show_regular_plain_modifier_section(ui);
+
+                        if self.regular_key_pick_allow_mod_key {
+                            self.show_regular_mod_key_section(ui);
+                        }
+
+                        if let Some(value) = show_grouped_popup_key_buttons(
+                            ui,
+                            key_choices,
+                            &self.layer_names,
+                            false,
+                            self.language,
+                            self.key_legend_layout,
+                        ) {
+                            self.finish_regular_key_pick(value);
+                        }
+                    }
+                });
+        });
+        if !still_open {
+            self.regular_mod_key_pick = None;
+            self.regular_key_pick = false;
+            self.regular_key_pick_allow_mod_key = false;
+            self.open = false;
+        }
+    }
+
+    fn finish_regular_key_pick(&mut self, value: u16) {
+        self.result = Some(value);
+        self.regular_mod_key_pick = None;
+        self.regular_key_pick = false;
+        self.regular_key_pick_allow_mod_key = false;
+        self.open = false;
+    }
+
+    fn regular_key_pick_choices(&self) -> Vec<&'static crate::keycode::Keycode> {
+        KEYCODES
+            .iter()
+            .filter(|kc| {
+                is_8bit_tap_key_choice(kc)
+                    && !matches!(kc.category, KeycodeCategory::Modifier)
+                    && !kc.name.starts_with("RGB_")
+            })
+            .collect()
+    }
+
+    fn is_regular_key_pick_value(&self, value: u16) -> bool {
+        self.regular_key_pick_choices()
+            .iter()
+            .any(|kc| kc.value == value)
+    }
+
+    fn show_regular_plain_modifier_section(&mut self, ui: &mut egui::Ui) {
+        ui.label(
+            RichText::new(tr_picker(
+                self.language,
+                "key_picker.section_plain_modifiers",
+            ))
+            .size(11.0)
+            .color(Color32::from_gray(150)),
+        );
+        ui.add_space(4.0);
+        ui.horizontal_wrapped(|ui| {
+            let plain_modifiers = [
+                ("Ctrl".to_owned(), 0x00E0u16, 0x00E4u16, "Ctrl".to_owned()),
+                (
+                    "Shift".to_owned(),
+                    0x00E1u16,
+                    0x00E5u16,
+                    "Shift".to_owned(),
+                ),
+                ("Alt".to_owned(), 0x00E2u16, 0x00E6u16, "Alt".to_owned()),
+                (
+                    gui_label(false).to_string(),
+                    0x00E3u16,
+                    0x00E7u16,
+                    gui_mod_name().to_string(),
+                ),
+            ];
+            for (label, left_value, right_value, mod_name) in plain_modifiers {
+                let resp = picker_keycap_button(
+                    ui,
+                    &label,
+                    Self::picker_key_size(ui.ctx()),
+                    true,
+                    false,
+                )
+                .on_hover_text(crate::i18n::tr_text(
+                    self.language,
+                    &plain_modifier_tooltip(&mod_name),
+                ));
+                if resp.clicked_by(egui::PointerButton::Primary) {
+                    self.finish_regular_key_pick(left_value);
+                }
+                if resp.clicked_by(egui::PointerButton::Secondary) {
+                    self.finish_regular_key_pick(right_value);
+                }
+            }
+        });
+        ui.add_space(crate::ui_style::modal_space_sm());
+    }
+
+    fn show_regular_mod_key_section(&mut self, ui: &mut egui::Ui) {
+        ui.label(
+            RichText::new(tr_picker(self.language, "key_picker.section_mod_key"))
+                .size(11.0)
+                .color(Color32::from_gray(150)),
+        );
+        ui.add_space(4.0);
+        let shortcuts: Vec<(String, u16, u16, String)> = vec![
+            (picker_mod_key_label(0x0100), 0x0100, 0x1100, "Ctrl".into()),
+            (
+                picker_mod_key_label(0x0200),
+                0x0200,
+                0x1200,
+                "Shift".into(),
+            ),
+            (picker_mod_key_label(0x0400), 0x0400, 0x1400, "Alt".into()),
+            (
+                picker_mod_key_label(0x0800),
+                0x0800,
+                0x1800,
+                gui_mod_name().to_string(),
+            ),
+        ];
+        ui.horizontal_wrapped(|ui| {
+            for (label, left_base, right_base, mod_name) in &shortcuts {
+                let resp = ui
+                    .add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""))
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
+                Self::paint_compact_picker_label(ui, &resp, label);
+                if resp.clicked_by(egui::PointerButton::Primary) {
+                    self.regular_mod_key_pick = Some(*left_base);
+                }
+                if resp.clicked_by(egui::PointerButton::Secondary) {
+                    self.regular_mod_key_pick = Some(*right_base);
+                }
+                resp.on_hover_text(crate::i18n::tr_text(
+                    self.language,
+                    &mod_combo_tooltip(mod_name, true),
+                ));
+            }
+        });
+        ui.add_space(crate::ui_style::modal_space_sm());
+    }
+
     fn show_pending_picker(&mut self, ctx: &egui::Context) {
         // Layer picker
         if let Some(base) = self.vial_layer_pending {
@@ -675,15 +936,21 @@ impl KeycodePicker {
                         );
                         let resp = resp.on_hover_text(crate::i18n::tr_text(self.language, &label));
                         if resp.clicked() {
-                            let value = if base == 0x4000 {
-                                // LT: layer in bits 8..11, tap kc in bits 0..7 (default 0)
-                                0x4000 | ((n & 0xF) << 8)
+                            if base & 0xF000 == 0x4000 {
+                                // LT: layer in bits 8..11, tap kc in bits 0..7.
+                                let value = (base & 0xF0FF) | ((n & 0xF) << 8);
+                                self.vial_layer_pending = None;
+                                if value & 0xFF == 0 {
+                                    self.vial_quantum_pending_mt = Some(value);
+                                } else {
+                                    self.result = Some(value);
+                                    self.open = false;
+                                }
                             } else {
-                                base + n
-                            };
-                            self.result = Some(value);
-                            self.vial_layer_pending = None;
-                            self.open = false;
+                                self.result = Some(base + n);
+                                self.vial_layer_pending = None;
+                                self.open = false;
+                            }
                         }
                     }
                 });
@@ -752,57 +1019,65 @@ impl KeycodePicker {
                 );
                 ui.add_space(crate::ui_style::modal_space_sm());
 
-                ui.label(
-                    RichText::new(tr_picker(
-                        self.language,
-                        "key_picker.section_plain_modifiers",
-                    ))
-                    .size(11.0)
-                    .color(Color32::from_gray(150)),
-                );
-                ui.add_space(4.0);
-                ui.horizontal_wrapped(|ui| {
-                    let plain_modifiers = [
-                        ("Ctrl".to_owned(), 0x00E0u16, "Ctrl".to_owned()),
-                        ("Alt".to_owned(), 0x00E2u16, "Alt".to_owned()),
-                        ("Shift".to_owned(), 0x00E1u16, "Shift".to_owned()),
-                        (gui_label(false).to_owned(), 0x00E3u16, gui_mod_name().to_owned()),
-                    ];
-                    for (label, value, mod_name) in plain_modifiers {
-                        let resp = picker_button(
-                            ui,
-                            &label,
-                            Self::picker_key_size(ui.ctx()),
-                            true,
-                            false,
-                        )
-                        .on_hover_text(crate::i18n::tr_text(
-                            self.language,
-                            &format!("Use {mod_name} as the selected key"),
-                        ));
-                        if resp.clicked() {
-                            self.finish_quantum_pending_key(base, value, is_mt);
-                        }
-                    }
-                });
-                ui.add_space(crate::ui_style::modal_space_sm());
-
                 let key_choices: Vec<&'static crate::keycode::Keycode> = KEYCODES
                     .iter()
                     .filter(|kc| {
-                        matches!(
-                            kc.category,
-                            KeycodeCategory::Basic
-                                | KeycodeCategory::Function
-                                | KeycodeCategory::Navigation
-                        )
+                        is_8bit_tap_key_choice(kc)
+                            && !matches!(kc.category, KeycodeCategory::Modifier)
                     })
-                    .filter(|kc| kc.value != 0 && kc.value < 0x0100 && !is_f13_to_f24(kc.value))
                     .collect();
                 egui::ScrollArea::vertical()
                     .max_height(key_picker_popup_scroll_height(popup_size))
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
+                        ui.label(
+                            RichText::new(tr_picker(
+                                self.language,
+                                "key_picker.section_plain_modifiers",
+                            ))
+                            .size(11.0)
+                            .color(Color32::from_gray(150)),
+                        );
+                        ui.add_space(4.0);
+                        ui.horizontal_wrapped(|ui| {
+                            let plain_modifiers = [
+                                ("Ctrl".to_owned(), 0x00E0u16, 0x00E4u16, "Ctrl".to_owned()),
+                                (
+                                    "Shift".to_owned(),
+                                    0x00E1u16,
+                                    0x00E5u16,
+                                    "Shift".to_owned(),
+                                ),
+                                ("Alt".to_owned(), 0x00E2u16, 0x00E6u16, "Alt".to_owned()),
+                                (
+                                    gui_label(false).to_string(),
+                                    0x00E3u16,
+                                    0x00E7u16,
+                                    gui_mod_name().to_string(),
+                                ),
+                            ];
+                            for (label, left_value, right_value, mod_name) in plain_modifiers {
+                                let resp = picker_keycap_button(
+                                    ui,
+                                    &label,
+                                    Self::picker_key_size(ui.ctx()),
+                                    true,
+                                    false,
+                                )
+                                .on_hover_text(crate::i18n::tr_text(
+                                    self.language,
+                                    &plain_modifier_tooltip(&mod_name),
+                                ));
+                                if resp.clicked_by(egui::PointerButton::Primary) {
+                                    self.finish_quantum_pending_key(base, left_value, is_mt);
+                                }
+                                if resp.clicked_by(egui::PointerButton::Secondary) {
+                                    self.finish_quantum_pending_key(base, right_value, is_mt);
+                                }
+                            }
+                        });
+                        ui.add_space(crate::ui_style::modal_space_sm());
+
                         if let Some(value) = show_grouped_popup_key_buttons(
                             ui,
                             key_choices,

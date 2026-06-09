@@ -165,6 +165,7 @@ impl KeycodePicker {
                         })
                         .clicked()
                     {
+                        self.td_mod_key_pick = None;
                         self.td_key_pick = Some((n, *field_id));
                     }
                     ui.end_row();
@@ -465,6 +466,7 @@ impl KeycodePicker {
                             })
                             .clicked()
                         {
+                            self.td_mod_key_pick = None;
                             self.td_key_pick = Some((n, *field_id));
                         }
                         ui.end_row();

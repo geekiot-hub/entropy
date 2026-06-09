@@ -114,9 +114,10 @@ impl EntropyApp {
     }
 
     fn open_key_override_picker(&mut self, target: KeyOverridePickField) {
+        let allow_mod_key = matches!(target, KeyOverridePickField::Replacement);
         self.key_override_pick_target = Some(target);
-        self.keycode_picker.result = None;
-        self.keycode_picker.open = true;
+        self.keycode_picker
+            .open_regular_key_picker_with_mod_key(allow_mod_key);
     }
 
     fn key_override_mod_mask_summary(language: crate::i18n::Language, mask: u8) -> String {

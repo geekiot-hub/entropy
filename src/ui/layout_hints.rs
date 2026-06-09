@@ -19,12 +19,33 @@ impl EntropyApp {
         let any_hovered = self.prev_hovered_key.is_some() || self.prev_hovered_encoder;
         let hint_language = self.app_settings.language;
         let tr_hint = |key: &'static str| crate::i18n::tr_catalog(hint_language, key);
+        let hint_kc = || {
+            self.prev_hovered_key
+                .and_then(|ki| {
+                    self.layout
+                        .as_ref()
+                        .map(|l| l.get_keycode(self.selected_layer, ki))
+                })
+                .or(self.prev_hovered_encoder_keycode)
+                .or_else(|| {
+                    self.selected_key.and_then(|(selected_layer, selected_ki)| {
+                        (selected_layer == self.selected_layer)
+                            .then(|| {
+                                self.layout
+                                    .as_ref()
+                                    .map(|l| l.get_keycode(self.selected_layer, selected_ki))
+                            })
+                            .flatten()
+                    })
+                })
+        };
         if let Some(hl) = self.hover_layer {
             let hl_name = self
                 .layer_names
                 .get(hl)
                 .cloned()
                 .unwrap_or_else(|| hl.to_string());
+            let hovered_is_lt = hint_kc().map(|kc| kc & 0xF000 == 0x4000).unwrap_or(false);
             let mut line = 0i32;
             let line_h = 13.0f32;
             let base_y = hint_y - 15.0;
@@ -54,11 +75,15 @@ impl EntropyApp {
                 );
                 line += 1;
             }
-            // Line 3: change layer number
+            // Line 3: layer-specific secondary action
             ui.painter().text(
                 egui::pos2(center_x, base_y + line as f32 * line_h),
                 egui::Align2::CENTER_CENTER,
-                tr_hint("key_hints.change_layer_number"),
+                if hovered_is_lt {
+                    tr_hint("key_hints.change_tap_key")
+                } else {
+                    tr_hint("key_hints.change_layer_number")
+                },
                 hint_font.clone(),
                 hint_color,
             );
@@ -103,27 +128,9 @@ impl EntropyApp {
                 hovered_is_alt_repeat,
                 hovered_is_grave_escape,
                 hovered_is_layer,
+                hovered_is_lt,
             ) = {
-                let hint_kc = self
-                    .prev_hovered_key
-                    .and_then(|ki| {
-                        self.layout
-                            .as_ref()
-                            .map(|l| l.get_keycode(self.selected_layer, ki))
-                    })
-                    .or(self.prev_hovered_encoder_keycode)
-                    .or_else(|| {
-                        self.selected_key.and_then(|(selected_layer, selected_ki)| {
-                            (selected_layer == self.selected_layer)
-                                .then(|| {
-                                    self.layout
-                                        .as_ref()
-                                        .map(|l| l.get_keycode(self.selected_layer, selected_ki))
-                                })
-                                .flatten()
-                        })
-                    });
-                hint_kc
+                hint_kc()
                     .map(|kc| {
                         let is_plain_mod = (0x00E0..=0x00E7).contains(&kc)
                             || matches!(
@@ -149,6 +156,7 @@ impl EntropyApp {
                         let is_alt_repeat = is_alt_repeat_keycode(kc);
                         let is_grave_escape = kc == 0x7C16;
                         let is_layer = vial_layer_target(kc).is_some();
+                        let is_lt = kc & 0xF000 == 0x4000;
                         let can_retarget_mod_key = !is_layer
                             && ((kc >= 0x2000 && kc < 0x4000)
                                 || (kc >= 0x0100 && kc < 0x2000 && (kc & 0xFF) != 0));
@@ -162,10 +170,11 @@ impl EntropyApp {
                             is_alt_repeat,
                             is_grave_escape,
                             is_layer,
+                            is_lt,
                         )
                     })
                     .unwrap_or((
-                        false, false, false, false, false, false, false, false, false,
+                        false, false, false, false, false, false, false, false, false, false,
                     ))
             };
             if hovered_is_mod {
@@ -317,7 +326,11 @@ impl EntropyApp {
                 ui.painter().text(
                     egui::pos2(center_x, hint_y + 12.0),
                     egui::Align2::CENTER_CENTER,
-                    tr_hint("key_hints.change_layer_target"),
+                    if hovered_is_lt {
+                        tr_hint("key_hints.change_tap_key")
+                    } else {
+                        tr_hint("key_hints.change_layer_target")
+                    },
                     secondary_hint_font,
                     hint_color,
                 );

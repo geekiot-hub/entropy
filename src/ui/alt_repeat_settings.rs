@@ -90,8 +90,7 @@ impl EntropyApp {
 
     fn open_alt_repeat_picker(&mut self, target: AltRepeatPickField) {
         self.alt_repeat_pick_target = Some(target);
-        self.keycode_picker.result = None;
-        self.keycode_picker.open = true;
+        self.keycode_picker.open_regular_key_picker_with_mod_key(true);
     }
 
     pub(super) fn open_alt_repeat_window_compact(&mut self) {

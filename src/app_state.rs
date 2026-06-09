@@ -332,7 +332,7 @@ pub(crate) fn vial_layer_retarget_base(kc: u16) -> Option<u16> {
         let op = (kc >> 5) & 0x7;
         (op != 5).then_some(kc & 0xFFE0)
     } else if kc & 0xF000 == 0x4000 {
-        Some(0x4000)
+        Some(kc & 0xF0FF)
     } else {
         None
     }
@@ -1256,6 +1256,7 @@ pub struct EntropyApp {
     pub(crate) combo_visible_count: usize,
     pub(crate) combo_capture_open: bool,
     pub(crate) combo_capture_keys: Vec<u16>,
+    pub(crate) combo_capture_last_input_at: f64,
     pub(crate) combo_undo_stack: Vec<(Vec<ComboEntry>, Vec<String>, Option<u16>, usize, usize)>,
     pub(crate) combo_pick_target: Option<(usize, ComboPickField)>,
     pub(crate) key_override_entries: Vec<KeyOverrideEntry>,

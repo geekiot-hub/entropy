@@ -4,6 +4,7 @@ use std::collections::{HashMap, HashSet};
 pub enum PopupKey {
     PickerWindow,
     MacroKeyPickWindow,
+    RegularKeyPickWindow,
     PickLayerWindow,
     PendingKeyPickWindow,
     TapDanceEditorWindow,

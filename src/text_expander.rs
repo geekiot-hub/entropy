@@ -127,10 +127,12 @@ impl TextExpansionEngine {
     fn has_longer_pending_trigger(&self, trigger: &str) -> bool {
         self.rules.iter().any(|rule| {
             rule_usable(rule)
-                && activation_triggers(&rule.trigger).into_iter().any(|candidate| {
-                    candidate.chars().count() > trigger.chars().count()
-                        && candidate.starts_with(trigger)
-                })
+                && activation_triggers(&rule.trigger)
+                    .into_iter()
+                    .any(|candidate| {
+                        candidate.chars().count() > trigger.chars().count()
+                            && candidate.starts_with(trigger)
+                    })
         })
     }
 
@@ -170,12 +172,181 @@ fn valid_legacy_trigger_stem(trigger: &str) -> bool {
 }
 
 fn activation_triggers(trigger: &str) -> Vec<String> {
-    if valid_trigger(trigger) {
+    let base = if valid_trigger(trigger) {
         vec![trigger.to_owned()]
     } else if valid_legacy_trigger_stem(trigger) {
         vec![format!(":{trigger}"), format!(";{trigger}")]
     } else {
-        Vec::new()
+        return Vec::new();
+    };
+
+    let mut triggers = Vec::with_capacity(base.len() * 2);
+    for trigger in base {
+        push_unique_trigger(&mut triggers, trigger.clone());
+        if let Some(alias) = qwerty_jcuken_alias(&trigger) {
+            push_unique_trigger(&mut triggers, alias);
+        }
+    }
+    triggers
+}
+
+fn push_unique_trigger(triggers: &mut Vec<String>, trigger: String) {
+    if !triggers.iter().any(|item| item == &trigger) {
+        triggers.push(trigger);
+    }
+}
+
+fn qwerty_jcuken_alias(trigger: &str) -> Option<String> {
+    let mut changed = false;
+    let mut output = String::with_capacity(trigger.len());
+    for (idx, ch) in trigger.chars().enumerate() {
+        if idx == 0 && matches!(ch, ':' | ';') {
+            output.push(ch);
+        } else if let Some(mapped) = qwerty_jcuken_char_alias(ch) {
+            output.push(mapped);
+            changed = true;
+        } else {
+            output.push(ch);
+        }
+    }
+    changed.then_some(output)
+}
+
+fn qwerty_jcuken_char_alias(ch: char) -> Option<char> {
+    match ch {
+        'q' => Some('й'),
+        'w' => Some('ц'),
+        'e' => Some('у'),
+        'r' => Some('к'),
+        't' => Some('е'),
+        'y' => Some('н'),
+        'u' => Some('г'),
+        'i' => Some('ш'),
+        'o' => Some('щ'),
+        'p' => Some('з'),
+        '[' => Some('х'),
+        ']' => Some('ъ'),
+        'a' => Some('ф'),
+        's' => Some('ы'),
+        'd' => Some('в'),
+        'f' => Some('а'),
+        'g' => Some('п'),
+        'h' => Some('р'),
+        'j' => Some('о'),
+        'k' => Some('л'),
+        'l' => Some('д'),
+        ';' => Some('ж'),
+        '\'' => Some('э'),
+        'z' => Some('я'),
+        'x' => Some('ч'),
+        'c' => Some('с'),
+        'v' => Some('м'),
+        'b' => Some('и'),
+        'n' => Some('т'),
+        'm' => Some('ь'),
+        ',' => Some('б'),
+        '.' => Some('ю'),
+        '`' => Some('ё'),
+        'Q' => Some('Й'),
+        'W' => Some('Ц'),
+        'E' => Some('У'),
+        'R' => Some('К'),
+        'T' => Some('Е'),
+        'Y' => Some('Н'),
+        'U' => Some('Г'),
+        'I' => Some('Ш'),
+        'O' => Some('Щ'),
+        'P' => Some('З'),
+        '{' => Some('Х'),
+        '}' => Some('Ъ'),
+        'A' => Some('Ф'),
+        'S' => Some('Ы'),
+        'D' => Some('В'),
+        'F' => Some('А'),
+        'G' => Some('П'),
+        'H' => Some('Р'),
+        'J' => Some('О'),
+        'K' => Some('Л'),
+        'L' => Some('Д'),
+        ':' => Some('Ж'),
+        '"' => Some('Э'),
+        'Z' => Some('Я'),
+        'X' => Some('Ч'),
+        'C' => Some('С'),
+        'V' => Some('М'),
+        'B' => Some('И'),
+        'N' => Some('Т'),
+        'M' => Some('Ь'),
+        '<' => Some('Б'),
+        '>' => Some('Ю'),
+        '~' => Some('Ё'),
+        'й' => Some('q'),
+        'ц' => Some('w'),
+        'у' => Some('e'),
+        'к' => Some('r'),
+        'е' => Some('t'),
+        'н' => Some('y'),
+        'г' => Some('u'),
+        'ш' => Some('i'),
+        'щ' => Some('o'),
+        'з' => Some('p'),
+        'х' => Some('['),
+        'ъ' => Some(']'),
+        'ф' => Some('a'),
+        'ы' => Some('s'),
+        'в' => Some('d'),
+        'а' => Some('f'),
+        'п' => Some('g'),
+        'р' => Some('h'),
+        'о' => Some('j'),
+        'л' => Some('k'),
+        'д' => Some('l'),
+        'ж' => Some(';'),
+        'э' => Some('\''),
+        'я' => Some('z'),
+        'ч' => Some('x'),
+        'с' => Some('c'),
+        'м' => Some('v'),
+        'и' => Some('b'),
+        'т' => Some('n'),
+        'ь' => Some('m'),
+        'б' => Some(','),
+        'ю' => Some('.'),
+        'ё' => Some('`'),
+        'Й' => Some('Q'),
+        'Ц' => Some('W'),
+        'У' => Some('E'),
+        'К' => Some('R'),
+        'Е' => Some('T'),
+        'Н' => Some('Y'),
+        'Г' => Some('U'),
+        'Ш' => Some('I'),
+        'Щ' => Some('O'),
+        'З' => Some('P'),
+        'Х' => Some('{'),
+        'Ъ' => Some('}'),
+        'Ф' => Some('A'),
+        'Ы' => Some('S'),
+        'В' => Some('D'),
+        'А' => Some('F'),
+        'П' => Some('G'),
+        'Р' => Some('H'),
+        'О' => Some('J'),
+        'Л' => Some('K'),
+        'Д' => Some('L'),
+        'Ж' => Some(':'),
+        'Э' => Some('"'),
+        'Я' => Some('Z'),
+        'Ч' => Some('X'),
+        'С' => Some('C'),
+        'М' => Some('V'),
+        'И' => Some('B'),
+        'Т' => Some('N'),
+        'Ь' => Some('M'),
+        'Б' => Some('<'),
+        'Ю' => Some('>'),
+        'Ё' => Some('~'),
+        _ => None,
     }
 }
 
@@ -297,6 +468,36 @@ mod tests {
             matched = engine.push_char(ch);
         }
         assert_eq!(matched.unwrap().replacement, "Earth");
+    }
+
+    #[test]
+    fn expands_cyrillic_trigger() {
+        let mut engine = TextExpansionEngine::new(vec![rule(":адр", "Адрес")]);
+        let mut matched = None;
+        for ch in ":адр".chars() {
+            matched = engine.push_char(ch);
+        }
+        assert_eq!(matched.unwrap().replacement, "Адрес");
+    }
+
+    #[test]
+    fn expands_cyrillic_trigger_from_qwerty_alias() {
+        let mut engine = TextExpansionEngine::new(vec![rule(":привет", "Здравствуйте")]);
+        let mut matched = None;
+        for ch in ":ghbdtn".chars() {
+            matched = engine.push_char(ch);
+        }
+        assert_eq!(matched.unwrap().replacement, "Здравствуйте");
+    }
+
+    #[test]
+    fn expands_latin_trigger_from_jcuken_alias() {
+        let mut engine = TextExpansionEngine::new(vec![rule(":ghbdtn", "Hello")]);
+        let mut matched = None;
+        for ch in ":привет".chars() {
+            matched = engine.push_char(ch);
+        }
+        assert_eq!(matched.unwrap().replacement, "Hello");
     }
 
     #[test]

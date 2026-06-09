@@ -142,6 +142,8 @@ impl EntropyApp {
         self.keycode_picker.vial_quantum_pending_mt = None;
         self.keycode_picker.vial_layer_pending = None;
         self.keycode_picker.tap_dance_editor_open = None;
+        self.keycode_picker.td_key_pick = None;
+        self.keycode_picker.td_mod_key_pick = None;
         self.keycode_picker.selected_tab = crate::keycode_picker::KeycodeTab::Basic;
     }
 
@@ -164,7 +166,12 @@ impl EntropyApp {
             }
         }
         if ctrl_held {
-            if let Some(swapped) = toggle_handed_modifier(kc) {
+            if kc & 0xF000 == 0x4000 {
+                self.open_picker_for_target(key_target, encoder_target);
+                self.keycode_picker.vial_quantum_pending_mt = Some(kc & 0xFF00);
+                self.keycode_picker.vial_quantum_pending_mod = None;
+                self.secondary_click_handled = true;
+            } else if let Some(swapped) = toggle_handed_modifier(kc) {
                 if let Some(visual_idx) = encoder_target {
                     self.assign_encoder_keycode(self.selected_layer, visual_idx, swapped);
                 } else if let Some(ki) = key_target {

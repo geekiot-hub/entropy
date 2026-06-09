@@ -35,9 +35,15 @@ impl EntropyApp {
     }
 
     pub(super) fn handle_ui_scale_shortcuts(&mut self, ctx: &egui::Context) {
-        let action = ctx.input(|i| {
+        let action = ctx.input_mut(|i| {
             if !i.modifiers.ctrl {
                 return None;
+            }
+            let wheel_delta = i.raw_scroll_delta.y;
+            if wheel_delta.abs() > 0.0 {
+                i.raw_scroll_delta = Vec2::ZERO;
+                i.smooth_scroll_delta = Vec2::ZERO;
+                return Some(if wheel_delta > 0.0 { 1 } else { -1 });
             }
             if i.key_pressed(egui::Key::Plus) || i.key_pressed(egui::Key::Equals) {
                 Some(1)

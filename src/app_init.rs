@@ -100,6 +100,7 @@ impl EntropyApp {
             combo_visible_count: 1,
             combo_capture_open: false,
             combo_capture_keys: Vec::new(),
+            combo_capture_last_input_at: 0.0,
             combo_undo_stack: Vec::new(),
             combo_pick_target: None,
             key_override_entries: Vec::new(),

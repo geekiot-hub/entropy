@@ -534,7 +534,7 @@ fn static_catalog_key(text: &str) -> Option<&'static str> {
         "Tap multiple times to toggle layer" => Some("key_picker_text.tap_multiple_times_to_toggle_layer"),
         "Switch and stay on this layer" => Some("key_picker_text.switch_and_stay_on_this_layer"),
         "Set as permanent base layer" => Some("key_picker_text.set_as_permanent_base_layer"),
-        "Hold = activate layer, tap = keycode (set key via right-click afterwards)" => Some("key_picker_text.hold_activate_layer_tap_keycode_set_key_via_right_click_afterwards"),
+        "Hold = activate layer, tap = keycode; choose layer first, then tap key" => Some("key_picker_text.hold_activate_layer_tap_keycode_set_key_via_right_click_afterwards"),
         "Toggle backlight on/off" => Some("keycode_tooltips.toggle_backlight_on_off"),
         "Cycle through backlight brightness levels" => Some("keycode_tooltips.cycle_through_backlight_brightness_levels"),
         "Toggle breathing effect on/off" => Some("keycode_tooltips.toggle_breathing_effect_on_off"),
@@ -639,8 +639,8 @@ fn static_catalog_key(text: &str) -> Option<&'static str> {
         "Press 2-4 keys" => Some("combo_editor.press_2_4_keys"),
         "Record 2-4 keys" => Some("combo_editor.record_2_4_keys"),
         "Pick output" => Some("combo_editor.pick_output"),
-        "Hold actions are limited to left/right modifiers and layers" => Some("key_picker_text.hold_actions_are_limited_to_left_right_modifiers_and_layers"),
-        "Tap-then-hold actions are limited to left/right modifiers and layers" => Some("key_picker_text.tap_then_hold_actions_are_limited_to_left_right_modifiers_and_layers"),
+        "Hold actions can use regular keys, shortcuts, mouse/media, modifiers, and layers" => Some("key_picker_text.hold_actions_are_limited_to_left_right_modifiers_and_layers"),
+        "Tap-then-hold actions can use regular keys, shortcuts, mouse/media, modifiers, and layers" => Some("key_picker_text.tap_then_hold_actions_are_limited_to_left_right_modifiers_and_layers"),
         "Left Control" => Some("key_picker_text.left_control"),
         "Right Control" => Some("key_picker_text.right_control"),
         "Left Shift" => Some("key_picker_text.left_shift"),
@@ -1292,12 +1292,18 @@ pub fn tr_text(language: Language, text: &str) -> String {
         other if other.starts_with("Write error: ") => tr_catalog_string_format(
             language,
             "dynamic_status.write_error",
-            &[("error", other.strip_prefix("Write error: ").unwrap_or(other))],
+            &[(
+                "error",
+                other.strip_prefix("Write error: ").unwrap_or(other),
+            )],
         ),
         other if other.starts_with("Lock failed: ") => tr_catalog_string_format(
             language,
             "dynamic_status.lock_failed",
-            &[("error", other.strip_prefix("Lock failed: ").unwrap_or(other))],
+            &[(
+                "error",
+                other.strip_prefix("Lock failed: ").unwrap_or(other),
+            )],
         ),
         other
             if other.starts_with("Could not find ")

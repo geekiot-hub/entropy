@@ -3,28 +3,67 @@ use super::*;
 impl KeycodePicker {
     pub(super) fn show_td_key_picker(&mut self, ctx: &egui::Context, td_idx: usize, field: u8) {
         if ctx.input(|i| i.key_pressed(Key::Escape)) {
-            self.td_key_pick = None;
+            if self.td_mod_key_pick.is_some() {
+                self.td_mod_key_pick = None;
+            } else {
+                self.td_key_pick = None;
+            }
             return;
         }
 
-        ctx.input(|i| {
-            for event in &i.events {
-                if let egui::Event::Key {
-                    key,
-                    pressed: true,
-                    modifiers,
-                    ..
-                } = event
-                {
-                    if let Some(qmk) = egui_key_to_qmk(*key, *modifiers) {
-                        if qmk > 0 && qmk < 0x0100 {
-                            self.set_tap_dance_field(td_idx, field, qmk);
-                            self.td_key_pick = None;
+        let pending_mod_key = self.td_mod_key_pick;
+        if let Some((pending_td_idx, pending_field, base)) = pending_mod_key {
+            ctx.input(|i| {
+                for event in &i.events {
+                    if let egui::Event::Key {
+                        key,
+                        pressed: true,
+                        modifiers,
+                        ..
+                    } = event
+                    {
+                        if !modifiers.any() {
+                            if let Some(qmk) = egui_key_to_qmk(*key, *modifiers) {
+                                if self.is_tap_dance_regular_key(qmk) {
+                                    self.set_tap_dance_field(
+                                        pending_td_idx,
+                                        pending_field,
+                                        base | qmk,
+                                    );
+                                    self.td_mod_key_pick = None;
+                                    self.td_key_pick = None;
+                                }
+                            }
                         }
                     }
                 }
-            }
-        });
+            });
+        } else {
+            ctx.input(|i| {
+                for event in &i.events {
+                    if let egui::Event::Key {
+                        key,
+                        pressed: true,
+                        modifiers,
+                        ..
+                    } = event
+                    {
+                        if let Some(qmk) = egui_key_to_qmk(*key, *modifiers) {
+                            if qmk > 0 && qmk < 0x0100 {
+                                self.set_tap_dance_field(td_idx, field, qmk);
+                                self.td_key_pick = None;
+                            } else if qmk >= 0x0100
+                                && qmk < 0x2000
+                                && self.is_tap_dance_regular_key(qmk & 0x00FF)
+                            {
+                                self.set_tap_dance_field(td_idx, field, qmk);
+                                self.td_key_pick = None;
+                            }
+                        }
+                    }
+                }
+            });
+        }
 
         let field_name = match field {
             0 => crate::i18n::tr_catalog(self.language, "tap_dance_editor.on_tap"),
@@ -43,112 +82,24 @@ impl KeycodePicker {
             3 => crate::i18n::tr_catalog(self.language, "key_picker_text.tap_then_hold_actions_are_limited_to_left_right_modifiers_and_layers"),
             _ => tr_picker(self.language, "key_picker.press_key_or_click_cancel"),
         };
-        let td_choices: Vec<(u16, String, String)> = if matches!(field, 1 | 3) {
-            let gui = gui_label(false).to_string();
-            let mut out: Vec<(u16, String, String)> = vec![
-                (
-                    0x00E0,
-                    "Left\nCtrl".into(),
-                    crate::i18n::tr_catalog(self.language, "key_picker_text.left_control").into(),
-                ),
-                (
-                    0x00E4,
-                    "Right\nCtrl".into(),
-                    crate::i18n::tr_catalog(self.language, "key_picker_text.right_control").into(),
-                ),
-                (
-                    0x00E1,
-                    "Left\nShift".into(),
-                    crate::i18n::tr_catalog(self.language, "key_picker_text.left_shift").into(),
-                ),
-                (
-                    0x00E5,
-                    "Right\nShift".into(),
-                    crate::i18n::tr_catalog(self.language, "key_picker_text.right_shift").into(),
-                ),
-                (
-                    0x00E2,
-                    "Left\nAlt".into(),
-                    crate::i18n::tr_catalog(self.language, "key_picker_text.left_alt").into(),
-                ),
-                (
-                    0x00E6,
-                    "Right\nAlt".into(),
-                    crate::i18n::tr_catalog(self.language, "key_picker_text.right_alt").into(),
-                ),
-                (
-                    0x00E3,
-                    format!("Left\n{}", gui),
-                    crate::i18n::tr_text(self.language, &format!("Left {}", gui)),
-                ),
-                (
-                    0x00E7,
-                    format!("Right\n{}", gui),
-                    crate::i18n::tr_text(self.language, &format!("Right {}", gui)),
-                ),
-            ];
-            out.extend(
-                self.tap_dance_layer_choices()
-                    .into_iter()
-                    .map(|(value, _label)| {
-                        let layer = (value & 0x1F) as usize;
-                        let layer_name = self
-                            .layer_names
-                            .get(layer)
-                            .cloned()
-                            .unwrap_or_else(|| layer.to_string());
-                        (
-                            value,
-                            format!("MO({})\n{}", layer, layer_name),
-                            crate::i18n::tr_text(
-                                self.language,
-                                &format!("Momentarily activate layer {} while held", layer_name),
-                            ),
-                        )
-                    }),
-            );
-            out
-        } else {
-            KEYCODES
-                .iter()
-                .filter(|kc| {
-                    kc.value != 0
-                        && kc.value != 0x0001
-                        && !kc.name.starts_with("RGB_")
-                        && matches!(
-                            kc.category,
-                            KeycodeCategory::Basic
-                                | KeycodeCategory::Function
-                                | KeycodeCategory::Navigation
-                                | KeycodeCategory::Media
-                                | KeycodeCategory::Special
-                        )
-                        && !is_f13_to_f24(kc.value)
-                })
-                .map(|kc| {
-                    (
-                        kc.value,
-                        keycode_label_with_names_and_layout(
-                            kc.value,
-                            &[],
-                            &self.layer_names,
-                            self.key_legend_layout,
-                        ),
-                        keycode_tooltip(kc.value, &[], &self.layer_names),
-                    )
-                })
-                .collect()
-        };
         let mut still_open = true;
         let popup_size = key_picker_popup_size(ctx);
-        let window_title = crate::i18n::tr_catalog_format(
-            self.language,
-            "key_picker.pick_key_for",
-            &[("field", field_name)],
-        );
+        let window_title = if let Some((_pending_td_idx, _pending_field, base)) = pending_mod_key {
+            format!(
+                "{}: {}",
+                tr_picker(self.language, "key_picker.pick_modifier_combo_title"),
+                picker_mod_key_label(base)
+            )
+        } else {
+            crate::i18n::tr_catalog_format(
+                self.language,
+                "key_picker.pick_key_for",
+                &[("field", field_name)],
+            )
+        };
         crate::ui_style::centered_modal_window(
             ctx,
-            &window_title,
+            window_title.as_str(),
             self.popup_state.id(PopupKey::TdKeyPickWindow),
             &mut still_open,
             popup_size,
@@ -159,9 +110,28 @@ impl KeycodePicker {
                 ui,
                 tr_picker(self.language, "key_picker.press_key_or_click_cancel"),
             );
-            crate::ui_style::modal_hint(ui, helper_text);
+            crate::ui_style::modal_hint(
+                ui,
+                if pending_mod_key.is_some() {
+                    tr_picker(self.language, "key_picker.pending_mod_hint")
+                } else {
+                    helper_text
+                },
+            );
             ui.add_space(crate::ui_style::modal_space_xs());
-            if picker_button(
+            if pending_mod_key.is_some() {
+                if picker_button(
+                    ui,
+                    tr_picker(self.language, "key_picker.cancel"),
+                    crate::ui_style::modal_action_button_size(),
+                    true,
+                    false,
+                )
+                .clicked()
+                {
+                    self.td_mod_key_pick = None;
+                }
+            } else if picker_button(
                 ui,
                 tr_picker(self.language, "key_picker.none_clear"),
                 crate::ui_style::modal_action_button_size(),
@@ -178,42 +148,35 @@ impl KeycodePicker {
                 .max_height(key_picker_popup_scroll_height(popup_size))
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
-                    if matches!(field, 1 | 3) {
-                        let modifier_choices: Vec<(u16, String, String)> =
-                            td_choices.iter().take(8).cloned().collect();
-                        let layer_choices: Vec<(u16, String, String)> =
-                            td_choices.iter().skip(8).cloned().collect();
-                        let groups =
-                            vec![("Modifiers", modifier_choices), ("Layers", layer_choices)];
-                        if let Some(value) =
-                            show_grouped_popup_choice_buttons(ui, groups, self.language)
-                        {
-                            self.set_tap_dance_field(td_idx, field, value);
-                            self.td_key_pick = None;
-                        }
-                    } else {
-                        let key_choices: Vec<&'static crate::keycode::Keycode> = KEYCODES
-                            .iter()
-                            .filter(|kc| {
-                                kc.value != 0
-                                    && kc.value != 0x0001
-                                    && !kc.name.starts_with("RGB_")
-                                    && matches!(
-                                        kc.category,
-                                        KeycodeCategory::Basic
-                                            | KeycodeCategory::Function
-                                            | KeycodeCategory::Navigation
-                                            | KeycodeCategory::Media
-                                            | KeycodeCategory::Special
-                                    )
-                                    && !is_f13_to_f24(kc.value)
-                            })
-                            .collect();
+                    if let Some((pending_td_idx, pending_field, base)) = pending_mod_key {
+                        let key_choices = self.tap_dance_regular_key_choices();
                         if let Some(value) = show_grouped_popup_key_buttons(
                             ui,
                             key_choices,
                             &self.layer_names,
                             false,
+                            self.language,
+                            self.key_legend_layout,
+                        ) {
+                            self.set_tap_dance_field(pending_td_idx, pending_field, base | value);
+                            self.td_mod_key_pick = None;
+                            self.td_key_pick = None;
+                        }
+                    } else if matches!(field, 1 | 3) {
+                        self.show_tap_dance_hold_picker_content(ui, td_idx, field);
+                    } else {
+                        let key_choices: Vec<&'static crate::keycode::Keycode> = KEYCODES
+                            .iter()
+                            .filter(|kc| {
+                                is_8bit_tap_key_choice(kc) && !kc.name.starts_with("RGB_")
+                            })
+                            .collect();
+                        self.show_tap_dance_mod_key_section(ui, td_idx, field);
+                        if let Some(value) = show_grouped_popup_key_buttons(
+                            ui,
+                            key_choices,
+                            &self.layer_names,
+                            true,
                             self.language,
                             self.key_legend_layout,
                         ) {
@@ -224,8 +187,171 @@ impl KeycodePicker {
                 });
         });
         if !still_open {
+            self.td_mod_key_pick = None;
             self.td_key_pick = None;
         }
+    }
+
+    fn show_tap_dance_hold_picker_content(
+        &mut self,
+        ui: &mut egui::Ui,
+        td_idx: usize,
+        field: u8,
+    ) {
+        ui.label(
+            RichText::new(tr_picker(
+                self.language,
+                "key_picker.section_plain_modifiers",
+            ))
+            .size(11.0)
+            .color(Color32::from_gray(150))
+            .strong(),
+        );
+        ui.add_space(4.0);
+        ui.horizontal_wrapped(|ui| {
+            let plain_modifiers = [
+                ("Ctrl".to_owned(), 0x00E0u16, 0x00E4u16, "Ctrl".to_owned()),
+                (
+                    "Shift".to_owned(),
+                    0x00E1u16,
+                    0x00E5u16,
+                    "Shift".to_owned(),
+                ),
+                ("Alt".to_owned(), 0x00E2u16, 0x00E6u16, "Alt".to_owned()),
+                (
+                    gui_label(false).to_string(),
+                    0x00E3u16,
+                    0x00E7u16,
+                    gui_mod_name().to_string(),
+                ),
+            ];
+            for (label, left_value, right_value, mod_name) in plain_modifiers {
+                let resp = picker_keycap_button(
+                    ui,
+                    &label,
+                    Self::picker_key_size(ui.ctx()),
+                    true,
+                    false,
+                )
+                .on_hover_text(crate::i18n::tr_text(
+                    self.language,
+                    &plain_modifier_tooltip(&mod_name),
+                ));
+                if resp.clicked_by(egui::PointerButton::Primary) {
+                    self.set_tap_dance_field(td_idx, field, left_value);
+                    self.td_key_pick = None;
+                }
+                if resp.clicked_by(egui::PointerButton::Secondary) {
+                    self.set_tap_dance_field(td_idx, field, right_value);
+                    self.td_key_pick = None;
+                }
+            }
+        });
+        ui.add_space(crate::ui_style::modal_space_sm());
+
+        self.show_tap_dance_mod_key_section(ui, td_idx, field);
+
+        let key_choices = self.tap_dance_regular_key_choices();
+        if let Some(value) = show_grouped_popup_key_buttons(
+            ui,
+            key_choices,
+            &self.layer_names,
+            false,
+            self.language,
+            self.key_legend_layout,
+        ) {
+            self.set_tap_dance_field(td_idx, field, value);
+            self.td_key_pick = None;
+        }
+
+        let layer_choices: Vec<(u16, String, String)> = self
+            .tap_dance_layer_choices()
+            .into_iter()
+            .map(|(value, _label)| {
+                let layer = (value & 0x1F) as usize;
+                let layer_name = self
+                    .layer_names
+                    .get(layer)
+                    .cloned()
+                    .unwrap_or_else(|| layer.to_string());
+                (
+                    value,
+                    format!("MO({})\n{}", layer, layer_name),
+                    crate::i18n::tr_text(
+                        self.language,
+                        &format!("Momentarily activate layer {} while held", layer_name),
+                    ),
+                )
+            })
+            .collect();
+        if let Some(value) =
+            show_grouped_popup_choice_buttons(ui, vec![("Layers", layer_choices)], self.language)
+        {
+            self.set_tap_dance_field(td_idx, field, value);
+            self.td_key_pick = None;
+        }
+    }
+
+    fn show_tap_dance_mod_key_section(&mut self, ui: &mut egui::Ui, td_idx: usize, field: u8) {
+        ui.label(
+            RichText::new(tr_picker(self.language, "key_picker.section_mod_key"))
+                .size(11.0)
+                .color(Color32::from_gray(150))
+                .strong(),
+        );
+        ui.add_space(4.0);
+        let shortcuts: Vec<(String, u16, u16, String)> = vec![
+            (picker_mod_key_label(0x0100), 0x0100, 0x1100, "Ctrl".into()),
+            (
+                picker_mod_key_label(0x0200),
+                0x0200,
+                0x1200,
+                "Shift".into(),
+            ),
+            (picker_mod_key_label(0x0400), 0x0400, 0x1400, "Alt".into()),
+            (
+                picker_mod_key_label(0x0800),
+                0x0800,
+                0x1800,
+                gui_mod_name().to_string(),
+            ),
+        ];
+        ui.horizontal_wrapped(|ui| {
+            for (label, left_base, right_base, mod_name) in &shortcuts {
+                let resp = ui
+                    .add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""))
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
+                Self::paint_compact_picker_label(ui, &resp, label);
+                if resp.clicked_by(egui::PointerButton::Primary) {
+                    self.td_mod_key_pick = Some((td_idx, field, *left_base));
+                }
+                if resp.clicked_by(egui::PointerButton::Secondary) {
+                    self.td_mod_key_pick = Some((td_idx, field, *right_base));
+                }
+                resp.on_hover_text(crate::i18n::tr_text(
+                    self.language,
+                    &mod_combo_tooltip(mod_name, true),
+                ));
+            }
+        });
+        ui.add_space(crate::ui_style::modal_space_sm());
+    }
+
+    fn tap_dance_regular_key_choices(&self) -> Vec<&'static crate::keycode::Keycode> {
+        KEYCODES
+            .iter()
+            .filter(|kc| {
+                is_8bit_tap_key_choice(kc)
+                    && !matches!(kc.category, KeycodeCategory::Modifier)
+                    && !kc.name.starts_with("RGB_")
+            })
+            .collect()
+    }
+
+    fn is_tap_dance_regular_key(&self, value: u16) -> bool {
+        self.tap_dance_regular_key_choices()
+            .iter()
+            .any(|kc| kc.value == value)
     }
 
     fn tap_dance_layer_choices(&self) -> Vec<(u16, String)> {
