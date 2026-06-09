@@ -109,17 +109,27 @@ fn foreground_app_blacklisted(app_blacklist: &[String]) -> bool {
     smart_input_windows::foreground_app_blacklisted(app_blacklist)
 }
 
+#[cfg(target_os = "macos")]
+fn foreground_app_blacklisted(app_blacklist: &[String]) -> bool {
+    macos::foreground_app_blacklisted(app_blacklist)
+}
+
 #[cfg(target_os = "windows")]
 pub fn platform_open_window_candidates() -> Vec<TextExpanderAppCandidate> {
     smart_input_windows::platform_open_window_candidates()
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(target_os = "macos")]
+pub fn platform_open_window_candidates() -> Vec<TextExpanderAppCandidate> {
+    macos::platform_open_window_candidates()
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
 fn foreground_app_blacklisted(_app_blacklist: &[String]) -> bool {
     false
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
 pub fn platform_open_window_candidates() -> Vec<TextExpanderAppCandidate> {
     Vec::new()
 }
@@ -315,6 +325,8 @@ mod macos {
     use super::*;
     use std::ffi::c_void;
     use std::ptr::null_mut;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::time::{Duration, Instant};
 
     type CGEventTapProxy = *mut c_void;
     type CGEventRef = *mut c_void;
@@ -332,7 +344,21 @@ mod macos {
     const K_CG_EVENT_FLAG_MASK_SHIFT: u64 = 1 << 17;
     const K_CG_EVENT_FLAG_MASK_CONTROL: u64 = 1 << 18;
     const K_CG_EVENT_FLAG_MASK_ALTERNATE: u64 = 1 << 19;
+    const K_CG_EVENT_FLAG_MASK_COMMAND: u64 = 1 << 20;
     const K_CG_ANNOTATED_SESSION_EVENT_TAP: u32 = 1;
+    const MAC_KEY_DELETE: u16 = 0x33;
+    const MAC_KEY_RETURN: u16 = 0x24;
+    const MAC_KEY_TAB: u16 = 0x30;
+    const MAC_KEY_ESCAPE: u16 = 0x35;
+    const MAC_KEY_LEFT: u16 = 0x7B;
+    const MAC_KEY_RIGHT: u16 = 0x7C;
+    const MAC_KEY_DOWN: u16 = 0x7D;
+    const MAC_KEY_UP: u16 = 0x7E;
+
+    static MACOS_EXPANDING_TEXT: AtomicBool = AtomicBool::new(false);
+    static FOREGROUND_CACHE: OnceLock<
+        Mutex<Option<(Instant, Option<TextExpanderAppCandidate>)>>,
+    > = OnceLock::new();
 
     pub unsafe fn run_event_tap() {
         let mask = (1u64 << K_CG_EVENT_KEY_DOWN) | (1u64 << K_CG_EVENT_KEY_UP);
@@ -371,23 +397,232 @@ mod macos {
         if event_type != K_CG_EVENT_KEY_DOWN && event_type != K_CG_EVENT_KEY_UP {
             return event;
         }
-        let keycode = CGEventGetIntegerValueField(event, K_CG_KEYBOARD_EVENT_KEYCODE) as u16;
-        let Some(base_keycode) = mac_keycode_to_qmk_f_key(keycode) else {
+        if MACOS_EXPANDING_TEXT.load(Ordering::Relaxed) {
             return event;
-        };
+        }
+        let keycode = CGEventGetIntegerValueField(event, K_CG_KEYBOARD_EVENT_KEYCODE) as u16;
         let flags = CGEventGetFlags(event);
         let ctrl = flags & K_CG_EVENT_FLAG_MASK_CONTROL != 0;
         let shift = flags & K_CG_EVENT_FLAG_MASK_SHIFT != 0;
         let alt = flags & K_CG_EVENT_FLAG_MASK_ALTERNATE != 0;
-        if let Some((symbol, _trigger_keycode)) =
-            smart_symbol_for_transport(base_keycode, ctrl, shift, alt)
-        {
-            if event_type == K_CG_EVENT_KEY_DOWN {
-                send_unicode_char(symbol);
+
+        if let Some(base_keycode) = mac_keycode_to_qmk_f_key(keycode) {
+            if let Some((symbol, _trigger_keycode)) =
+                smart_symbol_for_transport(base_keycode, ctrl, shift, alt)
+            {
+                if event_type == K_CG_EVENT_KEY_DOWN {
+                    send_unicode_char(symbol);
+                }
+                return null_mut();
             }
-            return null_mut();
+        }
+
+        if event_type == K_CG_EVENT_KEY_DOWN {
+            handle_text_expander_key_down(event, keycode, flags);
         }
         event
+    }
+
+    pub(super) fn foreground_app_blacklisted(app_blacklist: &[String]) -> bool {
+        if app_blacklist.is_empty() {
+            return false;
+        }
+        foreground_app_candidate()
+            .map(|app| {
+                app_blacklist.iter().any(|blocked| {
+                    app.exe == *blocked
+                        || app
+                            .exe
+                            .strip_suffix(".app")
+                            .is_some_and(|stem| stem == blocked)
+                        || blocked
+                            .strip_suffix(".app")
+                            .is_some_and(|stem| stem == app.exe)
+                })
+            })
+            .unwrap_or(false)
+    }
+
+    pub(super) fn platform_open_window_candidates() -> Vec<TextExpanderAppCandidate> {
+        let script = r#"tell application "System Events" to get name of every application process whose background only is false"#;
+        let Some(output) = run_osascript(script) else {
+            return Vec::new();
+        };
+        let current = current_process_name_lower();
+        let mut apps = Vec::new();
+        for raw_name in output.split(',') {
+            let exe = raw_name.trim().to_ascii_lowercase();
+            if exe.is_empty() || current.as_deref() == Some(exe.as_str()) {
+                continue;
+            }
+            if !apps.iter().any(|app: &TextExpanderAppCandidate| app.exe == exe) {
+                apps.push(TextExpanderAppCandidate {
+                    exe,
+                    title: String::new(),
+                });
+            }
+        }
+        apps.sort_by(|a, b| a.exe.cmp(&b.exe));
+        apps
+    }
+
+    fn handle_text_expander_key_down(event: CGEventRef, keycode: u16, flags: u64) {
+        if !text_expander_enabled() {
+            return;
+        }
+        if foreground_is_current_process() {
+            return;
+        }
+        if text_expander_suppressed_for_context() {
+            if let Ok(mut engine) = text_expander_engine().lock() {
+                engine.reset();
+            }
+            return;
+        }
+        if keycode == MAC_KEY_DELETE {
+            if let Ok(mut engine) = text_expander_engine().lock() {
+                engine.backspace();
+            }
+            return;
+        }
+        if should_reset_text_expander_for_keycode(keycode) {
+            if let Ok(mut engine) = text_expander_engine().lock() {
+                engine.reset();
+            }
+            return;
+        }
+        let command = flags & K_CG_EVENT_FLAG_MASK_COMMAND != 0;
+        let ctrl = flags & K_CG_EVENT_FLAG_MASK_CONTROL != 0;
+        let alt = flags & K_CG_EVENT_FLAG_MASK_ALTERNATE != 0;
+        if command || ctrl || alt {
+            return;
+        }
+        if let Some(ch) = unsafe { text_expander_char_for_event(event) } {
+            let expansion = text_expander_engine()
+                .lock()
+                .ok()
+                .and_then(|mut engine| engine.push_char(ch));
+            if let Some(expansion) = expansion {
+                schedule_text_expansion(expansion);
+            }
+        }
+    }
+
+    fn should_reset_text_expander_for_keycode(keycode: u16) -> bool {
+        matches!(
+            keycode,
+            MAC_KEY_RETURN | MAC_KEY_TAB | MAC_KEY_ESCAPE | MAC_KEY_LEFT | MAC_KEY_RIGHT
+                | MAC_KEY_DOWN | MAC_KEY_UP
+        )
+    }
+
+    unsafe fn text_expander_char_for_event(event: CGEventRef) -> Option<char> {
+        let mut len = 0usize;
+        let mut buffer = [0u16; 8];
+        CGEventKeyboardGetUnicodeString(event, buffer.len(), &mut len, buffer.as_mut_ptr());
+        if len == 0 {
+            return None;
+        }
+        char::decode_utf16(buffer[..len.min(buffer.len())].iter().copied())
+            .next()
+            .and_then(Result::ok)
+            .filter(|ch| !ch.is_control())
+    }
+
+    fn schedule_text_expansion(expansion: crate::text_expander::TextExpansionMatch) {
+        std::thread::spawn(move || unsafe {
+            std::thread::sleep(Duration::from_millis(12));
+            send_text_expansion(&expansion);
+        });
+    }
+
+    unsafe fn send_text_expansion(expansion: &crate::text_expander::TextExpansionMatch) {
+        MACOS_EXPANDING_TEXT.store(true, Ordering::Relaxed);
+        for _ in 0..expansion.typed_trigger_chars {
+            send_key_tap(MAC_KEY_DELETE);
+        }
+        send_unicode_text(&expansion.replacement);
+        for _ in 0..expansion.cursor_back_chars {
+            send_key_tap(MAC_KEY_LEFT);
+        }
+        MACOS_EXPANDING_TEXT.store(false, Ordering::Relaxed);
+    }
+
+    unsafe fn send_key_tap(virtual_key: u16) {
+        for key_down in [true, false] {
+            let event = CGEventCreateKeyboardEvent(null_mut(), virtual_key, key_down);
+            if event.is_null() {
+                continue;
+            }
+            CGEventSetFlags(event, 0);
+            CGEventPost(K_CG_ANNOTATED_SESSION_EVENT_TAP, event);
+            CFRelease(event as *const c_void);
+        }
+    }
+
+    unsafe fn send_unicode_text(text: &str) {
+        for ch in text.chars() {
+            send_unicode_char(ch);
+        }
+    }
+
+    fn foreground_is_current_process() -> bool {
+        let Some(app) = foreground_app_candidate() else {
+            return false;
+        };
+        current_process_name_lower().as_deref() == Some(app.exe.as_str())
+    }
+
+    fn foreground_app_candidate() -> Option<TextExpanderAppCandidate> {
+        let cache = FOREGROUND_CACHE.get_or_init(|| Mutex::new(None));
+        if let Ok(guard) = cache.lock() {
+            if let Some((checked_at, candidate)) = &*guard {
+                if checked_at.elapsed() < Duration::from_millis(500) {
+                    return candidate.clone();
+                }
+            }
+        }
+
+        let candidate = query_foreground_app_candidate();
+        if let Some(candidate) = &candidate {
+            remember_foreground_app(candidate.clone());
+        }
+        if let Ok(mut guard) = cache.lock() {
+            *guard = Some((Instant::now(), candidate.clone()));
+        }
+        candidate
+    }
+
+    fn query_foreground_app_candidate() -> Option<TextExpanderAppCandidate> {
+        let script = r#"tell application "System Events"
+set frontApp to first application process whose frontmost is true
+set appName to name of frontApp
+set appTitle to ""
+try
+    set appTitle to name of front window of frontApp
+end try
+return appName & linefeed & appTitle
+end tell"#;
+        let output = run_osascript(script)?;
+        let mut lines = output.lines();
+        let exe = lines.next()?.trim().to_ascii_lowercase();
+        if exe.is_empty() {
+            return None;
+        }
+        let title = lines.next().unwrap_or_default().trim().to_owned();
+        Some(TextExpanderAppCandidate { exe, title })
+    }
+
+    fn run_osascript(script: &str) -> Option<String> {
+        let output = std::process::Command::new("osascript")
+            .arg("-e")
+            .arg(script)
+            .output()
+            .ok()?;
+        if !output.status.success() {
+            return None;
+        }
+        Some(String::from_utf8_lossy(&output.stdout).trim().to_owned())
     }
 
     fn mac_keycode_to_qmk_f_key(keycode: u16) -> Option<u16> {
@@ -449,6 +684,12 @@ mod macos {
             event: CGEventRef,
             stringLength: usize,
             unicodeString: *const u16,
+        );
+        fn CGEventKeyboardGetUnicodeString(
+            event: CGEventRef,
+            maxStringLength: usize,
+            actualStringLength: *mut usize,
+            unicodeString: *mut u16,
         );
         fn CGEventPost(tap: u32, event: CGEventRef);
     }

@@ -26,7 +26,7 @@ const APP_ID: &str = "entropy";
 #[cfg(target_os = "windows")]
 struct SingleInstanceGuard(*mut core::ffi::c_void);
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 struct SingleInstanceGuard(i32);
 
 #[cfg(target_os = "windows")]
@@ -40,7 +40,7 @@ impl Drop for SingleInstanceGuard {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 impl Drop for SingleInstanceGuard {
     fn drop(&mut self) {
         unsafe {
@@ -91,7 +91,7 @@ fn notify_existing_instance() {
     let _ = std::fs::write(signal_path, now_ms);
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 fn try_acquire_single_instance() -> bool {
     use std::fs::OpenOptions;
     use std::os::fd::IntoRawFd;
@@ -136,19 +136,19 @@ extern "system" {
     fn CloseHandle(hObject: *mut core::ffi::c_void) -> i32;
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 const LOCK_EX: i32 = 2;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 const LOCK_NB: i32 = 4;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 const LOCK_UN: i32 = 8;
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 extern "C" {
     fn flock(fd: i32, operation: i32) -> i32;
 }
 
-#[cfg(not(any(target_os = "windows", target_os = "linux")))]
+#[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
 fn try_acquire_single_instance() -> bool {
     true
 }
@@ -195,7 +195,7 @@ fn main() -> eframe::Result<()> {
 
     env_logger::init();
 
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     if !try_acquire_single_instance() {
         notify_existing_instance();
         return Ok(());
@@ -203,7 +203,7 @@ fn main() -> eframe::Result<()> {
 
     // Temporarily allow multiple Windows instances: a frozen HID session can otherwise keep
     // the global mutex and make a fixed build look like it "does not start".
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     let _single_instance_available = try_acquire_single_instance();
 
     let options = eframe::NativeOptions {

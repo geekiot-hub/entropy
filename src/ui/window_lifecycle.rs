@@ -108,12 +108,16 @@ impl EntropyApp {
     pub(super) fn minimize_window_to_tray(&mut self, ctx: &egui::Context) {
         #[cfg(target_os = "linux")]
         let background_status = "Entropy is running in background";
-        #[cfg(not(target_os = "linux"))]
+        #[cfg(target_os = "macos")]
+        let background_status = "Entropy is running in the menu bar";
+        #[cfg(all(not(target_os = "linux"), not(target_os = "macos")))]
         let background_status = "Entropy is running in the tray";
+
+        #[cfg(any(target_os = "windows", target_os = "macos"))]
+        self.ensure_tray_icon(ctx);
 
         #[cfg(target_os = "windows")]
         {
-            self.ensure_tray_icon(ctx);
             if let Some(hwnd) = self.windows_hwnd {
                 unsafe {
                     use windows_sys::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_HIDE};
@@ -129,7 +133,7 @@ impl EntropyApp {
             self.status_msg = background_status.into();
             return;
         }
-        #[cfg(not(target_os = "linux"))]
+        #[cfg(not(any(target_os = "windows", target_os = "linux")))]
         {
             ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
             self.status_msg = background_status.into();
@@ -140,7 +144,7 @@ impl EntropyApp {
         self.app_settings.close_to_tray_behavior = behavior;
         self.app_settings.minimize_to_tray_on_close = matches!(behavior, CloseToTrayBehavior::Tray);
         if !self.app_settings.minimize_to_tray_on_close {
-            #[cfg(target_os = "windows")]
+            #[cfg(any(target_os = "windows", target_os = "macos"))]
             {
                 self.tray_icon = None;
             }
@@ -179,7 +183,26 @@ impl EntropyApp {
                 lang,
                 crate::smart_input::text_expander_runs_outside_entropy_process(),
             );
-        #[cfg(not(target_os = "linux"))]
+        #[cfg(target_os = "macos")]
+        let (title, body, remember, close_label, tray_label, cancel_label) = match lang {
+            crate::i18n::Language::Russian => (
+                "Закрыть Entropy?",
+                "Text Expander и фоновые функции остановятся, если закрыть приложение",
+                "Запомнить выбор",
+                "Закрыть",
+                "В менюбар",
+                "Отмена",
+            ),
+            crate::i18n::Language::English => (
+                "Close Entropy?",
+                "Text Expander and background features will stop if Entropy is closed",
+                "Remember my choice",
+                "Close",
+                "Keep in menu bar",
+                "Cancel",
+            ),
+        };
+        #[cfg(all(not(target_os = "linux"), not(target_os = "macos")))]
         let (title, body, remember, close_label, tray_label, cancel_label) = match lang {
             crate::i18n::Language::Russian => (
                 "Закрыть Entropy?",
@@ -502,7 +525,7 @@ impl EntropyApp {
         }
     }
 
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     pub(super) fn ensure_tray_icon(&mut self, ctx: &egui::Context) {
         if self.tray_icon.is_some() {
             return;
@@ -511,6 +534,7 @@ impl EntropyApp {
             return;
         };
         let ctx_for_handler = ctx.clone();
+        #[cfg(target_os = "windows")]
         let hwnd_for_handler = self.windows_hwnd;
         tray_icon::TrayIconEvent::set_event_handler(Some(move |event| {
             use tray_icon::{MouseButton, MouseButtonState, TrayIconEvent};
@@ -524,6 +548,7 @@ impl EntropyApp {
                     button: MouseButton::Left,
                     ..
                 } => {
+                    #[cfg(target_os = "windows")]
                     if let Some(hwnd) = hwnd_for_handler {
                         unsafe {
                             use windows_sys::Win32::UI::WindowsAndMessaging::{
@@ -571,7 +596,7 @@ impl EntropyApp {
         }
     }
 
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     pub(super) fn handle_tray_quit_request(&mut self, ctx: &egui::Context) {
         if TRAY_QUIT_REQUESTED.swap(false, std::sync::atomic::Ordering::Relaxed) {
             self.force_close_requested = true;
@@ -580,7 +605,7 @@ impl EntropyApp {
         }
     }
 
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     pub(super) fn poll_tray_events(&mut self, ctx: &egui::Context) {
         use tray_icon::{MouseButton, MouseButtonState, TrayIconEvent};
         while let Ok(event) = TrayIconEvent::receiver().try_recv() {

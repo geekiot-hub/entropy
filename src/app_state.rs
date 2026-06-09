@@ -1,4 +1,4 @@
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 pub(crate) static TRAY_QUIT_REQUESTED: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
 
@@ -1217,7 +1217,7 @@ pub struct EntropyApp {
     pub(crate) app_settings: AppSettings,
     pub(crate) text_expander_rules_signature: Vec<(String, Option<std::time::SystemTime>)>,
     pub(crate) text_expander_rules_last_check_at: f64,
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     pub(crate) tray_icon: Option<tray_icon::TrayIcon>,
     #[cfg(target_os = "windows")]
     pub(crate) windows_hwnd: Option<isize>,

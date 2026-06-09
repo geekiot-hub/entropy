@@ -153,7 +153,7 @@ pub(crate) fn egui_icon(size: u32) -> egui::IconData {
     }
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 pub(crate) fn tray_icon(size: u32) -> Option<tray_icon::Icon> {
     tray_icon::Icon::from_rgba(rgba_icon(size), size, size).ok()
 }
