@@ -411,16 +411,18 @@ def _qwerty_jcuken_physical_prefix_aliases(trigger):
     if not trigger:
         return []
     physical_prefixes = {
-        ":": "^",
-        ";": "$",
+        ":": ("^", "6"),
+        ";": ("$", "4"),
     }
-    physical_prefix = physical_prefixes.get(trigger[0])
-    if not physical_prefix:
+    prefixes = physical_prefixes.get(trigger[0])
+    if not prefixes:
         return []
-    aliases = [physical_prefix + trigger[1:]]
+    aliases = []
     alias = _qwerty_jcuken_alias(trigger, map_prefix=False)
-    if alias:
-        _append_unique(aliases, physical_prefix + alias[1:])
+    for physical_prefix in prefixes:
+        _append_unique(aliases, physical_prefix + trigger[1:])
+        if alias:
+            _append_unique(aliases, physical_prefix + alias[1:])
     return aliases
 
 
@@ -613,6 +615,9 @@ class TextExpanderRuntime:
         return self.enabled and bool(self.engine.rules)
 
 
+SHARED_TEXT_EXPANDER_RUNTIME = TextExpanderRuntime()
+
+
 def _transport_keycode_from_keyval(keyval):
     if XK_F13 <= keyval <= XK_F13 + 11:
         return KC_F13 + (keyval - XK_F13)
@@ -644,7 +649,7 @@ def _transport_modifiers(state):
 class EntropyEngine(IBus.Engine):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._text_expander = TextExpanderRuntime()
+        self._text_expander = SHARED_TEXT_EXPANDER_RUNTIME
         self._client = ""
         self._client_capabilities = 0
         self._input_purpose = IBus.InputPurpose.FREE_FORM

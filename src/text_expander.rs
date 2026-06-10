@@ -219,16 +219,20 @@ fn qwerty_jcuken_physical_prefix_aliases(trigger: &str) -> Vec<String> {
     let Some(first) = trigger.chars().next() else {
         return Vec::new();
     };
-    let physical_prefix = match first {
-        ':' => '^',
-        ';' => '$',
+    let physical_prefixes: &[char] = match first {
+        ':' => &['^', '6'],
+        ';' => &['$', '4'],
         _ => return Vec::new(),
     };
     let rest = trigger.chars().skip(1).collect::<String>();
-    let mut aliases = vec![format!("{physical_prefix}{rest}")];
-    if let Some(mapped) = qwerty_jcuken_alias(trigger, false) {
-        let mapped_rest = mapped.chars().skip(1).collect::<String>();
-        push_unique_trigger(&mut aliases, format!("{physical_prefix}{mapped_rest}"));
+    let mapped_rest = qwerty_jcuken_alias(trigger, false)
+        .map(|mapped| mapped.chars().skip(1).collect::<String>());
+    let mut aliases = Vec::new();
+    for physical_prefix in physical_prefixes {
+        push_unique_trigger(&mut aliases, format!("{physical_prefix}{rest}"));
+        if let Some(mapped_rest) = &mapped_rest {
+            push_unique_trigger(&mut aliases, format!("{physical_prefix}{mapped_rest}"));
+        }
     }
     aliases
 }
@@ -567,6 +571,13 @@ mod tests {
         engine.reset();
         let mut matched = None;
         for ch in "^привет".chars() {
+            matched = engine.push_char(ch);
+        }
+        assert_eq!(matched.unwrap().replacement, "Здравствуйте");
+
+        engine.reset();
+        let mut matched = None;
+        for ch in "6ghbdtn".chars() {
             matched = engine.push_char(ch);
         }
         assert_eq!(matched.unwrap().replacement, "Здравствуйте");
