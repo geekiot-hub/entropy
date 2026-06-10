@@ -54,9 +54,13 @@ impl EntropyApp {
                     ui.set_clip_rect(list.viewport);
                     ui.set_min_size(list.content_rect.size());
                     ui.spacing_mut().item_spacing.y = 0.0;
+                    let visible_row_count =
+                        (list.viewport.height() / list.row_height).ceil() as usize;
+                    let last_visible_row =
+                        (list.first_visible_row + visible_row_count).min(list.last_visible_row);
                     self.draw_text_expander_editor_content(
                         ui,
-                        list.first_visible_row..list.last_visible_row,
+                        list.first_visible_row..last_visible_row,
                         list.row_content_width,
                         list.row_height,
                         metrics,
