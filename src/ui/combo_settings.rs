@@ -144,21 +144,6 @@ impl EntropyApp {
         } else {
             ui.visuals().text_color()
         };
-        let output_label = if self.combo_entries[combo_idx].output == 0 {
-            crate::i18n::tr_catalog(self.app_settings.language, "combo_editor.pick_output")
-                .to_string()
-        } else {
-            keycode_label_with_macro_names(
-                self.combo_entries[combo_idx].output,
-                custom,
-                &self.layer_names,
-                &self.keycode_picker.macro_names,
-                &self.keycode_picker.tap_dance_names,
-                self.app_settings.key_legend_layout,
-            )
-            .replace('\n', " ")
-        };
-
         crate::ui_style::modal_content(
             ui,
             crate::ui_style::ModalLayout::new(content_width).with_top_padding(4.0 * scale),
@@ -360,6 +345,7 @@ impl EntropyApp {
                                 self.push_combo_undo();
                                 self.combo_entries[combo_idx].keys[key_idx] = 0;
                                 self.combo_dirty = true;
+                                self.secondary_click_handled = true;
                             }
                         }
                     },
@@ -368,24 +354,46 @@ impl EntropyApp {
                 crate::ui_style::settings_list_row_with_tooltip(
                     ui,
                     row_content_width,
-                    row_height,
+                    input_keys_row_height,
                     crate::i18n::tr_catalog(self.app_settings.language, "combo_editor.output_key"),
                     true,
                     Some(crate::i18n::tr_catalog(
                         self.app_settings.language,
                         "combo_editor.keycode_sent_when_the_combo_activates",
                     )),
-                    control_width,
+                    input_key_size.x,
                     |ui| {
-                        let resp = crate::ui_style::modern_button_with_font(
+                        let value = self.combo_entries[combo_idx].output;
+                        let button_label = if value == 0 {
+                            String::new()
+                        } else {
+                            keycode_label_with_macro_names(
+                                value,
+                                custom,
+                                &self.layer_names,
+                                &self.keycode_picker.macro_names,
+                                &self.keycode_picker.tap_dance_names,
+                                self.app_settings.key_legend_layout,
+                            )
+                        };
+                        let hover_label = button_label.replace('\n', " ");
+                        let resp = crate::ui_style::modern_keycap_button(
                             ui,
-                            output_label.as_str(),
-                            Vec2::new(control_width, control_height),
-                            control_font_size,
+                            button_label.as_str(),
+                            input_key_size,
                             true,
                         );
-                        if resp.clicked() {
+                        if !hover_label.is_empty() {
+                            resp.clone().on_hover_text(hover_label.as_str());
+                        }
+                        if resp.clicked_by(egui::PointerButton::Primary) {
                             self.open_combo_key_picker(combo_idx, ComboPickField::Output);
+                        }
+                        if value != 0 && resp.clicked_by(egui::PointerButton::Secondary) {
+                            self.push_combo_undo();
+                            self.combo_entries[combo_idx].output = 0;
+                            self.combo_dirty = true;
+                            self.secondary_click_handled = true;
                         }
                     },
                 );
