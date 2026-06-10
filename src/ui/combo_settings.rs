@@ -70,6 +70,15 @@ impl EntropyApp {
         self.combo_capture_last_input_at = 0.0;
     }
 
+    fn open_combo_key_picker(&mut self, combo_idx: usize, field: ComboPickField) {
+        self.combo_capture_open = false;
+        self.combo_capture_keys.clear();
+        self.combo_pick_target = Some((combo_idx, field));
+        self.keycode_picker.layer_names = self.layer_names.clone();
+        self.keycode_picker
+            .open_full_key_picker(crate::keycode_picker::KeycodeTab::Basic);
+    }
+
     fn handle_combo_editor_input(&mut self, ctx: &egui::Context, allow_close: bool) -> bool {
         if !self.keycode_picker.open && ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
             if self.combo_capture_open {
@@ -183,11 +192,12 @@ impl EntropyApp {
         let control_height = metrics.settings_control_height();
         let control_font_size = metrics.settings_control_font_size();
         let timeout_control_width = metrics.value(118.0);
-        let custom = self
+        let custom_pairs = self
             .layout
             .as_ref()
-            .map(|l| l.custom_keycodes.as_slice())
-            .unwrap_or(&[]);
+            .map(|l| l.custom_keycodes.clone())
+            .unwrap_or_default();
+        let custom = custom_pairs.as_slice();
         let selected_combo_empty = self
             .combo_entries
             .get(combo_idx)
@@ -206,60 +216,6 @@ impl EntropyApp {
             app_inactive_entry_text(dark)
         } else {
             ui.visuals().text_color()
-        };
-        let input_summary = {
-            let keys: Vec<String> = if self.combo_capture_open {
-                self.combo_capture_keys
-                    .iter()
-                    .copied()
-                    .map(|kc| {
-                        keycode_label_with_macro_names(
-                            kc,
-                            custom,
-                            &self.layer_names,
-                            &self.keycode_picker.macro_names,
-                            &self.keycode_picker.tap_dance_names,
-                            self.app_settings.key_legend_layout,
-                        )
-                        .replace('\n', " ")
-                    })
-                    .collect()
-            } else {
-                self.combo_entries[combo_idx]
-                    .keys
-                    .iter()
-                    .copied()
-                    .filter(|&kc| kc != 0)
-                    .map(|kc| {
-                        keycode_label_with_macro_names(
-                            kc,
-                            custom,
-                            &self.layer_names,
-                            &self.keycode_picker.macro_names,
-                            &self.keycode_picker.tap_dance_names,
-                            self.app_settings.key_legend_layout,
-                        )
-                        .replace('\n', " ")
-                    })
-                    .collect()
-            };
-            if keys.is_empty() {
-                if self.combo_capture_open {
-                    crate::i18n::tr_catalog(
-                        self.app_settings.language,
-                        "combo_editor.press_2_4_keys",
-                    )
-                    .to_string()
-                } else {
-                    crate::i18n::tr_catalog(
-                        self.app_settings.language,
-                        "combo_editor.record_2_4_keys",
-                    )
-                    .to_string()
-                }
-            } else {
-                keys.join(" + ")
-            }
         };
         let output_label = if self.combo_entries[combo_idx].output == 0 {
             crate::i18n::tr_catalog(self.app_settings.language, "combo_editor.pick_output")
@@ -442,28 +398,49 @@ impl EntropyApp {
                     )),
                     control_width,
                     |ui| {
-                        let field_resp = crate::ui_style::modern_button_with_font(
-                            ui,
-                            input_summary.as_str(),
-                            Vec2::new(control_width, control_height),
-                            control_font_size,
-                            true,
-                        );
-                        if field_resp.clicked() {
-                            self.combo_capture_keys.clear();
-                            self.combo_capture_open = true;
-                            self.combo_capture_last_input_at = ui.ctx().input(|i| i.time);
-                        }
-                        if self.combo_capture_open {
-                            let clicked_outside_input = ui.ctx().input(|i| {
-                                i.pointer.any_pressed()
-                                    && i.pointer
-                                        .interact_pos()
-                                        .map(|pos| !field_resp.rect.contains(pos))
-                                        .unwrap_or(false)
-                            });
-                            if clicked_outside_input {
-                                self.apply_combo_capture();
+                        ui.spacing_mut().item_spacing.x = 4.0 * scale;
+                        let trigger_button_width = (control_width - 12.0 * scale) / 4.0;
+                        for key_idx in 0..4 {
+                            let value = self.combo_entries[combo_idx].keys[key_idx];
+                            let full_label = if value == 0 {
+                                format!("K{}", key_idx + 1)
+                            } else {
+                                keycode_label_with_macro_names(
+                                    value,
+                                    custom,
+                                    &self.layer_names,
+                                    &self.keycode_picker.macro_names,
+                                    &self.keycode_picker.tap_dance_names,
+                                    self.app_settings.key_legend_layout,
+                                )
+                                .replace('\n', " ")
+                            };
+                            let button_label = if value == 0 {
+                                format!("K{}", key_idx + 1)
+                            } else if (0x5700..=0x57FF).contains(&value) {
+                                format!("TD{}", value - 0x5700)
+                            } else {
+                                full_label
+                                    .split_whitespace()
+                                    .next()
+                                    .unwrap_or(full_label.as_str())
+                                    .chars()
+                                    .take(6)
+                                    .collect()
+                            };
+                            let resp = crate::ui_style::modern_button_with_font(
+                                ui,
+                                button_label.as_str(),
+                                Vec2::new(trigger_button_width, control_height),
+                                control_font_size.min(11.0 * scale),
+                                true,
+                            )
+                            .on_hover_text(full_label.as_str());
+                            if resp.clicked() {
+                                self.open_combo_key_picker(
+                                    combo_idx,
+                                    ComboPickField::Trigger(key_idx),
+                                );
                             }
                         }
                     },
@@ -489,9 +466,7 @@ impl EntropyApp {
                             true,
                         );
                         if resp.clicked() {
-                            self.combo_pick_target = Some((combo_idx, ComboPickField::Output));
-                            self.keycode_picker
-                                .open_regular_key_picker_with_mod_key(true);
+                            self.open_combo_key_picker(combo_idx, ComboPickField::Output);
                         }
                     },
                 );

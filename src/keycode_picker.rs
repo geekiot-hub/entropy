@@ -310,6 +310,22 @@ impl KeycodePicker {
         self.vial_layer_pending = None;
     }
 
+    pub(crate) fn open_full_key_picker(&mut self, selected_tab: KeycodeTab) {
+        self.result = None;
+        self.open = true;
+        self.regular_key_pick = false;
+        self.regular_key_pick_allow_mod_key = false;
+        self.regular_mod_key_pick = None;
+        self.search_query.clear();
+        self.vial_quantum_pending_mod = None;
+        self.vial_quantum_pending_mt = None;
+        self.vial_layer_pending = None;
+        self.tap_dance_editor_open = None;
+        self.td_key_pick = None;
+        self.td_mod_key_pick = None;
+        self.selected_tab = selected_tab;
+    }
+
     pub fn show(&mut self, ctx: &egui::Context) {
         let macro_key_pick_open = self.macro_key_pick.is_some();
         let regular_key_pick_open = self.regular_key_pick || self.regular_mod_key_pick.is_some();
