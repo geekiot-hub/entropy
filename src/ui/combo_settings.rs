@@ -6,10 +6,11 @@ impl EntropyApp {
         ui: &mut egui::Ui,
         ctx: &egui::Context,
         content_rect: egui::Rect,
-    ) {
+    ) -> bool {
         self.handle_combo_editor_input(ctx, false);
         let lang = self.app_settings.language;
         let dark = ui.visuals().dark_mode;
+        let mut combo_keycap_hovered = false;
 
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.vertical_centered(|ui| {
@@ -27,9 +28,10 @@ impl EntropyApp {
                         .color(app_muted_text(dark)),
                 );
                 ui.add_space(18.0 * scale);
-                self.draw_combo_editor_content(ui, false);
+                combo_keycap_hovered = self.draw_combo_editor_content(ui, false);
             });
         });
+        combo_keycap_hovered
     }
 
     pub(super) fn push_combo_undo(&mut self) {
@@ -61,7 +63,7 @@ impl EntropyApp {
         false
     }
 
-    fn draw_combo_editor_content(&mut self, ui: &mut egui::Ui, show_intro: bool) {
+    fn draw_combo_editor_content(&mut self, ui: &mut egui::Ui, show_intro: bool) -> bool {
         let dark = ui.visuals().dark_mode;
         if show_intro {
             crate::ui_style::modal_hint(
@@ -79,7 +81,7 @@ impl EntropyApp {
                 "Dynamic combos are not supported for this firmware",
                 None,
             );
-            return;
+            return false;
         }
 
         if self.combo_entries.is_empty() {
@@ -88,7 +90,7 @@ impl EntropyApp {
                 "This device does not report any dynamic combo slots",
                 None,
             );
-            return;
+            return false;
         }
 
         self.selected_combo = self
@@ -125,6 +127,7 @@ impl EntropyApp {
             .map(|l| l.custom_keycodes.clone())
             .unwrap_or_default();
         let custom = custom_pairs.as_slice();
+        let mut combo_keycap_hovered = false;
         let selected_combo_empty = self
             .combo_entries
             .get(combo_idx)
@@ -335,6 +338,7 @@ impl EntropyApp {
                             if !hover_label.is_empty() {
                                 resp.clone().on_hover_text(hover_label.as_str());
                             }
+                            combo_keycap_hovered |= resp.hovered();
                             if resp.clicked_by(egui::PointerButton::Primary) {
                                 self.open_combo_key_picker(
                                     combo_idx,
@@ -388,6 +392,7 @@ impl EntropyApp {
                         if !hover_label.is_empty() {
                             resp.clone().on_hover_text(hover_label.as_str());
                         }
+                        combo_keycap_hovered |= resp.hovered();
                         if resp.clicked_by(egui::PointerButton::Primary) {
                             self.open_combo_key_picker(combo_idx, ComboPickField::Output);
                         }
@@ -551,5 +556,6 @@ impl EntropyApp {
             });
         });
         ui.allocate_space(Vec2::new(1.0, action_size.y));
+        combo_keycap_hovered
     }
 }
