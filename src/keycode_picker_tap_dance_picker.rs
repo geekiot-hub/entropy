@@ -405,6 +405,7 @@ impl KeycodePicker {
         if n >= self.tap_dance_entries.len() {
             return;
         }
+        let value = crate::keycode::normalize_output_symbol_keycode(value);
         let current = match self.tap_dance_entries.get(n) {
             Some(td) => match field {
                 0 => td.on_tap,

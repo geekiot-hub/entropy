@@ -524,6 +524,17 @@ pub const KEYCODES: &[Keycode] = &[
     Keycode { value: 0x7824, name: "RGB_SPD",  label: "RGB\nSpd-", category: KeycodeCategory::Special },
 ];
 
+/// Normalizes symbol-looking physical keys to the printable shifted keycodes
+/// users expect when assigning an output action.
+pub fn normalize_output_symbol_keycode(value: u16) -> u16 {
+    match value {
+        // KC_NONUS_HASH is a physical ISO key position. On common Windows ANSI
+        // layouts it can produce backslash, while the UI label looks like "#".
+        0x0032 => 0x0220,
+        _ => value,
+    }
+}
+
 pub fn find_keycode(value: u16) -> Option<&'static Keycode> {
     KEYCODES.iter().find(|k| k.value == value)
 }

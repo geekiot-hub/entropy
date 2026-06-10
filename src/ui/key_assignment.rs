@@ -8,7 +8,10 @@ impl EntropyApp {
                 if let Some(combo) = self.combo_entries.get_mut(combo_idx) {
                     match field {
                         ComboPickField::Trigger(key_idx) => combo.keys[key_idx] = kc_value,
-                        ComboPickField::Output => combo.output = kc_value,
+                        ComboPickField::Output => {
+                            combo.output =
+                                crate::keycode::normalize_output_symbol_keycode(kc_value);
+                        }
                     }
                     self.combo_dirty = true;
                 }
