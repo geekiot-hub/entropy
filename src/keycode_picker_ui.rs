@@ -16,6 +16,22 @@ fn picker_keycap_fill(dark: bool) -> Color32 {
     }
 }
 
+fn picker_keycap_text(dark: bool) -> Color32 {
+    if dark {
+        Color32::from_rgb(239, 233, 232)
+    } else {
+        Color32::from_rgb(26, 26, 30)
+    }
+}
+
+fn picker_keycap_secondary_text(dark: bool) -> Color32 {
+    if dark {
+        Color32::from_rgb(130, 130, 145)
+    } else {
+        Color32::from_rgb(130, 130, 150)
+    }
+}
+
 pub(super) fn apply_picker_button_visuals(ui: &mut egui::Ui) {
     let dark_mode = ui.visuals().dark_mode;
     let visuals = ui.visuals_mut();
@@ -88,7 +104,7 @@ pub(super) fn picker_keycap_button_in_rect(
     let text_color = if active {
         Color32::WHITE
     } else if enabled {
-        ui.visuals().text_color()
+        picker_keycap_text(dark)
     } else {
         crate::ui_style::muted_text(dark)
     };
@@ -97,7 +113,13 @@ pub(super) fn picker_keycap_button_in_rect(
     let top_size = top_size.map(|size| size * label_scale);
     let bottom_size = bottom_size * label_scale;
     if let Some((top, bottom)) = label.split_once('\n') {
-        let top_color = text_color.gamma_multiply(0.75);
+        let top_color = if active {
+            text_color.gamma_multiply(0.75)
+        } else if enabled {
+            picker_keycap_secondary_text(dark)
+        } else {
+            crate::ui_style::muted_text(dark).gamma_multiply(0.75)
+        };
         let top_galley = ui.painter().layout_no_wrap(
             top.to_owned(),
             egui::FontId::proportional(top_size.unwrap_or(9.0)),
