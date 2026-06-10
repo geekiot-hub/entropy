@@ -183,7 +183,7 @@ fn activation_triggers(trigger: &str) -> Vec<String> {
     let mut triggers = Vec::with_capacity(base.len() * 2);
     for trigger in base {
         push_unique_trigger(&mut triggers, trigger.clone());
-        if let Some(alias) = qwerty_jcuken_alias(&trigger) {
+        for alias in qwerty_jcuken_aliases(&trigger) {
             push_unique_trigger(&mut triggers, alias);
         }
     }
@@ -196,11 +196,27 @@ fn push_unique_trigger(triggers: &mut Vec<String>, trigger: String) {
     }
 }
 
-fn qwerty_jcuken_alias(trigger: &str) -> Option<String> {
+fn qwerty_jcuken_aliases(trigger: &str) -> Vec<String> {
+    let mut aliases = Vec::new();
+    if let Some(alias) = qwerty_jcuken_alias(trigger, false) {
+        push_unique_trigger(&mut aliases, alias);
+    }
+    if matches!(trigger.chars().next(), Some(':') | Some(';')) {
+        if let Some(alias) = qwerty_jcuken_prefix_alias(trigger) {
+            push_unique_trigger(&mut aliases, alias);
+        }
+        if let Some(alias) = qwerty_jcuken_alias(trigger, true) {
+            push_unique_trigger(&mut aliases, alias);
+        }
+    }
+    aliases
+}
+
+fn qwerty_jcuken_alias(trigger: &str, map_prefix: bool) -> Option<String> {
     let mut changed = false;
     let mut output = String::with_capacity(trigger.len());
     for (idx, ch) in trigger.chars().enumerate() {
-        if idx == 0 && matches!(ch, ':' | ';') {
+        if idx == 0 && matches!(ch, ':' | ';') && !map_prefix {
             output.push(ch);
         } else if let Some(mapped) = qwerty_jcuken_char_alias(ch) {
             output.push(mapped);
@@ -210,6 +226,14 @@ fn qwerty_jcuken_alias(trigger: &str) -> Option<String> {
         }
     }
     changed.then_some(output)
+}
+
+fn qwerty_jcuken_prefix_alias(trigger: &str) -> Option<String> {
+    let mut chars = trigger.chars();
+    let first = chars.next()?;
+    let mapped = qwerty_jcuken_char_alias(first)?;
+    let rest = chars.collect::<String>();
+    Some(format!("{mapped}{rest}"))
 }
 
 fn qwerty_jcuken_char_alias(ch: char) -> Option<char> {
@@ -485,6 +509,26 @@ mod tests {
         let mut engine = TextExpansionEngine::new(vec![rule(":привет", "Здравствуйте")]);
         let mut matched = None;
         for ch in ":ghbdtn".chars() {
+            matched = engine.push_char(ch);
+        }
+        assert_eq!(matched.unwrap().replacement, "Здравствуйте");
+    }
+
+    #[test]
+    fn expands_cyrillic_trigger_from_layout_prefix_alias() {
+        let mut engine = TextExpansionEngine::new(vec![rule(":привет", "Здравствуйте")]);
+        let mut matched = None;
+        for ch in "Жпривет".chars() {
+            matched = engine.push_char(ch);
+        }
+        assert_eq!(matched.unwrap().replacement, "Здравствуйте");
+    }
+
+    #[test]
+    fn expands_cyrillic_trigger_from_full_layout_alias() {
+        let mut engine = TextExpansionEngine::new(vec![rule(":привет", "Здравствуйте")]);
+        let mut matched = None;
+        for ch in "Жghbdtn".chars() {
             matched = engine.push_char(ch);
         }
         assert_eq!(matched.unwrap().replacement, "Здравствуйте");

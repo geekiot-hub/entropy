@@ -242,8 +242,7 @@ def _activation_triggers(trigger):
     triggers = []
     for item in base:
         _append_unique(triggers, item)
-        alias = _qwerty_jcuken_alias(item)
-        if alias:
+        for alias in _qwerty_jcuken_aliases(item):
             _append_unique(triggers, alias)
     return triggers
 
@@ -391,11 +390,26 @@ QWERTY_JCUKEN_ALIASES = str.maketrans(
 )
 
 
-def _qwerty_jcuken_alias(trigger):
+def _qwerty_jcuken_aliases(trigger):
+    aliases = []
+    alias = _qwerty_jcuken_alias(trigger, map_prefix=False)
+    if alias:
+        _append_unique(aliases, alias)
+    if trigger and trigger[0] in (":", ";"):
+        alias = _qwerty_jcuken_prefix_alias(trigger)
+        if alias:
+            _append_unique(aliases, alias)
+        alias = _qwerty_jcuken_alias(trigger, map_prefix=True)
+        if alias:
+            _append_unique(aliases, alias)
+    return aliases
+
+
+def _qwerty_jcuken_alias(trigger, map_prefix):
     output = []
     changed = False
     for idx, ch in enumerate(trigger):
-        if idx == 0 and ch in (":", ";"):
+        if idx == 0 and ch in (":", ";") and not map_prefix:
             output.append(ch)
             continue
         mapped = ch.translate(QWERTY_JCUKEN_ALIASES)
@@ -404,6 +418,15 @@ def _qwerty_jcuken_alias(trigger):
     if not changed:
         return None
     return "".join(output)
+
+
+def _qwerty_jcuken_prefix_alias(trigger):
+    if not trigger:
+        return None
+    mapped = trigger[0].translate(QWERTY_JCUKEN_ALIASES)
+    if mapped == trigger[0]:
+        return None
+    return mapped + trigger[1:]
 
 
 def _decode_text_escapes(raw):
@@ -667,8 +690,12 @@ class EntropyEngine(IBus.Engine):
         if self._is_terminal_context() and previous_chars:
             self.commit_text(IBus.Text.new_from_string("\x7f" * previous_chars + replacement))
         else:
-            for _ in range(previous_chars):
-                self.forward_key_event(IBus.KEY_BackSpace, 0, 0)
+            if previous_chars and not self.delete_surrounding_text(-previous_chars, previous_chars):
+                for _ in range(previous_chars):
+                    self.forward_key_event(IBus.KEY_BackSpace, 0, 0)
+                    self.forward_key_event(
+                        IBus.KEY_BackSpace, 0, IBus.ModifierType.RELEASE_MASK
+                    )
             self.commit_text(IBus.Text.new_from_string(replacement))
         for _ in range(cursor_back_chars):
             self.forward_key_event(IBus.KEY_Left, 0, 0)
