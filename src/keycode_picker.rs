@@ -162,6 +162,69 @@ fn tr_picker(language: crate::i18n::Language, key: &'static str) -> &'static str
     crate::i18n::tr_catalog(language, key)
 }
 
+const UNIVERSAL_MAIN_SYMBOL_ORDER: &[char] = &[
+    '.', ',', ';', ':', '!', '?', '/', '`', '~', '\'', '"', '(', ')', '[', ']', '{', '}', '<', '>',
+    '+', '*', '=', '#', '@', '$', '%', '^', '&', '|', '\\', '_',
+];
+
+const UNIVERSAL_EXTRA_SYMBOL_ORDER: &[char] = &[
+    '₽', '€', '«', '»', '‘', '’', '„', '“', '”', '—', '–', '•', '×', '±', '≠', '≈', '✓', '§', '°',
+    '‰', '′', '″', '™', '№',
+];
+
+fn show_universal_symbol_section(
+    ui: &mut egui::Ui,
+    language: crate::i18n::Language,
+    section_key: &'static str,
+    symbols: &[char],
+    show_setup_hint: bool,
+) -> Option<u16> {
+    let mut picked = None;
+
+    ui.label(
+        RichText::new(tr_picker(language, section_key))
+            .size(11.0)
+            .color(Color32::from_gray(150)),
+    );
+    if show_setup_hint {
+        if let Some(hint) = crate::smart_input::universal_output_setup_hint() {
+            ui.add_space(3.0);
+            ui.label(
+                RichText::new(crate::i18n::tr_text(language, hint))
+                    .size(10.0)
+                    .color(Color32::from_gray(120)),
+            );
+        }
+    }
+    ui.add_space(4.0);
+    ui.horizontal_wrapped(|ui| {
+        for wanted in symbols {
+            let Some(smart) = crate::smart_input::SMART_SYMBOLS
+                .iter()
+                .copied()
+                .find(|smart| smart.symbol == *wanted)
+            else {
+                continue;
+            };
+            let label = smart.symbol.to_string();
+            let tip = format!(
+                "Universal symbol: {} — types {} consistently regardless of the active keyboard language",
+                smart.name, smart.symbol
+            );
+            let resp = ui
+                .add_sized(KeycodePicker::picker_key_size(ui.ctx()), egui::Button::new(""))
+                .on_hover_cursor(egui::CursorIcon::PointingHand);
+            KeycodePicker::paint_compact_picker_label(ui, &resp, &label);
+            if resp.clicked() {
+                picked = Some(smart.trigger_keycode);
+            }
+            resp.on_hover_text(crate::i18n::tr_text(language, &tip));
+        }
+    });
+
+    picked
+}
+
 fn picker_tab_label(language: crate::i18n::Language, tab: KeycodeTab) -> &'static str {
     tr_picker(language, tab.i18n_key())
 }

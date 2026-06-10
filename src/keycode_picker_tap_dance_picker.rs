@@ -172,6 +172,7 @@ impl KeycodePicker {
                             })
                             .collect();
                         self.show_tap_dance_mod_key_section(ui, td_idx, field);
+                        self.show_tap_dance_universal_symbol_sections(ui, td_idx, field);
                         if let Some(value) = show_grouped_popup_key_buttons(
                             ui,
                             key_choices,
@@ -250,6 +251,7 @@ impl KeycodePicker {
         ui.add_space(crate::ui_style::modal_space_sm());
 
         self.show_tap_dance_mod_key_section(ui, td_idx, field);
+        self.show_tap_dance_universal_symbol_sections(ui, td_idx, field);
 
         let key_choices = self.tap_dance_regular_key_choices();
         if let Some(value) = show_grouped_popup_key_buttons(
@@ -290,6 +292,37 @@ impl KeycodePicker {
             self.set_tap_dance_field(td_idx, field, value);
             self.td_key_pick = None;
         }
+    }
+
+    fn show_tap_dance_universal_symbol_sections(
+        &mut self,
+        ui: &mut egui::Ui,
+        td_idx: usize,
+        field: u8,
+    ) {
+        let language = self.language;
+        if let Some(value) = show_universal_symbol_section(
+            ui,
+            language,
+            "key_picker.section_universal_symbols",
+            UNIVERSAL_MAIN_SYMBOL_ORDER,
+            true,
+        ) {
+            self.set_tap_dance_field(td_idx, field, value);
+            self.td_key_pick = None;
+        }
+        ui.add_space(crate::ui_style::modal_space_sm());
+        if let Some(value) = show_universal_symbol_section(
+            ui,
+            language,
+            "key_picker.section_extra_universal_symbols",
+            UNIVERSAL_EXTRA_SYMBOL_ORDER,
+            false,
+        ) {
+            self.set_tap_dance_field(td_idx, field, value);
+            self.td_key_pick = None;
+        }
+        ui.add_space(crate::ui_style::modal_space_sm());
     }
 
     fn show_tap_dance_mod_key_section(&mut self, ui: &mut egui::Ui, td_idx: usize, field: u8) {

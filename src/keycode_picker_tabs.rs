@@ -12,56 +12,15 @@ impl KeycodePicker {
             })
             .collect();
 
-        let main_symbol_order = [
-            '.', ',', ';', ':', '!', '?', '/', '`', '~', '\'', '"', '(', ')', '[', ']', '{', '}',
-            '<', '>', '+', '*', '=', '#', '@', '$', '%', '^', '&', '|', '\\', '_',
-        ];
-        let extra_symbol_order = [
-            '₽', '€', '«', '»', '‘', '’', '„', '“', '”', '—', '–', '•', '×', '±', '≠', '≈', '✓',
-            '§', '°', '‰', '′', '″', '™', '№',
-        ];
-
-        ui.label(
-            RichText::new(tr_picker(
-                self.language,
-                "key_picker.section_universal_symbols",
-            ))
-            .size(11.0)
-            .color(Color32::from_gray(150)),
-        );
-        if let Some(hint) = crate::smart_input::universal_output_setup_hint() {
-            ui.add_space(3.0);
-            ui.label(
-                RichText::new(crate::i18n::tr_text(self.language, hint))
-                    .size(10.0)
-                    .color(Color32::from_gray(120)),
-            );
+        if let Some(value) = show_universal_symbol_section(
+            ui,
+            self.language,
+            "key_picker.section_universal_symbols",
+            UNIVERSAL_MAIN_SYMBOL_ORDER,
+            true,
+        ) {
+            self.assign_keycode_value(value);
         }
-        ui.add_space(4.0);
-        ui.horizontal_wrapped(|ui| {
-            for wanted in main_symbol_order {
-                let Some(smart) = crate::smart_input::SMART_SYMBOLS
-                    .iter()
-                    .copied()
-                    .find(|smart| smart.symbol == wanted)
-                else {
-                    continue;
-                };
-                let label = smart.symbol.to_string();
-                let tip = format!(
-                    "Universal symbol: {} — types {} consistently regardless of the active keyboard language",
-                    smart.name, smart.symbol
-                );
-                let resp = ui
-                    .add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""))
-                    .on_hover_cursor(egui::CursorIcon::PointingHand);
-                Self::paint_compact_picker_label(ui, &resp, &label);
-                if resp.clicked() {
-                    self.assign_keycode_value(smart.trigger_keycode);
-                }
-                resp.on_hover_text(crate::i18n::tr_text(self.language, &tip));
-            }
-        });
 
         ui.add_space(10.0);
         ui.label(
@@ -101,39 +60,15 @@ impl KeycodePicker {
         });
 
         ui.add_space(10.0);
-        ui.label(
-            RichText::new(tr_picker(
-                self.language,
-                "key_picker.section_extra_universal_symbols",
-            ))
-            .size(11.0)
-            .color(Color32::from_gray(150)),
-        );
-        ui.add_space(4.0);
-        ui.horizontal_wrapped(|ui| {
-            for wanted in extra_symbol_order {
-                let Some(smart) = crate::smart_input::SMART_SYMBOLS
-                    .iter()
-                    .copied()
-                    .find(|smart| smart.symbol == wanted)
-                else {
-                    continue;
-                };
-                let label = smart.symbol.to_string();
-                let tip = format!(
-                    "Universal symbol: {} — types {} consistently regardless of the active keyboard language",
-                    smart.name, smart.symbol
-                );
-                let resp = ui
-                    .add_sized(Self::picker_key_size(ui.ctx()), egui::Button::new(""))
-                    .on_hover_cursor(egui::CursorIcon::PointingHand);
-                Self::paint_compact_picker_label(ui, &resp, &label);
-                if resp.clicked() {
-                    self.assign_keycode_value(smart.trigger_keycode);
-                }
-                resp.on_hover_text(crate::i18n::tr_text(self.language, &tip));
-            }
-        });
+        if let Some(value) = show_universal_symbol_section(
+            ui,
+            self.language,
+            "key_picker.section_extra_universal_symbols",
+            UNIVERSAL_EXTRA_SYMBOL_ORDER,
+            false,
+        ) {
+            self.assign_keycode_value(value);
+        }
     }
 
     pub(super) fn show_vial_generic(&mut self, ui: &mut egui::Ui) {
