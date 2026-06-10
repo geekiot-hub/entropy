@@ -497,7 +497,6 @@ impl EntropyApp {
                 );
 
                 if let Some(current_combo_term) = self.combo_term {
-                    let mut combo_term_text = current_combo_term.to_string();
                     crate::ui_style::settings_list_row_with_tooltip(
                         ui,
                         row_content_width,
@@ -513,9 +512,20 @@ impl EntropyApp {
                             ui.with_layout(
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
+                                    let edit_id = egui::Id::new("combo_term");
+                                    let mut combo_term_text = ui.ctx().data_mut(|d| {
+                                        d.get_temp::<String>(edit_id)
+                                            .unwrap_or_else(|| current_combo_term.to_string())
+                                    });
+                                    if combo_term_text.parse::<u16>().ok()
+                                        != Some(current_combo_term)
+                                        && !ui.memory(|m| m.has_focus(edit_id))
+                                    {
+                                        combo_term_text = current_combo_term.to_string();
+                                    }
                                     let resp = crate::ui_style::modern_text_field_sized(
                                         ui,
-                                        egui::Id::new("combo_term"),
+                                        edit_id,
                                         &mut combo_term_text,
                                         70.0 * scale,
                                         control_height,
@@ -535,11 +545,35 @@ impl EntropyApp {
                                             .filter(|c| c.is_ascii_digit())
                                             .take(4)
                                             .collect();
-                                        if let Ok(parsed) = filtered.parse::<u16>() {
-                                            self.combo_undo_stack.push(combo_undo_snapshot.clone());
-                                            self.combo_term = Some(parsed.max(1));
-                                            self.combo_term_dirty = true;
+                                        if filtered != combo_term_text {
+                                            combo_term_text = filtered;
                                         }
+                                    }
+                                    let commit = resp.lost_focus()
+                                        || (resp.has_focus()
+                                            && ui.input(|i| i.key_pressed(egui::Key::Enter)));
+                                    if commit {
+                                        match combo_term_text.trim().parse::<u16>() {
+                                            Ok(parsed) => {
+                                                let next_combo_term = parsed.max(1);
+                                                if next_combo_term != current_combo_term {
+                                                    self.combo_undo_stack
+                                                        .push(combo_undo_snapshot.clone());
+                                                    self.combo_term = Some(next_combo_term);
+                                                    self.combo_term_dirty = true;
+                                                }
+                                                combo_term_text = next_combo_term.to_string();
+                                            }
+                                            Err(_) => {
+                                                combo_term_text = current_combo_term.to_string();
+                                            }
+                                        }
+                                    }
+                                    ui.ctx().data_mut(|d| {
+                                        d.insert_temp(edit_id, combo_term_text);
+                                    });
+                                    if self.combo_undo_stack.len() > 64 {
+                                        self.combo_undo_stack.remove(0);
                                     }
                                 },
                             );
