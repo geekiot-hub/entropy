@@ -309,7 +309,6 @@ impl EntropyApp {
         let encoder_visibility = self.encoder_visibility.clone();
         let matrix_pressed = self.matrix_tester_pressed.clone();
         let pressed_key_layers = self.sticky_layout_pressed_key_layers.clone();
-        let ui_scale = clamp_ui_scale(self.app_settings.ui_scale);
         let dark = self.app_settings.sticky_layout_dark_mode;
         let mut sticky_dark_mode = self.app_settings.sticky_layout_dark_mode;
         let mut sticky_opacity =
@@ -535,7 +534,7 @@ impl EntropyApp {
                             &encoder_visibility,
                             &matrix_pressed,
                             &pressed_key_layers,
-                            ui_scale,
+                            1.0,
                             dark,
                             rect,
                         );
