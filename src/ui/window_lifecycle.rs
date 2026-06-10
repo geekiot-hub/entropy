@@ -582,13 +582,7 @@ impl EntropyApp {
                     TRAY_QUIT_REQUESTED.store(true, std::sync::atomic::Ordering::Relaxed);
                     #[cfg(target_os = "windows")]
                     if let Some(hwnd) = hwnd_for_menu {
-                        unsafe {
-                            use windows_sys::Win32::UI::WindowsAndMessaging::{
-                                PostMessageW, WM_CLOSE,
-                            };
-                            let hwnd = hwnd as windows_sys::Win32::Foundation::HWND;
-                            PostMessageW(hwnd, WM_CLOSE, 0, 0);
-                        }
+                        request_windows_window_close_from_tray(hwnd);
                     }
                     ctx_for_menu.request_repaint();
                 }
@@ -629,11 +623,7 @@ impl EntropyApp {
             #[cfg(target_os = "windows")]
             {
                 if let Some(hwnd) = self.windows_hwnd {
-                    unsafe {
-                        use windows_sys::Win32::UI::WindowsAndMessaging::{PostMessageW, WM_CLOSE};
-                        let hwnd = hwnd as windows_sys::Win32::Foundation::HWND;
-                        PostMessageW(hwnd, WM_CLOSE, 0, 0);
-                    }
+                    request_windows_window_close_from_tray(hwnd);
                 } else {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                 }
@@ -660,6 +650,21 @@ impl EntropyApp {
                 _ => {}
             }
         }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn request_windows_window_close_from_tray(hwnd: isize) {
+    unsafe {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            PostMessageW, SetForegroundWindow, ShowWindow, SW_RESTORE, SW_SHOW, WM_CLOSE,
+        };
+
+        let hwnd = hwnd as windows_sys::Win32::Foundation::HWND;
+        ShowWindow(hwnd, SW_SHOW);
+        ShowWindow(hwnd, SW_RESTORE);
+        SetForegroundWindow(hwnd);
+        PostMessageW(hwnd, WM_CLOSE, 0, 0);
     }
 }
 
