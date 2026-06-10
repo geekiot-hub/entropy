@@ -329,7 +329,7 @@ impl EntropyApp {
                         for key_idx in 0..4 {
                             let value = self.combo_entries[combo_idx].keys[key_idx];
                             let button_label = if value == 0 {
-                                format!("K{}", key_idx + 1)
+                                String::new()
                             } else {
                                 keycode_label_with_macro_names(
                                     value,
@@ -346,13 +346,20 @@ impl EntropyApp {
                                 button_label.as_str(),
                                 input_key_size,
                                 true,
-                            )
-                            .on_hover_text(hover_label.as_str());
-                            if resp.clicked() {
+                            );
+                            if !hover_label.is_empty() {
+                                resp.clone().on_hover_text(hover_label.as_str());
+                            }
+                            if resp.clicked_by(egui::PointerButton::Primary) {
                                 self.open_combo_key_picker(
                                     combo_idx,
                                     ComboPickField::Trigger(key_idx),
                                 );
+                            }
+                            if value != 0 && resp.clicked_by(egui::PointerButton::Secondary) {
+                                self.push_combo_undo();
+                                self.combo_entries[combo_idx].keys[key_idx] = 0;
+                                self.combo_dirty = true;
                             }
                         }
                     },
