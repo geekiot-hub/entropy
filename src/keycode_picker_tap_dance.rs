@@ -300,8 +300,8 @@ impl KeycodePicker {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if picker_button(
                     ui,
-                    picker_save_label(self.language),
-                    picker_scaled_size(ui.ctx(), 104.0, 30.0),
+                    picker_ok_label(self.language),
+                    picker_scaled_size(ui.ctx(), 72.0, 30.0),
                     true,
                     false,
                 )
