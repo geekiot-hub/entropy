@@ -697,7 +697,7 @@ pub fn modal_content(ui: &mut Ui, layout: ModalLayout, add_contents: impl FnOnce
             ui.add_space(layout.top_padding);
         }
         ui.allocate_ui_with_layout(
-            Vec2::new(layout.content_width, 0.0),
+            Vec2::new(layout.content_width, ui.available_height()),
             egui::Layout::top_down(egui::Align::Min),
             add_contents,
         );
