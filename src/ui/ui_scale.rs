@@ -25,8 +25,11 @@ impl EntropyApp {
             return;
         }
         self.app_settings.ui_scale = scale;
+        self.ui_scale_wheel_accum = 0.0;
         save_app_settings(&self.app_settings);
-        ctx.set_zoom_factor(scale);
+        // Apply the actual zoom at the start of the next frame. Changing
+        // egui's zoom factor while top-bar controls are being painted can move
+        // their hitboxes under the active pointer and create visible oscillation.
         ctx.request_repaint();
     }
 
