@@ -341,11 +341,13 @@ impl EntropyApp {
                                     ComboPickField::Trigger(key_idx),
                                 );
                             }
-                            if value != 0 && resp.clicked_by(egui::PointerButton::Secondary) {
-                                self.push_combo_undo();
-                                self.combo_entries[combo_idx].keys[key_idx] = 0;
-                                self.combo_dirty = true;
+                            if resp.clicked_by(egui::PointerButton::Secondary) {
                                 self.secondary_click_handled = true;
+                                if value != 0 {
+                                    self.push_combo_undo();
+                                    self.combo_entries[combo_idx].keys[key_idx] = 0;
+                                    self.combo_dirty = true;
+                                }
                             }
                         }
                     },
@@ -389,11 +391,13 @@ impl EntropyApp {
                         if resp.clicked_by(egui::PointerButton::Primary) {
                             self.open_combo_key_picker(combo_idx, ComboPickField::Output);
                         }
-                        if value != 0 && resp.clicked_by(egui::PointerButton::Secondary) {
-                            self.push_combo_undo();
-                            self.combo_entries[combo_idx].output = 0;
-                            self.combo_dirty = true;
+                        if resp.clicked_by(egui::PointerButton::Secondary) {
                             self.secondary_click_handled = true;
+                            if value != 0 {
+                                self.push_combo_undo();
+                                self.combo_entries[combo_idx].output = 0;
+                                self.combo_dirty = true;
+                            }
                         }
                     },
                 );
