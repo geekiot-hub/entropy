@@ -1217,6 +1217,7 @@ pub struct EntropyApp {
     pub(crate) app_settings: AppSettings,
     pub(crate) text_expander_rules_signature: Vec<(String, Option<std::time::SystemTime>)>,
     pub(crate) text_expander_rules_last_check_at: f64,
+    pub(crate) text_expander_scroll_to_bottom_pending: bool,
     #[cfg(any(target_os = "windows", target_os = "macos"))]
     pub(crate) tray_icon: Option<tray_icon::TrayIcon>,
     #[cfg(target_os = "windows")]

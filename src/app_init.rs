@@ -63,6 +63,7 @@ impl EntropyApp {
             app_settings,
             text_expander_rules_signature,
             text_expander_rules_last_check_at: 0.0,
+            text_expander_scroll_to_bottom_pending: false,
             #[cfg(any(target_os = "windows", target_os = "macos"))]
             tray_icon: None,
             #[cfg(target_os = "windows")]

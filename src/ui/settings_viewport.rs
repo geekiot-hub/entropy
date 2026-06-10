@@ -54,6 +54,24 @@ pub(crate) fn allocate_adaptive_settings_list_viewport(
     total_rows: usize,
     bottom_reserve: f32,
 ) -> AdaptiveSettingsListViewport {
+    allocate_adaptive_settings_list_viewport_with_scroll_request(
+        ui,
+        id_salt,
+        metrics,
+        total_rows,
+        bottom_reserve,
+        false,
+    )
+}
+
+pub(crate) fn allocate_adaptive_settings_list_viewport_with_scroll_request(
+    ui: &mut egui::Ui,
+    id_salt: &'static str,
+    metrics: crate::ui_style::ResponsiveMetrics,
+    total_rows: usize,
+    bottom_reserve: f32,
+    scroll_to_bottom: bool,
+) -> AdaptiveSettingsListViewport {
     let viewport_width = metrics.settings_content_width();
     let row_content_width = metrics.settings_row_content_width();
     let row_height = metrics.settings_row_height();
@@ -76,6 +94,10 @@ pub(crate) fn allocate_adaptive_settings_list_viewport(
         .ctx()
         .data_mut(|d| d.get_persisted::<f32>(target_id).unwrap_or(scroll_offset))
         .clamp(0.0, max_offset);
+    if scroll_to_bottom {
+        scroll_offset = max_offset;
+        target_offset = max_offset;
+    }
     let (viewport, _) =
         ui.allocate_exact_size(egui::vec2(viewport_width, list_height), Sense::hover());
 
@@ -182,18 +204,4 @@ pub(crate) fn allocate_adaptive_settings_list_viewport(
         row_height,
         has_scrollbar: max_offset > 0.0,
     }
-}
-
-pub(crate) fn request_adaptive_settings_list_scroll_to_bottom(
-    ctx: &egui::Context,
-    owner_id: egui::Id,
-    id_salt: &'static str,
-) {
-    let offset_id = owner_id.with((id_salt, "smooth_offset"));
-    let target_id = owner_id.with((id_salt, "smooth_target"));
-    ctx.data_mut(|d| {
-        d.insert_persisted(offset_id, f32::MAX);
-        d.insert_persisted(target_id, f32::MAX);
-    });
-    ctx.request_repaint();
 }
