@@ -241,7 +241,9 @@ impl EntropyApp {
                     r.layout.supports_rgb || self.rgb_settings.supported;
                 self.keycode_picker.supports_macro = self.keycode_picker.macro_count > 0;
                 self.keycode_picker.supports_tap_dance = !r.tap_dance_entries.is_empty();
-                self.keycode_picker.supports_mouse_keys = self.mouse_keys_settings.supported;
+                // Mouse keycodes are assignable through the keymap even when a
+                // firmware does not expose Vial/QMK mouse-key settings.
+                self.keycode_picker.supports_mouse_keys = true;
                 self.keycode_picker.supports_combo = !self.combo_entries.is_empty();
                 self.keycode_picker.supports_auto_shift = self.auto_shift_timeout.is_some();
                 self.keycode_picker.supports_caps_word = r.vial_features.caps_word;
