@@ -1215,7 +1215,6 @@ pub struct EntropyApp {
     pub(crate) jump_back_stack: Vec<usize>,
     pub(crate) dark_mode: bool,
     pub(crate) app_settings: AppSettings,
-    pub(crate) ui_scale_wheel_accum: f32,
     pub(crate) text_expander_rules_signature: Vec<(String, Option<std::time::SystemTime>)>,
     pub(crate) text_expander_rules_last_check_at: f64,
     #[cfg(any(target_os = "windows", target_os = "macos"))]

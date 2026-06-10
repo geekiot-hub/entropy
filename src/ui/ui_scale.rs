@@ -1,8 +1,5 @@
 use super::*;
 
-const UI_SCALE_WHEEL_STEP_DELTA: f32 = 90.0;
-const UI_SCALE_WHEEL_NOISE_DELTA: f32 = 1.0;
-
 impl EntropyApp {
     pub(super) fn ui_scale_percent(&self) -> i32 {
         (clamp_ui_scale(self.app_settings.ui_scale) * 100.0).round() as i32
@@ -25,7 +22,6 @@ impl EntropyApp {
             return;
         }
         self.app_settings.ui_scale = scale;
-        self.ui_scale_wheel_accum = 0.0;
         save_app_settings(&self.app_settings);
         // Apply the actual zoom at the start of the next frame. Changing
         // egui's zoom factor while top-bar controls are being painted can move
@@ -43,35 +39,14 @@ impl EntropyApp {
     pub(super) fn handle_ui_scale_shortcuts(&mut self, ctx: &egui::Context) {
         let action = ctx.input_mut(|i| {
             if !i.modifiers.ctrl {
-                self.ui_scale_wheel_accum = 0.0;
                 return None;
             }
-
-            let wheel_delta = if i.smooth_scroll_delta.y.abs() > 0.0 {
-                i.smooth_scroll_delta.y
-            } else {
-                i.raw_scroll_delta.y
-            };
+            let wheel_delta = i.raw_scroll_delta.y;
             if wheel_delta.abs() > 0.0 {
                 i.raw_scroll_delta = Vec2::ZERO;
                 i.smooth_scroll_delta = Vec2::ZERO;
-                if wheel_delta.abs() < UI_SCALE_WHEEL_NOISE_DELTA {
-                    return None;
-                }
-                if self.ui_scale_wheel_accum.signum() != 0.0
-                    && self.ui_scale_wheel_accum.signum() != wheel_delta.signum()
-                {
-                    self.ui_scale_wheel_accum = 0.0;
-                }
-                self.ui_scale_wheel_accum += wheel_delta;
-                if self.ui_scale_wheel_accum.abs() >= UI_SCALE_WHEEL_STEP_DELTA {
-                    let step = self.ui_scale_wheel_accum.signum() as i32;
-                    self.ui_scale_wheel_accum -= UI_SCALE_WHEEL_STEP_DELTA * step as f32;
-                    return Some(step);
-                }
-                return None;
+                return Some(if wheel_delta > 0.0 { 1 } else { -1 });
             }
-            self.ui_scale_wheel_accum = 0.0;
             if i.key_pressed(egui::Key::Plus) || i.key_pressed(egui::Key::Equals) {
                 Some(1)
             } else if i.key_pressed(egui::Key::Minus) {

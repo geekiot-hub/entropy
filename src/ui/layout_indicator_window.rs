@@ -65,7 +65,6 @@ const STICKY_LAYOUT_WINDOW_H: f32 = 360.0_f32;
 const STICKY_LAYOUT_WINDOW_MARGIN: f32 = 1.0_f32;
 const STICKY_LAYOUT_WINDOW_TITLE_H: f32 = 42.0_f32;
 const STICKY_LAYOUT_WINDOW_FOOTER_H: f32 = 34.0_f32;
-const STICKY_LAYOUT_VIEWPORT_ZOOM: f32 = 1.0_f32;
 
 #[derive(Clone, Copy)]
 enum StickyLayoutWindowButton {
@@ -341,10 +340,6 @@ impl EntropyApp {
             viewport_id,
             viewport_builder,
             |viewport_ctx, viewport_class| {
-                if (viewport_ctx.zoom_factor() - STICKY_LAYOUT_VIEWPORT_ZOOM).abs() > 0.001 {
-                    viewport_ctx.set_zoom_factor(STICKY_LAYOUT_VIEWPORT_ZOOM);
-                }
-
                 if viewport_ctx.input(|i| i.viewport().close_requested()) {
                     should_close = true;
                     return;
