@@ -291,7 +291,7 @@ unsafe fn text_expander_char_for_key(info: &KBDLLHOOKSTRUCT) -> Option<char> {
         buffer.as_mut_ptr(),
         buffer.len() as i32,
         0,
-        GetKeyboardLayout(0),
+        foreground_keyboard_layout(),
     );
     if len <= 0 {
         return None;
@@ -301,6 +301,19 @@ unsafe fn text_expander_char_for_key(info: &KBDLLHOOKSTRUCT) -> Option<char> {
         .next()
         .and_then(Result::ok)
         .filter(|ch| !ch.is_control())
+}
+
+#[cfg(target_os = "windows")]
+unsafe fn foreground_keyboard_layout() -> *mut core::ffi::c_void {
+    let hwnd = GetForegroundWindow();
+    if hwnd.is_null() {
+        return GetKeyboardLayout(0);
+    }
+    let thread_id = GetWindowThreadProcessId(hwnd, std::ptr::null_mut());
+    if thread_id == 0 {
+        return GetKeyboardLayout(0);
+    }
+    GetKeyboardLayout(thread_id)
 }
 
 #[cfg(target_os = "windows")]
