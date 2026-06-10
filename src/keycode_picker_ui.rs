@@ -8,14 +8,18 @@ fn inactive_picker_entry_text(dark: bool) -> egui::Color32 {
     }
 }
 
-pub(super) fn apply_picker_button_visuals(ui: &mut egui::Ui) {
-    let dark_mode = ui.visuals().dark_mode;
-    let visuals = ui.visuals_mut();
-    let key_fill = if dark_mode {
+fn picker_keycap_fill(dark: bool) -> Color32 {
+    if dark {
         Color32::from_rgb(48, 48, 52)
     } else {
         Color32::from_rgb(255, 255, 255)
-    };
+    }
+}
+
+pub(super) fn apply_picker_button_visuals(ui: &mut egui::Ui) {
+    let dark_mode = ui.visuals().dark_mode;
+    let visuals = ui.visuals_mut();
+    let key_fill = picker_keycap_fill(dark_mode);
     visuals.widgets.inactive.bg_fill = key_fill;
     visuals.widgets.inactive.weak_bg_fill = key_fill;
     let picker_hover_fill = crate::ui_style::hover_fill(dark_mode);
@@ -76,7 +80,7 @@ pub(super) fn picker_keycap_button_in_rect(
     } else if hovered {
         crate::ui_style::hover_fill(dark)
     } else {
-        Color32::TRANSPARENT
+        picker_keycap_fill(dark)
     };
     ui.painter()
         .rect(rect, 9.0, fill, stroke, egui::StrokeKind::Inside);
