@@ -43,27 +43,20 @@ impl EntropyApp {
 
                 let rule_row_count = self.app_settings.text_expansion_rules.len().max(1);
                 let row_count = 4 + rule_row_count;
-                let scroll_to_bottom = self.text_expander_scroll_to_bottom_pending;
-                self.text_expander_scroll_to_bottom_pending = false;
-                let list = allocate_adaptive_settings_list_viewport_with_scroll_request(
+                let list = allocate_adaptive_settings_list_viewport(
                     ui,
                     "text_expander_settings",
                     metrics,
                     row_count,
                     metrics.value(44.0),
-                    scroll_to_bottom,
                 );
                 ui.allocate_ui_at_rect(list.content_rect, |ui| {
                     ui.set_clip_rect(list.viewport);
                     ui.set_min_size(list.content_rect.size());
                     ui.spacing_mut().item_spacing.y = 0.0;
-                    let visible_row_count =
-                        (list.viewport.height() / list.row_height).ceil() as usize;
-                    let last_visible_row =
-                        (list.first_visible_row + visible_row_count).min(list.last_visible_row);
                     self.draw_text_expander_editor_content(
                         ui,
-                        list.first_visible_row..last_visible_row,
+                        list.first_visible_row..list.last_visible_row,
                         list.row_content_width,
                         list.row_height,
                         metrics,
@@ -109,8 +102,6 @@ impl EntropyApp {
                             self.app_settings
                                 .text_expansion_rules
                                 .push(crate::text_expander::TextExpansionRule::default());
-                            self.text_expander_scroll_to_bottom_pending = true;
-                            ui.ctx().request_repaint();
                             self.save_text_expander_settings();
                         }
 
