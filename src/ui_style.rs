@@ -854,7 +854,7 @@ pub fn settings_list_row_with_tooltip(
         Stroke::new(1.0, separator),
     );
 
-    let label_scale = (row_height / 54.0).clamp(1.0, 1.3);
+    let label_scale = (content_width / 452.0).clamp(1.0, 1.12);
     let label_color = if label_enabled {
         ui.visuals().text_color()
     } else {
