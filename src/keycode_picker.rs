@@ -816,6 +816,12 @@ impl KeycodePicker {
                             self.finish_regular_key_pick(base | value);
                         }
                     } else {
+                        self.show_regular_plain_modifier_section(ui);
+
+                        if self.regular_key_pick_allow_mod_key {
+                            self.show_regular_mod_key_section(ui);
+                        }
+
                         if let Some(value) = show_grouped_popup_key_buttons(
                             ui,
                             key_choices,
@@ -825,12 +831,6 @@ impl KeycodePicker {
                             self.key_legend_layout,
                         ) {
                             self.finish_regular_key_pick(value);
-                        }
-
-                        self.show_regular_plain_modifier_section(ui);
-
-                        if self.regular_key_pick_allow_mod_key {
-                            self.show_regular_mod_key_section(ui);
                         }
                     }
                 });
@@ -1109,17 +1109,6 @@ impl KeycodePicker {
                     .max_height(key_picker_popup_scroll_height(popup_size))
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
-                        if let Some(value) = show_grouped_popup_key_buttons(
-                            ui,
-                            key_choices,
-                            &self.layer_names,
-                            false,
-                            self.language,
-                            self.key_legend_layout,
-                        ) {
-                            self.finish_quantum_pending_key(base, value, is_mt);
-                        }
-
                         ui.label(
                             RichText::new(tr_picker(
                                 self.language,
@@ -1167,6 +1156,17 @@ impl KeycodePicker {
                             }
                         });
                         ui.add_space(crate::ui_style::modal_space_sm());
+
+                        if let Some(value) = show_grouped_popup_key_buttons(
+                            ui,
+                            key_choices,
+                            &self.layer_names,
+                            false,
+                            self.language,
+                            self.key_legend_layout,
+                        ) {
+                            self.finish_quantum_pending_key(base, value, is_mt);
+                        }
                     });
             });
             if !still_open {

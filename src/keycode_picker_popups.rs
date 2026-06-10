@@ -153,6 +153,25 @@ pub(super) fn popup_key_button_label(
     keycode_label_with_names_and_layout(kc.value, &[], layer_names, key_legend_layout)
 }
 
+fn friendly_plain_modifier_entry(value: u16) -> Option<(String, u16, u16, String)> {
+    match value {
+        0x00E0 => Some(("Ctrl".to_owned(), 0x00E0, 0x00E4, "Ctrl".to_owned())),
+        0x00E1 => Some(("Shift".to_owned(), 0x00E1, 0x00E5, "Shift".to_owned())),
+        0x00E2 => Some(("Alt".to_owned(), 0x00E2, 0x00E6, "Alt".to_owned())),
+        0x00E3 => Some((
+            crate::keycode::gui_label(false).to_string(),
+            0x00E3,
+            0x00E7,
+            crate::keycode::gui_mod_name().to_string(),
+        )),
+        _ => None,
+    }
+}
+
+fn is_right_plain_modifier(value: u16) -> bool {
+    matches!(value, 0x00E4..=0x00E7)
+}
+
 pub(super) fn picker_shifted_number_label(
     value: u16,
     key_legend_layout: KeyLegendLayout,
@@ -188,7 +207,7 @@ pub(super) fn show_grouped_popup_key_buttons(
     language: crate::i18n::Language,
     key_legend_layout: KeyLegendLayout,
 ) -> Option<u16> {
-    let group_order = [
+    let default_group_order = [
         "Letters",
         "Numbers",
         "Symbols",
@@ -200,6 +219,23 @@ pub(super) fn show_grouped_popup_key_buttons(
         "Mouse",
         "Modifiers",
     ];
+    let friendly_modifier_group_order = [
+        "Modifiers",
+        "Letters",
+        "Numbers",
+        "Symbols",
+        "Editing",
+        "Navigation",
+        "Function keys",
+        "Numpad",
+        "Media & system",
+        "Mouse",
+    ];
+    let group_order = if friendly_mods {
+        friendly_modifier_group_order
+    } else {
+        default_group_order
+    };
     let mut selected = None;
 
     for title in group_order {
@@ -207,6 +243,7 @@ pub(super) fn show_grouped_popup_key_buttons(
             .iter()
             .copied()
             .filter(|kc| popup_key_group_title(kc) == title)
+            .filter(|kc| !friendly_mods || !is_right_plain_modifier(kc.value))
             .collect();
         if group.is_empty() {
             continue;
@@ -223,6 +260,28 @@ pub(super) fn show_grouped_popup_key_buttons(
         ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| {
             for kc in &group {
+                if friendly_mods {
+                    if let Some((label, left_value, right_value, mod_name)) =
+                        friendly_plain_modifier_entry(kc.value)
+                    {
+                        let size = popup_key_button_size(ui, &label);
+                        let resp = picker_keycap_button(ui, &label, size, true, false);
+                        if resp.clicked_by(egui::PointerButton::Primary) {
+                            selected = Some(left_value);
+                        }
+                        if resp.clicked_by(egui::PointerButton::Secondary) {
+                            selected = Some(right_value);
+                        }
+                        if resp.hovered() {
+                            resp.on_hover_text(crate::i18n::tr_text(
+                                language,
+                                &plain_modifier_tooltip(&mod_name),
+                            ));
+                        }
+                        continue;
+                    }
+                }
+
                 let label =
                     popup_key_button_label(kc, layer_names, friendly_mods, key_legend_layout);
                 let size = popup_key_button_size(ui, &label);

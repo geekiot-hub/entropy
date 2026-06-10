@@ -199,19 +199,6 @@ impl KeycodePicker {
         td_idx: usize,
         field: u8,
     ) {
-        let key_choices = self.tap_dance_regular_key_choices();
-        if let Some(value) = show_grouped_popup_key_buttons(
-            ui,
-            key_choices,
-            &self.layer_names,
-            false,
-            self.language,
-            self.key_legend_layout,
-        ) {
-            self.set_tap_dance_field(td_idx, field, value);
-            self.td_key_pick = None;
-        }
-
         ui.label(
             RichText::new(tr_picker(
                 self.language,
@@ -262,6 +249,19 @@ impl KeycodePicker {
             }
         });
         ui.add_space(crate::ui_style::modal_space_sm());
+
+        let key_choices = self.tap_dance_regular_key_choices();
+        if let Some(value) = show_grouped_popup_key_buttons(
+            ui,
+            key_choices,
+            &self.layer_names,
+            false,
+            self.language,
+            self.key_legend_layout,
+        ) {
+            self.set_tap_dance_field(td_idx, field, value);
+            self.td_key_pick = None;
+        }
 
         self.show_tap_dance_mod_key_section(ui, td_idx, field);
         self.show_tap_dance_universal_symbol_sections(ui, td_idx, field);
