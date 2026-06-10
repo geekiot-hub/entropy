@@ -15,79 +15,25 @@ It is designed to feel direct and predictable: connect a device, pick it from th
 device list, and work through layout, keycodes, macros, lighting, pointing controls,
 and firmware settings from one coherent interface.
 
-## Highlights
+## Main Features
 
-- Modern minimalist design that keeps complex device configuration clear,
-  predictable, and easy to navigate.
-- Full Vial workflow in one desktop app: layouts, keycodes, macros, combos,
-  tap dance, key overrides, RGB, pointing controls, and firmware settings.
-- Built for more than keyboards: split keyboards, macropads, trackballs,
-  touchpads, encoders, displays, and modular input devices.
-- Text Expander: create local text shortcuts and expand them from your
-  programmable device.
-- Universal Symbols: type symbols, typography, arrows, math signs, currency,
-  and custom characters from firmware-friendly transport keys.
-- Powerful keycode picker with layouts, symbols, modifiers, macros, tap dance,
-  custom keycodes, and smart filtering.
-- Matrix Tester and Layout Indicator for testing, debugging, and keeping the
-  active layer visible while working.
-- Multilingual legends, light/dark themes, UI scaling, import/export, tray mode,
-  and Linux device-access helpers.
+- Modern, minimalist, intuitive design for complex device configuration.
+- Complete Vial workflow: layouts, keycodes, macros, combos, tap dance,
+  key overrides, RGB, pointing controls, and firmware settings.
+- Support for keyboards, macropads, trackballs, touchpads, encoders, displays,
+  and modular input devices.
+- Text Expander for local shortcuts from programmable devices.
+- Universal Symbols for typography, arrows, math, currency, and custom characters.
+- Fast keycode picker with layouts, symbols, modifiers, macros, and smart filtering.
+- Matrix Tester and Layout Indicator for testing and daily layer visibility.
 
-## Features
+## Other Features
 
-### Layout Editing
-
-- Visual layout editor for Vial device definitions.
-- Layer switching and layer hover preview.
-- Key assignment through a dedicated keycode picker.
-- Encoder support with optional encoder visibility controls.
-- Custom keycode labels from Vial layout JSON.
-- Multilingual key legends.
-- Shifted number-row symbols such as `!` over `1`.
-
-### Keycode Picker
-
-- Basic keyboard grid with QWERTY, Colemak, Dvorak, Workman, JCUKEN, and Colemak-DH mappings.
-- Tabs for symbols, modifiers, special keys, RGB, macros, tap dance, and custom keycodes.
-- Universal Symbols support through reserved transport keys.
-- Mouse keys and layer/modifier helpers where firmware support is available.
-- Firmware-aware filtering so unsupported keycode groups stay out of the way.
-
-### Vial and Firmware Features
-
-Entropy reads the connected device and shows only the sections that are available
-for that firmware.
-
-- Combos: input keys, output key, timing, local slot names.
-- Macros: editable macro slots, named macros, key insertion.
-- Tap Dance: tap/hold/double-tap style actions with named slots.
-- Key Overrides: modifier-aware key replacement rules.
-- Auto Shift: enable flags and timeout tuning.
-- Mouse Keys: pointer and wheel timing/speed settings.
-- Tap-Hold and One Shot: QMK timing and behavior settings.
-- Grave Escape and Magic settings where exposed by firmware.
-- Layer LEDs and RGB controls for supported lighting backends.
-- Touchpad settings for supported Ergohaven-style touchpad firmware.
-- Module/display presets and live firmware data where available.
-
-### Testing and Companion Views
-
-- Matrix Tester for live switch testing on supported Vial devices.
-- Layout Indicator companion window with opacity and pin controls.
-- Pressed-key visualization and layer-aware labels.
-- Sticky layout view for keeping the current device map visible while using other apps.
-
-### Desktop Quality of Life
-
-- Light and dark themes with configurable accent color.
-- UI scaling controls.
-- Import/export of app settings.
-- System tray/background mode on supported platforms.
-- Linux udev rule installer for Vial device access.
-- Local Text Expander and Universal Symbols desktop integration.
-- Linux IBus backend for Wayland Text Expander and Universal Symbols.
-- Linux Fcitx5 backend for Wayland Universal Symbols.
+- Layer hover preview, encoder controls, custom labels, and multilingual legends.
+- Advanced pages for Auto Shift, Mouse Keys, Tap-Hold, One Shot, Grave Escape,
+  Magic, Layer LEDs, touchpad settings, modules, and live feature data.
+- Light/dark themes, accent color, UI scaling, settings import/export, and tray mode.
+- Linux udev helper plus optional IBus/Fcitx5 integrations for Wayland input workflows.
 
 ## Platforms
 

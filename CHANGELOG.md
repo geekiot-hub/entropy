@@ -7,9 +7,9 @@ for development history. The first public beta is `v0.1.0-beta.1`.
 
 ## v0.1.0-beta.1 - Public Beta
 
-Based on internal build `v1.13.139`.
+Based on internal build `v1.13.140`.
 
-### Highlights
+### Main Features
 
 - Visual Vial layout editor with layers, key assignment, encoder controls, and custom keycode labels.
 - Modern keycode picker with Basic, Symbols, Modifiers, Special, RGB, Macro, Tap Dance, and Custom tabs.
