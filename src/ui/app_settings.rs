@@ -529,6 +529,33 @@ impl EntropyApp {
                         },
                     );
                 }
+                9 => {
+                    let mut show_signature = self.app_settings.show_made_by_signature;
+                    crate::ui_style::settings_list_row_with_tooltip(
+                        ui,
+                        content_width,
+                        row_height,
+                        crate::i18n::tr_catalog(lang, "ui.show_made_by_signature_label"),
+                        true,
+                        tooltip(crate::i18n::tr_catalog(
+                            lang,
+                            "ui.show_made_by_signature_tooltip",
+                        )),
+                        switch_width,
+                        |ui| {
+                            let _ = crate::ui_style::settings_switch_sized_stable(
+                                ui,
+                                "app_settings_show_made_by_signature",
+                                &mut show_signature,
+                                switch_size,
+                            );
+                        },
+                    );
+                    if show_signature != self.app_settings.show_made_by_signature {
+                        self.app_settings.show_made_by_signature = show_signature;
+                        save_app_settings(&self.app_settings);
+                    }
+                }
                 _ => {}
             }
         }
@@ -607,7 +634,7 @@ impl EntropyApp {
 }
 
 fn total_app_settings_rows() -> usize {
-    let rows = 9;
+    let rows = 10;
     #[cfg(target_os = "linux")]
     {
         rows + 1

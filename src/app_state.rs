@@ -41,6 +41,8 @@ pub(crate) struct AppSettings {
     pub(crate) language: crate::i18n::Language,
     #[serde(default = "default_encoder_hover_enlarge")]
     pub(crate) encoder_hover_enlarge: bool,
+    #[serde(default = "default_show_made_by_signature")]
+    pub(crate) show_made_by_signature: bool,
     #[serde(default)]
     pub(crate) key_legend_layout: KeyLegendLayout,
     #[serde(default = "default_app_accent_color")]
@@ -82,6 +84,10 @@ pub(crate) fn default_layer_hover_preview() -> bool {
 }
 
 pub(crate) fn default_encoder_hover_enlarge() -> bool {
+    true
+}
+
+pub(crate) fn default_show_made_by_signature() -> bool {
     true
 }
 
@@ -129,6 +135,7 @@ impl Default for AppSettings {
             window_size: None,
             language: crate::i18n::default_language(),
             encoder_hover_enlarge: default_encoder_hover_enlarge(),
+            show_made_by_signature: default_show_made_by_signature(),
             key_legend_layout: KeyLegendLayout::default(),
             accent_color: default_app_accent_color(),
             ui_scale: default_ui_scale(),

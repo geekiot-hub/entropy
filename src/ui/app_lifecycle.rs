@@ -591,30 +591,33 @@ impl eframe::App for EntropyApp {
 
         self.draw_sticky_layout_window(ctx);
 
-        egui::Area::new(egui::Id::new("made_by_signature"))
-            .anchor(egui::Align2::LEFT_BOTTOM, [16.0, -12.0])
-            .order(egui::Order::Foreground)
-            .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    let muted = app_muted_text(self.dark_mode);
-                    ui.spacing_mut().item_spacing.x = 3.0;
-                    ui.label(
-                        RichText::new("tools of the future by")
-                            .size(11.0)
-                            .color(muted),
-                    );
-                    let (site_label, site_url) =
-                        if matches!(self.app_settings.language, crate::i18n::Language::Russian) {
-                            ("eh.works", "https://eh.works")
-                        } else {
-                            ("eh.industries", "https://eh.industries")
-                        };
-                    ui.add(egui::Hyperlink::from_label_and_url(
-                        RichText::new(site_label).size(11.0),
-                        site_url,
-                    ));
+        if self.app_settings.show_made_by_signature {
+            egui::Area::new(egui::Id::new("made_by_signature"))
+                .anchor(egui::Align2::LEFT_BOTTOM, [16.0, -12.0])
+                .order(egui::Order::Foreground)
+                .show(ctx, |ui| {
+                    ui.horizontal(|ui| {
+                        let muted = app_muted_text(self.dark_mode);
+                        ui.spacing_mut().item_spacing.x = 3.0;
+                        ui.label(
+                            RichText::new("tools of the future by")
+                                .size(11.0)
+                                .color(muted),
+                        );
+                        let (site_label, site_url) =
+                            if matches!(self.app_settings.language, crate::i18n::Language::Russian)
+                            {
+                                ("eh.works", "https://eh.works")
+                            } else {
+                                ("eh.industries", "https://eh.industries")
+                            };
+                        ui.add(egui::Hyperlink::from_label_and_url(
+                            RichText::new(site_label).size(11.0),
+                            site_url,
+                        ));
+                    });
                 });
-            });
+        }
 
         egui::Area::new(egui::Id::new("theme_selector"))
             .anchor(egui::Align2::RIGHT_BOTTOM, [-16.0, -12.0])
