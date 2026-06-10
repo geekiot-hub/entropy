@@ -258,6 +258,120 @@ fn linux_command_available(command: &str) -> bool {
         .is_ok()
 }
 
+#[cfg(target_os = "linux")]
+pub fn refresh_installed_ibus_backend() {
+    let Some(source) = linux_bundled_ibus_engine_path() else {
+        return;
+    };
+    let Some(installed) = linux_installed_ibus_engine_path() else {
+        return;
+    };
+    if !installed.exists() {
+        return;
+    }
+    let source_bytes = match std::fs::read(&source) {
+        Ok(bytes) => bytes,
+        Err(err) => {
+            log::warn!("Smart Input: failed to read bundled IBus backend: {err}");
+            return;
+        }
+    };
+    if std::fs::read(&installed).ok().as_deref() == Some(source_bytes.as_slice()) {
+        return;
+    }
+    if let Err(err) = std::fs::write(&installed, &source_bytes) {
+        log::warn!("Smart Input: failed to update installed IBus backend: {err}");
+        return;
+    }
+    set_user_executable(&installed);
+    refresh_ibus_registry();
+}
+
+#[cfg(target_os = "linux")]
+fn linux_bundled_ibus_engine_path() -> Option<std::path::PathBuf> {
+    let script = std::path::Path::new("linux/ibus/entropy-ibus-engine");
+    if script.exists() {
+        return Some(script.to_path_buf());
+    }
+    if let Some(appdir) = std::env::var_os("APPDIR") {
+        let path = std::path::PathBuf::from(appdir).join(script);
+        if path.exists() {
+            return Some(path);
+        }
+    }
+    std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|dir| dir.to_path_buf()))
+        .and_then(|dir| {
+            for ancestor in dir.ancestors() {
+                let path = ancestor.join(script);
+                if path.exists() {
+                    return Some(path);
+                }
+            }
+            None
+        })
+}
+
+#[cfg(target_os = "linux")]
+fn linux_installed_ibus_engine_path() -> Option<std::path::PathBuf> {
+    let data_home = std::env::var_os("XDG_DATA_HOME")
+        .map(std::path::PathBuf::from)
+        .or_else(|| {
+            std::env::var_os("HOME")
+                .map(std::path::PathBuf::from)
+                .map(|home| home.join(".local/share"))
+        })?;
+    Some(data_home.join("entropy/ibus/entropy-ibus-engine"))
+}
+
+#[cfg(target_os = "linux")]
+fn set_user_executable(path: &std::path::Path) {
+    use std::os::unix::fs::PermissionsExt;
+    if let Ok(metadata) = std::fs::metadata(path) {
+        let mut permissions = metadata.permissions();
+        permissions.set_mode(0o755);
+        if let Err(err) = std::fs::set_permissions(path, permissions) {
+            log::warn!("Smart Input: failed to chmod installed IBus backend: {err}");
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn refresh_ibus_registry() {
+    if !linux_command_available("ibus") {
+        return;
+    }
+    let component_dir = std::env::var_os("XDG_DATA_HOME")
+        .map(std::path::PathBuf::from)
+        .or_else(|| {
+            std::env::var_os("HOME")
+                .map(std::path::PathBuf::from)
+                .map(|home| home.join(".local/share"))
+        })
+        .map(|data_home| data_home.join("ibus/component"));
+    if let Some(component_dir) = component_dir {
+        let mut component_path = component_dir.to_string_lossy().to_string();
+        if let Ok(existing) = std::env::var("IBUS_COMPONENT_PATH") {
+            component_path.push(':');
+            component_path.push_str(&existing);
+        } else {
+            component_path.push_str(":/usr/share/ibus/component");
+        }
+        let _ = std::process::Command::new("ibus")
+            .arg("write-cache")
+            .env("IBUS_COMPONENT_PATH", component_path)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+    }
+    let _ = std::process::Command::new("ibus")
+        .arg("restart")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status();
+}
+
 #[cfg(target_os = "macos")]
 pub fn universal_output_setup_hint() -> Option<&'static str> {
     Some("Open Config → Universal Symbols to finish permissions setup")
@@ -356,9 +470,8 @@ mod macos {
     const MAC_KEY_UP: u16 = 0x7E;
 
     static MACOS_EXPANDING_TEXT: AtomicBool = AtomicBool::new(false);
-    static FOREGROUND_CACHE: OnceLock<
-        Mutex<Option<(Instant, Option<TextExpanderAppCandidate>)>>,
-    > = OnceLock::new();
+    static FOREGROUND_CACHE: OnceLock<Mutex<Option<(Instant, Option<TextExpanderAppCandidate>)>>> =
+        OnceLock::new();
 
     pub unsafe fn run_event_tap() {
         let mask = (1u64 << K_CG_EVENT_KEY_DOWN) | (1u64 << K_CG_EVENT_KEY_UP);
@@ -455,7 +568,10 @@ mod macos {
             if exe.is_empty() || current.as_deref() == Some(exe.as_str()) {
                 continue;
             }
-            if !apps.iter().any(|app: &TextExpanderAppCandidate| app.exe == exe) {
+            if !apps
+                .iter()
+                .any(|app: &TextExpanderAppCandidate| app.exe == exe)
+            {
                 apps.push(TextExpanderAppCandidate {
                     exe,
                     title: String::new(),
@@ -511,8 +627,13 @@ mod macos {
     fn should_reset_text_expander_for_keycode(keycode: u16) -> bool {
         matches!(
             keycode,
-            MAC_KEY_RETURN | MAC_KEY_TAB | MAC_KEY_ESCAPE | MAC_KEY_LEFT | MAC_KEY_RIGHT
-                | MAC_KEY_DOWN | MAC_KEY_UP
+            MAC_KEY_RETURN
+                | MAC_KEY_TAB
+                | MAC_KEY_ESCAPE
+                | MAC_KEY_LEFT
+                | MAC_KEY_RIGHT
+                | MAC_KEY_DOWN
+                | MAC_KEY_UP
         )
     }
 

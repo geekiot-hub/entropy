@@ -17,6 +17,8 @@ impl EntropyApp {
             },
             parse_text_expander_blacklist(&app_settings.text_expander_app_blacklist),
         );
+        #[cfg(target_os = "linux")]
+        crate::smart_input::refresh_installed_ibus_backend();
         crate::smart_input::start();
 
         let text_expander_rules_signature =
