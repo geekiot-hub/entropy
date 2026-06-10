@@ -402,6 +402,25 @@ def _qwerty_jcuken_aliases(trigger):
         alias = _qwerty_jcuken_alias(trigger, map_prefix=True)
         if alias:
             _append_unique(aliases, alias)
+        for alias in _qwerty_jcuken_physical_prefix_aliases(trigger):
+            _append_unique(aliases, alias)
+    return aliases
+
+
+def _qwerty_jcuken_physical_prefix_aliases(trigger):
+    if not trigger:
+        return []
+    physical_prefixes = {
+        ":": "^",
+        ";": "$",
+    }
+    physical_prefix = physical_prefixes.get(trigger[0])
+    if not physical_prefix:
+        return []
+    aliases = [physical_prefix + trigger[1:]]
+    alias = _qwerty_jcuken_alias(trigger, map_prefix=False)
+    if alias:
+        _append_unique(aliases, physical_prefix + alias[1:])
     return aliases
 
 

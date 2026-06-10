@@ -208,6 +208,27 @@ fn qwerty_jcuken_aliases(trigger: &str) -> Vec<String> {
         if let Some(alias) = qwerty_jcuken_alias(trigger, true) {
             push_unique_trigger(&mut aliases, alias);
         }
+        for alias in qwerty_jcuken_physical_prefix_aliases(trigger) {
+            push_unique_trigger(&mut aliases, alias);
+        }
+    }
+    aliases
+}
+
+fn qwerty_jcuken_physical_prefix_aliases(trigger: &str) -> Vec<String> {
+    let Some(first) = trigger.chars().next() else {
+        return Vec::new();
+    };
+    let physical_prefix = match first {
+        ':' => '^',
+        ';' => '$',
+        _ => return Vec::new(),
+    };
+    let rest = trigger.chars().skip(1).collect::<String>();
+    let mut aliases = vec![format!("{physical_prefix}{rest}")];
+    if let Some(mapped) = qwerty_jcuken_alias(trigger, false) {
+        let mapped_rest = mapped.chars().skip(1).collect::<String>();
+        push_unique_trigger(&mut aliases, format!("{physical_prefix}{mapped_rest}"));
     }
     aliases
 }
@@ -529,6 +550,23 @@ mod tests {
         let mut engine = TextExpansionEngine::new(vec![rule(":привет", "Здравствуйте")]);
         let mut matched = None;
         for ch in "Жghbdtn".chars() {
+            matched = engine.push_char(ch);
+        }
+        assert_eq!(matched.unwrap().replacement, "Здравствуйте");
+    }
+
+    #[test]
+    fn expands_cyrillic_trigger_from_ru_physical_colon_alias() {
+        let mut engine = TextExpansionEngine::new(vec![rule(":привет", "Здравствуйте")]);
+        let mut matched = None;
+        for ch in "^ghbdtn".chars() {
+            matched = engine.push_char(ch);
+        }
+        assert_eq!(matched.unwrap().replacement, "Здравствуйте");
+
+        engine.reset();
+        let mut matched = None;
+        for ch in "^привет".chars() {
             matched = engine.push_char(ch);
         }
         assert_eq!(matched.unwrap().replacement, "Здравствуйте");
