@@ -61,6 +61,7 @@ impl EntropyApp {
             import_progress_body: String::new(),
             dark_mode: false,
             app_settings,
+            ui_scale_wheel_accum: 0.0,
             text_expander_rules_signature,
             text_expander_rules_last_check_at: 0.0,
             #[cfg(any(target_os = "windows", target_os = "macos"))]
