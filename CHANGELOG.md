@@ -1,0 +1,34 @@
+# Changelog
+
+All notable public changes to Entropy are tracked here.
+
+Entropy uses public release versions for GitHub releases and internal build versions
+for development history. The first public beta is `v0.1.0-beta.1`.
+
+## v0.1.0-beta.1 - Public Beta
+
+Based on internal build `v1.13.136`.
+
+### Highlights
+
+- Visual Vial layout editor with layers, key assignment, encoder controls, and custom keycode labels.
+- Modern keycode picker with Basic, Symbols, Modifiers, Special, RGB, Macro, Tap Dance, and Custom tabs.
+- Advanced firmware pages for Combos, Key Overrides, Auto Shift, Tap-Hold and One Shot, Mouse Keys, Magic, Grave Escape, Layer LEDs, RGB, Modules, Touchpad, and Live Features where supported by firmware.
+- Macro editor, Tap Dance editor, Combo editor, and Key Override editor.
+- Matrix Tester for supported Vial devices.
+- Layout Indicator companion window with opacity, pinning, layer labels, and pressed-key display.
+- App settings for language, key legends, shifted number symbols, accent color, UI scale, background mode, startup, and Linux Vial udev rules.
+- Local Text Expander and Universal Symbols integrations.
+- Linux IBus and Fcitx5 helper backends for Wayland input-method workflows.
+
+### Distribution
+
+- Linux x86_64 AppImage.
+- Windows x86_64 portable ZIP.
+- SHA-256 checksum file.
+
+### Beta Notes
+
+- Windows builds are unsigned during beta.
+- Firmware-gated features appear only when the connected device exposes the required Vial/QMK settings.
+- ZMK Studio, browser-only configuration, and mobile platforms are not supported in this beta.
