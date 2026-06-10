@@ -1,6 +1,6 @@
 # Entropy ⌨
 
-Keyboard configurator for Ergohaven keyboards, built with Rust + egui.
+Desktop control app for programmable input devices, built with Rust + egui.
 
 ## Status
 

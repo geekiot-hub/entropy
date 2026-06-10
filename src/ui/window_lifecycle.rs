@@ -479,7 +479,7 @@ impl EntropyApp {
 
             let exec = desktop_exec_arg(&exe.to_string_lossy());
             let desktop_entry = format!(
-                "[Desktop Entry]\nType=Application\nName=Entropy\nComment=Entropy keyboard configurator\nExec={exec}\nTerminal=false\nStartupNotify=false\nX-GNOME-Autostart-enabled=true\n"
+                "[Desktop Entry]\nType=Application\nName=Entropy\nComment=Entropy programmable input device control\nExec={exec}\nTerminal=false\nStartupNotify=false\nX-GNOME-Autostart-enabled=true\n"
             );
             if let Err(e) = std::fs::write(&desktop_path, desktop_entry) {
                 log::warn!("failed to write autostart entry: {e}");
