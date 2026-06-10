@@ -683,7 +683,7 @@ class EntropyEngine(IBus.Engine):
             if symbol is not None:
                 # Commit text on key-down only.
                 if not (state & IBus.ModifierType.RELEASE_MASK):
-                    self.commit_text(IBus.Text.new_from_string(symbol))
+                    self._commit_text_expander_aware_text(symbol)
             return True
 
         return self._process_text_expander_key(keyval, keycode, state)
@@ -715,6 +715,25 @@ class EntropyEngine(IBus.Engine):
         if expansion is None:
             return False
 
+        self._apply_text_expansion(expansion)
+        return True
+
+    def _commit_text_expander_aware_text(self, text):
+        self._text_expander.reload_if_needed()
+        if not self._text_expander.active():
+            self.commit_text(IBus.Text.new_from_string(text))
+            return
+
+        engine = self._text_expander.engine
+        self._seed_text_expander_from_surrounding_text(engine)
+        for ch in text:
+            expansion = engine.push_char(ch)
+            if expansion is not None:
+                self._apply_text_expansion(expansion)
+                return
+            self.commit_text(IBus.Text.new_from_string(ch))
+
+    def _apply_text_expansion(self, expansion):
         typed_trigger_chars, replacement, cursor_back_chars = expansion
         previous_chars = max(typed_trigger_chars - 1, 0)
         if self._is_terminal_context() and previous_chars:
@@ -729,7 +748,6 @@ class EntropyEngine(IBus.Engine):
             self.commit_text(IBus.Text.new_from_string(replacement))
         for _ in range(cursor_back_chars):
             self.forward_key_event(IBus.KEY_Left, 0, 0)
-        return True
 
     def _is_terminal_context(self):
         if self._input_purpose == IBus.InputPurpose.TERMINAL:
