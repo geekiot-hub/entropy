@@ -75,10 +75,10 @@ fn one_shot_modifier_tooltip(mod_name: &str, has_right_side: bool) -> String {
     }
 }
 
-fn picker_ok_label(language: crate::i18n::Language) -> &'static str {
+fn picker_save_label(language: crate::i18n::Language) -> &'static str {
     match language {
-        crate::i18n::Language::Russian => "Ок",
-        crate::i18n::Language::English => "OK",
+        crate::i18n::Language::Russian => "Сохранить",
+        crate::i18n::Language::English => "Save",
     }
 }
 
