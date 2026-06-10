@@ -334,7 +334,7 @@ pub(crate) fn paint_centered_text_rotated(
 }
 
 fn keycap_label_text_scale(rect: egui::Rect) -> f32 {
-    (rect.width().min(rect.height()) / 54.0).clamp(0.72, 1.24)
+    ((rect.width().min(rect.height()) / 54.0) * 0.94).clamp(0.68, 1.18)
 }
 
 fn split_keycap_label(label: &str) -> (Option<String>, String) {
