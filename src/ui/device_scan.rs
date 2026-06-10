@@ -35,13 +35,21 @@ impl EntropyApp {
 
     #[cfg(not(target_arch = "wasm32"))]
     fn apply_device_scan_result(&mut self, devices: Vec<Device>) {
-        let previous_path = self
+        let previous_device_key = self
             .selected_device
             .and_then(|idx| self.device_manager.devices().get(idx))
-            .map(|dev| dev.path.clone());
+            .map(Device::display_name_cache_key);
         let was_loading = matches!(self.connect_state, ConnectState::Loading { .. });
 
         self.device_manager.replace_devices(devices);
+        let connected_display_name_keys: std::collections::HashSet<String> = self
+            .device_manager
+            .devices()
+            .iter()
+            .map(Device::display_name_cache_key)
+            .collect();
+        self.device_display_names
+            .retain(|key, _| connected_display_name_keys.contains(key));
 
         if self.device_manager.devices().is_empty() {
             if self.selected_device.is_some() || self.layout.is_some() || was_loading {
@@ -53,12 +61,12 @@ impl EntropyApp {
             return;
         }
 
-        if let Some(path) = previous_path {
+        if let Some(device_key) = previous_device_key {
             if let Some(idx) = self
                 .device_manager
                 .devices()
                 .iter()
-                .position(|dev| dev.path == path)
+                .position(|dev| dev.display_name_cache_key() == device_key)
             {
                 self.selected_device = Some(idx);
                 if self.layout.is_none() && !was_loading {

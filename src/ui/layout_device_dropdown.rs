@@ -52,7 +52,7 @@ impl EntropyApp {
                     .iter()
                     .map(|dev| {
                         self.device_display_names
-                            .get(&dev.path)
+                            .get(&dev.display_name_cache_key())
                             .cloned()
                             .unwrap_or_else(|| dev.name.clone())
                     })
@@ -129,7 +129,7 @@ impl EntropyApp {
                                         let is_selected = self.selected_device == Some(i);
                                         let cached_display_name = self
                                             .device_display_names
-                                            .get(&dev.path)
+                                            .get(&dev.display_name_cache_key())
                                             .map(String::as_str);
                                         let display_name =
                                             cached_display_name.unwrap_or(dev.name.as_str());

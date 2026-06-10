@@ -79,7 +79,7 @@ impl EntropyApp {
                     .and_then(|idx| self.device_manager.devices().get(idx))
                 {
                     self.device_display_names
-                        .insert(dev.path.clone(), r.device_name.clone());
+                        .insert(dev.display_name_cache_key(), r.device_name.clone());
                 }
                 self.keycode_picker.tap_dance_entries = r.tap_dance_entries.clone();
                 self.combo_entries = r.combo_entries.clone();

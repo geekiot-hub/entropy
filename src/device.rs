@@ -22,6 +22,18 @@ impl Device {
             path.contains("bth") || path.contains("bluetooth")
         }
     }
+
+    pub fn display_name_cache_key(&self) -> String {
+        format!(
+            "{}\x1f{:04x}\x1f{:04x}\x1f{}\x1f{}\x1f{}",
+            self.path,
+            self.vendor_id,
+            self.product_id,
+            self.manufacturer,
+            self.serial_number,
+            self.name
+        )
+    }
 }
 
 /// Scans for connected Vial HID keyboard devices.
