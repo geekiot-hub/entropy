@@ -15,18 +15,22 @@ impl EntropyApp {
         {
             let top_tabs = self.draw_layout_top_tabs(ui, ctx, top_base_y);
 
-            self.draw_layout_top_dropdowns(
-                ui,
-                layout,
-                ctx,
-                top_tabs.lang,
-                top_tabs.device_tab_rect,
-                top_tabs.device_tab_hovered,
-                top_tabs.advanced_tab_rect,
-                top_tabs.advanced_tab_hovered,
-                top_tabs.settings_tab_rect,
-                top_tabs.settings_tab_hovered,
-            );
+            if self.unlock_open || self.vial_unlock_polling {
+                self.close_top_dropdowns(ctx);
+            } else {
+                self.draw_layout_top_dropdowns(
+                    ui,
+                    layout,
+                    ctx,
+                    top_tabs.lang,
+                    top_tabs.device_tab_rect,
+                    top_tabs.device_tab_hovered,
+                    top_tabs.advanced_tab_rect,
+                    top_tabs.advanced_tab_hovered,
+                    top_tabs.settings_tab_rect,
+                    top_tabs.settings_tab_hovered,
+                );
+            }
             if matches!(
                 self.main_menu_tab,
                 MainMenuTab::Settings | MainMenuTab::Advanced
