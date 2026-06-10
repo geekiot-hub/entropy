@@ -43,6 +43,7 @@ impl EntropyApp {
 
                 let rule_row_count = self.app_settings.text_expansion_rules.len().max(1);
                 let row_count = 4 + rule_row_count;
+                let list_ui_id = ui.id();
                 let list = allocate_adaptive_settings_list_viewport(
                     ui,
                     "text_expander_settings",
@@ -106,6 +107,11 @@ impl EntropyApp {
                             self.app_settings
                                 .text_expansion_rules
                                 .push(crate::text_expander::TextExpansionRule::default());
+                            request_adaptive_settings_list_scroll_to_bottom(
+                                ui.ctx(),
+                                list_ui_id,
+                                "text_expander_settings",
+                            );
                             self.save_text_expander_settings();
                         }
 

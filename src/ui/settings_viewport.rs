@@ -183,3 +183,17 @@ pub(crate) fn allocate_adaptive_settings_list_viewport(
         has_scrollbar: max_offset > 0.0,
     }
 }
+
+pub(crate) fn request_adaptive_settings_list_scroll_to_bottom(
+    ctx: &egui::Context,
+    owner_id: egui::Id,
+    id_salt: &'static str,
+) {
+    let offset_id = owner_id.with((id_salt, "smooth_offset"));
+    let target_id = owner_id.with((id_salt, "smooth_target"));
+    ctx.data_mut(|d| {
+        d.insert_persisted(offset_id, f32::MAX);
+        d.insert_persisted(target_id, f32::MAX);
+    });
+    ctx.request_repaint();
+}
