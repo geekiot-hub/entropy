@@ -79,6 +79,11 @@ impl EntropyApp {
             return;
         }
 
+        #[cfg(any(target_os = "windows", target_os = "macos"))]
+        if self.consume_tray_quit_request() {
+            return;
+        }
+
         if self.force_close_requested {
             return;
         }
@@ -569,10 +574,22 @@ impl EntropyApp {
             }
         }));
         let ctx_for_menu = ctx.clone();
+        #[cfg(target_os = "windows")]
+        let hwnd_for_menu = self.windows_hwnd;
         tray_icon::menu::MenuEvent::set_event_handler(Some(
             move |event: tray_icon::menu::MenuEvent| {
                 if event.id == "entropy_tray_quit" {
                     TRAY_QUIT_REQUESTED.store(true, std::sync::atomic::Ordering::Relaxed);
+                    #[cfg(target_os = "windows")]
+                    if let Some(hwnd) = hwnd_for_menu {
+                        unsafe {
+                            use windows_sys::Win32::UI::WindowsAndMessaging::{
+                                PostMessageW, WM_CLOSE,
+                            };
+                            let hwnd = hwnd as windows_sys::Win32::Foundation::HWND;
+                            PostMessageW(hwnd, WM_CLOSE, 0, 0);
+                        }
+                    }
                     ctx_for_menu.request_repaint();
                 }
             },
@@ -597,10 +614,31 @@ impl EntropyApp {
     }
 
     #[cfg(any(target_os = "windows", target_os = "macos"))]
+    fn consume_tray_quit_request(&mut self) -> bool {
+        if !TRAY_QUIT_REQUESTED.swap(false, std::sync::atomic::Ordering::Relaxed) {
+            return false;
+        }
+        self.force_close_requested = true;
+        save_app_settings(&self.app_settings);
+        true
+    }
+
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     pub(super) fn handle_tray_quit_request(&mut self, ctx: &egui::Context) {
-        if TRAY_QUIT_REQUESTED.swap(false, std::sync::atomic::Ordering::Relaxed) {
-            self.force_close_requested = true;
-            save_app_settings(&self.app_settings);
+        if self.consume_tray_quit_request() {
+            #[cfg(target_os = "windows")]
+            {
+                if let Some(hwnd) = self.windows_hwnd {
+                    unsafe {
+                        use windows_sys::Win32::UI::WindowsAndMessaging::{PostMessageW, WM_CLOSE};
+                        let hwnd = hwnd as windows_sys::Win32::Foundation::HWND;
+                        PostMessageW(hwnd, WM_CLOSE, 0, 0);
+                    }
+                } else {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                }
+            }
+            #[cfg(not(target_os = "windows"))]
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
     }
