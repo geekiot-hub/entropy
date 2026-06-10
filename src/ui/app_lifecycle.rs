@@ -761,7 +761,7 @@ impl eframe::App for EntropyApp {
             .map(|hid| hid.is_bluetooth_transport())
             .unwrap_or(false);
 
-        if self.keycode_picker.macros_dirty {
+        if self.keycode_picker.macros_dirty && !self.keycode_picker.open {
             if self.unlock_open || self.vial_unlock_polling {
                 // Defer macro write until unlock flow fully finishes.
             } else if self.is_vial_locked() {

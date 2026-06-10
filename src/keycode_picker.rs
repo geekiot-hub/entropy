@@ -495,17 +495,31 @@ impl KeycodePicker {
                             }
                             if let Some(qmk) = egui_key_to_qmk(*key, *modifiers) {
                                 if qmk > 0 && qmk < 0x0100 {
+                                    let mut changed = false;
                                     if let Some(action) = self
                                         .macro_actions
                                         .get_mut(macro_idx)
                                         .and_then(|a| a.get_mut(action_idx))
                                     {
                                         match action {
-                                            MacroAction::Tap(kc) => *kc = qmk as u8,
-                                            MacroAction::Down(kc) => *kc = qmk as u8,
-                                            MacroAction::Up(kc) => *kc = qmk as u8,
+                                            MacroAction::Tap(kc) => {
+                                                changed = *kc != qmk as u8;
+                                                *kc = qmk as u8;
+                                            }
+                                            MacroAction::Down(kc) => {
+                                                changed = *kc != qmk as u8;
+                                                *kc = qmk as u8;
+                                            }
+                                            MacroAction::Up(kc) => {
+                                                changed = *kc != qmk as u8;
+                                                *kc = qmk as u8;
+                                            }
                                             _ => {}
                                         }
+                                    }
+                                    if changed {
+                                        self.encode_macro(macro_idx);
+                                        self.macros_dirty = true;
                                     }
                                     self.macro_key_pick = None;
                                 }
@@ -522,17 +536,31 @@ impl KeycodePicker {
                 )
                 .clicked()
                 {
+                    let mut changed = false;
                     if let Some(action) = self
                         .macro_actions
                         .get_mut(macro_idx)
                         .and_then(|a| a.get_mut(action_idx))
                     {
                         match action {
-                            MacroAction::Tap(kc) => *kc = 0,
-                            MacroAction::Down(kc) => *kc = 0,
-                            MacroAction::Up(kc) => *kc = 0,
+                            MacroAction::Tap(kc) => {
+                                changed = *kc != 0;
+                                *kc = 0;
+                            }
+                            MacroAction::Down(kc) => {
+                                changed = *kc != 0;
+                                *kc = 0;
+                            }
+                            MacroAction::Up(kc) => {
+                                changed = *kc != 0;
+                                *kc = 0;
+                            }
                             _ => {}
                         }
+                    }
+                    if changed {
+                        self.encode_macro(macro_idx);
+                        self.macros_dirty = true;
                     }
                     self.macro_key_pick = None;
                 }
@@ -553,17 +581,31 @@ impl KeycodePicker {
                             self.language,
                             self.key_legend_layout,
                         ) {
+                            let mut changed = false;
                             if let Some(action) = self
                                 .macro_actions
                                 .get_mut(macro_idx)
                                 .and_then(|a| a.get_mut(action_idx))
                             {
                                 match action {
-                                    MacroAction::Tap(k) => *k = value as u8,
-                                    MacroAction::Down(k) => *k = value as u8,
-                                    MacroAction::Up(k) => *k = value as u8,
+                                    MacroAction::Tap(k) => {
+                                        changed = *k != value as u8;
+                                        *k = value as u8;
+                                    }
+                                    MacroAction::Down(k) => {
+                                        changed = *k != value as u8;
+                                        *k = value as u8;
+                                    }
+                                    MacroAction::Up(k) => {
+                                        changed = *k != value as u8;
+                                        *k = value as u8;
+                                    }
                                     _ => {}
                                 }
+                            }
+                            if changed {
+                                self.encode_macro(macro_idx);
+                                self.macros_dirty = true;
                             }
                             self.macro_key_pick = None;
                         }

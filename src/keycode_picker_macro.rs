@@ -114,6 +114,7 @@ impl KeycodePicker {
         let mut remove_idx = None;
         let mut move_up: Option<usize> = None;
         let mut move_down: Option<usize> = None;
+        let mut macro_changed = false;
         let avail_w = ui.available_width();
         {
             let action_count = self.macro_actions[n].len();
@@ -193,7 +194,7 @@ impl KeycodePicker {
                     match action {
                         MacroAction::Text(text) => {
                             let text_w = (avail_w - 220.0 * scale).max(150.0 * scale);
-                            crate::ui_style::modern_text_field_sized(
+                            if crate::ui_style::modern_text_field_sized(
                                 ui,
                                 ui.make_persistent_id(("macro_text_action", grid_id, n, i)),
                                 text,
@@ -209,7 +210,11 @@ impl KeycodePicker {
                             .on_hover_text(crate::i18n::tr_catalog(
                                 self.language,
                                 "macro_editor.characters_to_type_when_this_macro_runs",
-                            ));
+                            ))
+                            .changed()
+                            {
+                                macro_changed = true;
+                            }
                         }
                         MacroAction::Tap(kc) => {
                             let label = keycode_label_with_names_and_layout(
@@ -299,7 +304,10 @@ impl KeycodePicker {
                             .changed()
                             {
                                 if let Ok(v) = ms_str.parse::<u16>() {
-                                    *ms = v;
+                                    if *ms != v {
+                                        *ms = v;
+                                        macro_changed = true;
+                                    }
                                 }
                             }
                         }
@@ -331,6 +339,7 @@ impl KeycodePicker {
                 self.macro_undo_stack
                     .push((n, self.macro_actions[n].clone()));
                 self.macro_actions[n].remove(idx);
+                macro_changed = true;
                 if let Some((mn, ai)) = self.macro_key_pick {
                     if mn == n && ai >= idx {
                         self.macro_key_pick = None;
@@ -341,11 +350,13 @@ impl KeycodePicker {
         if let Some(idx) = move_up {
             if idx > 0 {
                 self.macro_actions[n].swap(idx, idx - 1);
+                macro_changed = true;
             }
         }
         if let Some(idx) = move_down {
             if idx + 1 < self.macro_actions[n].len() {
                 self.macro_actions[n].swap(idx, idx + 1);
+                macro_changed = true;
             }
         }
 
@@ -366,6 +377,7 @@ impl KeycodePicker {
             .clicked()
             {
                 self.macro_actions[n].push(MacroAction::Text(String::new()));
+                macro_changed = true;
             }
             if picker_button(
                 ui,
@@ -381,6 +393,7 @@ impl KeycodePicker {
             .clicked()
             {
                 self.macro_actions[n].push(MacroAction::Tap(0x04));
+                macro_changed = true;
                 self.macro_key_pick = Some((n, self.macro_actions[n].len() - 1));
             }
             if picker_button(
@@ -397,6 +410,7 @@ impl KeycodePicker {
             .clicked()
             {
                 self.macro_actions[n].push(MacroAction::Down(0x04));
+                macro_changed = true;
                 self.macro_key_pick = Some((n, self.macro_actions[n].len() - 1));
             }
             if picker_button(
@@ -413,6 +427,7 @@ impl KeycodePicker {
             .clicked()
             {
                 self.macro_actions[n].push(MacroAction::Up(0x04));
+                macro_changed = true;
                 self.macro_key_pick = Some((n, self.macro_actions[n].len() - 1));
             }
             if picker_button(
@@ -429,6 +444,7 @@ impl KeycodePicker {
             .clicked()
             {
                 self.macro_actions[n].push(MacroAction::Delay(100));
+                macro_changed = true;
             }
         });
 
@@ -462,6 +478,7 @@ impl KeycodePicker {
                 if n < self.macro_names.len() {
                     self.macro_names[n].clear();
                 }
+                macro_changed = true;
             }
             if picker_button(
                 ui,
@@ -479,6 +496,12 @@ impl KeycodePicker {
                 if let Some((idx, prev)) = self.macro_undo_stack.pop() {
                     if idx < self.macro_actions.len() {
                         self.macro_actions[idx] = prev;
+                        if idx == n {
+                            macro_changed = true;
+                        } else {
+                            self.encode_macro(idx);
+                            self.macros_dirty = true;
+                        }
                     }
                 }
             }
@@ -499,6 +522,11 @@ impl KeycodePicker {
                 }
             });
         });
+
+        if macro_changed {
+            self.encode_macro(n);
+            self.macros_dirty = true;
+        }
 
         selected_macro
     }
