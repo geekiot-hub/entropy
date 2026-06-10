@@ -16,6 +16,7 @@ impl EntropyApp {
         ui: &mut egui::Ui,
         ctx: &egui::Context,
         top_base_y: f32,
+        suppress_tooltips: bool,
     ) -> LayoutTopTabsState {
         use crate::i18n::Key as TrKey;
 
@@ -61,8 +62,10 @@ impl EntropyApp {
             );
             tab_x += tab_widths[idx] + tab_gap;
             let resp = ui.allocate_rect(slot_rect, Sense::CLICK);
-            resp.clone()
-                .on_hover_text(crate::i18n::tr_catalog(lang, tooltip));
+            if !suppress_tooltips {
+                resp.clone()
+                    .on_hover_text(crate::i18n::tr_catalog(lang, tooltip));
+            }
             if matches!(tab, MainMenuTab::Keyboard) {
                 device_tab_rect = Some(slot_rect);
                 device_tab_hovered = resp.hovered();
@@ -151,7 +154,7 @@ impl EntropyApp {
             Vec2::new(undo_text_w + 12.0, tab_height),
         );
         let undo_resp = ui.allocate_rect(undo_rect, Sense::CLICK);
-        if undo_enabled {
+        if undo_enabled && !suppress_tooltips {
             undo_resp.clone().on_hover_text(crate::i18n::tr_catalog(
                 lang,
                 "key_picker_text.undo_last_change",

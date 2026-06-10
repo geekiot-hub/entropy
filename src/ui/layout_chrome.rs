@@ -13,7 +13,12 @@ impl EntropyApp {
     ) -> bool {
         // ── Main menu tabs ────────────────────────────────────────────────
         {
-            let top_tabs = self.draw_layout_top_tabs(ui, ctx, top_base_y);
+            let top_tabs = self.draw_layout_top_tabs(
+                ui,
+                ctx,
+                top_base_y,
+                self.unlock_open || self.vial_unlock_polling,
+            );
 
             if self.unlock_open || self.vial_unlock_polling {
                 self.close_top_dropdowns(ctx);
