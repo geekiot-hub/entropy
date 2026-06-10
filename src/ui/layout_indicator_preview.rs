@@ -1,6 +1,47 @@
 use super::*;
 
 const STICKY_LAYOUT_KEYBOARD_MARGIN: f32 = 1.0_f32;
+const STICKY_LAYOUT_BASE_KEY_H: f32 = 44.0_f32;
+const STICKY_LAYOUT_BASE_ENCODER_R: f32 = 24.0_f32;
+
+fn sticky_rect_text_scale(rect: egui::Rect) -> f32 {
+    (rect.width().min(rect.height()) / STICKY_LAYOUT_BASE_KEY_H).clamp(0.52, 2.4)
+}
+
+fn sticky_label_fit_scale(label: &str, font_size: f32, available: f32) -> f32 {
+    let longest = label
+        .split(['\n', '/'])
+        .map(|part| part.trim().chars().count())
+        .max()
+        .unwrap_or(1)
+        .max(1) as f32;
+    (available.max(4.0) / (longest * font_size.max(1.0) * 0.58)).clamp(0.48, 1.0)
+}
+
+fn sticky_encoder_text_scale(radius: f32) -> f32 {
+    (radius / STICKY_LAYOUT_BASE_ENCODER_R).clamp(0.56, 2.2)
+}
+
+fn sticky_encoder_font_size(
+    label: &str,
+    radius: f32,
+    short_label_size: f32,
+    long_label_size: f32,
+) -> f32 {
+    let base = if label.chars().count() > 9 {
+        long_label_size
+    } else {
+        short_label_size
+    };
+    let scaled = base * sticky_encoder_text_scale(radius);
+    scaled * sticky_label_fit_scale(label, scaled, radius * 1.45)
+}
+
+fn sticky_press_font_size(label: &str, rect: egui::Rect) -> f32 {
+    let base = if label.chars().count() > 8 { 7.2 } else { 8.2 };
+    let scaled = base * (rect.height() / 18.0).clamp(0.56, 2.2);
+    scaled * sticky_label_fit_scale(label, scaled, rect.width() - 6.0)
+}
 
 fn draw_sticky_encoder_arrow(
     painter: &egui::Painter,
@@ -61,16 +102,11 @@ fn sticky_compact_label(label: &str, max_chars: usize) -> String {
 
 fn sticky_key_label_sizes(label: &str, rect: egui::Rect) -> (Option<f32>, f32) {
     let (top, bottom) = key_label_font_sizes(label);
-    let longest = label
-        .split(['\n', '/'])
-        .map(|part| part.trim().chars().count())
-        .max()
-        .unwrap_or(1)
-        .max(1) as f32;
-    let available = (rect.width() - 8.0).max(8.0);
-    let base = bottom.max(top.unwrap_or(bottom));
-    let fit_scale = (available / (longest * base * 0.58)).clamp(0.58, 1.0);
-    (top.map(|size| size * fit_scale), bottom * fit_scale)
+    let rect_scale = sticky_rect_text_scale(rect);
+    let base = bottom.max(top.unwrap_or(bottom)) * rect_scale;
+    let fit_scale = sticky_label_fit_scale(label, base, rect.width() - 8.0);
+    let scale = rect_scale * fit_scale;
+    (top.map(|size| size * scale), bottom * scale)
 }
 
 fn draw_sticky_key_label(
@@ -81,7 +117,8 @@ fn draw_sticky_key_label(
     rotation: f32,
     dimmed: bool,
 ) {
-    let clip_rect = rect.shrink2(egui::vec2(4.0, 3.0));
+    let rect_scale = sticky_rect_text_scale(rect);
+    let clip_rect = rect.shrink2(egui::vec2(4.0, 3.0) * rect_scale);
     let (top, bottom) = if label.contains('\n') {
         let mut parts = label.splitn(2, '\n');
         let t = parts.next().unwrap_or("");
@@ -119,7 +156,7 @@ fn draw_sticky_key_label(
         let center = rect.center();
         paint_centered_text_rotated(
             &clipped,
-            center + rotated_offset(0.0, -7.0, rotation),
+            center + rotated_offset(0.0, -7.0 * rect_scale, rotation),
             top_str,
             FontId::proportional(top_size.unwrap_or(9.0)),
             top_color,
@@ -127,7 +164,7 @@ fn draw_sticky_key_label(
         );
         paint_centered_text_rotated(
             &clipped,
-            center + rotated_offset(0.0, 6.0, rotation),
+            center + rotated_offset(0.0, 6.0 * rect_scale, rotation),
             bottom,
             FontId::proportional(bottom_size),
             bottom_color,
@@ -135,7 +172,7 @@ fn draw_sticky_key_label(
         );
     } else {
         let font_size = if bottom == "↵" {
-            16.0_f32.min(bottom_size + 4.0)
+            (16.0 * rect_scale).min(bottom_size + 4.0 * rect_scale)
         } else {
             bottom_size
         };
@@ -470,30 +507,24 @@ impl EntropyApp {
             let (top_label, top_dimmed) = label_for(cw);
             let (bottom_label, bottom_dimmed) = label_for(ccw);
             let top_font = if has_press_button {
-                egui::FontId::proportional(if top_label.chars().count() > 9 {
-                    6.6
-                } else {
-                    7.4
-                })
+                egui::FontId::proportional(sticky_encoder_font_size(&top_label, radius, 7.4, 6.6))
             } else {
-                egui::FontId::proportional(if top_label.chars().count() > 9 {
-                    8.5
-                } else {
-                    9.5
-                })
+                egui::FontId::proportional(sticky_encoder_font_size(&top_label, radius, 9.5, 8.5))
             };
             let bottom_font = if has_press_button {
-                egui::FontId::proportional(if bottom_label.chars().count() > 9 {
-                    6.6
-                } else {
-                    7.4
-                })
+                egui::FontId::proportional(sticky_encoder_font_size(
+                    &bottom_label,
+                    radius,
+                    7.4,
+                    6.6,
+                ))
             } else {
-                egui::FontId::proportional(if bottom_label.chars().count() > 9 {
-                    8.5
-                } else {
-                    9.5
-                })
+                egui::FontId::proportional(sticky_encoder_font_size(
+                    &bottom_label,
+                    radius,
+                    9.5,
+                    8.5,
+                ))
             };
             let top_label_y = center.y - radius * if has_press_button { 0.52 } else { 0.30 };
             let bottom_label_y = center.y + radius * if has_press_button { 0.52 } else { 0.30 };
@@ -599,11 +630,8 @@ impl EntropyApp {
                 let press_label = press_label.replace('\n', " ");
                 let press_label = sticky_compact_label(&press_label, 8);
                 let press_text_rect = middle_rect.shrink2(egui::vec2(4.0, 2.0));
-                let press_font = FontId::proportional(if press_label.chars().count() > 8 {
-                    7.2
-                } else {
-                    8.2
-                });
+                let press_font =
+                    FontId::proportional(sticky_press_font_size(&press_label, press_text_rect));
                 painter.with_clip_rect(press_text_rect).text(
                     press_text_rect.center(),
                     egui::Align2::CENTER_CENTER,
