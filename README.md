@@ -1,6 +1,6 @@
 # Entropy ⌨
 
-Desktop control app for programmable input devices, built with Rust + egui.
+Modern app for programmable keyboards and input devices, built with Rust + egui.
 
 ## Status
 
