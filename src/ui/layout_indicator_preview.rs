@@ -152,6 +152,51 @@ fn draw_sticky_key_label(
     };
 
     let clipped = painter.with_clip_rect(clip_rect);
+    let lines: Vec<&str> = label.split('\n').collect();
+    if let [top_str, middle, bottom_str] = lines.as_slice() {
+        let center = rect.center();
+        let is_symbol_line = |line: &str| {
+            let trimmed = line.trim();
+            !trimmed.is_empty()
+                && trimmed.chars().count() <= 3
+                && trimmed
+                    .chars()
+                    .all(|c| !c.is_alphanumeric() && !c.is_whitespace())
+        };
+        let top_font = top_size.unwrap_or(8.0);
+        let middle_font = if is_symbol_line(middle) {
+            10.0 * rect_scale
+        } else {
+            9.0 * rect_scale
+        } * sticky_label_fit_scale(middle, 9.8 * rect_scale, rect.width() - 8.0);
+        let bottom_font = bottom_size;
+        paint_centered_text_rotated(
+            &clipped,
+            center + rotated_offset(0.0, -12.0 * rect_scale, rotation),
+            top_str,
+            FontId::proportional(top_font),
+            top_color,
+            rotation,
+        );
+        paint_centered_text_rotated(
+            &clipped,
+            center + rotated_offset(0.0, -1.0 * rect_scale, rotation),
+            middle,
+            FontId::proportional(middle_font),
+            top_color,
+            rotation,
+        );
+        paint_centered_text_rotated(
+            &clipped,
+            center + rotated_offset(0.0, 10.5 * rect_scale, rotation),
+            bottom_str,
+            FontId::proportional(bottom_font),
+            bottom_color,
+            rotation,
+        );
+        return;
+    }
+
     if let Some(top_str) = top {
         let center = rect.center();
         paint_centered_text_rotated(

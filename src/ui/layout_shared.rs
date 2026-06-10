@@ -399,6 +399,58 @@ fn draw_key_label_with_colors(
     let (top, bottom) = split_keycap_label(label);
     let (top_size, bottom_size) = key_label_font_sizes(label);
 
+    let lines: Vec<&str> = label.split('\n').collect();
+    if let [top_str, middle, bottom_str] = lines.as_slice() {
+        let center = rect.center();
+        let is_symbol_line = |line: &str| {
+            let trimmed = line.trim();
+            !trimmed.is_empty()
+                && trimmed.chars().count() <= 3
+                && trimmed
+                    .chars()
+                    .all(|c| !c.is_alphanumeric() && !c.is_whitespace())
+        };
+        let top_base = top_size.unwrap_or(8.3) * scale;
+        let middle_base = if is_symbol_line(middle) { 10.2 } else { 9.2 } * scale;
+        let bottom_base = bottom_size * scale;
+        let top_fit =
+            fitted_keycap_font_size(&clipped, top_str, top_base, available_width, 5.2 * scale);
+        let middle_fit =
+            fitted_keycap_font_size(&clipped, middle, middle_base, available_width, 5.6 * scale);
+        let bottom_fit = fitted_keycap_font_size(
+            &clipped,
+            bottom_str,
+            bottom_base,
+            available_width,
+            5.8 * scale,
+        );
+        paint_centered_text_rotated(
+            &clipped,
+            center + rotated_offset(0.0, -14.0 * scale, rotation),
+            top_str,
+            FontId::proportional(top_fit),
+            top_color,
+            rotation,
+        );
+        paint_centered_text_rotated(
+            &clipped,
+            center + rotated_offset(0.0, -1.0 * scale, rotation),
+            middle,
+            FontId::proportional(middle_fit),
+            top_color,
+            rotation,
+        );
+        paint_centered_text_rotated(
+            &clipped,
+            center + rotated_offset(0.0, 12.0 * scale, rotation),
+            bottom_str,
+            FontId::proportional(bottom_fit),
+            bottom_color,
+            rotation,
+        );
+        return;
+    }
+
     if let Some(top_str) = top {
         let top_base = top_size.unwrap_or(9.0) * scale;
         let bottom_base = bottom_size * scale;

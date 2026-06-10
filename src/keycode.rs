@@ -154,6 +154,11 @@ pub fn key_label_font_sizes(label: &str) -> (Option<f32>, f32) {
             let bottom_size = if is_symbol_line(bottom) { 12.0 } else { 11.0 };
             (Some(top_size), bottom_size)
         }
+        [top, _, bottom] => {
+            let top_size = if top.chars().count() > 13 { 7.4 } else { 8.3 };
+            let bottom_size = if is_symbol_line(bottom) { 11.0 } else { 10.4 };
+            (Some(top_size), bottom_size)
+        }
         _ => (Some(9.0), 11.0),
     }
 }
@@ -638,6 +643,35 @@ pub fn keycode_label_with_names_and_layout(
     )
 }
 
+fn compact_compound_key_label(kc: &Keycode) -> String {
+    let mut lines = kc.label.lines();
+    match (lines.next(), lines.next(), lines.next()) {
+        (Some(top), Some(bottom), None) => {
+            let is_short_symbol = |line: &str| {
+                let trimmed = line.trim();
+                !trimmed.is_empty()
+                    && trimmed.chars().count() <= 3
+                    && trimmed
+                        .chars()
+                        .all(|c| !c.is_alphanumeric() && !c.is_whitespace())
+            };
+            if is_short_symbol(top) || is_short_symbol(bottom) {
+                return kc.label.to_string();
+            }
+        }
+        _ => {}
+    }
+
+    simple_key_name(kc)
+}
+
+fn compound_keycode_label(prefix: &str, kc: u16) -> String {
+    let kc_str = find_keycode(kc)
+        .map(compact_compound_key_label)
+        .unwrap_or_else(|| "?".to_string());
+    format!("{}\n{}", prefix, kc_str)
+}
+
 pub fn keycode_label_with_names(value: u16, custom: &[CustomKeycode], layer_names: &[String]) -> String {
     // Returns "OpName(n)\nLayerName" or "OpName(n)" if layer has no custom name
     let layer_label = |op: &str, n: u16| -> String {
@@ -726,10 +760,7 @@ pub fn keycode_label_with_names(value: u16, custom: &[CustomKeycode], layer_name
     if value & 0xF000 == 0x4000 {
         let layer = (value >> 8) & 0xF;
         let kc = value & 0xFF;
-        let kc_str = find_keycode(kc as u16)
-            .map(|k| simple_key_name(k))
-            .unwrap_or_else(|| "?".to_string());
-        return format!("LT {}\n{}", layer_name(layer as u16), kc_str);
+        return compound_keycode_label(&format!("LT {}", layer_name(layer as u16)), kc as u16);
     }
 
     // QK_MOD_TAP: 0x2000 | (mods << 8) | kc
@@ -737,11 +768,8 @@ pub fn keycode_label_with_names(value: u16, custom: &[CustomKeycode], layer_name
         let kc = value & 0xFF;
         let mods = (value >> 8) & 0x1F;
         let right = (value >> 12) & 0x1 != 0;
-        let kc_str = find_keycode(kc as u16)
-            .map(|k| simple_key_name(k))
-            .unwrap_or_else(|| "?".to_string());
         let mod_str = decode_mods(mods as u16, right);
-        return format!("MT {}\n{}", mod_str, kc_str);
+        return compound_keycode_label(&mod_str, kc as u16);
     }
 
     // Modifier+key combos: 0x0100..0x1F00 | kc
@@ -751,9 +779,6 @@ pub fn keycode_label_with_names(value: u16, custom: &[CustomKeycode], layer_name
     if value >= 0x0100 && value < 0x2000 && (value & 0xFF) != 0 {
         let mods = value >> 8;
         let kc = value & 0xFF;
-        let kc_str = find_keycode(kc as u16)
-            .map(|k| simple_key_name(k))
-            .unwrap_or_else(|| "?".to_string());
         let gui = gui_sym();
         let mod_str: String = match mods {
             0x01 => "Ctrl".into(),
@@ -774,7 +799,7 @@ pub fn keycode_label_with_names(value: u16, custom: &[CustomKeycode], layer_name
             0x18 => format!("R{}", gui),
             _ => "Mod".into(),
         };
-        return format!("{}\n{}", mod_str, kc_str);
+        return compound_keycode_label(&mod_str, kc as u16);
     }
 
     if value == 0x0001 { return "▽".to_string(); }
