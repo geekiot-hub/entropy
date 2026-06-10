@@ -38,6 +38,7 @@ impl EntropyApp {
                     .wrap()
                     .halign(egui::Align::Center),
                 );
+                #[cfg(not(target_os = "windows"))]
                 self.draw_text_expander_backend_hint(ui, metrics, lang, dark);
                 ui.add_space(metrics.value(10.0));
 
@@ -134,6 +135,7 @@ impl EntropyApp {
         });
     }
 
+    #[cfg(not(target_os = "windows"))]
     fn draw_text_expander_backend_hint(
         &mut self,
         ui: &mut egui::Ui,
@@ -193,6 +195,7 @@ impl EntropyApp {
     }
 }
 
+#[cfg(not(target_os = "windows"))]
 fn text_expander_backend_hint_key() -> &'static str {
     #[cfg(target_os = "linux")]
     {
@@ -207,10 +210,6 @@ fn text_expander_backend_hint_key() -> &'static str {
                 "text_expander.backend_hint_linux_fcitx5"
             }
         }
-    }
-    #[cfg(target_os = "windows")]
-    {
-        "text_expander.backend_hint_windows"
     }
     #[cfg(target_os = "macos")]
     {
