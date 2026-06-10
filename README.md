@@ -10,19 +10,25 @@ Entropy is a desktop app for configuring Vial-compatible programmable input devi
 split keyboards, macropads, trackballs, touchpad modules, and other hardware that
 exposes keyboard-style firmware features through HID.
 
-The project is currently preparing its first public beta release:
-`v0.1.0-beta.1`.
+It is designed to feel direct and predictable: connect a device, pick it from the
+device list, and work through layout, keycodes, macros, lighting, pointing controls,
+and firmware settings from one coherent interface.
 
-## Why Entropy
+## Highlights
 
-Vial is powerful, but many real devices expose more than a simple keymap.
-Entropy is built around the full device workflow: editing layers, choosing keycodes,
-tuning firmware features, testing switches, managing macros, and keeping a useful
-layout companion window open while you work.
-
-Entropy is especially focused on ergonomic and multi-module devices, where keys,
-encoders, touchpads, pointing controls, lighting, and firmware settings all need to
-fit into one coherent interface.
+- Visual layout editor for Vial-compatible keyboards and adjacent input devices.
+- Firmware-aware UI for Combos, Macros, Tap Dance, Key Overrides, Auto Shift,
+  Tap-Hold, Mouse Keys, RGB, Layer LEDs, Touchpad, and module settings.
+- Intuitive keycode picker with layouts, symbols, modifiers, RGB controls, macros,
+  tap dance, and custom keycodes.
+- Matrix Tester for checking live switch input on supported devices.
+- Layout Indicator companion window for keeping the active layer visible while
+  using other apps.
+- Multilingual key legends and layout views for international workflows.
+- Light/dark themes, UI scaling, accent color, settings import/export, and
+  background/tray mode.
+- Linux udev helper and optional IBus/Fcitx5 integrations for desktop input
+  workflows.
 
 ## Features
 
@@ -33,7 +39,7 @@ fit into one coherent interface.
 - Key assignment through a dedicated keycode picker.
 - Encoder support with optional encoder visibility controls.
 - Custom keycode labels from Vial layout JSON.
-- English and English + Russian key legends.
+- Multilingual key legends.
 - Shifted number-row symbols such as `!` over `1`.
 
 ### Keycode Picker
@@ -87,13 +93,13 @@ for that firmware.
 | Windows x86_64 | Beta target | Portable ZIP |
 | macOS | Source/build-script available | App bundle script |
 
-The first public beta will ship Linux and Windows artifacts. macOS packaging exists
-in the repository, but the beta release focus is Linux and Windows first.
+Public beta builds focus on Linux and Windows first. macOS packaging exists in the
+repository for source builds.
 
 ## Downloads
 
-The first public beta will be published on the
-[GitHub Releases](https://github.com/ergohaven/entropy/releases) page as:
+Beta builds are published on the
+[GitHub Releases](https://github.com/ergohaven/entropy/releases) page:
 
 - `entropy-0.1.0-beta.1-linux-x86_64.AppImage`
 - `entropy-0.1.0-beta.1-windows-x86_64.zip`
@@ -135,7 +141,6 @@ connected device does not expose the required capability.
 
 Not in scope for this beta:
 
-- ZMK Studio support.
 - Browser-only configuration.
 - Mobile platforms.
 
@@ -174,10 +179,9 @@ Build a Windows release binary from Linux with the GNU target:
 cargo build --release --target x86_64-pc-windows-gnu
 ```
 
-## Release Notes
+## Changelog
 
 - [CHANGELOG.md](CHANGELOG.md)
-- [0.1.0-beta.1 release notes](docs/release-notes/0.1.0-beta.1.md)
 
 ## License
 

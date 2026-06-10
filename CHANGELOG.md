@@ -7,7 +7,7 @@ for development history. The first public beta is `v0.1.0-beta.1`.
 
 ## v0.1.0-beta.1 - Public Beta
 
-Based on internal build `v1.13.136`.
+Based on internal build `v1.13.137`.
 
 ### Highlights
 
@@ -31,4 +31,4 @@ Based on internal build `v1.13.136`.
 
 - Windows builds are unsigned during beta.
 - Firmware-gated features appear only when the connected device exposes the required Vial/QMK settings.
-- ZMK Studio, browser-only configuration, and mobile platforms are not supported in this beta.
+- Browser-only configuration and mobile platforms are not supported in this beta.
