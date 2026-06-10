@@ -16,19 +16,20 @@ and firmware settings from one coherent interface.
 
 ## Highlights
 
-- Visual layout editor for Vial-compatible keyboards and adjacent input devices.
-- Firmware-aware UI for Combos, Macros, Tap Dance, Key Overrides, Auto Shift,
-  Tap-Hold, Mouse Keys, RGB, Layer LEDs, Touchpad, and module settings.
-- Intuitive keycode picker with layouts, symbols, modifiers, RGB controls, macros,
-  tap dance, and custom keycodes.
-- Matrix Tester for checking live switch input on supported devices.
-- Layout Indicator companion window for keeping the active layer visible while
-  using other apps.
-- Multilingual key legends and layout views for international workflows.
-- Light/dark themes, UI scaling, accent color, settings import/export, and
-  background/tray mode.
-- Linux udev helper and optional IBus/Fcitx5 integrations for desktop input
-  workflows.
+- Full Vial workflow in one desktop app: layouts, keycodes, macros, combos,
+  tap dance, key overrides, RGB, pointing controls, and firmware settings.
+- Built for more than keyboards: split keyboards, macropads, trackballs,
+  touchpads, encoders, displays, and modular input devices.
+- Text Expander: create local text shortcuts and expand them from your
+  programmable device.
+- Universal Symbols: type symbols, typography, arrows, math signs, currency,
+  and custom characters from firmware-friendly transport keys.
+- Powerful keycode picker with layouts, symbols, modifiers, macros, tap dance,
+  custom keycodes, and smart filtering.
+- Matrix Tester and Layout Indicator for testing, debugging, and keeping the
+  active layer visible while working.
+- Multilingual legends, light/dark themes, UI scaling, import/export, tray mode,
+  and Linux device-access helpers.
 
 ## Features
 
