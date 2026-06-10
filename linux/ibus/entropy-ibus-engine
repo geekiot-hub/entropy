@@ -513,6 +513,11 @@ class TextExpansionEngine:
     def reset(self):
         self.buffer = ""
 
+    def seed_tail(self, text):
+        if not text:
+            return
+        self.buffer = text[-self.max_buffer_chars :]
+
     def backspace(self):
         self.buffer = self.buffer[:-1]
 
@@ -705,6 +710,7 @@ class EntropyEngine(IBus.Engine):
         ch = _text_expander_key_char(keyval, state)
         if ch is None:
             return False
+        self._seed_text_expander_from_surrounding_text(engine)
         expansion = engine.push_char(ch)
         if expansion is None:
             return False
@@ -729,6 +735,24 @@ class EntropyEngine(IBus.Engine):
         if self._input_purpose == IBus.InputPurpose.TERMINAL:
             return True
         return any(marker in self._client for marker in TERMINAL_CLIENT_MARKERS)
+
+    def _seed_text_expander_from_surrounding_text(self, engine):
+        try:
+            text, cursor_pos, _anchor_pos = self.get_surrounding_text()
+        except (AttributeError, TypeError, ValueError):
+            return
+        if text is None or cursor_pos is None:
+            return
+        surrounding = text.get_text()
+        if not surrounding:
+            return
+        try:
+            cursor_pos = int(cursor_pos)
+        except (TypeError, ValueError):
+            return
+        before_cursor = surrounding[: max(cursor_pos, 0)]
+        if before_cursor:
+            engine.seed_tail(before_cursor)
 
 
 def _text_expander_reset_key(keyval):
