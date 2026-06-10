@@ -23,14 +23,18 @@ pub(crate) fn parse_macro_buffer(buf: &[u8], count: u8) -> Vec<String> {
 }
 
 pub(crate) fn encode_macro_buffer(macros: &[String], buf_size: u16) -> Vec<u8> {
-    let mut buf = Vec::with_capacity(buf_size as usize);
-    for (i, m) in macros.iter().enumerate() {
+    let max_len = buf_size as usize;
+    let mut buf = Vec::new();
+    for m in macros {
         buf.extend_from_slice(m.as_bytes());
-        if i < macros.len() - 1 || buf.len() < buf_size as usize {
-            buf.push(0);
-        }
+        buf.push(0);
     }
-    buf.resize(buf_size as usize, 0);
+    if buf.is_empty() {
+        buf.push(0);
+    }
+    if buf.len() > max_len {
+        buf.truncate(max_len);
+    }
     buf
 }
 
@@ -160,12 +164,27 @@ mod tests {
     #[test]
     fn encodes_macro_buffer_with_null_separators() {
         let encoded = encode_macro_buffer(&["a".into(), "bc".into()], 6);
-        assert_eq!(encoded, b"a\0bc\0\0".to_vec());
+        assert_eq!(encoded, b"a\0bc\0".to_vec());
+    }
+
+    #[test]
+    fn encodes_empty_macro_buffer_as_terminator() {
+        let encoded = encode_macro_buffer(&[], 6);
+        assert_eq!(encoded, b"\0".to_vec());
+    }
+
+    #[test]
+    fn truncates_macro_buffer_to_firmware_size() {
+        let encoded = encode_macro_buffer(&["abcd".into(), "ef".into()], 5);
+        assert_eq!(encoded, b"abcd\0".to_vec());
     }
 
     #[test]
     fn parses_keymap_big_endian_words() {
-        assert_eq!(parse_keymap_u16_be(&[0x00, 0x04, 0x7e, 0x01]), vec![0x0004, 0x7e01]);
+        assert_eq!(
+            parse_keymap_u16_be(&[0x00, 0x04, 0x7e, 0x01]),
+            vec![0x0004, 0x7e01]
+        );
     }
 
     #[test]
@@ -206,14 +225,20 @@ mod tests {
         alt_repeat[3..5].copy_from_slice(&0x0005u16.to_le_bytes());
         alt_repeat[5] = 0xaa;
         alt_repeat[6] = 0x55;
-        assert_eq!(parse_alt_repeat_response(&alt_repeat).unwrap(), (4, 5, 0xaa, 0x55));
+        assert_eq!(
+            parse_alt_repeat_response(&alt_repeat).unwrap(),
+            (4, 5, 0xaa, 0x55)
+        );
 
         let mut tap_dance = [0u8; 32];
         for (i, value) in [1u16, 2, 3, 4, 200].into_iter().enumerate() {
             let off = 1 + i * 2;
             tap_dance[off..off + 2].copy_from_slice(&value.to_le_bytes());
         }
-        assert_eq!(parse_tap_dance_response(&tap_dance).unwrap(), (1, 2, 3, 4, 200));
+        assert_eq!(
+            parse_tap_dance_response(&tap_dance).unwrap(),
+            (1, 2, 3, 4, 200)
+        );
     }
 
     #[test]
@@ -228,11 +253,8 @@ mod tests {
     #[test]
     fn parses_vialrgb_effect_batch_and_deduplicates() {
         let mut effects = vec![0u16, 2u16];
-        let max = parse_vialrgb_supported_effects_payload(
-            &[1, 0, 2, 0, 0xff, 0xff],
-            &mut effects,
-            0,
-        );
+        let max =
+            parse_vialrgb_supported_effects_payload(&[1, 0, 2, 0, 0xff, 0xff], &mut effects, 0);
         effects.sort_unstable();
         assert_eq!(effects, vec![0, 1, 2]);
         assert_eq!(max, 0xffff);
@@ -241,6 +263,9 @@ mod tests {
     #[test]
     fn parses_unlock_status_until_sentinel() {
         let resp = [1, 0, 3, 4, 5, 6, 0xff, 0xff, 7, 8];
-        assert_eq!(parse_unlock_status_response(&resp), (true, vec![(3, 4), (5, 6)]));
+        assert_eq!(
+            parse_unlock_status_response(&resp),
+            (true, vec![(3, 4), (5, 6)])
+        );
     }
 }
