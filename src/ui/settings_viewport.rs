@@ -10,26 +10,14 @@ pub(crate) fn responsive_settings_visible_rows(
     total_rows: usize,
     bottom_reserve: f32,
 ) -> usize {
-    const BASE_ROWS: usize = 6;
-    const MAX_ROWS: usize = 11;
-    const EXTRA_ROW_START_PHYSICAL_HEIGHT: f32 = 1_300.0;
-    const EXTRA_ROW_STEP_PHYSICAL_HEIGHT: f32 = 180.0;
-
     if total_rows == 0 {
         return 1;
     }
 
-    let native_scale = ctx
-        .native_pixels_per_point()
-        .unwrap_or_else(|| ctx.pixels_per_point() / ctx.zoom_factor().max(0.1))
-        .max(1.0);
-    let logical_height = available_height.max(ctx.screen_rect().height());
-    let usable_physical_height = (logical_height - bottom_reserve).max(0.0) * native_scale;
-    let extra_rows = ((usable_physical_height - EXTRA_ROW_START_PHYSICAL_HEIGHT)
-        / EXTRA_ROW_STEP_PHYSICAL_HEIGHT)
-        .floor()
-        .max(0.0) as usize;
-    (BASE_ROWS + extra_rows).clamp(1, MAX_ROWS).min(total_rows)
+    let row_height = crate::ui_style::ResponsiveMetrics::from_ctx(ctx).settings_row_height();
+    let usable_height = (available_height - bottom_reserve).max(row_height);
+    let rows_that_fit = (usable_height / row_height).floor().max(1.0) as usize;
+    rows_that_fit.min(total_rows)
 }
 
 pub(crate) struct AdaptiveSettingsListViewport {
