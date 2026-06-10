@@ -115,6 +115,9 @@ impl EntropyApp {
         let control_width = metrics.settings_control_width();
         let control_height = metrics.settings_control_height();
         let control_font_size = metrics.settings_control_font_size();
+        let input_keys_control_width = metrics.value(228.0);
+        let input_keys_row_height = row_height.max(metrics.value(62.0));
+        let input_key_size = metrics.size(54.0, 54.0);
         let timeout_control_width = metrics.value(118.0);
         let custom_pairs = self
             .layout
@@ -313,20 +316,19 @@ impl EntropyApp {
                 crate::ui_style::settings_list_row_with_tooltip(
                     ui,
                     row_content_width,
-                    row_height,
+                    input_keys_row_height,
                     crate::i18n::tr_catalog(self.app_settings.language, "combo_editor.input_keys"),
                     true,
                     Some(crate::i18n::tr_catalog(
                         self.app_settings.language,
                         "combo_editor.keys_that_must_be_pressed_together",
                     )),
-                    control_width,
+                    input_keys_control_width,
                     |ui| {
                         ui.spacing_mut().item_spacing.x = 4.0 * scale;
-                        let trigger_button_width = (control_width - 12.0 * scale) / 4.0;
                         for key_idx in 0..4 {
                             let value = self.combo_entries[combo_idx].keys[key_idx];
-                            let full_label = if value == 0 {
+                            let button_label = if value == 0 {
                                 format!("K{}", key_idx + 1)
                             } else {
                                 keycode_label_with_macro_names(
@@ -337,29 +339,15 @@ impl EntropyApp {
                                     &self.keycode_picker.tap_dance_names,
                                     self.app_settings.key_legend_layout,
                                 )
-                                .replace('\n', " ")
                             };
-                            let button_label = if value == 0 {
-                                format!("K{}", key_idx + 1)
-                            } else if (0x5700..=0x57FF).contains(&value) {
-                                format!("TD{}", value - 0x5700)
-                            } else {
-                                full_label
-                                    .split_whitespace()
-                                    .next()
-                                    .unwrap_or(full_label.as_str())
-                                    .chars()
-                                    .take(6)
-                                    .collect()
-                            };
-                            let resp = crate::ui_style::modern_button_with_font(
+                            let hover_label = button_label.replace('\n', " ");
+                            let resp = crate::ui_style::modern_keycap_button(
                                 ui,
                                 button_label.as_str(),
-                                Vec2::new(trigger_button_width, control_height),
-                                control_font_size.min(11.0 * scale),
+                                input_key_size,
                                 true,
                             )
-                            .on_hover_text(full_label.as_str());
+                            .on_hover_text(hover_label.as_str());
                             if resp.clicked() {
                                 self.open_combo_key_picker(
                                     combo_idx,

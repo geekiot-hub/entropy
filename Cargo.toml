@@ -1,6 +1,6 @@
 [package]
 name = "entropy"
-version = "1.13.116"
+version = "1.13.118"
 edition = "2021"
 description = "Entropy"
 authors = ["Ergohaven"]
@@ -29,8 +29,10 @@ anyhow = "1"
 chrono = "0.4"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-hidapi = "2.6"
 rfd = "0.15"
+
+[target.'cfg(all(not(target_arch = "wasm32"), not(target_os = "linux")))'.dependencies]
+hidapi = "2.6"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 raw-window-handle = "0.6"
@@ -42,6 +44,7 @@ windows = { version = "0.56", features = ["Foundation", "Media_Control", "Win32_
 tray-icon = "0.22"
 
 [target.'cfg(target_os = "linux")'.dependencies]
+hidapi = { version = "2.6", default-features = false, features = ["linux-native-basic-udev"] }
 x11-dl = "2"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

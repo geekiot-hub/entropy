@@ -139,6 +139,85 @@ pub fn modern_button(ui: &mut Ui, label: &str, size: Vec2, enabled: bool) -> egu
     modern_button_with_font(ui, label, size, 12.5, enabled)
 }
 
+pub fn modern_keycap_button(ui: &mut Ui, label: &str, size: Vec2, enabled: bool) -> egui::Response {
+    let dark = ui.visuals().dark_mode;
+    let sense = if enabled {
+        Sense::click()
+    } else {
+        Sense::hover()
+    };
+    let (rect, resp) = ui.allocate_exact_size(size, sense);
+    let active = enabled && resp.is_pointer_button_down_on();
+    let hovered = enabled && resp.hovered();
+    let fill = if active {
+        if dark {
+            Color32::from_rgb(56, 56, 59)
+        } else {
+            Color32::from_rgb(232, 232, 235)
+        }
+    } else if hovered {
+        hover_fill(dark)
+    } else {
+        surface_fill(dark)
+    };
+    ui.painter().rect(
+        rect,
+        9.0,
+        fill,
+        modal_outline_stroke(dark),
+        egui::StrokeKind::Inside,
+    );
+
+    let text_color = if enabled {
+        ui.visuals().text_color()
+    } else {
+        muted_text(dark)
+    };
+    let label_scale = (rect.height() / 54.0).clamp(0.88, 1.22);
+    let (top_size, bottom_size) = crate::keycode::key_label_font_sizes(label);
+    if let Some((top, bottom)) = label.split_once('\n') {
+        let top_color = text_color.gamma_multiply(0.75);
+        let top_galley = ui.painter().layout_no_wrap(
+            top.to_owned(),
+            egui::FontId::proportional(top_size.unwrap_or(9.0) * label_scale),
+            top_color,
+        );
+        let bottom_galley = ui.painter().layout_no_wrap(
+            bottom.to_owned(),
+            egui::FontId::proportional(bottom_size * label_scale),
+            text_color,
+        );
+        ui.painter().galley(
+            egui::pos2(
+                rect.center().x - top_galley.size().x / 2.0,
+                rect.center().y - 7.0 * label_scale - top_galley.size().y / 2.0,
+            ),
+            top_galley,
+            top_color,
+        );
+        ui.painter().galley(
+            egui::pos2(
+                rect.center().x - bottom_galley.size().x / 2.0,
+                rect.center().y + 6.0 * label_scale - bottom_galley.size().y / 2.0,
+            ),
+            bottom_galley,
+            text_color,
+        );
+    } else {
+        ui.painter().text(
+            rect.center(),
+            egui::Align2::CENTER_CENTER,
+            label,
+            FontId::proportional(bottom_size * label_scale),
+            text_color,
+        );
+    }
+    if hovered {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    resp
+}
+
 pub fn settings_segmented_control(
     ui: &mut Ui,
     id_source: impl std::hash::Hash,
