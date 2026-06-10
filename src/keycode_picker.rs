@@ -357,6 +357,32 @@ impl KeycodePicker {
         }
     }
 
+    pub(crate) fn close_from_backdrop(&mut self) {
+        let full_vial_picker = !self.regular_key_pick
+            && self.regular_mod_key_pick.is_none()
+            && self.vial_quantum_pending_mod.is_none()
+            && self.vial_quantum_pending_mt.is_none()
+            && self.vial_layer_pending.is_none()
+            && self.macro_key_pick.is_none()
+            && self.td_key_pick.is_none()
+            && self.td_mod_key_pick.is_none();
+
+        if full_vial_picker {
+            self.finalize_vial_special_tab_close();
+        }
+
+        self.open = false;
+        self.regular_key_pick = false;
+        self.regular_key_pick_allow_mod_key = false;
+        self.regular_mod_key_pick = None;
+        self.vial_quantum_pending_mod = None;
+        self.vial_quantum_pending_mt = None;
+        self.vial_layer_pending = None;
+        self.macro_key_pick = None;
+        self.td_key_pick = None;
+        self.td_mod_key_pick = None;
+    }
+
     pub(crate) fn open_regular_key_picker(&mut self) {
         self.open_regular_key_picker_with_mod_key(false);
     }
@@ -513,9 +539,7 @@ impl KeycodePicker {
                 ui.add_space(4.0);
                 let key_choices: Vec<&'static crate::keycode::Keycode> = KEYCODES
                     .iter()
-                    .filter(|kc| {
-                        is_8bit_tap_key_choice(kc) && !kc.name.starts_with("RGB_")
-                    })
+                    .filter(|kc| is_8bit_tap_key_choice(kc) && !kc.name.starts_with("RGB_"))
                     .collect();
                 egui::ScrollArea::vertical()
                     .max_height(key_picker_popup_scroll_height(popup_size))
@@ -795,7 +819,10 @@ impl KeycodePicker {
                 tr_picker(self.language, "key_picker.press_key_or_click_cancel"),
             );
             if pending_mod_key.is_some() {
-                crate::ui_style::modal_hint(ui, tr_picker(self.language, "key_picker.pending_mod_hint"));
+                crate::ui_style::modal_hint(
+                    ui,
+                    tr_picker(self.language, "key_picker.pending_mod_hint"),
+                );
             }
             ui.add_space(crate::ui_style::modal_space_sm());
 
@@ -881,12 +908,7 @@ impl KeycodePicker {
         ui.horizontal_wrapped(|ui| {
             let plain_modifiers = [
                 ("Ctrl".to_owned(), 0x00E0u16, 0x00E4u16, "Ctrl".to_owned()),
-                (
-                    "Shift".to_owned(),
-                    0x00E1u16,
-                    0x00E5u16,
-                    "Shift".to_owned(),
-                ),
+                ("Shift".to_owned(), 0x00E1u16, 0x00E5u16, "Shift".to_owned()),
                 ("Alt".to_owned(), 0x00E2u16, 0x00E6u16, "Alt".to_owned()),
                 (
                     gui_label(false).to_string(),
@@ -896,17 +918,12 @@ impl KeycodePicker {
                 ),
             ];
             for (label, left_value, right_value, mod_name) in plain_modifiers {
-                let resp = picker_keycap_button(
-                    ui,
-                    &label,
-                    Self::picker_key_size(ui.ctx()),
-                    true,
-                    false,
-                )
-                .on_hover_text(crate::i18n::tr_text(
-                    self.language,
-                    &plain_modifier_tooltip(&mod_name),
-                ));
+                let resp =
+                    picker_keycap_button(ui, &label, Self::picker_key_size(ui.ctx()), true, false)
+                        .on_hover_text(crate::i18n::tr_text(
+                            self.language,
+                            &plain_modifier_tooltip(&mod_name),
+                        ));
                 if resp.clicked_by(egui::PointerButton::Primary) {
                     self.finish_regular_key_pick(left_value);
                 }
@@ -927,12 +944,7 @@ impl KeycodePicker {
         ui.add_space(4.0);
         let shortcuts: Vec<(String, u16, u16, String)> = vec![
             (picker_mod_key_label(0x0100), 0x0100, 0x1100, "Ctrl".into()),
-            (
-                picker_mod_key_label(0x0200),
-                0x0200,
-                0x1200,
-                "Shift".into(),
-            ),
+            (picker_mod_key_label(0x0200), 0x0200, 0x1200, "Shift".into()),
             (picker_mod_key_label(0x0400), 0x0400, 0x1400, "Alt".into()),
             (
                 picker_mod_key_label(0x0800),
@@ -1121,12 +1133,7 @@ impl KeycodePicker {
                         ui.horizontal_wrapped(|ui| {
                             let plain_modifiers = [
                                 ("Ctrl".to_owned(), 0x00E0u16, 0x00E4u16, "Ctrl".to_owned()),
-                                (
-                                    "Shift".to_owned(),
-                                    0x00E1u16,
-                                    0x00E5u16,
-                                    "Shift".to_owned(),
-                                ),
+                                ("Shift".to_owned(), 0x00E1u16, 0x00E5u16, "Shift".to_owned()),
                                 ("Alt".to_owned(), 0x00E2u16, 0x00E6u16, "Alt".to_owned()),
                                 (
                                     gui_label(false).to_string(),
@@ -1143,10 +1150,12 @@ impl KeycodePicker {
                                     true,
                                     false,
                                 )
-                                .on_hover_text(crate::i18n::tr_text(
-                                    self.language,
-                                    &plain_modifier_tooltip(&mod_name),
-                                ));
+                                .on_hover_text(
+                                    crate::i18n::tr_text(
+                                        self.language,
+                                        &plain_modifier_tooltip(&mod_name),
+                                    ),
+                                );
                                 if resp.clicked_by(egui::PointerButton::Primary) {
                                     self.finish_quantum_pending_key(base, left_value, is_mt);
                                 }

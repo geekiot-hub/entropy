@@ -715,7 +715,7 @@ impl eframe::App for EntropyApp {
                         )),
                     );
                     if response.clicked() {
-                        self.keycode_picker.open = false;
+                        self.keycode_picker.close_from_backdrop();
                         if let Some(id) = ctx.memory(|m| m.focused()) {
                             ctx.memory_mut(|m| m.surrender_focus(id));
                         }
