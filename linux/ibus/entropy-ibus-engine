@@ -667,8 +667,8 @@ class EntropyEngine(IBus.Engine):
         if self._is_terminal_context() and previous_chars:
             self.commit_text(IBus.Text.new_from_string("\x7f" * previous_chars + replacement))
         else:
-            if previous_chars:
-                self.delete_surrounding_text(-previous_chars, previous_chars)
+            for _ in range(previous_chars):
+                self.forward_key_event(IBus.KEY_BackSpace, 0, 0)
             self.commit_text(IBus.Text.new_from_string(replacement))
         for _ in range(cursor_back_chars):
             self.forward_key_event(IBus.KEY_Left, 0, 0)
