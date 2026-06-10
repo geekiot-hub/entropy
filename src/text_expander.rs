@@ -110,14 +110,14 @@ impl TextExpansionEngine {
                     .into_iter()
                     .map(move |trigger| (rule, trigger))
             })
-            .filter(|(_, trigger)| self.buffer.ends_with(trigger))
-            .filter(|(_, trigger)| self.boundary_ok(trigger))
-            .filter(|(_, trigger)| !self.has_longer_pending_trigger(trigger))
-            .max_by_key(|(_, trigger)| trigger.chars().count())
+            .filter(|(_, trigger)| self.buffer.ends_with(&trigger.text))
+            .filter(|(_, trigger)| self.boundary_ok(&trigger.text))
+            .filter(|(_, trigger)| !self.has_longer_pending_trigger(&trigger.text))
+            .max_by_key(|(_, trigger)| (trigger.text.chars().count(), trigger.priority))
             .map(|(rule, trigger)| {
                 let (replacement, cursor_back_chars) = prepare_replacement(&rule.replacement);
                 TextExpansionMatch {
-                    typed_trigger_chars: trigger.chars().count(),
+                    typed_trigger_chars: trigger.text.chars().count(),
                     replacement,
                     cursor_back_chars,
                 }
@@ -130,8 +130,8 @@ impl TextExpansionEngine {
                 && activation_triggers(&rule.trigger)
                     .into_iter()
                     .any(|candidate| {
-                        candidate.chars().count() > trigger.chars().count()
-                            && candidate.starts_with(trigger)
+                        candidate.text.chars().count() > trigger.chars().count()
+                            && candidate.text.starts_with(trigger)
                     })
         })
     }
@@ -171,7 +171,19 @@ fn valid_legacy_trigger_stem(trigger: &str) -> bool {
         && !trigger.chars().any(char::is_control)
 }
 
-fn activation_triggers(trigger: &str) -> Vec<String> {
+#[derive(Clone, Debug)]
+struct ActivationTrigger {
+    text: String,
+    priority: TriggerMatchPriority,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum TriggerMatchPriority {
+    Alias,
+    Primary,
+}
+
+fn activation_triggers(trigger: &str) -> Vec<ActivationTrigger> {
     let base = if valid_trigger(trigger) {
         vec![trigger.to_owned()]
     } else if valid_legacy_trigger_stem(trigger) {
@@ -182,12 +194,28 @@ fn activation_triggers(trigger: &str) -> Vec<String> {
 
     let mut triggers = Vec::with_capacity(base.len() * 2);
     for trigger in base {
-        push_unique_trigger(&mut triggers, trigger.clone());
+        push_unique_activation_trigger(
+            &mut triggers,
+            trigger.clone(),
+            TriggerMatchPriority::Primary,
+        );
         for alias in qwerty_jcuken_aliases(&trigger) {
-            push_unique_trigger(&mut triggers, alias);
+            push_unique_activation_trigger(&mut triggers, alias, TriggerMatchPriority::Alias);
         }
     }
     triggers
+}
+
+fn push_unique_activation_trigger(
+    triggers: &mut Vec<ActivationTrigger>,
+    text: String,
+    priority: TriggerMatchPriority,
+) {
+    if let Some(existing) = triggers.iter_mut().find(|item| item.text == text) {
+        existing.priority = existing.priority.max(priority);
+    } else {
+        triggers.push(ActivationTrigger { text, priority });
+    }
 }
 
 fn push_unique_trigger(triggers: &mut Vec<String>, trigger: String) {
@@ -591,6 +619,24 @@ mod tests {
             matched = engine.push_char(ch);
         }
         assert_eq!(matched.unwrap().replacement, "Hello");
+    }
+
+    #[test]
+    fn exact_trigger_beats_same_length_layout_alias() {
+        let mut engine =
+            TextExpansionEngine::new(vec![rule(":qq", "Latin"), rule(":йй", "Cyrillic")]);
+        let mut matched = None;
+        for ch in ":qq".chars() {
+            matched = engine.push_char(ch);
+        }
+        assert_eq!(matched.unwrap().replacement, "Latin");
+
+        engine.reset();
+        let mut matched = None;
+        for ch in ":йй".chars() {
+            matched = engine.push_char(ch);
+        }
+        assert_eq!(matched.unwrap().replacement, "Cyrillic");
     }
 
     #[test]
