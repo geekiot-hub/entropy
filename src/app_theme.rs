@@ -92,7 +92,7 @@ pub(crate) fn draw_theme_selector_labels(
             let resp = ui.add(
                 egui::Label::new(
                     RichText::new(crate::i18n::tr_catalog(lang, key))
-                        .size(11.0)
+                        .size(12.0)
                         .color(if selected { active } else { inactive }),
                 )
                 .selectable(false)
@@ -113,7 +113,7 @@ pub(crate) fn draw_theme_selector_labels(
         };
 
         theme_label(ui, first);
-        ui.add(egui::Label::new(RichText::new("|").size(11.0).color(inactive)).selectable(false));
+        ui.add(egui::Label::new(RichText::new("|").size(12.0).color(inactive)).selectable(false));
         theme_label(ui, second);
     });
 }

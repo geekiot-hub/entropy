@@ -13,7 +13,7 @@ impl EntropyApp {
         } else {
             Color32::from_gray(160)
         };
-        let hint_font = FontId::proportional(11.0);
+        let hint_font = FontId::proportional(12.0);
         let secondary_hint_font = hint_font.clone();
         let hint_y = ui.max_rect().bottom() - 36.0;
         let any_hovered = self.prev_hovered_key.is_some() || self.prev_hovered_encoder;
@@ -47,7 +47,7 @@ impl EntropyApp {
                 .unwrap_or_else(|| hl.to_string());
             let hovered_is_lt = hint_kc().map(|kc| kc & 0xF000 == 0x4000).unwrap_or(false);
             let mut line = 0i32;
-            let line_h = 13.0f32;
+            let line_h = 14.0f32;
             let base_y = hint_y - 15.0;
             // Line 1: always
             ui.painter().text(

@@ -49,7 +49,7 @@ impl EntropyApp {
         self.combo_pick_target = Some((combo_idx, field));
         self.keycode_picker.layer_names = self.layer_names.clone();
         self.keycode_picker
-            .open_full_key_picker(crate::keycode_picker::KeycodeTab::Symbols);
+            .open_full_key_picker(crate::keycode_picker::KeycodeTab::Basic);
     }
 
     fn handle_combo_editor_input(&mut self, ctx: &egui::Context, allow_close: bool) -> bool {

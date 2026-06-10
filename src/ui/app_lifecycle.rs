@@ -601,7 +601,7 @@ impl eframe::App for EntropyApp {
                         ui.spacing_mut().item_spacing.x = 3.0;
                         ui.label(
                             RichText::new("tools of the future by")
-                                .size(11.0)
+                                .size(12.0)
                                 .color(muted),
                         );
                         let (site_label, site_url) =
@@ -612,7 +612,7 @@ impl eframe::App for EntropyApp {
                                 ("eh.industries", "https://eh.industries")
                             };
                         ui.add(egui::Hyperlink::from_label_and_url(
-                            RichText::new(site_label).size(11.0),
+                            RichText::new(site_label).size(12.0),
                             site_url,
                         ));
                     });

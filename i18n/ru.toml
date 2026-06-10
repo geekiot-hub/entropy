@@ -894,6 +894,7 @@ tap_dance_editor = "Редактор Tap Dance"
 [combo_editor]
 input_keys = "Входные клавиши"
 output_key = "Выходная клавиша"
+keycap_mouse_hint = "ЛКМ по клавише Combo — выбрать, ПКМ — очистить; Esc — к раскладке"
 select_combo_slot = "Выберите слот Combo"
 local_name_for_this_combo_slot = "Локальное имя этого слота Combo"
 keys_that_must_be_pressed_together = "Клавиши, которые нужно нажать вместе"
