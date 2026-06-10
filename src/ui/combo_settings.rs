@@ -70,6 +70,14 @@ impl EntropyApp {
         self.combo_capture_last_input_at = 0.0;
     }
 
+    fn start_combo_capture(&mut self, combo_idx: usize, ctx: &egui::Context) {
+        self.selected_combo = combo_idx;
+        self.combo_pick_target = None;
+        self.combo_capture_keys.clear();
+        self.combo_capture_open = true;
+        self.combo_capture_last_input_at = ctx.input(|i| i.time);
+    }
+
     fn open_combo_key_picker(&mut self, combo_idx: usize, field: ComboPickField) {
         self.combo_capture_open = false;
         self.combo_capture_keys.clear();
@@ -400,10 +408,23 @@ impl EntropyApp {
                     |ui| {
                         ui.spacing_mut().item_spacing.x = 4.0 * scale;
                         let trigger_button_width = (control_width - 12.0 * scale) / 4.0;
+                        let mut input_buttons_rect: Option<egui::Rect> = None;
                         for key_idx in 0..4 {
-                            let value = self.combo_entries[combo_idx].keys[key_idx];
+                            let value = if self.combo_capture_open {
+                                self.combo_capture_keys.get(key_idx).copied().unwrap_or(0)
+                            } else {
+                                self.combo_entries[combo_idx].keys[key_idx]
+                            };
                             let full_label = if value == 0 {
-                                format!("K{}", key_idx + 1)
+                                if self.combo_capture_open {
+                                    crate::i18n::tr_catalog(
+                                        self.app_settings.language,
+                                        "combo_editor.press_2_4_keys",
+                                    )
+                                    .to_string()
+                                } else {
+                                    format!("K{}", key_idx + 1)
+                                }
                             } else {
                                 keycode_label_with_macro_names(
                                     value,
@@ -416,7 +437,21 @@ impl EntropyApp {
                                 .replace('\n', " ")
                             };
                             let button_label = if value == 0 {
-                                format!("K{}", key_idx + 1)
+                                if self.combo_capture_open {
+                                    if key_idx == 0 {
+                                        crate::i18n::tr_catalog(
+                                            self.app_settings.language,
+                                            "combo_editor.press_2_4_keys",
+                                        )
+                                        .chars()
+                                        .take(6)
+                                        .collect()
+                                    } else {
+                                        format!("K{}", key_idx + 1)
+                                    }
+                                } else {
+                                    format!("K{}", key_idx + 1)
+                                }
                             } else if (0x5700..=0x57FF).contains(&value) {
                                 format!("TD{}", value - 0x5700)
                             } else {
@@ -436,11 +471,31 @@ impl EntropyApp {
                                 true,
                             )
                             .on_hover_text(full_label.as_str());
+                            input_buttons_rect =
+                                Some(input_buttons_rect.map_or(resp.rect, |r| r.union(resp.rect)));
                             if resp.clicked() {
+                                self.start_combo_capture(combo_idx, ui.ctx());
+                            } else if resp.secondary_clicked() {
                                 self.open_combo_key_picker(
                                     combo_idx,
                                     ComboPickField::Trigger(key_idx),
                                 );
+                            }
+                        }
+                        if self.combo_capture_open {
+                            let clicked_outside_input = ui.ctx().input(|i| {
+                                i.pointer.any_pressed()
+                                    && i.pointer
+                                        .interact_pos()
+                                        .map(|pos| {
+                                            input_buttons_rect
+                                                .map(|rect| !rect.contains(pos))
+                                                .unwrap_or(false)
+                                        })
+                                        .unwrap_or(false)
+                            });
+                            if clicked_outside_input {
+                                self.apply_combo_capture();
                             }
                         }
                     },
