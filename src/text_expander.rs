@@ -112,7 +112,7 @@ impl TextExpansionEngine {
             })
             .filter(|(_, trigger)| self.buffer.ends_with(&trigger.text))
             .filter(|(_, trigger)| self.boundary_ok(&trigger.text))
-            .filter(|(_, trigger)| !self.has_longer_pending_trigger(&trigger.text))
+            .filter(|(_, trigger)| !self.has_longer_pending_trigger(trigger))
             .max_by_key(|(_, trigger)| (trigger.text.chars().count(), trigger.priority))
             .map(|(rule, trigger)| {
                 let (replacement, cursor_back_chars) = prepare_replacement(&rule.replacement);
@@ -124,14 +124,15 @@ impl TextExpansionEngine {
             })
     }
 
-    fn has_longer_pending_trigger(&self, trigger: &str) -> bool {
+    fn has_longer_pending_trigger(&self, trigger: &ActivationTrigger) -> bool {
         self.rules.iter().any(|rule| {
             rule_usable(rule)
                 && activation_triggers(&rule.trigger)
                     .into_iter()
                     .any(|candidate| {
-                        candidate.text.chars().count() > trigger.chars().count()
-                            && candidate.text.starts_with(trigger)
+                        candidate.priority >= trigger.priority
+                            && candidate.text.chars().count() > trigger.text.chars().count()
+                            && candidate.text.starts_with(&trigger.text)
                     })
         })
     }
@@ -637,6 +638,28 @@ mod tests {
             matched = engine.push_char(ch);
         }
         assert_eq!(matched.unwrap().replacement, "Cyrillic");
+    }
+
+    #[test]
+    fn exact_trigger_beats_longer_layout_alias_prefix() {
+        let mut engine =
+            TextExpansionEngine::new(vec![rule(":sig", "Signature"), rule(":ышпр", "Alias")]);
+        let mut matched = None;
+        for ch in ":sig".chars() {
+            matched = engine.push_char(ch);
+        }
+        assert_eq!(matched.unwrap().replacement, "Signature");
+    }
+
+    #[test]
+    fn shorter_exact_trigger_still_waits_for_longer_exact_trigger() {
+        let mut engine =
+            TextExpansionEngine::new(vec![rule(":sig", "Short"), rule(":siglong", "Long")]);
+        let mut matched = None;
+        for ch in ":siglong".chars() {
+            matched = engine.push_char(ch);
+        }
+        assert_eq!(matched.unwrap().replacement, "Long");
     }
 
     #[test]
