@@ -718,7 +718,7 @@ pub fn keycode_label_with_names(value: u16, custom: &[CustomKeycode], layer_name
         let kc_str = find_keycode(kc as u16)
             .map(|k| simple_key_name(k))
             .unwrap_or_else(|| "?".to_string());
-        return format!("LT {}/{}", layer_name(layer as u16), kc_str);
+        return format!("LT {}\n{}", layer_name(layer as u16), kc_str);
     }
 
     // QK_MOD_TAP: 0x2000 | (mods << 8) | kc
@@ -730,7 +730,7 @@ pub fn keycode_label_with_names(value: u16, custom: &[CustomKeycode], layer_name
             .map(|k| simple_key_name(k))
             .unwrap_or_else(|| "?".to_string());
         let mod_str = decode_mods(mods as u16, right);
-        return format!("MT {}+{}", mod_str, kc_str);
+        return format!("MT {}\n{}", mod_str, kc_str);
     }
 
     // Modifier+key combos: 0x0100..0x1F00 | kc
@@ -763,7 +763,7 @@ pub fn keycode_label_with_names(value: u16, custom: &[CustomKeycode], layer_name
             0x18 => format!("R{}", gui),
             _ => "Mod".into(),
         };
-        return format!("{}+{}", mod_str, kc_str);
+        return format!("{}\n{}", mod_str, kc_str);
     }
 
     if value == 0x0001 { return "▽".to_string(); }

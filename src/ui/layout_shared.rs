@@ -333,6 +333,115 @@ pub(crate) fn paint_centered_text_rotated(
     ));
 }
 
+fn keycap_label_text_scale(rect: egui::Rect) -> f32 {
+    (rect.width().min(rect.height()) / 54.0).clamp(0.72, 1.24)
+}
+
+fn split_keycap_label(label: &str) -> (Option<String>, String) {
+    if label.contains('\n') {
+        let mut parts = label.splitn(2, '\n');
+        return (
+            parts.next().map(str::to_string),
+            parts.next().unwrap_or(label).to_string(),
+        );
+    }
+
+    if let Some(pos) = label.rfind('+').filter(|pos| *pos + 1 < label.len()) {
+        return (Some(label[..pos].to_string()), label[pos + 1..].to_string());
+    }
+
+    if let Some(pos) = label
+        .find('/')
+        .filter(|pos| *pos > 0 && *pos + 1 < label.len())
+    {
+        return (Some(label[..pos].to_string()), label[pos + 1..].to_string());
+    }
+
+    (None, label.to_string())
+}
+
+fn fitted_keycap_font_size(
+    painter: &egui::Painter,
+    text: &str,
+    base_size: f32,
+    available_width: f32,
+    min_size: f32,
+) -> f32 {
+    if text.trim().is_empty() {
+        return base_size;
+    }
+
+    let galley = painter.layout_no_wrap(
+        text.to_string(),
+        FontId::proportional(base_size),
+        Color32::WHITE,
+    );
+    let width = galley.size().x.max(1.0);
+    if width <= available_width {
+        base_size
+    } else {
+        (base_size * available_width.max(1.0) / width).clamp(min_size, base_size)
+    }
+}
+
+fn draw_key_label_with_colors(
+    painter: &egui::Painter,
+    rect: egui::Rect,
+    label: &str,
+    top_color: Color32,
+    bottom_color: Color32,
+    rotation: f32,
+) {
+    let scale = keycap_label_text_scale(rect);
+    let clip_rect = rect.shrink2(egui::vec2(4.0, 3.0) * scale);
+    let available_width = clip_rect.width().max(1.0);
+    let clipped = painter.with_clip_rect(clip_rect);
+    let (top, bottom) = split_keycap_label(label);
+    let (top_size, bottom_size) = key_label_font_sizes(label);
+
+    if let Some(top_str) = top {
+        let top_base = top_size.unwrap_or(9.0) * scale;
+        let bottom_base = bottom_size * scale;
+        let top_fit =
+            fitted_keycap_font_size(&clipped, &top_str, top_base, available_width, 5.8 * scale);
+        let bottom_fit =
+            fitted_keycap_font_size(&clipped, &bottom, bottom_base, available_width, 6.4 * scale);
+        let center = rect.center();
+        paint_centered_text_rotated(
+            &clipped,
+            center + rotated_offset(0.0, -7.0 * scale, rotation),
+            &top_str,
+            FontId::proportional(top_fit),
+            top_color,
+            rotation,
+        );
+        paint_centered_text_rotated(
+            &clipped,
+            center + rotated_offset(0.0, 6.0 * scale, rotation),
+            &bottom,
+            FontId::proportional(bottom_fit),
+            bottom_color,
+            rotation,
+        );
+    } else {
+        let base_size = if bottom == "↵" {
+            16.0 * scale
+        } else {
+            bottom_size * scale
+        };
+        let font_size =
+            fitted_keycap_font_size(&clipped, &bottom, base_size, available_width, 6.8 * scale);
+        paint_centered_text_rotated(
+            &clipped,
+            rect.center(),
+            &bottom,
+            FontId::proportional(font_size),
+            bottom_color,
+            rotation,
+        );
+    }
+}
+
 pub(crate) fn draw_key_label_dimmed(
     painter: &egui::Painter,
     rect: egui::Rect,
@@ -350,47 +459,7 @@ pub(crate) fn draw_key_label_dimmed(
     } else {
         Color32::from_rgb(215, 215, 220)
     };
-    let (top, bottom) = if label.contains('\n') {
-        let mut parts = label.splitn(2, '\n');
-        let t = parts.next().unwrap_or("");
-        let b = parts.next().unwrap_or(label);
-        (Some(t), b)
-    } else if let Some(pos) = label.find('/') {
-        (Some(&label[..pos]), &label[pos + 1..])
-    } else {
-        (None, label)
-    };
-    let (top_size, bottom_size) = key_label_font_sizes(label);
-
-    if let Some(top_str) = top {
-        let center = rect.center();
-        paint_centered_text_rotated(
-            painter,
-            center + rotated_offset(0.0, -7.0, rotation),
-            top_str,
-            FontId::proportional(top_size.unwrap_or(9.0)),
-            dim_top,
-            rotation,
-        );
-        paint_centered_text_rotated(
-            painter,
-            center + rotated_offset(0.0, 6.0, rotation),
-            bottom,
-            FontId::proportional(bottom_size),
-            dim,
-            rotation,
-        );
-    } else {
-        let font_size = if bottom == "↵" { 16.0 } else { bottom_size };
-        paint_centered_text_rotated(
-            painter,
-            rect.center(),
-            bottom,
-            FontId::proportional(font_size),
-            dim,
-            rotation,
-        );
-    }
+    draw_key_label_with_colors(painter, rect, label, dim_top, dim, rotation);
 }
 
 pub(crate) fn number_row_shifted_label(
@@ -445,62 +514,15 @@ pub(crate) fn draw_key_label(
     dark: bool,
     rotation: f32,
 ) {
-    // Split on "\n" first, then on "/" — show top part small+dim, bottom part normal
-    let (top, bottom) = if label.contains('\n') {
-        let mut parts = label.splitn(2, '\n');
-        let t = parts.next().unwrap_or("");
-        let b = parts.next().unwrap_or(label);
-        (Some(t), b)
-    } else if let Some(pos) = label.find('/') {
-        let t = &label[..pos];
-        let b = &label[pos + 1..];
-        (Some(t), b)
+    let top_color = if dark {
+        Color32::from_rgb(130, 130, 145)
     } else {
-        (None, label)
+        Color32::from_rgb(130, 130, 150)
     };
-    let (top_size, bottom_size) = key_label_font_sizes(label);
-
-    if let Some(top_str) = top {
-        // Two-line layout
-        let top_color = if dark {
-            Color32::from_rgb(130, 130, 145)
-        } else {
-            Color32::from_rgb(130, 130, 150)
-        };
-        let main_color = if dark {
-            Color32::from_rgb(239, 233, 232)
-        } else {
-            Color32::from_rgb(26, 26, 30)
-        };
-        paint_centered_text_rotated(
-            painter,
-            rect.center() + rotated_offset(0.0, -7.0, rotation),
-            top_str,
-            FontId::proportional(top_size.unwrap_or(9.0)),
-            top_color,
-            rotation,
-        );
-        paint_centered_text_rotated(
-            painter,
-            rect.center() + rotated_offset(0.0, 6.0, rotation),
-            bottom,
-            FontId::proportional(bottom_size),
-            main_color,
-            rotation,
-        );
+    let main_color = if dark {
+        Color32::from_rgb(239, 233, 232)
     } else {
-        let font_size = if bottom == "↵" { 16.0 } else { bottom_size };
-        paint_centered_text_rotated(
-            painter,
-            rect.center(),
-            bottom,
-            FontId::proportional(font_size),
-            if dark {
-                Color32::from_rgb(239, 233, 232)
-            } else {
-                Color32::from_rgb(26, 26, 30)
-            },
-            rotation,
-        );
-    }
+        Color32::from_rgb(26, 26, 30)
+    };
+    draw_key_label_with_colors(painter, rect, label, top_color, main_color, rotation);
 }
