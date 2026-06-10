@@ -22,6 +22,10 @@ const VIAL_GUI_READ_TIMEOUT_MS: i32 = 500;
 const WINDOWS_BLE_READ_TIMEOUT_MS: i32 = 2_500;
 const WINDOWS_BLE_READ_SLICE_MS: i32 = 250;
 const WINDOWS_BLE_SETTLE_DELAY: Duration = Duration::from_millis(12);
+#[cfg(target_os = "windows")]
+const WINDOWS_HID_HELPER_USB_COMMAND_TIMEOUT: Duration = Duration::from_millis(1_500);
+#[cfg(target_os = "windows")]
+const WINDOWS_HID_HELPER_BLE_COMMAND_TIMEOUT: Duration = Duration::from_secs(8);
 const VIAL_GUI_RETRY_DELAY: Duration = Duration::from_millis(500);
 const HID_OPEN_RETRIES: usize = 5;
 const HID_OPEN_RETRY_DELAY: Duration = Duration::from_millis(250);
@@ -109,6 +113,23 @@ impl Drop for HidProxy {
             let _ = child.wait();
         }
     }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn is_disconnect_error(error: &anyhow::Error) -> bool {
+    error.chain().any(|cause| {
+        let message = cause.to_string().to_ascii_lowercase();
+        message.contains("disconnected")
+            || message.contains("device did not respond")
+            || message.contains("hid helper timed out")
+            || message.contains("failed to write hid helper request")
+            || message.contains("failed to flush hid helper request")
+            || message.contains("hid write failed")
+            || message.contains("hid read failed")
+            || message.contains("broken pipe")
+            || message.contains("pipe is being closed")
+            || message.contains("the device is not connected")
+    })
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -586,6 +607,21 @@ impl HidProxy {
         self.transport.is_bluetooth()
     }
 
+    fn command_timeout(&self) -> Duration {
+        if self.transport.is_bluetooth() {
+            WINDOWS_HID_HELPER_BLE_COMMAND_TIMEOUT
+        } else {
+            WINDOWS_HID_HELPER_USB_COMMAND_TIMEOUT
+        }
+    }
+
+    fn kill_child(&self) {
+        if let Ok(mut child) = self.child.lock() {
+            let _ = child.kill();
+            let _ = child.try_wait();
+        }
+    }
+
     fn request(&self, request: &str) -> Result<String> {
         {
             let mut stdin = self
@@ -602,8 +638,16 @@ impl HidProxy {
             .rx
             .lock()
             .map_err(|_| anyhow::anyhow!("HID helper receiver lock poisoned"))?;
-        rx.recv_timeout(Duration::from_secs(25))
-            .context("HID helper timed out during command")
+        match rx.recv_timeout(self.command_timeout()) {
+            Ok(line) => Ok(line),
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                self.kill_child();
+                bail!("HID helper timed out during command");
+            }
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                bail!("HID helper disconnected during command");
+            }
+        }
     }
 
     fn usb_send(&self, data: &[u8]) -> Result<[u8; MSG_LEN]> {

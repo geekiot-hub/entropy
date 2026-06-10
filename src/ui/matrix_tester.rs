@@ -95,7 +95,8 @@ impl EntropyApp {
         let poll_interval = self.matrix_tester_poll_interval();
         if now.duration_since(self.matrix_tester_last_poll) >= poll_interval {
             self.matrix_tester_last_poll = now;
-            match hid.get_switch_matrix(rows, cols) {
+            let poll_result = hid.get_switch_matrix(rows, cols);
+            match poll_result {
                 Ok(pressed) => {
                     if remember_ever_pressed {
                         if self.matrix_tester_ever_pressed.len() != pressed.len() {
@@ -113,6 +114,10 @@ impl EntropyApp {
                 }
                 Err(e) => {
                     log::warn!("Matrix poll error: {e}");
+                    if crate::hid::is_disconnect_error(&e) {
+                        self.clear_connected_keyboard_state("Device disconnected");
+                        return;
+                    }
                     self.matrix_tester_lock_checked = false;
                     self.matrix_tester_last_lock_check =
                         std::time::Instant::now() - MATRIX_TESTER_LOCK_CHECK_INTERVAL;

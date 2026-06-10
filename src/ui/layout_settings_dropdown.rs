@@ -40,20 +40,7 @@ impl EntropyApp {
                 && self.layout.is_some()
                 && !self.vial_unlock_polling
                 && !self.unlock_open;
-            let is_unlocked = if show_lock_item {
-                self.hid_device
-                    .as_ref()
-                    .and_then(|hid| hid.get_unlock_status().ok())
-                    .map(|(unlocked, _keys)| unlocked)
-                    .unwrap_or(false)
-            } else {
-                false
-            };
-            let lock_label = if is_unlocked {
-                crate::i18n::tr_catalog(lang, "ui.lock_keyboard_action")
-            } else {
-                crate::i18n::tr_catalog(lang, "ui.unlock_keyboard_action")
-            };
+            let default_lock_label = crate::i18n::tr_catalog(lang, "ui.unlock_keyboard_action");
             let settings_item_count = 2
                 + show_matrix_item as usize
                 + show_rgb_item as usize
@@ -104,7 +91,7 @@ impl EntropyApp {
                 settings_menu_labels.push(crate::i18n::tr(lang, TrKey::TapHoldOneShotTitle));
             }
             if show_lock_item {
-                settings_menu_labels.push(lock_label);
+                settings_menu_labels.push(default_lock_label);
             }
             let dropdown_width = adaptive_top_dropdown_width(ui, settings_menu_labels, 184.0);
             let dropdown_rect = egui::Rect::from_min_size(
@@ -127,6 +114,28 @@ impl EntropyApp {
             if show_dropdown {
                 let dark = ui.visuals().dark_mode;
                 let rgb_available = rgb_available_for_menu;
+                let mut is_unlocked = false;
+                let mut lock_label = default_lock_label;
+                if show_lock_item {
+                    match self.hid_device.as_ref().map(|hid| hid.get_unlock_status()) {
+                        Some(Ok((unlocked, _keys))) => {
+                            is_unlocked = unlocked;
+                            lock_label = if is_unlocked {
+                                crate::i18n::tr_catalog(lang, "ui.lock_keyboard_action")
+                            } else {
+                                crate::i18n::tr_catalog(lang, "ui.unlock_keyboard_action")
+                            };
+                        }
+                        Some(Err(e)) if crate::hid::is_disconnect_error(&e) => {
+                            self.clear_connected_keyboard_state("Device disconnected");
+                            return;
+                        }
+                        Some(Err(e)) => {
+                            log::warn!("get_unlock_status for settings dropdown failed: {e}");
+                        }
+                        None => {}
+                    }
+                }
                 let item_width = dropdown_rect.width() - 16.0;
                 let (
                         app_hovered,
