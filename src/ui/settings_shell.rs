@@ -103,16 +103,27 @@ impl EntropyApp {
         } else {
             Color32::from_gray(160)
         };
-        let hint_key = if self.settings_tab == SettingsTab::Combo {
-            "combo_editor.keycap_mouse_hint"
-        } else {
-            "navigation.return_to_layout_hint"
-        };
+        let hint_font = FontId::proportional(12.0);
+        if self.settings_tab == SettingsTab::Combo {
+            ui.painter().text(
+                egui::pos2(center_x, bottom - 52.0),
+                egui::Align2::CENTER_CENTER,
+                crate::i18n::tr_catalog(
+                    self.app_settings.language,
+                    "combo_editor.keycap_mouse_hint",
+                ),
+                hint_font.clone(),
+                hint_color,
+            );
+        }
         ui.painter().text(
             egui::pos2(center_x, bottom - 36.0),
             egui::Align2::CENTER_CENTER,
-            crate::i18n::tr_catalog(self.app_settings.language, hint_key),
-            FontId::proportional(12.0),
+            crate::i18n::tr_catalog(
+                self.app_settings.language,
+                "navigation.return_to_layout_hint",
+            ),
+            hint_font,
             hint_color,
         );
     }
