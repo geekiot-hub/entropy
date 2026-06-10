@@ -159,7 +159,6 @@ impl EntropyApp {
         &self,
         ctx: &egui::Context,
         modal_or_popup_open_at_frame_start: bool,
-        combo_capture_open_at_frame_start: bool,
         keyboard_input_wanted_at_frame_start: bool,
     ) -> bool {
         matches!(
@@ -170,9 +169,7 @@ impl EntropyApp {
             && !self.keycode_picker.open
             && !self.unlock_open
             && !self.vial_unlock_polling
-            && !self.combo_capture_open
             && !modal_or_popup_open_at_frame_start
-            && !combo_capture_open_at_frame_start
             && !keyboard_input_wanted_at_frame_start
             && !ctx.wants_keyboard_input()
             && !ctx.memory(|m| m.any_popup_open())

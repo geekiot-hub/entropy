@@ -264,7 +264,6 @@ impl eframe::App for EntropyApp {
 
         self.tour_target_rects.clear();
 
-        let combo_capture_open_at_frame_start = self.combo_capture_open;
         let keyboard_input_wanted_at_frame_start = ctx.wants_keyboard_input();
         #[cfg(not(target_arch = "wasm32"))]
         let import_pending_at_frame_start = self.import_pending();
@@ -906,7 +905,6 @@ impl eframe::App for EntropyApp {
         if self.can_return_from_settings_page(
             ctx,
             modal_or_popup_open_at_frame_start,
-            combo_capture_open_at_frame_start,
             keyboard_input_wanted_at_frame_start,
         ) {
             let esc_pressed = ctx.input(|i| i.key_pressed(egui::Key::Escape));

@@ -5,7 +5,7 @@ use crate::keyboard::{KeyboardLayout, LayoutOption, PhysicalEncoder, PhysicalKey
 use crate::keycode::{
     key_label_font_sizes, keycode_label_with_names_and_layout, keycode_tooltip, KeyLegendLayout,
 };
-use crate::keycode_picker::{egui_key_to_qmk, KeycodePicker, KeycodeTab};
+use crate::keycode_picker::{KeycodePicker, KeycodeTab};
 use egui::{Color32, FontId, RichText, Sense, Stroke, Vec2};
 #[cfg(not(target_arch = "wasm32"))]
 use std::sync::mpsc;
