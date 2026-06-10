@@ -281,12 +281,6 @@ impl EntropyApp {
         } else {
             Color32::from_rgb(255, 255, 255)
         };
-        let empty_fill = if dark {
-            Color32::from_rgb(28, 28, 31)
-        } else {
-            Color32::from_rgb(248, 248, 250)
-        };
-
         let key_rects: Vec<(usize, egui::Rect)> = layout
             .keys
             .iter()
@@ -384,8 +378,6 @@ impl EntropyApp {
             let is_transparent = kc == 0x0001;
             let fill = if is_pressed {
                 app_hover_fill(dark)
-            } else if kc == 0x0000 {
-                empty_fill
             } else {
                 key_fill
             };

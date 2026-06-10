@@ -1,6 +1,6 @@
 [package]
 name = "entropy"
-version = "1.13.130"
+version = "1.13.131"
 edition = "2021"
 description = "Entropy"
 authors = ["Ergohaven"]

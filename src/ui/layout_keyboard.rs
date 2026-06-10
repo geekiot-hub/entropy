@@ -348,25 +348,19 @@ impl EntropyApp {
                     );
                 }
             } else if kc == 0x0000 {
-                let no_bg = if dark {
-                    Color32::from_rgb(20, 20, 22)
-                } else {
-                    Color32::from_rgb(255, 255, 255)
-                };
-                let no_border = layer_led_outline.unwrap_or_else(|| {
+                let border = layer_led_outline.unwrap_or_else(|| {
                     if dark {
-                        Color32::from_rgb(40, 40, 44)
+                        Color32::from_rgb(54, 54, 58)
                     } else {
                         Color32::from_rgb(230, 230, 233)
                     }
                 });
-                let fill = if is_selected || is_hovered { bg } else { no_bg };
                 paint_layout_keycap(
                     painter,
                     draw_rect,
                     key.rotation,
-                    fill,
-                    Stroke::new(1.0, no_border),
+                    bg,
+                    Stroke::new(1.0, border),
                 );
             } else {
                 let border = layer_led_outline.unwrap_or_else(|| {
