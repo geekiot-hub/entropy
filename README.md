@@ -17,23 +17,23 @@ and firmware settings from one coherent interface.
 
 ## Main Features
 
-- Modern, minimalist, intuitive design for complex device configuration.
+- Modern, minimalist, intuitive design for complex device configuration
 - Complete Vial workflow: layouts, keycodes, macros, combos, tap dance,
-  key overrides, RGB, pointing controls, and firmware settings.
+  key overrides, RGB, pointing controls, and firmware settings
 - Support for keyboards, macropads, trackballs, touchpads, encoders, displays,
-  and modular input devices.
-- Text Expander for local shortcuts from programmable devices.
-- Universal Symbols for typography, arrows, math, currency, and custom characters.
-- Fast keycode picker with layouts, symbols, modifiers, macros, and smart filtering.
-- Matrix Tester and Layout Indicator for testing and daily layer visibility.
+  and modular input devices
+- Text Expander for local shortcuts from programmable devices
+- Universal Symbols for typography, arrows, math, currency, and custom characters
+- Fast keycode picker with layouts, symbols, modifiers, macros, and smart filtering
+- Matrix Tester and Layout Indicator for testing and daily layer visibility
 
 ## Other Features
 
-- Layer hover preview, encoder controls, custom labels, and multilingual legends.
+- Layer hover preview, encoder controls, custom labels, and multilingual legends
 - Advanced pages for Auto Shift, Mouse Keys, Tap-Hold, One Shot, Grave Escape,
-  Magic, Layer LEDs, touchpad settings, modules, and live feature data.
-- Light/dark themes, accent color, UI scaling, settings import/export, and tray mode.
-- Linux udev helper plus optional IBus/Fcitx5 integrations for Wayland input workflows.
+  Magic, Layer LEDs, touchpad settings, modules, and live feature data
+- Light/dark themes, accent color, UI scaling, settings import/export, and tray mode
+- Linux udev helper plus optional IBus/Fcitx5 integrations for Wayland input workflows
 
 ## Platforms
 
@@ -60,13 +60,13 @@ launching the app.
 
 ## Quick Start
 
-1. Download the build for your platform from GitHub Releases.
-2. Connect a Vial-compatible device.
-3. On Linux, install Vial udev rules if Entropy cannot open the device.
-4. Launch Entropy.
-5. Select the device from the top-left device dropdown.
-6. Edit layers, keycodes, advanced firmware features, or app settings.
-7. Save/write changes when the edited feature requires it.
+1. Download the build for your platform from GitHub Releases
+2. Connect a Vial-compatible device
+3. On Linux, install Vial udev rules if Entropy cannot open the device
+4. Launch Entropy
+5. Select the device from the top-left device dropdown
+6. Edit layers, keycodes, advanced firmware features, or app settings
+7. Save/write changes when the edited feature requires it
 
 ## Linux Device Access
 
@@ -91,8 +91,8 @@ connected device does not expose the required capability.
 
 Not in scope for this beta:
 
-- Browser-only configuration.
-- Mobile platforms.
+- Browser-only configuration
+- Mobile platforms
 
 ## Development
 
