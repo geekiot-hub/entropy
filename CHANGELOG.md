@@ -7,7 +7,7 @@ for development history. The first public beta is `v0.1.0-beta.1`.
 
 ## v0.1.0-beta.1 - Public Beta
 
-Based on internal build `v1.13.150`.
+Based on internal build `v1.13.151`.
 
 ### Main Features
 
@@ -40,6 +40,7 @@ Based on internal build `v1.13.150`.
 - Linux setup actions can run bundled IBus, Fcitx5, and udev scripts from packaged builds
 - Encoder visibility now respects Vial layout-display conditions, so Phenom encoder press keys hide together with their encoder controls
 - Segmented controls now shrink long localized labels to stay inside their button bounds
+- Windows now keeps Entropy single-instance: repeated launches restore the existing tray instance instead of starting a second app
 
 ### Beta Notes
 

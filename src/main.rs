@@ -93,6 +93,63 @@ fn notify_existing_instance() {
     let _ = std::fs::write(signal_path, now_ms);
 }
 
+#[cfg(target_os = "windows")]
+fn restore_existing_instance_window() {
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Foundation::{HWND, LPARAM};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        EnumWindows, FindWindowW, GetWindowTextLengthW, GetWindowTextW, SetForegroundWindow,
+        ShowWindow, SW_RESTORE, SW_SHOW,
+    };
+
+    unsafe extern "system" fn find_entropy_window(hwnd: HWND, lparam: LPARAM) -> i32 {
+        let len = unsafe { GetWindowTextLengthW(hwnd) };
+        if len <= 0 {
+            return 1;
+        }
+
+        let mut title = vec![0u16; len as usize + 1];
+        let copied = unsafe { GetWindowTextW(hwnd, title.as_mut_ptr(), title.len() as i32) };
+        if copied <= 0 {
+            return 1;
+        }
+
+        let title = String::from_utf16_lossy(&title[..copied as usize]);
+        if title.starts_with("Entropy (v") {
+            let out = lparam as *mut HWND;
+            if !out.is_null() {
+                unsafe {
+                    *out = hwnd;
+                }
+            }
+            return 0;
+        }
+
+        1
+    }
+
+    let exact_title: Vec<u16> = OsStr::new(APP_TITLE)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+
+    unsafe {
+        let mut hwnd = FindWindowW(std::ptr::null(), exact_title.as_ptr());
+        if hwnd.is_null() {
+            let mut found: HWND = std::ptr::null_mut();
+            EnumWindows(Some(find_entropy_window), &mut found as *mut HWND as LPARAM);
+            hwnd = found;
+        }
+
+        if !hwnd.is_null() {
+            ShowWindow(hwnd, SW_SHOW);
+            ShowWindow(hwnd, SW_RESTORE);
+            SetForegroundWindow(hwnd);
+        }
+    }
+}
+
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 fn try_acquire_single_instance() -> bool {
     use std::fs::OpenOptions;
@@ -197,15 +254,15 @@ fn main() -> eframe::Result<()> {
 
     env_logger::init();
 
-    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
     if !try_acquire_single_instance() {
         notify_existing_instance();
+        #[cfg(target_os = "windows")]
+        restore_existing_instance_window();
         return Ok(());
     }
 
-    // Temporarily allow multiple Windows instances: a frozen HID session can otherwise keep
-    // the global mutex and make a fixed build look like it "does not start".
-    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
     let _single_instance_available = try_acquire_single_instance();
 
     let options = eframe::NativeOptions {
