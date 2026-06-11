@@ -7,7 +7,7 @@ for development history. The first public beta is `v0.1.0-beta.1`.
 
 ## v0.1.0-beta.1 - Public Beta
 
-Based on internal build `v1.13.144`.
+Based on internal build `v1.13.145`.
 
 ### Main Features
 
@@ -28,6 +28,10 @@ Based on internal build `v1.13.144`.
 - Linux x86_64 AppImage
 - Windows x86_64 portable ZIP
 - SHA-256 checksum file
+
+### Documentation
+
+- README screenshot gallery for Key Picker, Matrix Tester, and Text Expander
 
 ### Beta Notes
 

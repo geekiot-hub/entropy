@@ -17,6 +17,15 @@ It is designed to feel direct and predictable: connect a device, pick it from th
 device list, and work through layout, keycodes, macros, lighting, pointing controls,
 and firmware settings from one coherent interface.
 
+## Screenshots
+
+<p align="center">
+  <img src="assets/key-picker-dark.png" alt="Key Picker in dark theme" width="49%">
+  <img src="assets/key-picker-light.png" alt="Key Picker in light theme" width="49%">
+  <img src="assets/matrix-tester.png" alt="Matrix Tester" width="49%">
+  <img src="assets/text-expander.png" alt="Text Expander" width="49%">
+</p>
+
 ## Main Features
 
 - Modern, minimalist, intuitive design for complex device configuration
