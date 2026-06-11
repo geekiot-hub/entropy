@@ -409,7 +409,7 @@ impl EntropyApp {
 
     #[cfg(target_os = "linux")]
     fn run_linux_universal_symbols_setup(&mut self, script: &str, backend: &str) {
-        let Some(script_path) = linux_universal_symbols_setup_script(script) else {
+        let Some(script_path) = crate::linux_setup::setup_script_path(script) else {
             self.status_msg = format!("Could not find {script}; run it from the Entropy folder");
             return;
         };
@@ -805,30 +805,4 @@ fn command_output_summary(primary: &[u8], fallback: &[u8]) -> String {
         .rev()
         .collect::<Vec<_>>()
         .join(" ")
-}
-
-#[cfg(target_os = "linux")]
-fn linux_universal_symbols_setup_script(script: &str) -> Option<std::path::PathBuf> {
-    let relative = std::path::Path::new(script);
-    if relative.exists() {
-        return Some(relative.to_path_buf());
-    }
-    if let Some(appdir) = std::env::var_os("APPDIR") {
-        let path = std::path::PathBuf::from(appdir).join(script);
-        if path.exists() {
-            return Some(path);
-        }
-    }
-    std::env::current_exe()
-        .ok()
-        .and_then(|exe| exe.parent().map(|dir| dir.to_path_buf()))
-        .and_then(|dir| {
-            for ancestor in dir.ancestors() {
-                let path = ancestor.join(script);
-                if path.exists() {
-                    return Some(path);
-                }
-            }
-            None
-        })
 }

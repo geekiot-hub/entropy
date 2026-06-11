@@ -11,6 +11,8 @@ mod keyboard;
 mod keycode;
 mod keycode_picker;
 mod layouts;
+#[cfg(target_os = "linux")]
+mod linux_setup;
 mod popup_state;
 #[cfg(not(target_arch = "wasm32"))]
 mod qmk_hid_host;

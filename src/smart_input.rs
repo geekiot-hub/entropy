@@ -289,28 +289,7 @@ pub fn refresh_installed_ibus_backend() {
 
 #[cfg(target_os = "linux")]
 fn linux_bundled_ibus_engine_path() -> Option<std::path::PathBuf> {
-    let script = std::path::Path::new("linux/ibus/entropy-ibus-engine");
-    if script.exists() {
-        return Some(script.to_path_buf());
-    }
-    if let Some(appdir) = std::env::var_os("APPDIR") {
-        let path = std::path::PathBuf::from(appdir).join(script);
-        if path.exists() {
-            return Some(path);
-        }
-    }
-    std::env::current_exe()
-        .ok()
-        .and_then(|exe| exe.parent().map(|dir| dir.to_path_buf()))
-        .and_then(|dir| {
-            for ancestor in dir.ancestors() {
-                let path = ancestor.join(script);
-                if path.exists() {
-                    return Some(path);
-                }
-            }
-            None
-        })
+    crate::linux_setup::bundled_ibus_engine_path()
 }
 
 #[cfg(target_os = "linux")]
