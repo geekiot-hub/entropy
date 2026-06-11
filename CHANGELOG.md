@@ -7,13 +7,14 @@ for development history. The first public beta is `v0.1.0-beta.1`.
 
 ## v0.1.0-beta.1 - Public Beta
 
-Based on internal build `v1.13.141`.
+Based on internal build `v1.13.142`.
 
 ### Main Features
 
 - Visual Vial layout editor with layers, key assignment, encoder controls, and custom keycode labels
 - Modern keycode picker with Basic, Symbols, Modifiers, Special, RGB, Macro, Tap Dance, and Custom tabs
 - Advanced firmware pages for Combos, Key Overrides, Auto Shift, Tap-Hold and One Shot, Mouse Keys, Magic, Grave Escape, Layer LEDs, RGB, Modules, Touchpad, and Live Features where supported by firmware
+- Custom names for layers, combos, macros, tap dance entries, and other device objects
 - Macro editor, Tap Dance editor, Combo editor, and Key Override editor
 - Matrix Tester for supported Vial devices
 - Layout Indicator companion window with opacity, pinning, layer labels, and pressed-key display

@@ -6,6 +6,8 @@ Modern app for programmable keyboards and input devices, built by Ergohaven.
 [![Latest beta](https://img.shields.io/badge/latest-v0.1.0--beta.1-lightgrey.svg)](https://github.com/ergohaven/entropy/releases)
 [![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey.svg)](#platforms)
 
+![Entropy layout editor](assets/entropy-layout-screenshot.png)
+
 Entropy is a desktop app with a modern, minimalist, and intuitive interface for
 configuring Vial-compatible programmable input devices: split keyboards, macropads,
 trackballs, touchpad modules, and other hardware that exposes keyboard-style
@@ -25,6 +27,7 @@ and firmware settings from one coherent interface.
 - Text Expander for local shortcuts from programmable devices
 - Universal Symbols for typography, arrows, math, currency, and custom characters
 - Fast keycode picker with layouts, symbols, modifiers, macros, and smart filtering
+- Custom names for layers, combos, macros, tap dance entries, and other device objects
 - Matrix Tester and Layout Indicator for testing and daily layer visibility
 
 ## Other Features
