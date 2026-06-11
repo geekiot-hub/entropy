@@ -7,7 +7,7 @@ Modern app for programmable keyboards and input devices, built by Ergohaven.
 [![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey.svg)](#platforms)
 [![Firmware](https://img.shields.io/badge/firmware-Vial--QMK%20%7C%20Vial--RMK-lightgrey.svg)](#compatibility)
 
-<video src="assets/entropy-demo.mp4" controls muted loop playsinline width="100%"></video>
+[![Entropy demo](assets/entropy-demo-preview.gif)](assets/entropy-demo.mp4)
 
 Entropy is a desktop app with a modern, minimalist, and intuitive interface for
 configuring programmable input devices running Vial-QMK or Vial-RMK firmware:
