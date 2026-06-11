@@ -74,6 +74,7 @@ launching the app.
 1. Download the build for your platform from GitHub Releases
 2. Connect a Vial-compatible device
 3. On Linux, install Vial udev rules if Entropy cannot open the device
+   and install the IBus backend if you want Wayland text expansion
 4. Launch Entropy
 5. Select the device from the top-left device dropdown
 6. Edit layers, keycodes, advanced firmware features, or app settings
@@ -82,13 +83,31 @@ launching the app.
 ## Linux Device Access
 
 Vial devices use hidraw access on Linux. If your device appears but cannot be opened,
-install the included udev rule:
+use the **Install Vial udev rules** action in Entropy settings, or install the
+included udev rule manually from a source checkout:
 
 ```sh
 ./linux/udev/install-vial-rules.sh
 ```
 
 Replug the device after installing the rule.
+
+## Linux IBus Backend
+
+On Wayland, Entropy uses IBus for Universal Symbols and Text Expander input. Use
+the **Install IBus** action in Entropy settings to install the bundled Entropy
+IBus engine. The AppImage includes the installer and engine, so a separate source
+checkout is not required.
+
+IBus itself and its Python bindings must still be installed by the system package
+manager. On Debian/Ubuntu-like systems:
+
+```sh
+sudo apt-get install ibus python3-gi gir1.2-ibus-1.0
+```
+
+After installation, restart IBus if Entropy did not do it automatically, then add
+**Entropy Universal Symbols** as an input source in your desktop input settings.
 
 ## Compatibility
 

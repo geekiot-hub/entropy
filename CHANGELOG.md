@@ -7,7 +7,7 @@ for development history. The first public beta is `v0.1.0-beta.1`.
 
 ## v0.1.0-beta.1 - Public Beta
 
-Based on internal build `v1.13.147`.
+Based on internal build `v1.13.148`.
 
 ### Main Features
 
@@ -33,6 +33,7 @@ Based on internal build `v1.13.147`.
 
 - README screenshot gallery for Key Picker, Matrix Tester, and Text Expander
 - README now states the Vial-QMK and Vial-RMK firmware scope near the top
+- README documents Linux IBus installation and required system dependencies
 
 ### Fixes
 
