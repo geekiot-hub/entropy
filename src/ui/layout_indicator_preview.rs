@@ -261,6 +261,7 @@ impl EntropyApp {
         tap_dance_names: &[String],
         key_legend_layout: KeyLegendLayout,
         show_shifted_number_symbols: bool,
+        layout_options_value: Option<u32>,
         encoder_visibility: &[bool],
         matrix_pressed: &[bool],
         pressed_key_layers: &[Option<usize>],
@@ -286,12 +287,8 @@ impl EntropyApp {
             .iter()
             .enumerate()
             .filter_map(|(ki, key)| {
-                Self::layout_condition_visible(
-                    layout,
-                    key.layout_condition,
-                    self.layout_options_value,
-                )
-                .then(|| (ki, layout_physical_key_rect(key, geometry)))
+                Self::layout_condition_visible(layout, key.layout_condition, layout_options_value)
+                    .then(|| (ki, layout_physical_key_rect(key, geometry)))
             })
             .collect();
 
@@ -301,7 +298,7 @@ impl EntropyApp {
             if !Self::layout_condition_visible(
                 layout,
                 encoder.layout_condition,
-                self.layout_options_value,
+                layout_options_value,
             ) {
                 continue;
             }

@@ -306,6 +306,7 @@ impl EntropyApp {
         let tap_dance_names = self.keycode_picker.tap_dance_names.clone();
         let key_legend_layout = self.app_settings.key_legend_layout;
         let show_shifted_number_symbols = self.app_settings.show_shifted_number_symbols;
+        let layout_options_value = self.layout_options_value;
         let encoder_visibility = self.encoder_visibility.clone();
         let matrix_pressed = self.matrix_tester_pressed.clone();
         let pressed_key_layers = self.sticky_layout_pressed_key_layers.clone();
@@ -531,6 +532,7 @@ impl EntropyApp {
                             &tap_dance_names,
                             key_legend_layout,
                             show_shifted_number_symbols,
+                            layout_options_value,
                             &encoder_visibility,
                             &matrix_pressed,
                             &pressed_key_layers,
