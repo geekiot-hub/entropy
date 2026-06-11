@@ -285,12 +285,26 @@ impl EntropyApp {
             .keys
             .iter()
             .enumerate()
-            .map(|(ki, key)| (ki, layout_physical_key_rect(key, geometry)))
+            .filter_map(|(ki, key)| {
+                Self::layout_condition_visible(
+                    layout,
+                    key.layout_condition,
+                    self.layout_options_value,
+                )
+                .then(|| (ki, layout_physical_key_rect(key, geometry)))
+            })
             .collect();
 
         let mut encoder_groups: Vec<(u8, egui::Rect, Option<(usize, u16)>, Option<(usize, u16)>)> =
             Vec::new();
         for (encoder_idx, encoder) in layout.encoders.iter().enumerate() {
+            if !Self::layout_condition_visible(
+                layout,
+                encoder.layout_condition,
+                self.layout_options_value,
+            ) {
+                continue;
+            }
             if !encoder_visibility
                 .get(encoder.encoder_idx as usize)
                 .copied()

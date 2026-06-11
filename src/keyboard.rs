@@ -19,6 +19,9 @@ pub struct PhysicalKey {
     pub rotation_x: f32,
     /// Rotation anchor Y (in KLE units)
     pub rotation_y: f32,
+    /// Optional Vial layout-display condition from KLE label position 8.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub layout_condition: Option<LayoutCondition>,
 }
 
 /// A visual encoder slot on the keyboard layout.
@@ -37,6 +40,15 @@ pub struct PhysicalEncoder {
     pub rotation_x: f32,
     /// Rotation anchor Y (in KLE units)
     pub rotation_y: f32,
+    /// Optional Vial layout-display condition from KLE label position 8.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub layout_condition: Option<LayoutCondition>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct LayoutCondition {
+    pub option_idx: usize,
+    pub value: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -136,6 +148,20 @@ fn parse_encoder_from_label(label: &str, align: usize) -> Option<(u8, u8)> {
     let first_line = labels[0].trim();
     let (idx, dir) = first_line.split_once(',')?;
     Some((idx.trim().parse().ok()?, dir.trim().parse().ok()?))
+}
+
+/// Parse Vial KLE layout-display condition from label position 8.
+///
+/// Labels use "option,value", for example "0,0" means the item is visible when
+/// the first `layouts.labels` option is set to value 0.
+fn parse_layout_condition_from_label(label: &str, align: usize) -> Option<LayoutCondition> {
+    let labels = kle_labels(label, align);
+    let condition = labels[8].trim();
+    let (option_idx, value) = condition.split_once(',')?;
+    Some(LayoutCondition {
+        option_idx: option_idx.trim().parse().ok()?,
+        value: value.trim().parse().ok()?,
+    })
 }
 
 fn parse_layer_name_value(value: &serde_json::Value) -> Option<String> {
@@ -401,6 +427,7 @@ impl KeyboardLayout {
                             rotation: rotation_angle,
                             rotation_x,
                             rotation_y,
+                            layout_condition: parse_layout_condition_from_label(label, align),
                         });
                         cur_x += next_w;
                         next_w = 1.0;
@@ -420,6 +447,7 @@ impl KeyboardLayout {
                             rotation: rotation_angle,
                             rotation_x,
                             rotation_y,
+                            layout_condition: parse_layout_condition_from_label(label, align),
                         });
                     }
 

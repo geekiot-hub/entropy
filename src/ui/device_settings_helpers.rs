@@ -9,6 +9,62 @@ impl EntropyApp {
             .starts_with("hide encoder")
     }
 
+    pub(super) fn encoder_layout_option_indices(layout: &KeyboardLayout) -> Vec<usize> {
+        layout
+            .layout_options
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, option)| Self::is_encoder_layout_option(option).then_some(idx))
+            .collect()
+    }
+
+    pub(super) fn layout_condition_visible(
+        layout: &KeyboardLayout,
+        condition: Option<crate::keyboard::LayoutCondition>,
+        packed: Option<u32>,
+    ) -> bool {
+        let Some(condition) = condition else {
+            return true;
+        };
+        let values = Self::unpack_layout_option_values(&layout.layout_options, packed.unwrap_or(0));
+        values
+            .get(condition.option_idx)
+            .copied()
+            .map(|value| value == condition.value)
+            .unwrap_or(true)
+    }
+
+    pub(super) fn apply_encoder_layout_options_to_visibility(
+        layout: &KeyboardLayout,
+        packed: Option<u32>,
+        visibility: &mut Vec<bool>,
+    ) {
+        let Some(packed) = packed else {
+            return;
+        };
+        let option_indices = Self::encoder_layout_option_indices(layout);
+        if option_indices.is_empty() {
+            return;
+        }
+
+        let values = Self::unpack_layout_option_values(&layout.layout_options, packed);
+        let encoder_indices = layout
+            .encoders
+            .iter()
+            .map(|encoder| encoder.encoder_idx as usize)
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+
+        for (encoder_idx, option_idx) in encoder_indices.into_iter().zip(option_indices) {
+            if visibility.len() <= encoder_idx {
+                visibility.resize(encoder_idx + 1, true);
+            }
+            let hide_encoder = values.get(option_idx).copied().unwrap_or(0) != 0;
+            visibility[encoder_idx] = !hide_encoder;
+        }
+    }
+
     pub(super) fn display_preset_choice_label(
         language: crate::i18n::Language,
         label: &str,

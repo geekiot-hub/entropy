@@ -88,6 +88,7 @@ fn parse_embedded_json(json: &str) -> Option<Vec<PhysicalKey>> {
                 rotation: r,
                 rotation_x: rx,
                 rotation_y: ry,
+                layout_condition: None,
             }
         })
         .collect();

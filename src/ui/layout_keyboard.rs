@@ -18,7 +18,14 @@ impl EntropyApp {
             .keys
             .iter()
             .enumerate()
-            .map(|(ki, key)| {
+            .filter_map(|(ki, key)| {
+                if !Self::layout_condition_visible(
+                    layout,
+                    key.layout_condition,
+                    self.layout_options_value,
+                ) {
+                    return None;
+                }
                 let geometry = LayoutGeometry {
                     offset_x,
                     offset_y,
@@ -27,14 +34,21 @@ impl EntropyApp {
                     layout_h,
                 };
                 let rect = layout_physical_key_rect(key, geometry);
-                (ki, rect)
+                Some((ki, rect))
             })
             .collect();
         let encoder_rects: Vec<(usize, egui::Rect)> = layout
             .encoders
             .iter()
             .enumerate()
-            .map(|(ei, encoder)| {
+            .filter_map(|(ei, encoder)| {
+                if !Self::layout_condition_visible(
+                    layout,
+                    encoder.layout_condition,
+                    self.layout_options_value,
+                ) {
+                    return None;
+                }
                 let geometry = LayoutGeometry {
                     offset_x,
                     offset_y,
@@ -43,7 +57,7 @@ impl EntropyApp {
                     layout_h,
                 };
                 let rect = layout_physical_encoder_rect(encoder, geometry);
-                (ei, rect)
+                Some((ei, rect))
             })
             .collect();
         let keyboard_target_rect = key_rects

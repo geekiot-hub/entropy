@@ -235,6 +235,11 @@ impl EntropyApp {
                 let encoder_count = r.layout.encoder_count();
                 self.encoder_visibility =
                     load_encoder_visibility(&self.current_encoder_visibility_id, encoder_count);
+                Self::apply_encoder_layout_options_to_visibility(
+                    &r.layout,
+                    self.layout_options_value,
+                    &mut self.encoder_visibility,
+                );
 
                 // Populate picker
                 self.keycode_picker.supports_rgb =
