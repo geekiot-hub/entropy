@@ -28,13 +28,14 @@ and firmware settings from one coherent interface.
 - Universal Symbols for typography, arrows, math, currency, and custom characters
 - Fast keycode picker with layouts, symbols, modifiers, macros, and smart filtering
 - Custom names for layers, combos, macros, tap dance entries, and other device objects
+- Live Features as a built-in qmk-hid-host replacement for firmware host data
 - Matrix Tester and Layout Indicator for testing and daily layer visibility
 
 ## Other Features
 
 - Layer hover preview, encoder controls, custom labels, and multilingual legends
 - Advanced pages for Auto Shift, Mouse Keys, Tap-Hold, One Shot, Grave Escape,
-  Magic, Layer LEDs, touchpad settings, modules, and live feature data
+  Magic, Layer LEDs, touchpad settings, and modules
 - Light/dark themes, accent color, UI scaling, settings import/export, and tray mode
 - Linux udev helper plus optional IBus/Fcitx5 integrations for Wayland input workflows
 
