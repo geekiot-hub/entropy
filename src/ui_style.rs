@@ -292,16 +292,31 @@ pub fn settings_segmented_control(
                 Stroke::new(1.0, border_color(dark).gamma_multiply(0.75)),
             );
         }
-        ui.painter().text(
-            segment_rect.center(),
-            egui::Align2::CENTER_CENTER,
-            label,
-            FontId::proportional(12.5),
-            if is_selected {
-                ui.visuals().text_color()
-            } else {
-                muted_text(dark)
-            },
+        let text_color = if is_selected {
+            ui.visuals().text_color()
+        } else {
+            muted_text(dark)
+        };
+        let text_rect = segment_rect.shrink2(Vec2::new(8.0, 0.0));
+        let mut font_size = 12.5_f32;
+        let mut galley =
+            ui.painter()
+                .layout_no_wrap(label.clone(), FontId::proportional(font_size), text_color);
+        while galley.size().x > text_rect.width() && font_size > 8.5 {
+            font_size -= 0.5;
+            galley = ui.painter().layout_no_wrap(
+                label.clone(),
+                FontId::proportional(font_size),
+                text_color,
+            );
+        }
+        ui.painter().with_clip_rect(text_rect).galley(
+            egui::pos2(
+                text_rect.center().x - galley.size().x * 0.5,
+                text_rect.center().y - galley.size().y * 0.5,
+            ),
+            galley,
+            text_color,
         );
         if resp.hovered() {
             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
